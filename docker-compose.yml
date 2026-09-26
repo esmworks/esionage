@@ -18,7 +18,10 @@ services:
       retries: 10
 
   app:
+    # Prebuilt image from GitHub Container Registry; `docker compose up --build` builds from source instead.
+    image: ghcr.io/esmworks/esionage:${ESIONAGE_VERSION:-latest}
     build: .
+    pull_policy: missing
     restart: unless-stopped
     depends_on:
       db:

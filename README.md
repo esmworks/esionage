@@ -23,14 +23,24 @@ approve them over OAuth.
 
 ## Quick start (Docker)
 
+Prebuilt images for amd64 and arm64 are published to
+[GitHub Container Registry](https://github.com/esmworks/esionage/pkgs/container/esionage) for every release.
+You only need two files:
+
 ```bash
-cp .env.example .env
-# set BETTER_AUTH_SECRET to the output of: openssl rand -base64 32
-docker compose up -d --build
+mkdir esionage && cd esionage
+curl -fsSLO https://raw.githubusercontent.com/esmworks/esionage/main/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/esmworks/esionage/main/.env.example -o .env
+# set BETTER_AUTH_SECRET in .env to the output of: openssl rand -base64 32
+docker compose up -d
 ```
 
 Open http://localhost:3000 and create an account. Migrations run automatically when the app
 container starts.
+
+- **Pin a version:** set `ESIONAGE_VERSION=0.1.0` in `.env`. The default is `latest`.
+- **Upgrade:** run `docker compose pull && docker compose up -d`.
+- **Build from source:** clone the repository and run `docker compose up -d --build`.
 
 If the app is reachable under another URL (a domain behind a reverse proxy, another port), set
 `APP_URL` to that public origin. It is the OAuth issuer and the MCP resource identifier, so it
