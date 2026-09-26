@@ -1,0 +1,6 @@
+# Loaded automatically by `docker compose` in a clone of this repository (not by Dokploy).
+services:
+  db:
+    # Published on loopback only, for `pnpm dev` on the host.
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"

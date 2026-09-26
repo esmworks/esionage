@@ -46,6 +46,20 @@ If the app is reachable under another URL (a domain behind a reverse proxy, anot
 `APP_URL` to that public origin. It is the OAuth issuer and the MCP resource identifier, so it
 must match what clients see.
 
+## Deploy on Dokploy
+
+Use `docker-compose.dokploy.yml`. It builds from source and publishes no host ports, since
+Dokploy itself uses port 3000.
+
+1. Create a **Compose** service with this repository as its Git source and set the compose path
+   to `./docker-compose.dokploy.yml`.
+2. Under **Environment**, set `APP_URL` (the public origin, e.g. `https://notes.example.com`),
+   `POSTGRES_PASSWORD` (`openssl rand -hex 24`) and `BETTER_AUTH_SECRET`
+   (`openssl rand -base64 32`).
+3. Under **Advanced**, turn on **Isolated Deployments** so `app` and `db` share a private network.
+4. Under **Domains**, add your domain for service `app`, port `3000`, with HTTPS.
+5. Deploy. Turn on auto deploy to redeploy on every push.
+
 ## Connect an AI assistant
 
 The server URL is `<APP_URL>/mcp`. Settings → *Connect an AI assistant* shows ready-to-copy
