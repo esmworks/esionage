@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MailConfigError, readMailConfig } from "./config";
-import { invitationEmail, renderEmail, testEmail } from "./templates";
+import { invitationEmail, PASSWORD_RESET_MINUTES, passwordResetEmail, renderEmail, testEmail } from "./templates";
 
 const FROM = "Esionage <no-reply@example.com>";
 
@@ -107,5 +107,18 @@ describe("invitationEmail", () => {
     const mail = invitationEmail("tr", { ...invitation, role: "owner" });
     expect(mail.text).toContain("sahip olarak davet etti");
     expect(mail.text).toContain("Daveti kabul et: https://notes.example.com/invite/abc123");
+  });
+
+  it("renders the password reset email with its link and lifetime", () => {
+    const url = "http://localhost:3000/api/auth/reset-password/abc?callbackURL=%2Freset-password";
+    const en = passwordResetEmail("en", { name: "Ada", url });
+    expect(en.subject).toBe("Reset your Esionage password");
+    expect(en.text).toContain(`Choose a new password: ${url}`);
+    expect(en.text).toContain(`${PASSWORD_RESET_MINUTES} minutes`);
+    expect(en.html).toContain("Hi Ada,");
+
+    const tr = passwordResetEmail("tr", { name: "Ayşe", url });
+    expect(tr.subject).toBe("Esionage şifrenizi sıfırlayın");
+    expect(tr.text).toContain(`Yeni şifre belirle: ${url}`);
   });
 });

@@ -16,5 +16,12 @@
       "owner": "sahip",
       "member": "üye"
     }
+  },
+  "passwordReset": {
+    "subject": "Esionage şifrenizi sıfırlayın",
+    "heading": "Şifrenizi sıfırlayın",
+    "body": "Merhaba {name}, Esionage hesabınızın şifresini sıfırlamak için bir istek yapıldı. İsteği siz yaptıysanız aşağıdaki düğmeyle yeni bir şifre belirleyin.",
+    "expires": "Bağlantı {minutes} dakika boyunca ve yalnızca bir kez çalışır. Bu isteği siz yapmadıysanız bu e-postayı yok sayın; şifreniz değişmez.",
+    "action": "Yeni şifre belirle"
   }
 }

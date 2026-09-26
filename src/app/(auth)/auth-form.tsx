@@ -116,16 +116,26 @@ export function AuthForm({
           <Input name="email" type="email" required autoComplete="email" />
         )}
       </label>
-      <label className="block space-y-1.5">
-        <span className="text-sm text-fg-muted">{t("fields.password")}</span>
+      <div className="space-y-1.5">
+        <div className="flex items-baseline justify-between gap-2">
+          <label htmlFor="password" className="text-sm text-fg-muted">
+            {t("fields.password")}
+          </label>
+          {mode === "sign-in" && (
+            <Link href="/forgot-password" className="text-xs text-accent hover:underline">
+              {t("signIn.forgotLink")}
+            </Link>
+          )}
+        </div>
         <Input
+          id="password"
           name="password"
           type="password"
           required
           minLength={8}
           autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
         />
-      </label>
+      </div>
       {error && <p className="text-sm text-danger">{error}</p>}
       <Button type="submit" variant="primary" className="w-full" disabled={pending}>
         {pending ? t("pending") : t(`${text}.submit`)}

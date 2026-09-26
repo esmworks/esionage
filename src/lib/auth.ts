@@ -2,18 +2,44 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { db, schema } from "@/db";
+import { requestLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
 import { baseAuthOptions, inviteTokenOf } from "@/lib/auth-options";
+import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetEmail, sendMail } from "@/server/mail";
 import { acceptInvitation, createPersonalWorkspace, invitationAllowsSignUp } from "@/server/workspaces";
 
 export { MCP_SCOPES } from "@/lib/auth-options";
 
 const base = baseAuthOptions({ invitationAllowsSignUp });
 
+/**
+ * Emails a reset link. Not awaited, so the endpoint answers equally fast whether or not an
+ * account exists for the address; failures only reach the log.
+ */
+async function sendResetPassword({ user, url }: { user: { email: string; name: string }; url: string }, request?: Request) {
+  const locale = request ? requestLocale(request.headers) : "en";
+  void sendMail({ to: user.email, ...passwordResetEmail(locale, { name: user.name, url }) }).catch((error) =>
+    console.error("could not send password reset email", error),
+  );
+}
+
 export const auth = betterAuth({
   ...base,
   secret: env.authSecret,
   database: drizzleAdapter(db, { provider: "pg", schema }),
+  emailAndPassword: {
+    ...base.emailAndPassword,
+    // Without email the endpoint answers RESET_PASSWORD_DISABLED and the page explains why.
+    sendResetPassword: mailStatus() === "disabled" ? undefined : sendResetPassword,
+    resetPasswordTokenExpiresIn: PASSWORD_RESET_MINUTES * 60,
+    revokeSessionsOnPasswordReset: true,
+  },
+  rateLimit: {
+    customRules: {
+      "/request-password-reset": { window: 60, max: 3 },
+      "/reset-password": { window: 60, max: 10 },
+    },
+  },
   databaseHooks: {
     user: {
       create: {

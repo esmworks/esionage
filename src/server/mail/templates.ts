@@ -112,3 +112,19 @@ export function invitationEmail(
     action: { label: t("invitation.action"), url: invitation.link },
   });
 }
+
+/** Minutes a password reset link stays valid; also the Better Auth token lifetime. */
+export const PASSWORD_RESET_MINUTES = 60;
+
+export function passwordResetEmail(locale: Locale, reset: { name: string; url: string }): RenderedEmail {
+  const t = emailTranslator(locale);
+  return renderEmail(locale, {
+    subject: t("passwordReset.subject"),
+    heading: t("passwordReset.heading"),
+    paragraphs: [
+      t("passwordReset.body", { name: reset.name }),
+      t("passwordReset.expires", { minutes: PASSWORD_RESET_MINUTES }),
+    ],
+    action: { label: t("passwordReset.action"), url: reset.url },
+  });
+}

@@ -16,5 +16,12 @@
       "owner": "an owner",
       "member": "a member"
     }
+  },
+  "passwordReset": {
+    "subject": "Reset your Esionage password",
+    "heading": "Reset your password",
+    "body": "Hi {name}, someone asked to reset the password of your Esionage account. If it was you, choose a new password with the button below.",
+    "expires": "The link works for {minutes} minutes and only once. If you didn't ask for this, ignore this email; your password stays the same.",
+    "action": "Choose a new password"
   }
 }

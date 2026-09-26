@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   check:
-    name: Typecheck, tests, build and MCP e2e
+    name: Typecheck, tests, build and e2e
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
@@ -31,11 +31,20 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      # Catches outgoing email so the auth e2e can follow reset links.
+      mailpit:
+        image: axllent/mailpit:v1.31.2
+        ports:
+          - 1025:1025
+          - 8025:8025
     env:
       APP_URL: http://localhost:3000
       DATABASE_URL: postgres://esionage:esionage@localhost:5432/esionage
       BETTER_AUTH_SECRET: ci-only-secret-that-protects-nothing-000000000000
       NEXT_TELEMETRY_DISABLED: 1
+      SMTP_URL: smtp://localhost:1025
+      MAIL_FROM: Esionage CI <ci@esionage.test>
+      MAILPIT_URL: http://localhost:8025
     steps:
       - uses: actions/checkout@v7
 
@@ -72,6 +81,9 @@ jobs:
 
       - name: MCP end-to-end
         run: pnpm tsx scripts/mcp-e2e.ts
+
+      - name: Password reset end-to-end
+        run: pnpm tsx scripts/auth-e2e.ts
 
       - name: Server log
         if: always()

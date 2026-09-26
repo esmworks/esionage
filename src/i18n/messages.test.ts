@@ -1,7 +1,7 @@
 import { en as editorEn } from "@blocknote/core/locales";
 import { describe, expect, it } from "vitest";
 import { tr as editorTr } from "./blocknote/tr";
-import { negotiateLocale } from "./config";
+import { negotiateLocale, requestLocale } from "./config";
 import { emailMessages } from "./messages/email";
 import en from "./messages/en";
 import tr from "./messages/tr";
@@ -51,5 +51,13 @@ describe("translations", () => {
     expect(negotiateLocale("de-DE")).toBe("en");
     expect(negotiateLocale(null)).toBe("en");
     expect(negotiateLocale("en;q=0.2,tr;q=0.8")).toBe("tr");
+  });
+
+  it("prefers the saved language over Accept-Language for requests", () => {
+    const headers = (init: Record<string, string>) => new Headers(init);
+    expect(requestLocale(headers({ "accept-language": "tr-TR" }))).toBe("tr");
+    expect(requestLocale(headers({ cookie: "TZ=Europe%2FIstanbul; NEXT_LOCALE=en", "accept-language": "tr" }))).toBe("en");
+    expect(requestLocale(headers({ cookie: "NEXT_LOCALE=de", "accept-language": "tr" }))).toBe("tr");
+    expect(requestLocale(headers({}))).toBe("en");
   });
 });

@@ -30,3 +30,13 @@ export function negotiateLocale(acceptLanguage: string | null | undefined): Loca
   }
   return DEFAULT_LOCALE;
 }
+
+/** The language of a request outside Next's request scope: the saved choice, else Accept-Language. */
+export function requestLocale(headers: Headers): Locale {
+  const saved = headers
+    .get("cookie")
+    ?.split(";")
+    .map((part) => part.trim().split("="))
+    .find(([name]) => name === LOCALE_COOKIE)?.[1];
+  return isLocale(saved) ? saved : negotiateLocale(headers.get("accept-language"));
+}
