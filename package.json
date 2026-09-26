@@ -10,6 +10,7 @@
     "start": "NODE_ENV=production tsx server.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
+    "mail:test": "tsx scripts/send-test-email.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "auth:schema": "auth generate --config scripts/auth-schema.config.ts --output src/db/schema/auth.ts --adapter drizzle --dialect postgresql --yes"
@@ -33,6 +34,7 @@
     "lucide-react": "^1.48.0",
     "next": "^16.3.6",
     "next-intl": "4.14.7",
+    "nodemailer": "^10.0.10",
     "postgres": "^3.4.9",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

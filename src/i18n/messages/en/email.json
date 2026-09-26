@@ -1,0 +1,9 @@
+{
+  "footer": "This email was sent by Esionage at {appUrl}.",
+  "actionFallback": "If the button doesn't work, paste this link into your browser:",
+  "test": {
+    "subject": "Test email from Esionage",
+    "heading": "Email delivery works",
+    "body": "This is a test message from your Esionage server at {appUrl}. If you can read it, email is set up correctly."
+  }
+}

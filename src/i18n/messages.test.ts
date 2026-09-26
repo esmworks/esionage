@@ -2,6 +2,7 @@ import { en as editorEn } from "@blocknote/core/locales";
 import { describe, expect, it } from "vitest";
 import { tr as editorTr } from "./blocknote/tr";
 import { negotiateLocale } from "./config";
+import { emailMessages } from "./messages/email";
 import en from "./messages/en";
 import tr from "./messages/tr";
 
@@ -29,6 +30,13 @@ describe("translations", () => {
   it("Turkish has exactly the English message keys and placeholders", () => {
     const a = leaves(en);
     const b = leaves(tr);
+    expect([...b.keys()].sort()).toEqual([...a.keys()].sort());
+    for (const [path, vars] of a) expect(b.get(path), path).toEqual(vars);
+  });
+
+  it("Turkish emails have exactly the English keys and placeholders", () => {
+    const a = leaves(emailMessages.en);
+    const b = leaves(emailMessages.tr);
     expect([...b.keys()].sort()).toEqual([...a.keys()].sort());
     for (const [path, vars] of a) expect(b.get(path), path).toEqual(vars);
   });

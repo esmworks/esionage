@@ -1,0 +1,85 @@
+import { describe, expect, it } from "vitest";
+import { MailConfigError, readMailConfig } from "./config";
+import { renderEmail, testEmail } from "./templates";
+
+const FROM = "Esionage <no-reply@example.com>";
+
+describe("readMailConfig", () => {
+  it("is off without SMTP settings", () => {
+    expect(readMailConfig({})).toBeNull();
+    expect(readMailConfig({ MAIL_FROM: FROM })).toBeNull();
+  });
+
+  it("requires MAIL_FROM once SMTP is set", () => {
+    expect(() => readMailConfig({ SMTP_HOST: "smtp.example.com" })).toThrow(MailConfigError);
+  });
+
+  it("accepts an SMTP URL and keeps credentials out of the description", () => {
+    const config = readMailConfig({ SMTP_URL: "smtps://user:secret@smtp.example.com:465", MAIL_FROM: FROM });
+    expect(config?.transport.url).toBe("smtps://user:secret@smtp.example.com:465");
+    expect(config?.description).toBe("smtps://smtp.example.com:465");
+    expect(config?.from).toBe(FROM);
+  });
+
+  it("rejects URLs that are not SMTP", () => {
+    expect(() => readMailConfig({ SMTP_URL: "https://smtp.example.com", MAIL_FROM: FROM })).toThrow(MailConfigError);
+    expect(() => readMailConfig({ SMTP_URL: "not a url", MAIL_FROM: FROM })).toThrow(MailConfigError);
+  });
+
+  it("defaults to port 587 with STARTTLS, and 465 for implicit TLS", () => {
+    const plain = readMailConfig({ SMTP_HOST: "smtp.example.com", MAIL_FROM: FROM });
+    expect(plain?.transport).toMatchObject({ host: "smtp.example.com", port: 587, secure: false, auth: undefined });
+
+    const tls = readMailConfig({ SMTP_HOST: "smtp.example.com", SMTP_SECURE: "true", MAIL_FROM: FROM });
+    expect(tls?.transport).toMatchObject({ port: 465, secure: true });
+
+    const byPort = readMailConfig({ SMTP_HOST: "smtp.example.com", SMTP_PORT: "465", MAIL_FROM: FROM });
+    expect(byPort?.transport).toMatchObject({ port: 465, secure: true });
+  });
+
+  it("passes credentials and validates values", () => {
+    const config = readMailConfig({
+      SMTP_HOST: "smtp.example.com",
+      SMTP_PORT: "2525",
+      SMTP_USER: "apikey",
+      SMTP_PASSWORD: "secret",
+      MAIL_FROM: FROM,
+    });
+    expect(config?.transport).toMatchObject({ port: 2525, secure: false, auth: { user: "apikey", pass: "secret" } });
+    expect(config?.description).toBe("smtp.example.com:2525");
+
+    expect(() => readMailConfig({ SMTP_HOST: "h", SMTP_PORT: "70000", MAIL_FROM: FROM })).toThrow(MailConfigError);
+    expect(() => readMailConfig({ SMTP_HOST: "h", SMTP_SECURE: "maybe", MAIL_FROM: FROM })).toThrow(MailConfigError);
+  });
+});
+
+describe("renderEmail", () => {
+  it("escapes content in the HTML version and keeps the text version plain", () => {
+    const email = renderEmail("en", {
+      subject: "Hi",
+      heading: "<Welcome>",
+      paragraphs: ['Tom & "Jerry"'],
+      action: { label: "Open", url: "https://example.com/a?b=1&c=2" },
+    });
+    expect(email.html).toContain("&lt;Welcome&gt;");
+    expect(email.html).toContain("Tom &amp; &quot;Jerry&quot;");
+    expect(email.html).toContain('href="https://example.com/a?b=1&amp;c=2"');
+    expect(email.html).not.toContain("<Welcome>");
+    expect(email.text).toContain("<Welcome>");
+    expect(email.text).toContain("Open: https://example.com/a?b=1&c=2");
+  });
+
+  it("refuses non-http links", () => {
+    expect(() =>
+      renderEmail("en", { subject: "x", heading: "x", paragraphs: [], action: { label: "x", url: "javascript:alert(1)" } }),
+    ).toThrow();
+  });
+
+  it("renders the test email in both languages", () => {
+    expect(testEmail("en").subject).toBe("Test email from Esionage");
+    const tr = testEmail("tr");
+    expect(tr.subject).toBe("Esionage test e-postası");
+    expect(tr.html).toContain('<html lang="tr">');
+    expect(tr.text).toContain("E-posta gönderimi çalışıyor");
+  });
+});
