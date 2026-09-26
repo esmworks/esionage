@@ -46,19 +46,27 @@ If the app is reachable under another URL (a domain behind a reverse proxy, anot
 `APP_URL` to that public origin. It is the OAuth issuer and the MCP resource identifier, so it
 must match what clients see.
 
+### Use an external PostgreSQL
+
+The compose file runs PostgreSQL 18 only while `COMPOSE_PROFILES=bundled-db` is set in `.env`.
+To use a database you already run, remove that line and set `EXTERNAL_DATABASE_URL` to its
+connection URL. The `db` service is then not created.
+
 ## Deploy on Dokploy
 
-Use `docker-compose.dokploy.yml`. It builds from source and publishes no host ports, since
-Dokploy itself uses port 3000.
+Run the database as a Dokploy database service and the app as an Application, so Dokploy
+handles database backups on its own. No compose file is involved.
 
-1. Create a **Compose** service with this repository as its Git source and set the compose path
-   to `./docker-compose.dokploy.yml`.
-2. Under **Environment**, set `APP_URL` (the public origin, e.g. `https://notes.example.com`),
-   `POSTGRES_PASSWORD` (`openssl rand -hex 24`) and `BETTER_AUTH_SECRET`
-   (`openssl rand -base64 32`).
-3. Under **Advanced**, turn on **Isolated Deployments** so `app` and `db` share a private network.
-4. Under **Domains**, add your domain for service `app`, port `3000`, with HTTPS.
-5. Deploy. Turn on auto deploy to redeploy on every push.
+1. Create a **Database → PostgreSQL** service with Docker image `postgres:18` and deploy it.
+   Copy its **Internal Connection URL**.
+2. Create an **Application** with this repository as its GitHub source and build type
+   **Dockerfile**.
+3. Under **Environment**, set `APP_URL` (the public origin, e.g. `https://notes.example.com`),
+   `BETTER_AUTH_SECRET` (`openssl rand -base64 32`) and `DATABASE_URL` (the Internal Connection
+   URL from step 1).
+4. Under **Domains**, add your domain with container port `3000` and HTTPS.
+5. Deploy. Migrations run when the container starts. Turn on auto deploy to redeploy on every
+   push.
 
 ## Connect an AI assistant
 

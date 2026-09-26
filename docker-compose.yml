@@ -1,6 +1,9 @@
 services:
+  # Bundled PostgreSQL, started only while COMPOSE_PROFILES includes `bundled-db` (see .env.example).
+  # To use an external database instead, drop the profile and set EXTERNAL_DATABASE_URL.
   db:
     image: postgres:18-alpine
+    profiles: [bundled-db]
     restart: unless-stopped
     environment:
       POSTGRES_USER: esionage
@@ -23,9 +26,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+        required: false
     environment:
       APP_URL: ${APP_URL:-http://localhost:3000}
-      DATABASE_URL: postgres://esionage:${POSTGRES_PASSWORD:-esionage}@db:5432/esionage
+      # Not DATABASE_URL: in .env that one points at localhost for `pnpm dev`.
+      DATABASE_URL: ${EXTERNAL_DATABASE_URL:-postgres://esionage:${POSTGRES_PASSWORD:-esionage}@db:5432/esionage}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env (openssl rand -base64 32)}
     ports:
       - "${PORT:-3000}:3000"
