@@ -58,16 +58,20 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
   }, [rows, view, snapshot]);
 
   if (!snapshot) {
-    return loadError ? (
-      <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-fg-muted">
-        <TriangleAlert className="h-4 w-4 text-danger" />
-        {t("page.loadError", { error: loadError })}
-        <Button size="sm" variant="ghost" onClick={() => void api.refetch()}>
-          {t("page.retry")}
-        </Button>
+    return (
+      <div className="page-gutter">
+        {loadError ? (
+          <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-fg-muted">
+            <TriangleAlert className="h-4 w-4 text-danger" />
+            {t("page.loadError", { error: loadError })}
+            <Button size="sm" variant="ghost" onClick={() => void api.refetch()}>
+              {t("page.retry")}
+            </Button>
+          </div>
+        ) : (
+          <DatabaseSkeleton />
+        )}
       </div>
-    ) : (
-      <DatabaseSkeleton />
     );
   }
 
@@ -113,73 +117,76 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
 
   return (
     <RelationProvider value={relationContext}>
-      <div className="@container min-w-0">
-        <div className="flex items-end justify-between gap-2 border-b border-border">
-          <ViewTabs
-            views={views}
-            activeId={view?.id ?? ""}
-            readOnly={readOnly}
-            onSelect={selectView}
-            onAdd={addView}
-            onRename={(v, name) => api.updateView(v, { name })}
-            onDelete={async (v) => {
-              if (v.id === view?.id) {
-                const next = views.find((x) => x.id !== v.id);
-                if (next) selectView(next.id);
-              }
-              await api.deleteView(v.id);
-            }}
-          />
-          {view && (
-            <div className="flex shrink-0 items-center gap-1 pb-1.5">
-              <ViewToolbar
-                view={view}
-                properties={snapshot.properties}
-                readOnly={readOnly}
-                onConfig={(config) => setConfig(view, config)}
-                onCreateGroupProperty={createGroupProperty}
-                onCreateDateProperty={createDateProperty}
-              />
-              {!readOnly && (
-                <Button size="sm" variant="primary" onClick={newRow} className="ml-1">
-                  <Plus className="h-3.5 w-3.5" />
-                  {t("page.new")}
-                </Button>
-              )}
+      {/* Wide layout: controls sit in the page gutter, the board scrolls edge to edge. */}
+      <div className="min-w-0">
+        <div className="page-gutter">
+          <div className="flex items-end justify-between gap-2 border-b border-border">
+            <ViewTabs
+              views={views}
+              activeId={view?.id ?? ""}
+              readOnly={readOnly}
+              onSelect={selectView}
+              onAdd={addView}
+              onRename={(v, name) => api.updateView(v, { name })}
+              onDelete={async (v) => {
+                if (v.id === view?.id) {
+                  const next = views.find((x) => x.id !== v.id);
+                  if (next) selectView(next.id);
+                }
+                await api.deleteView(v.id);
+              }}
+            />
+            {view && (
+              <div className="flex shrink-0 items-center gap-1 pb-1.5">
+                <ViewToolbar
+                  view={view}
+                  properties={snapshot.properties}
+                  readOnly={readOnly}
+                  onConfig={(config) => setConfig(view, config)}
+                  onCreateGroupProperty={createGroupProperty}
+                  onCreateDateProperty={createDateProperty}
+                />
+                {!readOnly && (
+                  <Button size="sm" variant="primary" onClick={newRow} className="ml-1">
+                    <Plus className="h-3.5 w-3.5" />
+                    {t("page.new")}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div
+              role="alert"
+              className="mt-2 flex items-center gap-2 rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-sm"
+            >
+              <TriangleAlert className="h-4 w-4 shrink-0 text-danger" />
+              <span className="flex-1">{error}</span>
+              <button
+                type="button"
+                aria-label={t("page.dismiss")}
+                onClick={api.clearError}
+                className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-hover hover:text-fg"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
+          )}
+
+          {view && (
+            <ActiveRulesBar
+              view={view}
+              properties={snapshot.properties}
+              readOnly={readOnly}
+              onConfig={(config) => setConfig(view, config)}
+            />
           )}
         </div>
 
-        {error && (
-          <div
-            role="alert"
-            className="mt-2 flex items-center gap-2 rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-sm"
-          >
-            <TriangleAlert className="h-4 w-4 shrink-0 text-danger" />
-            <span className="flex-1">{error}</span>
-            <button
-              type="button"
-              aria-label={t("page.dismiss")}
-              onClick={api.clearError}
-              className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-hover hover:text-fg"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
-
-        {view && (
-          <ActiveRulesBar
-            view={view}
-            properties={snapshot.properties}
-            readOnly={readOnly}
-            onConfig={(config) => setConfig(view, config)}
-          />
-        )}
-
         <div className="pt-2">
           {!view ? (
-            <div className="py-10 text-center text-sm text-fg-muted">
+            <div className="page-gutter py-10 text-center text-sm text-fg-muted">
               {t("page.noViews")}
               {!readOnly && (
                 <div className="mt-3">
@@ -201,26 +208,30 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
               onCreateGroupProperty={createGroupProperty}
             />
           ) : view.type === "calendar" ? (
-            <CalendarView
-              workspaceId={workspaceId}
-              view={view}
-              properties={snapshot.properties}
-              rows={visibleRows}
-              api={api}
-              readOnly={readOnly}
-              onCreateDateProperty={createDateProperty}
-            />
+            <div className="page-gutter">
+              <CalendarView
+                workspaceId={workspaceId}
+                view={view}
+                properties={snapshot.properties}
+                rows={visibleRows}
+                api={api}
+                readOnly={readOnly}
+                onCreateDateProperty={createDateProperty}
+              />
+            </div>
           ) : (
-            <TableView
-              workspaceId={workspaceId}
-              databaseId={databaseId}
-              view={view}
-              properties={snapshot.properties}
-              rows={visibleRows}
-              api={api}
-              readOnly={readOnly}
-              filtered={rows.length > 0}
-            />
+            <div className="page-gutter">
+              <TableView
+                workspaceId={workspaceId}
+                databaseId={databaseId}
+                view={view}
+                properties={snapshot.properties}
+                rows={visibleRows}
+                api={api}
+                readOnly={readOnly}
+                filtered={rows.length > 0}
+              />
+            </div>
           )}
         </div>
       </div>

@@ -91,6 +91,31 @@ export function PageView({
 
   const parents = crumbs.slice(0, -1);
 
+  const iconPicker = (
+    <IconPicker icon={icon} onChange={changeIcon} disabled={page.archived}>
+      {(toggle) =>
+        icon ? (
+          <button
+            type="button"
+            onClick={toggle}
+            className={cn("-ml-1 rounded-md p-1 leading-none hover:bg-bg-hover", wide ? "text-4xl" : "text-5xl")}
+          >
+            {icon}
+          </button>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={toggle}
+            className={cn("-ml-2 opacity-0 transition-opacity group-hover:opacity-100", page.archived && "hidden")}
+          >
+            <SmilePlus className="h-4 w-4" /> {t("icon.add")}
+          </Button>
+        )
+      }
+    </IconPicker>
+  );
+
   return (
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-20 flex h-11 items-center justify-between gap-2 border-b border-transparent bg-bg/90 px-3 backdrop-blur">
@@ -168,39 +193,24 @@ export function PageView({
         </div>
       )}
 
-      <div className={cn("mx-auto w-full flex-1 pb-32 pt-12", wide ? "max-w-[1200px] px-12" : "max-w-[900px]")}>
-        <div className={cn(!wide && "px-[54px]")}>
-          <div className="group mb-2 flex h-8 items-end">
-            <IconPicker icon={icon} onChange={changeIcon} disabled={page.archived}>
-              {(toggle) =>
-                icon ? (
-                  <button type="button" onClick={toggle} className="-ml-1 rounded-md p-1 text-5xl leading-none hover:bg-bg-hover">
-                    {icon}
-                  </button>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={toggle}
-                    className={cn("-ml-2 opacity-0 transition-opacity group-hover:opacity-100", page.archived && "hidden")}
-                  >
-                    <SmilePlus className="h-4 w-4" /> {t("icon.add")}
-                  </Button>
-                )
-              }
-            </IconPicker>
+      <div className={cn("w-full flex-1 pb-32", wide ? "pt-10" : "mx-auto max-w-[900px] pt-12")}>
+        <div className={cn(wide ? "page-gutter" : "px-[54px]")}>
+          {(!wide || !icon) && <div className="group mb-2 flex h-8 items-end">{iconPicker}</div>}
+          {!wide && icon && <div className="h-8" />}
+          {/* Wide (database) pages keep the icon beside the title so the view starts higher. */}
+          <div className={cn(wide && icon && "flex items-center gap-3")}>
+            {wide && icon && iconPicker}
+            <TitleField
+              value={title}
+              editable={editable}
+              onChange={(v) => pageDoc && setDocTitle(pageDoc.doc, v)}
+              onEnter={() => document.querySelector<HTMLElement>(".esionage-editor .ProseMirror")?.focus()}
+            />
           </div>
-          {icon && <div className="h-8" />}
-          <TitleField
-            value={title}
-            editable={editable}
-            onChange={(v) => pageDoc && setDocTitle(pageDoc.doc, v)}
-            onEnter={() => document.querySelector<HTMLElement>(".esionage-editor .ProseMirror")?.focus()}
-          />
           {error && <p className="mt-2 text-sm text-danger">{error}</p>}
         </div>
 
-        {children && <div className={cn("mt-4", !wide && "px-[54px]")}>{children}</div>}
+        {children && <div className={cn(wide ? "mt-6" : "mt-4 px-[54px]")}>{children}</div>}
 
         {showBody && (
           <div className="mt-4 min-h-[40vh]">
@@ -253,7 +263,7 @@ function TitleField({
           onEnter();
         }
       }}
-      className="w-full resize-none overflow-hidden bg-transparent text-4xl font-bold leading-tight outline-none placeholder:text-fg-faint"
+      className="block w-full min-w-0 resize-none overflow-hidden bg-transparent text-4xl font-bold leading-tight outline-none placeholder:text-fg-faint"
     />
   );
 }

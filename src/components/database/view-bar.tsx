@@ -230,12 +230,11 @@ function ToolbarButton({
       aria-label={label}
       onClick={onClick}
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-sm hover:bg-bg-hover",
+        "inline-flex h-7 min-w-7 items-center justify-center gap-1 rounded-md px-1.5 text-sm hover:bg-bg-hover",
         active ? "text-accent" : "text-fg-muted hover:text-fg",
       )}
     >
       {icon}
-      <span className="hidden @2xl:inline">{label}</span>
       {count ? <span className="text-xs tabular-nums">{count}</span> : null}
     </button>
   );
@@ -277,7 +276,7 @@ export function ViewToolbar({
   return (
     <div className="flex shrink-0 items-center gap-0.5">
       <ToolbarButton
-        icon={<ListFilter className="h-3.5 w-3.5" />}
+        icon={<ListFilter className="h-4 w-4" />}
         label={t("toolbar.filter")}
         count={filters.length}
         active={filters.length > 0}
@@ -289,7 +288,7 @@ export function ViewToolbar({
       </Floating>
 
       <ToolbarButton
-        icon={<ArrowUpDown className="h-3.5 w-3.5" />}
+        icon={<ArrowUpDown className="h-4 w-4" />}
         label={t("toolbar.sort")}
         count={sorts.length}
         active={sorts.length > 0}
@@ -307,7 +306,7 @@ export function ViewToolbar({
       {view.type === "board" && (
         <>
           <ToolbarButton
-            icon={<Rows3 className="h-3.5 w-3.5" />}
+            icon={<Rows3 className="h-4 w-4" />}
             label={groupBy ? t("toolbar.groupWithName", { name: groupBy.name }) : t("toolbar.group")}
             buttonRef={groupMenu.ref}
             onClick={groupMenu.toggle}
@@ -347,7 +346,7 @@ export function ViewToolbar({
       {view.type === "calendar" && (
         <>
           <ToolbarButton
-            icon={<CalendarDays className="h-3.5 w-3.5" />}
+            icon={<CalendarDays className="h-4 w-4" />}
             label={dateBy ? t("toolbar.calendarWithName", { name: dateBy.name }) : t("toolbar.calendarBy")}
             buttonRef={dateMenu.ref}
             onClick={dateMenu.toggle}
@@ -385,7 +384,7 @@ export function ViewToolbar({
       )}
 
       <ToolbarButton
-        icon={<EyeOff className="h-3.5 w-3.5" />}
+        icon={<EyeOff className="h-4 w-4" />}
         label={t("toolbar.properties")}
         count={hidden.size || undefined}
         buttonRef={propsMenu.ref}
