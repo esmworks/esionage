@@ -346,6 +346,8 @@ async function main() {
   const expected = [
     "list_workspaces", "search", "list_pages", "get_page", "create_page", "update_page", "archive_page",
     "get_database", "query_database", "create_database_row", "update_database_row", "create_database", "add_database_property",
+    "update_database_property", "delete_database_property", "create_database_view", "update_database_view", "move_page",
+    "list_recent_pages", "list_users", "list_trash", "restore_page", "list_page_history", "get_page_version", "restore_page_version",
   ];
   check(expected.every((t) => toolNames.includes(t)), "tools/list returns every tool", toolNames);
   const getPageTool = list.message.result.tools.find((t: { name: string }) => t.name === "get_page");
@@ -429,6 +431,64 @@ async function main() {
   const missing = await mcp.call("get_page", { page_id: "00000000-0000-0000-0000-000000000000" });
   check(missing.isError && missing.text.includes("Not found"), "unknown id → tool error, not a 500", missing.text);
 
+  // ---- moving pages
+  const moved = await mcp.ok("create_page", { workspace_id: ws, title: `MCP e2e move ${RUN}` });
+  await mcp.ok("move_page", { page_id: moved.id, parent_id: child.id });
+  const movedPage = await mcp.ok("get_page", { page_id: moved.id });
+  check(movedPage.parent_id === child.id, "move_page nests the page", movedPage);
+  const cycle = await mcp.call("move_page", { page_id: root.id, parent_id: moved.id });
+  check(cycle.isError && cycle.text.includes("inside itself"), "move_page refuses cycles", cycle.text);
+  const asRow = await mcp.ok("move_page", { page_id: moved.id, parent_id: dbPage.id });
+  check(asRow.note?.includes("row"), "moving into a database says the page became a row", asRow);
+  const rowsNow = await mcp.ok("query_database", { database_id: dbPage.id });
+  check(rowsNow.rows.some((r: { id: string }) => r.id === moved.id), "the moved page shows up as a row", rowsNow);
+  await mcp.ok("move_page", { page_id: moved.id, parent_id: root.id });
+
+  const recent = await mcp.ok("list_recent_pages", { workspace_id: ws, limit: 50 });
+  check(recent.pages.some((p: { id: string }) => p.id === moved.id), "list_recent_pages lists fresh edits", recent);
+  const members = await mcp.ok("list_users", { workspace_id: ws });
+  check(members.users.some((u: { is_you: boolean; email: string }) => u.is_you && u.email === EMAIL), "list_users includes the connected user", members);
+
+  // ---- editing properties and views
+  const renamedProp = await mcp.ok("update_database_property", {
+    database_id: dbPage.id,
+    property: "Priority",
+    name: "Urgency",
+    rename_options: [{ from: "High", to: "Urgent" }],
+    add_options: ["Medium"],
+  });
+  check(renamedProp.property.name === "Urgency" && renamedProp.property.options.join(",") === "Urgent,Low,Medium", "update_database_property renames and adds options", renamedProp);
+  const rowBAfter = await mcp.ok("get_page", { page_id: rowB.id });
+  check(rowBAfter.properties.Urgency === "Urgent", "a renamed option stays on its rows", rowBAfter.properties);
+  await mcp.ok("delete_database_property", { database_id: dbPage.id, property: "estimate" });
+  const schemaAfter = await mcp.ok("get_database", { database_id: dbPage.id });
+  check(!schemaAfter.properties.some((p: { name: string }) => p.name === "Estimate"), "delete_database_property removes the column", schemaAfter);
+
+  const board = await mcp.ok("create_database_view", {
+    database_id: dbPage.id,
+    name: "Urgent board",
+    type: "board",
+    group_by: "Status",
+    filters: [{ property: "Urgency", op: "equals", value: "Urgent" }],
+  });
+  check(board.group_by === "Status" && board.filters?.[0]?.value === "Urgent", "create_database_view stores grouping and filters", board);
+  const viaView = await mcp.ok("query_database", { database_id: dbPage.id, view_id: board.id });
+  check(viaView.total === 1 && viaView.rows[0].id === rowB.id, "the new view filters rows", viaView);
+  const boardUpdated = await mcp.ok("update_database_view", { database_id: dbPage.id, view_id: board.id, name: "Board", filters: [] });
+  check(boardUpdated.name === "Board" && !boardUpdated.filters && boardUpdated.group_by === "Status", "update_database_view clears filters and keeps grouping", boardUpdated);
+  const listView = await mcp.call("create_database_view", { database_id: dbPage.id, name: "Bad", type: "board", group_by: "Tags" });
+  check(listView.isError && listView.text.includes("select property"), "boards refuse non-select grouping", listView.text);
+
+  // ---- history: read an old version and bring it back
+  const history = await mcp.ok("list_page_history", { page_id: root.id });
+  check(history.versions.some((v: { by: string | null }) => v.by?.includes(" via ")), "list_page_history names the MCP client", history);
+  const oldest = history.versions.at(-1);
+  const version = await mcp.ok("get_page_version", { version_id: oldest.id });
+  check(version.markdown.includes("First paragraph") && version.page_id === root.id, "get_page_version returns the old body", version);
+  await mcp.ok("restore_page_version", { version_id: oldest.id });
+  page = await mcp.ok("get_page", { page_id: root.id });
+  check(page.markdown.includes("First paragraph") && !page.markdown.includes("Replaced body"), "restore_page_version brings the old body back", page.markdown);
+
   // ---- snapshots: every agent content write is preceded by a history snapshot
   const { db } = await import("@/db");
   const { sql } = await import("drizzle-orm");
@@ -485,6 +545,17 @@ async function main() {
   check(archived.in_trash, "archive_page moves the tree to the trash");
   const childAfter = await mcp.ok("get_page", { page_id: child.id });
   check(childAfter.in_trash, "archive_page includes sub-pages");
+  const trash = await mcp.ok("list_trash", { workspace_id: ws });
+  check(
+    trash.pages.some((p: { id: string }) => p.id === root.id) && !trash.pages.some((p: { id: string }) => p.id === child.id),
+    "list_trash lists the trashed root, not its sub-pages",
+    trash,
+  );
+  const restored = await mcp.ok("restore_page", { page_id: child.id });
+  check(restored.parent_id === null && restored.note?.includes("top level"), "restore_page lifts a page whose parent is still trashed", restored);
+  const restoredPage = await mcp.ok("get_page", { page_id: child.id });
+  check(!restoredPage.in_trash, "restore_page takes the page out of the trash");
+  await mcp.ok("archive_page", { page_id: child.id });
 
   const { revokeConnectedApp, listConnectedApps } = await import("@/server/mcp/grants");
   const { user } = await import("@/db/schema");

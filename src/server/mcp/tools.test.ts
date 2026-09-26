@@ -26,9 +26,31 @@ const pages = vi.hoisted(() => ({
   renamePage: vi.fn(),
   archivePage: vi.fn(),
   searchPages: vi.fn(),
+  movePage: vi.fn(),
+  recentPages: vi.fn(),
+  listTrash: vi.fn(),
+  restorePage: vi.fn(),
+  listSnapshots: vi.fn(),
+  getSnapshot: vi.fn(),
+  restoreSnapshot: vi.fn(),
 }));
 vi.mock("@/server/pages", () => pages);
-vi.mock("@/server/databases", () => ({ getDatabase: vi.fn(), listRows: vi.fn(), updateRowProperties: vi.fn(), addProperty: vi.fn() }));
+
+const databases = vi.hoisted(() => ({
+  getDatabase: vi.fn(),
+  listRows: vi.fn(),
+  updateRowProperties: vi.fn(),
+  addProperty: vi.fn(),
+  updateProperty: vi.fn(),
+  deleteProperty: vi.fn(),
+  addView: vi.fn(),
+  updateView: vi.fn(),
+  makeOption: vi.fn((name: string, index: number) => ({ id: `opt-new-${index}`, name: name.trim(), color: "gray" })),
+}));
+vi.mock("@/server/databases", () => databases);
+
+const workspaces = vi.hoisted(() => ({ listMembers: vi.fn() }));
+vi.mock("@/server/workspaces", () => workspaces);
 
 const page = {
   id: "page-1",
@@ -40,6 +62,24 @@ const page = {
   properties: {},
   archivedAt: null,
   updatedAt: new Date("2026-09-01T00:00:00Z"),
+};
+
+const status = {
+  id: "prop-status",
+  name: "Status",
+  type: "select",
+  options: {
+    options: [
+      { id: "opt-todo", name: "Todo", color: "gray" },
+      { id: "opt-done", name: "Done", color: "green" },
+    ],
+  },
+};
+const notes = { id: "prop-notes", name: "Notes", type: "text", options: {} };
+const database = {
+  database: { id: "db-1", workspaceId: "ws-1", kind: "database", title: "Tasks", archivedAt: null },
+  properties: [status, notes],
+  views: [{ id: "view-1", name: "Board", type: "board", config: { groupBy: "prop-status", sorts: [{ propertyId: "title", direction: "asc" }] } }],
 };
 
 const writer: McpPrincipal = { userId: "user-1", clientId: "client-1", scopes: ["pages:read", "pages:write"] };
@@ -84,6 +124,7 @@ beforeEach(() => {
   pages.listWorkspaces.mockResolvedValue([{ id: "ws-1", name: "Team", icon: null, role: "owner" }]);
   pages.listChildren.mockResolvedValue([]);
   collab.readPage.mockResolvedValue({ title: "Plan", markdown: "Hello", text: "Hello" });
+  databases.getDatabase.mockResolvedValue(database);
 });
 
 describe("content writes", () => {
@@ -138,5 +179,153 @@ describe("errors and bounds", () => {
     expect(r.data.markdown_truncated).toBe(true);
     expect(r.data.note).toMatch(`offset=${MAX_MARKDOWN_CHARS}`);
     expect(r.data.path).toBe("Team / Plan");
+  });
+});
+
+describe("move_page", () => {
+  it("refuses to move a page inside its own sub-tree", async () => {
+    pages.getPage.mockImplementation(async (_: string, id: string) => (id === "child" ? { ...page, id: "child", parentId: "page-1" } : page));
+    pages.getBreadcrumbs.mockResolvedValue([{ id: "page-1" }, { id: "child" }]);
+    const r = await callTool(writer, "move_page", { page_id: "page-1", parent_id: "child" });
+    expect(r.isError).toBe(true);
+    expect(r.text).toMatch(/inside itself/);
+    expect(pages.movePage).not.toHaveBeenCalled();
+  });
+
+  it("refuses to move across workspaces", async () => {
+    pages.getPage.mockImplementation(async (_: string, id: string) => (id === "other" ? { ...page, id: "other", workspaceId: "ws-2" } : page));
+    const r = await callTool(writer, "move_page", { page_id: "page-1", parent_id: "other" });
+    expect(r.text).toMatch(/another workspace/);
+    expect(pages.movePage).not.toHaveBeenCalled();
+  });
+
+  it("moves to the top level with parent_id null and says when a row leaves its database", async () => {
+    pages.getPage.mockImplementation(async (_: string, id: string) =>
+      id === "db-1" ? { ...page, id: "db-1", kind: "database" } : { ...page, parentId: "db-1" },
+    );
+    const r = await callTool(writer, "move_page", { page_id: "page-1", parent_id: null });
+    expect(pages.movePage).toHaveBeenCalledWith("user-1", "page-1", null);
+    expect(r.data.parent_id).toBeNull();
+    expect(r.data.note).toMatch(/no longer a database row/);
+  });
+});
+
+describe("database properties", () => {
+  it("renames, removes and adds options without changing kept option ids", async () => {
+    const r = await callTool(writer, "update_database_property", {
+      database_id: "db-1",
+      property: "status",
+      name: "State",
+      rename_options: [{ from: "todo", to: "To do" }],
+      remove_options: ["Done"],
+      add_options: ["Blocked", "to do"],
+    });
+    expect(r.isError).toBe(false);
+    expect(databases.updateProperty).toHaveBeenCalledWith("user-1", "prop-status", {
+      name: "State",
+      options: [
+        { id: "opt-todo", name: "To do", color: "gray" },
+        { id: "opt-new-1", name: "Blocked", color: "gray" },
+      ],
+    });
+    expect(r.data.property).toEqual({ id: "prop-status", name: "State", type: "select", options: ["To do", "Blocked"] });
+  });
+
+  it("names the existing options when one is unknown", async () => {
+    const r = await callTool(writer, "update_database_property", { database_id: "db-1", property: "Status", remove_options: ["Later"] });
+    expect(r.isError).toBe(true);
+    expect(r.text).toMatch(/Options: Todo, Done/);
+    expect(databases.updateProperty).not.toHaveBeenCalled();
+  });
+
+  it("rejects option changes on non-select properties and duplicate names", async () => {
+    const opts = await callTool(writer, "update_database_property", { database_id: "db-1", property: "Notes", add_options: ["x"] });
+    expect(opts.text).toMatch(/only select and multi_select/);
+    const dup = await callTool(writer, "update_database_property", { database_id: "db-1", property: "Notes", name: "status" });
+    expect(dup.text).toMatch(/already exists/);
+    expect(databases.updateProperty).not.toHaveBeenCalled();
+  });
+
+  it("deletes by name, and read-only tokens cannot", async () => {
+    const denied = await callTool(reader, "delete_database_property", { database_id: "db-1", property: "Notes" });
+    expect(denied.text).toMatch(/read-only/);
+    const r = await callTool(writer, "delete_database_property", { database_id: "db-1", property: "notes" });
+    expect(databases.deleteProperty).toHaveBeenCalledWith("user-1", "prop-notes");
+    expect(r.data.deleted.name).toBe("Notes");
+  });
+});
+
+describe("database views", () => {
+  it("validates board grouping before creating the view", async () => {
+    const r = await callTool(writer, "create_database_view", { database_id: "db-1", name: "By notes", type: "board", group_by: "Notes" });
+    expect(r.text).toMatch(/select property/);
+    expect(databases.addView).not.toHaveBeenCalled();
+  });
+
+  it("creates a view with filters stored as option ids", async () => {
+    databases.addView.mockResolvedValue({ id: "view-2", name: "Open", type: "table", config: {} });
+    const r = await callTool(writer, "create_database_view", {
+      database_id: "db-1",
+      name: "Open",
+      filters: [{ property: "Status", op: "not_equals", value: "done" }],
+    });
+    expect(databases.addView).toHaveBeenCalledWith("user-1", "db-1", { name: "Open", type: "table" });
+    expect(databases.updateView).toHaveBeenCalledWith("user-1", "view-2", {
+      config: { filters: [{ propertyId: "prop-status", op: "not_equals", value: "opt-done" }] },
+    });
+    expect(r.data.filters).toEqual([{ property: "Status", op: "not_equals", value: "Done" }]);
+  });
+
+  it("replaces only the settings it is given", async () => {
+    await callTool(writer, "update_database_view", { database_id: "db-1", view_id: "view-1", sorts: [] });
+    expect(databases.updateView).toHaveBeenCalledWith("user-1", "view-1", { config: { groupBy: "prop-status", sorts: [] } });
+  });
+
+  it("rejects unknown view ids", async () => {
+    const r = await callTool(writer, "update_database_view", { database_id: "db-1", view_id: "nope", name: "X" });
+    expect(r.text).toMatch(/No view with id/);
+  });
+});
+
+describe("trash and history", () => {
+  it("restore_page reports when the page lands at the top level", async () => {
+    pages.getPage
+      .mockResolvedValueOnce({ ...page, parentId: "gone", archivedAt: new Date() })
+      .mockResolvedValueOnce({ ...page, parentId: null });
+    const r = await callTool(writer, "restore_page", { page_id: "page-1" });
+    expect(pages.restorePage).toHaveBeenCalledWith("user-1", "page-1");
+    expect(r.data.note).toMatch(/top level/);
+  });
+
+  it("restore_page_version snapshots via the collab service and refuses trashed pages", async () => {
+    pages.getSnapshot.mockResolvedValue({ id: "snap-1", pageId: "page-1", title: "Plan v1", contentMarkdown: "old", createdAt: new Date() });
+    const ok = await callTool(writer, "restore_page_version", { version_id: "snap-1" });
+    expect(pages.restoreSnapshot).toHaveBeenCalledWith({ userId: "user-1", oauthClientId: "client-1" }, "snap-1");
+    expect(ok.data.url).toBe("http://localhost:3000/w/ws-1/p/page-1");
+
+    pages.restoreSnapshot.mockClear();
+    pages.getPage.mockResolvedValue({ ...page, archivedAt: new Date() });
+    const trashed = await callTool(writer, "restore_page_version", { version_id: "snap-1" });
+    expect(trashed.text).toMatch(/trash/);
+    expect(pages.restoreSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("list_page_history names the MCP client behind a change", async () => {
+    pages.listSnapshots.mockResolvedValue([
+      { id: "s1", title: "Plan", reason: "before_mcp_write", createdAt: new Date("2026-09-02T00:00:00Z"), authorName: "Erhan", clientName: "Claude" },
+    ]);
+    const r = await callTool(reader, "list_page_history", { page_id: "page-1" });
+    expect(r.data.versions[0]).toMatchObject({ id: "s1", by: "Erhan via Claude", saved_at: "2026-09-02T00:00:00.000Z" });
+  });
+});
+
+describe("workspace reads", () => {
+  it("list_users marks the connected user", async () => {
+    workspaces.listMembers.mockResolvedValue([
+      { userId: "user-1", name: "Erhan", email: "e@example.com", role: "owner" },
+      { userId: "user-2", name: "Ada", email: "a@example.com", role: "member" },
+    ]);
+    const r = await callTool(reader, "list_users", { workspace_id: "ws-1" });
+    expect(r.data.users.map((u: { is_you: boolean }) => u.is_you)).toEqual([true, false]);
   });
 });

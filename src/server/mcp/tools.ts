@@ -1,10 +1,11 @@
 import { McpServer, type ScopeChallengeHandler } from "@modelcontextprotocol/server";
 import * as z from "zod";
-import { PROPERTY_TYPES } from "@/db/schema/app";
+import { PROPERTY_TYPES, type SelectOption, type ViewConfig, type ViewType } from "@/db/schema/app";
 import { pageLabel } from "@/lib/labels";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import * as databases from "@/server/databases";
 import * as pages from "@/server/pages";
+import * as workspaces from "@/server/workspaces";
 import { MAX_MARKDOWN_CHARS, pageUrl, runTool, sliceText, ToolInputError } from "./format";
 import { READ_SCOPE, WRITE_SCOPE, type McpPrincipal } from "./principal";
 import {
@@ -12,15 +13,18 @@ import {
   describeViewConfig,
   displayProperties,
   FILTER_OPS,
+  resolvePropertyKey,
   toFilterRule,
   toSortRule,
+  type FilterInput,
   type PropertyDef,
+  type SortInput,
 } from "./query";
 
 const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
 Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, date, checkbox, url).
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
-Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history.
+Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / restore_page_version).
 Always share the returned url with the user when you create or change something.`;
 
 const id = (what: string) => z.string().min(1).describe(`The ${what} id (a UUID from another tool's output).`);
@@ -31,6 +35,86 @@ const rowProperties = z
   .describe(
     'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, and null to clear a value. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01"}',
   );
+
+const filtersInput = z.array(
+  z.object({
+    property: z.string().min(1).describe("Property name or id, or title / created_at / updated_at."),
+    op: z.enum(FILTER_OPS),
+    value: z
+      .union([z.string(), z.number(), z.boolean()])
+      .optional()
+      .describe("Comparison value; omit for is_empty / is_not_empty."),
+  }),
+);
+const sortsInput = z.array(z.object({ property: z.string().min(1), direction: z.enum(["asc", "desc"]).default("asc") }));
+
+/** Resolves a property by name or id; title / created_at / updated_at are not editable properties. */
+function requireProperty<P extends PropertyDef>(props: P[], ref: string): P {
+  const { prop } = resolvePropertyKey(props, ref);
+  if (!prop) throw new ToolInputError(`"${ref}" is a built-in field, not a database property.`);
+  return prop as P;
+}
+
+/** Applies option removals, renames and additions by name, in that order. */
+function editOptions(
+  propName: string,
+  current: SelectOption[],
+  changes: { add: string[]; rename: { from: string; to: string }[]; remove: string[] },
+) {
+  let options = [...current];
+  const find = (name: string) => options.find((o) => o.name.trim().toLowerCase() === name.trim().toLowerCase());
+  const missing = (name: string) =>
+    new ToolInputError(
+      `"${name}" is not an option of "${propName}". Options: ${options.map((o) => o.name).join(", ") || "none"}`,
+    );
+  for (const name of changes.remove) {
+    const option = find(name);
+    if (!option) throw missing(name);
+    options = options.filter((o) => o.id !== option.id);
+  }
+  for (const { from, to } of changes.rename) {
+    const option = find(from);
+    if (!option) throw missing(from);
+    const clash = find(to);
+    if (clash && clash.id !== option.id) throw new ToolInputError(`"${propName}" already has an option named "${clash.name}".`);
+    options = options.map((o) => (o.id === option.id ? { ...o, name: to.trim() } : o));
+  }
+  for (const name of changes.add) {
+    if (!find(name)) options.push(databases.makeOption(name, options.length));
+  }
+  return options;
+}
+
+type ViewInput = { group_by?: string; filters?: FilterInput[]; sorts?: SortInput[] };
+
+/** The view settings the caller asked to change, converted from names to stored ids. */
+function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput): ViewConfig {
+  const patch: ViewConfig = {};
+  if (input.group_by !== undefined) {
+    if (type !== "board") throw new ToolInputError("group_by only applies to board views.");
+    const prop = requireProperty(props, input.group_by);
+    if (prop.type !== "select") throw new ToolInputError(`Boards group by a select property; "${prop.name}" is ${prop.type}.`);
+    patch.groupBy = prop.id;
+  }
+  if (input.filters) patch.filters = input.filters.map((f) => toFilterRule(props, f));
+  if (input.sorts) patch.sorts = input.sorts.map((s) => toSortRule(props, s));
+  return patch;
+}
+
+function viewOutput(
+  database: { id: string; workspaceId: string },
+  props: PropertyDef[],
+  view: { id: string; name: string; type: ViewType; config: ViewConfig },
+) {
+  return {
+    id: view.id,
+    name: view.name,
+    type: view.type,
+    database_id: database.id,
+    ...describeViewConfig(props, view.config),
+    url: pageUrl(database.workspaceId, database.id),
+  };
+}
 
 /** Write tools advertise a step-up challenge so clients can re-authorize with pages:write. */
 const requireWrite: ScopeChallengeHandler = ({ authInfo }) => {
@@ -370,21 +454,8 @@ export function createMcpServer(principal: McpPrincipal) {
         'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select option names as values; all filters must match. Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt. Returns property values by name.',
       inputSchema: z.object({
         database_id: id("database"),
-        filters: z
-          .array(
-            z.object({
-              property: z.string().min(1).describe("Property name or id, or title / created_at / updated_at."),
-              op: z.enum(FILTER_OPS),
-              value: z
-                .union([z.string(), z.number(), z.boolean()])
-                .optional()
-                .describe("Comparison value; omit for is_empty / is_not_empty."),
-            }),
-          )
-          .optional(),
-        sorts: z
-          .array(z.object({ property: z.string().min(1), direction: z.enum(["asc", "desc"]).default("asc") }))
-          .optional(),
+        filters: filtersInput.optional(),
+        sorts: sortsInput.optional(),
         view_id: z.string().optional().describe("Apply a saved view's filters and sorts first (ids from get_database)."),
         limit: z.number().int().min(1).max(200).default(50).describe("Maximum rows to return (1-200, default 50)."),
       }),
@@ -540,6 +611,373 @@ export function createMcpServer(principal: McpPrincipal) {
         const unique = options ? [...new Map(options.map((o) => [o.trim().toLowerCase(), o.trim()])).values()] : undefined;
         const created = await databases.addProperty(userId, database_id, { name, type, options: unique });
         return { database_id, property: describeProperty(created) };
+      }),
+  );
+
+  server.registerTool(
+    "update_database_property",
+    {
+      title: "Update a database property",
+      description:
+        "Rename a database property and/or change the options of a select / multi_select property (add, rename or remove options by name). Renaming an option keeps it on every row that uses it; removing one clears it from those rows.",
+      inputSchema: z.object({
+        database_id: id("database"),
+        property: z.string().min(1).describe("Current property name or id."),
+        name: z.string().min(1).max(100).optional().describe("New property name."),
+        add_options: z.array(z.string().min(1)).max(100).optional().describe("Option names to add (existing names are skipped)."),
+        rename_options: z
+          .array(z.object({ from: z.string().min(1), to: z.string().min(1) }))
+          .max(100)
+          .optional()
+          .describe("Options to rename, by current name."),
+        remove_options: z.array(z.string().min(1)).max(100).optional().describe("Option names to remove."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+      scopeChallenge: requireWrite,
+    },
+    ({ database_id, property, name, add_options, rename_options, remove_options }) =>
+      runTool(async () => {
+        assertWrite();
+        const { properties } = await databases.getDatabase(userId, database_id);
+        const prop = requireProperty(properties, property);
+        const patch: { name?: string; options?: SelectOption[] } = {};
+        if (name !== undefined && name.trim() !== prop.name) {
+          const needle = name.trim().toLowerCase();
+          if (needle === "title" || properties.some((p) => p.id !== prop.id && p.name.trim().toLowerCase() === needle)) {
+            throw new ToolInputError(`A property named "${name}" already exists in this database.`);
+          }
+          patch.name = name.trim();
+        }
+        if (add_options?.length || rename_options?.length || remove_options?.length) {
+          if (prop.type !== "select" && prop.type !== "multi_select") {
+            throw new ToolInputError(`"${prop.name}" is a ${prop.type} property; only select and multi_select have options.`);
+          }
+          patch.options = editOptions(prop.name, prop.options.options ?? [], {
+            add: add_options ?? [],
+            rename: rename_options ?? [],
+            remove: remove_options ?? [],
+          });
+        }
+        if (!patch.name && !patch.options) throw new ToolInputError("Nothing to change: provide name or option changes.");
+        await databases.updateProperty(userId, prop.id, patch);
+        const updated = { ...prop, name: patch.name ?? prop.name, options: patch.options ? { ...prop.options, options: patch.options } : prop.options };
+        return { database_id, property: describeProperty(updated) };
+      }),
+  );
+
+  server.registerTool(
+    "delete_database_property",
+    {
+      title: "Delete a database property",
+      description:
+        "Delete a property (column) from a database. Its values are removed from every row and page history cannot bring them back, so confirm with the user first.",
+      inputSchema: z.object({
+        database_id: id("database"),
+        property: z.string().min(1).describe("Property name or id."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+      scopeChallenge: requireWrite,
+    },
+    ({ database_id, property }) =>
+      runTool(async () => {
+        assertWrite();
+        const { properties } = await databases.getDatabase(userId, database_id);
+        const prop = requireProperty(properties, property);
+        await databases.deleteProperty(userId, prop.id);
+        return { database_id, deleted: { id: prop.id, name: prop.name, type: prop.type } };
+      }),
+  );
+
+  server.registerTool(
+    "create_database_view",
+    {
+      title: "Create a database view",
+      description:
+        'Add a saved view to a database: a "table" or a "board" (cards grouped by a select property). Filters and sorts use the same form as query_database.',
+      inputSchema: z.object({
+        database_id: id("database"),
+        name: z.string().min(1).max(100).describe("View name."),
+        type: z.enum(["table", "board"]).default("table"),
+        group_by: z.string().optional().describe("Board only: the select property to group cards by. Defaults to the first select property."),
+        filters: filtersInput.optional(),
+        sorts: sortsInput.optional(),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      scopeChallenge: requireWrite,
+    },
+    ({ database_id, name, type, group_by, filters, sorts }) =>
+      runTool(async () => {
+        assertWrite();
+        const { database, properties } = await databases.getDatabase(userId, database_id);
+        if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
+        // Validate before creating so a bad filter does not leave a half-configured view behind.
+        const patch = viewConfigPatch(properties, type, { group_by, filters, sorts });
+        const created = await databases.addView(userId, database_id, { name, type });
+        const config = { ...created.config, ...patch };
+        if (Object.keys(patch).length) await databases.updateView(userId, created.id, { config });
+        return viewOutput(database, properties, { ...created, config });
+      }),
+  );
+
+  server.registerTool(
+    "update_database_view",
+    {
+      title: "Update a database view",
+      description:
+        "Rename a saved view or change its filters, sorts or board grouping (view ids from get_database). filters and sorts replace the view's current ones; pass an empty array to clear them. Settings you leave out keep their values.",
+      inputSchema: z.object({
+        database_id: id("database"),
+        view_id: id("view"),
+        name: z.string().min(1).max(100).optional().describe("New view name."),
+        group_by: z.string().optional().describe("Board only: the select property to group cards by."),
+        filters: filtersInput.optional(),
+        sorts: sortsInput.optional(),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+      scopeChallenge: requireWrite,
+    },
+    ({ database_id, view_id, name, group_by, filters, sorts }) =>
+      runTool(async () => {
+        assertWrite();
+        const { database, properties, views } = await databases.getDatabase(userId, database_id);
+        const view = views.find((v) => v.id === view_id);
+        if (!view) throw new ToolInputError(`No view with id "${view_id}" in this database. Call get_database for view ids.`);
+        const patch = viewConfigPatch(properties, view.type, { group_by, filters, sorts });
+        if (name === undefined && !Object.keys(patch).length) {
+          throw new ToolInputError("Nothing to change: provide name, group_by, filters or sorts.");
+        }
+        const config = { ...view.config, ...patch };
+        await databases.updateView(userId, view_id, {
+          ...(name !== undefined ? { name } : {}),
+          ...(Object.keys(patch).length ? { config } : {}),
+        });
+        return viewOutput(database, properties, { ...view, name: name?.trim() || view.name, config });
+      }),
+  );
+
+  server.registerTool(
+    "move_page",
+    {
+      title: "Move a page",
+      description:
+        "Move a page (with its sub-pages) under another page, or to the top level of its workspace with parent_id null. Moving a page into a database makes it a row; moving a row out of its database turns it into a regular page. Pages cannot move between workspaces.",
+      inputSchema: z.object({
+        page_id: id("page"),
+        parent_id: z.string().min(1).nullable().describe("New parent page id, or null for the workspace's top level."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      scopeChallenge: requireWrite,
+    },
+    ({ page_id, parent_id }) =>
+      runTool(async () => {
+        assertWrite();
+        const { page, parentDatabase } = await loadPage(page_id);
+        if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it with restore_page first.");
+        const parent = parent_id ? await pages.getPage(userId, parent_id) : null;
+        if (parent) {
+          if (parent.archivedAt) throw new ToolInputError("The new parent is in the trash. Choose another parent.");
+          if (parent.workspaceId !== page.workspaceId) throw new ToolInputError("Pages cannot be moved to another workspace.");
+          if (parent.kind === "database" && page.kind === "database") {
+            throw new ToolInputError("A database cannot be moved into another database.");
+          }
+          const ancestors = await pages.getBreadcrumbs(userId, parent.id);
+          if (ancestors.some((a) => a.id === page.id)) {
+            throw new ToolInputError("A page cannot be moved inside itself or one of its sub-pages.");
+          }
+        }
+        if ((parent?.id ?? null) !== page.parentId) await pages.movePage(userId, page_id, parent?.id ?? null);
+        const note =
+          parent?.kind === "database" && parentDatabase?.id !== parent.id
+            ? "The page is now a row of this database; set its properties with update_database_row."
+            : parentDatabase && parent?.id !== parentDatabase.id
+              ? "The page is no longer a database row."
+              : undefined;
+        return {
+          id: page.id,
+          title: pageLabel(page.title),
+          parent_id: parent?.id ?? null,
+          ...(note ? { note } : {}),
+          url: pageUrl(page.workspaceId, page.id),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "list_recent_pages",
+    {
+      title: "List recently edited pages",
+      description: "List the most recently edited pages of a workspace (including database rows), newest first. Trashed pages are excluded.",
+      inputSchema: z.object({
+        workspace_id: id("workspace"),
+        limit: z.number().int().min(1).max(50).default(10).describe("Maximum results (1-50, default 10)."),
+      }),
+      annotations: READ,
+    },
+    ({ workspace_id, limit }) =>
+      runTool(async () => {
+        const recent = await pages.recentPages(userId, workspace_id, limit);
+        return {
+          pages: recent.map((p) => ({
+            id: p.id,
+            title: pageLabel(p.title),
+            kind: p.kind,
+            icon: p.icon,
+            updated_at: p.updatedAt.toISOString(),
+            url: pageUrl(workspace_id, p.id),
+          })),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "list_users",
+    {
+      title: "List workspace members",
+      description: "List the members of a workspace with their name, email and role (owner or member).",
+      inputSchema: z.object({ workspace_id: id("workspace") }),
+      annotations: READ,
+    },
+    ({ workspace_id }) =>
+      runTool(async () => {
+        const members = await workspaces.listMembers(userId, workspace_id);
+        return {
+          users: members.map((m) => ({ id: m.userId, name: m.name, email: m.email, role: m.role, is_you: m.userId === userId })),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "list_trash",
+    {
+      title: "List trashed pages",
+      description:
+        "List the pages in a workspace's trash, most recently trashed first. Only the top page of each trashed tree is listed; restoring it brings its sub-pages back too.",
+      inputSchema: z.object({ workspace_id: id("workspace") }),
+      annotations: READ,
+    },
+    ({ workspace_id }) =>
+      runTool(async () => {
+        const trashed = await pages.listTrash(userId, workspace_id);
+        return {
+          pages: trashed.map((p) => ({
+            id: p.id,
+            title: pageLabel(p.title),
+            kind: p.kind,
+            icon: p.icon,
+            trashed_at: new Date(p.archived_at).toISOString(),
+          })),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "restore_page",
+    {
+      title: "Restore a page from the trash",
+      description:
+        "Bring a trashed page back with its sub-pages (ids from list_trash). If its old parent is still in the trash, it is restored to the workspace's top level.",
+      inputSchema: z.object({ page_id: id("page") }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      scopeChallenge: requireWrite,
+    },
+    ({ page_id }) =>
+      runTool(async () => {
+        assertWrite();
+        const before = await pages.getPage(userId, page_id);
+        if (before.archivedAt) await pages.restorePage(userId, page_id);
+        const after = before.archivedAt ? await pages.getPage(userId, page_id) : before;
+        return {
+          id: after.id,
+          title: pageLabel(after.title),
+          parent_id: after.parentId,
+          in_trash: false,
+          ...(before.archivedAt
+            ? after.parentId !== before.parentId
+              ? { note: "Its old parent is still in the trash, so it was restored to the top level." }
+              : {}
+            : { note: "The page was not in the trash." }),
+          url: pageUrl(after.workspaceId, after.id),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "list_page_history",
+    {
+      title: "List a page's history",
+      description:
+        "List saved versions of a page's body, newest first, with who made the change (a user, or a user through an MCP client). Read one with get_page_version and bring it back with restore_page_version.",
+      inputSchema: z.object({ page_id: id("page") }),
+      annotations: READ,
+    },
+    ({ page_id }) =>
+      runTool(async () => {
+        const snapshots = await pages.listSnapshots(userId, page_id);
+        return {
+          page_id,
+          versions: snapshots.map((s) => ({
+            id: s.id,
+            title: pageLabel(s.title),
+            saved_at: new Date(s.createdAt).toISOString(),
+            reason: s.reason,
+            by: s.clientName ? `${s.authorName ?? "Unknown"} via ${s.clientName}` : (s.authorName ?? null),
+          })),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "get_page_version",
+    {
+      title: "Read a saved page version",
+      description: `Read the title and Markdown body of a saved version from list_page_history. Long bodies are cut at ${MAX_MARKDOWN_CHARS} characters; pass offset to continue reading.`,
+      inputSchema: z.object({
+        version_id: id("version"),
+        offset: z.number().int().min(0).default(0).describe("Character offset into the Markdown body."),
+      }),
+      annotations: READ,
+    },
+    ({ version_id, offset }) =>
+      runTool(async () => {
+        const snap = await pages.getSnapshot(userId, version_id);
+        const body = sliceText(snap.contentMarkdown, offset);
+        return {
+          id: snap.id,
+          page_id: snap.pageId,
+          title: pageLabel(snap.title),
+          saved_at: new Date(snap.createdAt).toISOString(),
+          markdown: body.text,
+          ...(body.truncated
+            ? { markdown_truncated: true, markdown_total_chars: body.totalChars, ...("note" in body ? { note: body.note } : {}) }
+            : {}),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "restore_page_version",
+    {
+      title: "Restore a saved page version",
+      description:
+        "Replace a page's title and body with a saved version from list_page_history. The current version is saved to history first, so this can be undone the same way.",
+      inputSchema: z.object({ version_id: id("version") }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+      scopeChallenge: requireWrite,
+    },
+    ({ version_id }) =>
+      runTool(async () => {
+        assertWrite();
+        const snap = await pages.getSnapshot(userId, version_id);
+        const page = await pages.getPage(userId, snap.pageId);
+        if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it with restore_page first.");
+        await pages.restoreSnapshot(actor, version_id);
+        return {
+          id: page.id,
+          title: pageLabel(snap.title),
+          restored_version: snap.id,
+          snapshot: "Saved the previous version to page history before restoring.",
+          url: pageUrl(page.workspaceId, page.id),
+        };
       }),
   );
 
