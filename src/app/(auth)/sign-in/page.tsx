@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
+import { env } from "@/lib/env";
 import { AuthForm } from "../auth-form";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -8,5 +9,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function SignInPage() {
-  return <AuthForm mode="sign-in" />;
+  return <AuthForm mode="sign-in" signUpEnabled={!env.signUpDisabled} />;
 }

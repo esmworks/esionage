@@ -14,6 +14,10 @@ export const env = {
   get authSecret() {
     return required("BETTER_AUTH_SECRET");
   },
+  /** DISABLE_SIGNUP=true closes email/password sign-up; existing accounts can still sign in. */
+  get signUpDisabled() {
+    return ["1", "true", "yes"].includes((process.env.DISABLE_SIGNUP ?? "").trim().toLowerCase());
+  },
 };
 
 /** Canonical MCP protected-resource identifier; tokens are audience-bound to it. */

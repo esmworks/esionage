@@ -17,6 +17,7 @@ const ERROR_KEYS = {
   PASSWORD_TOO_SHORT: "passwordTooShort",
   PASSWORD_TOO_LONG: "passwordTooLong",
   INVALID_EMAIL: "invalidEmail",
+  EMAIL_PASSWORD_SIGN_UP_DISABLED: "signUpDisabled",
 } as const;
 
 /**
@@ -24,7 +25,7 @@ const ERROR_KEYS = {
  * connecting), the page URL carries the signed authorization query; the oauth-provider
  * client plugin forwards it and the server answers with the URL to continue to.
  */
-export function AuthForm({ mode }: { mode: Mode }) {
+export function AuthForm({ mode, signUpEnabled = true }: { mode: Mode; signUpEnabled?: boolean }) {
   const router = useRouter();
   const t = useTranslations("auth");
   const tc = useTranslations("common");
@@ -62,6 +63,20 @@ export function AuthForm({ mode }: { mode: Mode }) {
     router.refresh();
   }
 
+  if (mode === "sign-up" && !signUpEnabled) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-base font-semibold">{t("signUp.disabledTitle")}</h1>
+        <p className="text-sm text-fg-muted">{t("signUp.disabledBody")}</p>
+        <p className="text-center text-sm">
+          <Link href={`/sign-in${search}`} className="text-accent hover:underline">
+            {t("signUp.switchLink")}
+          </Link>
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <h1 className="text-base font-semibold">{t(`${text}.title`)}</h1>
@@ -89,13 +104,15 @@ export function AuthForm({ mode }: { mode: Mode }) {
       <Button type="submit" variant="primary" className="w-full" disabled={pending}>
         {pending ? t("pending") : t(`${text}.submit`)}
       </Button>
-      <p className="text-center text-sm text-fg-muted">
-        {t(`${text}.switchPrompt`)}{" "}
-        {/* Keep the OAuth query so a new user can finish connecting an app. */}
-        <Link href={`/${mode === "sign-in" ? "sign-up" : "sign-in"}${search}`} className="text-accent hover:underline">
-          {t(`${text}.switchLink`)}
-        </Link>
-      </p>
+      {(mode === "sign-up" || signUpEnabled) && (
+        <p className="text-center text-sm text-fg-muted">
+          {t(`${text}.switchPrompt`)}{" "}
+          {/* Keep the OAuth query so a new user can finish connecting an app. */}
+          <Link href={`/${mode === "sign-in" ? "sign-up" : "sign-in"}${search}`} className="text-accent hover:underline">
+            {t(`${text}.switchLink`)}
+          </Link>
+        </p>
+      )}
     </form>
   );
 }

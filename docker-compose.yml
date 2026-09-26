@@ -32,6 +32,7 @@ services:
       # Not DATABASE_URL: in .env that one points at localhost for `pnpm dev`.
       DATABASE_URL: ${EXTERNAL_DATABASE_URL:-postgres://esionage:${POSTGRES_PASSWORD:-esionage}@db:5432/esionage}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env (openssl rand -base64 32)}
+      DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
     ports:
       - "${PORT:-3000}:3000"
 

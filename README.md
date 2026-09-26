@@ -42,6 +42,10 @@ container starts.
 - **Upgrade:** run `docker compose pull && docker compose up -d`.
 - **Build from source:** clone the repository and run `docker compose up -d --build`.
 
+To stop new sign-ups after creating your own account, set `DISABLE_SIGNUP=true` and restart.
+Workspace members must already have an account, so turn it off again briefly to let a new
+teammate sign up.
+
 If the app is reachable under another URL (a domain behind a reverse proxy, another port), set
 `APP_URL` to that public origin. It is the OAuth issuer and the MCP resource identifier, so it
 must match what clients see.

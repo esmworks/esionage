@@ -42,6 +42,7 @@ export function baseAuthOptions() {
     baseURL: env.appUrl,
     emailAndPassword: {
       enabled: true,
+      disableSignUp: env.signUpDisabled,
       minPasswordLength: 8,
     },
     session: {
