@@ -24,7 +24,7 @@ COPY --from=build --chown=node:node /app/.next ./.next
 COPY next.config.ts tsconfig.json server.ts ./
 COPY src ./src
 COPY drizzle ./drizzle
-COPY scripts/migrate.ts ./scripts/migrate.ts
+COPY scripts/migrate.ts scripts/send-test-email.ts ./scripts/
 USER node
 EXPOSE 3000
 # Apply pending migrations, then start Next + the collaboration server in one process.

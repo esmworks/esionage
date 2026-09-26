@@ -1,0 +1,9 @@
+{
+  "footer": "Bu e-posta {appUrl} adresindeki Esionage tarafından gönderildi.",
+  "actionFallback": "Düğme çalışmazsa bu bağlantıyı tarayıcınıza yapıştırın:",
+  "test": {
+    "subject": "Esionage test e-postası",
+    "heading": "E-posta gönderimi çalışıyor",
+    "body": "Bu, {appUrl} adresindeki Esionage sunucunuzdan gönderilen bir test mesajı. Bunu okuyabiliyorsanız e-posta ayarları doğru demektir."
+  }
+}

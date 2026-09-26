@@ -19,6 +19,7 @@ const hostname = process.env.HOSTNAME ?? "0.0.0.0";
 // Imported after env is loaded: these modules read DATABASE_URL at import time.
 const { createCollab } = await import("./src/server/collab/service");
 const { registerCollab } = await import("./src/server/collab/bridge");
+const { describeMailSetup } = await import("./src/server/mail");
 
 const { hocuspocus, service } = createCollab();
 registerCollab(service);
@@ -65,6 +66,7 @@ server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
 
 server.listen(port, hostname, () => {
   console.log(`esionage ready on http://localhost:${port} (${dev ? "dev" : "production"})`);
+  console.log(describeMailSetup());
 });
 
 let shuttingDown = false;

@@ -56,6 +56,23 @@ The compose file runs PostgreSQL 18 only while `COMPOSE_PROFILES=bundled-db` is 
 To use a database you already run, remove that line and set `EXTERNAL_DATABASE_URL` to its
 connection URL. The `db` service is then not created.
 
+## Email
+
+Email is needed for invitations and password reset. Set these in `.env`:
+
+| Variable | Meaning |
+| --- | --- |
+| `SMTP_URL` | Connection URL, e.g. `smtp://user:password@smtp.example.com:587`. Use `smtps://` for implicit TLS on port 465. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` | Alternative to `SMTP_URL`. The port defaults to 587 (STARTTLS), or 465 with `SMTP_SECURE=true`. |
+| `MAIL_FROM` | Sender, e.g. `Esionage <no-reply@example.com>`. Required when SMTP is set. |
+
+Check the settings with `pnpm mail:test you@example.com`. In Docker, run
+`docker compose exec app tsx scripts/send-test-email.ts you@example.com`. The server also logs
+its mail setup at startup.
+
+Without SMTP, development prints emails to the server log. In production, features that need
+email say that it is not configured.
+
 ## Deploy on Dokploy
 
 Run the database as a Dokploy database service and the app as an Application, so Dokploy
@@ -105,6 +122,7 @@ Useful scripts:
 | `pnpm typecheck` | TypeScript check |
 | `pnpm test` | Unit tests (Vitest) |
 | `pnpm build` | Production build |
+| `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 
