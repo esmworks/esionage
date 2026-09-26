@@ -22,3 +22,23 @@ export function useChannel(channel: string | null, onEvent: (event: string) => v
     };
   }, [channel]);
 }
+
+/** Like useChannel, for a changing set of channels (e.g. the databases a relation points to). */
+export function useChannels(channels: string[], onEvent: (event: string) => void) {
+  const handler = useRef(onEvent);
+  handler.current = onEvent;
+  const key = [...new Set(channels)].sort().join("\n");
+
+  useEffect(() => {
+    if (!key) return;
+    const subs = key.split("\n").map((channel) => {
+      const { shared, release } = acquireDoc(channel);
+      const unsubscribe = shared.onStateless((event) => handler.current(event));
+      return () => {
+        unsubscribe();
+        release();
+      };
+    });
+    return () => subs.forEach((stop) => stop());
+  }, [key]);
+}

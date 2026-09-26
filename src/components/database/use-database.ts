@@ -17,9 +17,9 @@ import {
   type ActionResult,
 } from "@/app/actions/databases";
 import { archivePageAction, renamePageAction } from "@/app/actions/pages";
-import { useChannel } from "@/components/collab/use-channel";
+import { useChannel, useChannels } from "@/components/collab/use-channel";
 import type { PropertyType, SelectOption, ViewConfig, ViewType } from "@/db/schema/app";
-import type { DatabaseSnapshot, Property, Row, View } from "./types";
+import type { DatabaseSnapshot, Property, RelationInput, Row, View } from "./types";
 import { TITLE } from "./types";
 
 type Pending = { rowId: string; key: string; value: unknown; version: number };
@@ -73,6 +73,19 @@ export function useDatabase(databaseId: string) {
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useChannel(`db:${databaseId}`, (event) => {
+    if (event !== "rows" && event !== "schema") return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => void refetch(), 60);
+  });
+  // Titles and rows of related databases show up in relation cells.
+  const relatedChannels = useMemo(
+    () =>
+      Object.values(snapshot?.relations ?? {}).flatMap((r) =>
+        r.database && r.database.id !== databaseId ? [`db:${r.database.id}`] : [],
+      ),
+    [snapshot?.relations, databaseId],
+  );
+  useChannels(relatedChannels, (event) => {
     if (event !== "rows" && event !== "schema") return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => void refetch(), 60);
@@ -207,8 +220,21 @@ export function useDatabase(databaseId: string) {
         return mutateSchema((s) => s, () => moveRowAction(rowId, move));
       },
 
-      addProperty(name: string, type: PropertyType, options?: string[]) {
-        return mutateSchema((s) => s, () => addPropertyAction(databaseId, { name, type, options }));
+      addProperty(name: string, type: PropertyType, options?: string[], relation?: RelationInput) {
+        return mutateSchema((s) => s, () => addPropertyAction(databaseId, { name, type, options, relation }));
+      },
+
+      /** Adds a row to another (related) database; returns its id. */
+      async createRelatedRow(targetDatabaseId: string, title: string) {
+        if (!snapshot) return null;
+        try {
+          const created = await unwrap(createRowAction(snapshot.database.workspaceId, targetDatabaseId, { title }));
+          await refetch();
+          return created.id;
+        } catch (e) {
+          report(e);
+          return null;
+        }
       },
 
       renameProperty(id: string, name: string) {

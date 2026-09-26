@@ -1,5 +1,6 @@
 import {
   AlignLeft,
+  ArrowUpRight,
   Calendar,
   CircleChevronDown,
   Hash,
@@ -21,6 +22,7 @@ export const PROPERTY_TYPE_META = {
   date: { label: "date", icon: Calendar },
   checkbox: { label: "checkbox", icon: SquareCheck },
   url: { label: "url", icon: LinkIcon },
+  relation: { label: "relation", icon: ArrowUpRight },
 } as const satisfies Record<PropertyType, { label: string; icon: LucideIcon }>;
 
 /** Translated display name of a property type. */

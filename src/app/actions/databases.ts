@@ -78,9 +78,13 @@ export async function moveRowAction(
 
 export async function addPropertyAction(
   databaseId: string,
-  input: { name: string; type: PropertyType; options?: string[] },
+  input: { name: string; type: PropertyType; options?: string[]; relation?: databases.RelationInput },
 ) {
   return run((userId) => databases.addProperty(userId, databaseId, input));
+}
+
+export async function listDatabasesAction(workspaceId: string) {
+  return run((userId) => databases.listWorkspaceDatabases(userId, workspaceId));
 }
 
 export async function updatePropertyAction(

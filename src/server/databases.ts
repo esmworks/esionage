@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   databaseProperty,
@@ -7,6 +7,7 @@ import {
   PROPERTY_TYPES,
   type PropertyOptions,
   type PropertyType,
+  type RelationConfig,
   type SelectOption,
   type ViewConfig,
   type ViewType,
@@ -18,7 +19,7 @@ import {
   SELECT_COLORS,
   type DatabaseErrorCode,
 } from "@/lib/properties";
-import { AccessError, requirePageAccess } from "@/server/access";
+import { AccessError, requireMembership, requirePageAccess } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 
 export type DatabaseProperty = typeof databaseProperty.$inferSelect;
@@ -110,9 +111,98 @@ export async function normalizeRowProperties(databaseId: string, input: Record<s
         { property: key },
       );
     }
-    out[prop.id] = normalizeValue(prop, value);
+    const normalized = normalizeValue(prop, value);
+    out[prop.id] = prop.type === "relation" && normalized ? await resolveRelationValue(prop, normalized as string[]) : normalized;
   }
   return out;
+}
+
+/**
+ * Maps relation input to row ids of the related database. Each entry is a row id (trashed rows
+ * included, so existing links survive an edit) or, for agents, the exact title of a live row.
+ */
+async function resolveRelationValue(prop: DatabaseProperty, input: string[]) {
+  const targetId = prop.options.relation?.databaseId;
+  const invalid = (value: string) =>
+    new PropertyValueError(`"${value}" is not a row of the database related to "${prop.name}"`, "invalidRelation", {
+      property: prop.name,
+    });
+  if (!targetId) throw invalid(input[0]);
+  const rows = await db
+    .select({ id: page.id, title: page.title, archivedAt: page.archivedAt })
+    .from(page)
+    .where(eq(page.parentId, targetId));
+  const ids = new Set(rows.map((r) => r.id));
+  const out: string[] = [];
+  for (const value of input) {
+    let id = ids.has(value) ? value : undefined;
+    if (!id) {
+      const needle = value.trim().toLowerCase();
+      const matches = rows.filter((r) => !r.archivedAt && r.title.trim().toLowerCase() === needle);
+      if (matches.length > 1) {
+        throw new PropertyValueError(
+          `"${value}" matches ${matches.length} rows of the related database; pass a row id instead`,
+          "invalidRelation",
+          { property: prop.name },
+        );
+      }
+      id = matches[0]?.id;
+    }
+    if (!id) throw invalid(value);
+    if (!out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+const asIds = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+
+/**
+ * Mirrors changes of two-way relations onto the paired property of the linked rows. Uses atomic
+ * JSONB updates so concurrent edits of the same target row don't overwrite each other.
+ */
+export async function syncPairedRelations(
+  rowId: string,
+  databaseId: string,
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+) {
+  const props = await getProperties(databaseId);
+  for (const prop of props) {
+    const relation = prop.options.relation;
+    if (prop.type !== "relation" || !relation?.pairedPropertyId) continue;
+    const was = asIds(before[prop.id]);
+    const now = asIds(after[prop.id]);
+    const added = now.filter((id) => !was.includes(id));
+    const removed = was.filter((id) => !now.includes(id));
+    if (!added.length && !removed.length) continue;
+    const key = relation.pairedPropertyId;
+    const path = `{${key}}`;
+    const current = sql`coalesce(${page.properties} -> ${key}, '[]'::jsonb)`;
+    if (added.length) {
+      await db
+        .update(page)
+        .set({
+          properties: sql`jsonb_set(${page.properties}, ${path}::text[], ${current} || to_jsonb(${rowId}::text))`,
+        })
+        .where(
+          and(
+            inArray(page.id, added),
+            eq(page.parentId, relation.databaseId),
+            sql`not (${current} ? ${rowId})`,
+          ),
+        );
+    }
+    if (removed.length) {
+      await db
+        .update(page)
+        .set({
+          properties: sql`case when (${current} - ${rowId}::text) = '[]'::jsonb then ${page.properties} - ${key}
+            else jsonb_set(${page.properties}, ${path}::text[], ${current} - ${rowId}::text) end`,
+        })
+        .where(and(inArray(page.id, removed), eq(page.parentId, relation.databaseId)));
+    }
+    notifyRows(relation.databaseId);
+  }
 }
 
 export async function updateRowProperties(userId: string, rowId: string, patch: Record<string, unknown>) {
@@ -126,38 +216,99 @@ export async function updateRowProperties(userId: string, rowId: string, patch: 
     else next[id] = value;
   }
   await db.update(page).set({ properties: next, updatedBy: userId }).where(eq(page.id, rowId));
+  await syncPairedRelations(rowId, row.parentId, row.properties, next);
   notifyRows(row.parentId);
   return next;
+}
+
+export type RelationInput = {
+  /** The database whose rows this property links to (same workspace; may be this database). */
+  databaseId: string;
+  /** Also add a property on the related database that shows the links back. */
+  twoWay?: boolean;
+  /** Name of that paired property; defaults to this database's title. */
+  pairedName?: string;
+};
+
+async function nextPropertyPosition(databaseId: string) {
+  const [{ max }] = await db
+    .select({ max: sql<number | null>`max(${databaseProperty.position})` })
+    .from(databaseProperty)
+    .where(eq(databaseProperty.databaseId, databaseId));
+  return (Number(max) || 0) + 1;
+}
+
+/** `name`, or `name 2`, `name 3`… so it doesn't clash with a property of the database. */
+async function uniquePropertyName(databaseId: string, name: string) {
+  const taken = new Set((await getProperties(databaseId)).map((p) => p.name.trim().toLowerCase()));
+  taken.add("title");
+  let candidate = name;
+  for (let i = 2; taken.has(candidate.toLowerCase()); i++) candidate = `${name} ${i}`;
+  return candidate;
 }
 
 export async function addProperty(
   userId: string,
   databaseId: string,
-  input: { name: string; type: PropertyType; options?: string[] },
+  input: { name: string; type: PropertyType; options?: string[]; relation?: RelationInput },
 ) {
-  await requireDatabase(userId, databaseId);
+  const database = await requireDatabase(userId, databaseId);
   if (!PROPERTY_TYPES.includes(input.type)) {
     throw new PropertyValueError(`Unsupported type "${input.type}"`, "unsupportedType", { type: String(input.type) });
   }
-  const [{ max }] = await db
-    .select({ max: sql<number | null>`max(${databaseProperty.position})` })
-    .from(databaseProperty)
-    .where(eq(databaseProperty.databaseId, databaseId));
+  let target: typeof database | null = null;
+  if (input.type === "relation") {
+    const invalidTarget = () =>
+      new PropertyValueError("A relation must point to a database in the same workspace", "invalidRelationTarget");
+    if (!input.relation?.databaseId) throw invalidTarget();
+    target =
+      input.relation.databaseId === databaseId
+        ? database
+        : await requireDatabase(userId, input.relation.databaseId).catch(() => null);
+    if (!target || target.workspaceId !== database.workspaceId || target.archivedAt) throw invalidTarget();
+  }
   const options: PropertyOptions =
     input.type === "select" || input.type === "multi_select"
       ? { options: (input.options ?? []).map((name, i) => makeOption(name, i)) }
-      : {};
-  const [created] = await db
-    .insert(databaseProperty)
-    .values({
-      databaseId,
-      name: input.name.trim() || "Property",
-      type: input.type,
-      options,
-      position: (Number(max) || 0) + 1,
-    })
-    .returning();
+      : target
+        ? { relation: { databaseId: target.id } }
+        : {};
+  const created = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(databaseProperty)
+      .values({
+        databaseId,
+        name: input.name.trim() || "Property",
+        type: input.type,
+        options,
+        position: await nextPropertyPosition(databaseId),
+      })
+      .returning();
+    if (!target || !input.relation?.twoWay) return created;
+    const pairedName = await uniquePropertyName(
+      target.id,
+      input.relation.pairedName?.trim() || database.title.trim() || "Related",
+    );
+    const [paired] = await tx
+      .insert(databaseProperty)
+      .values({
+        databaseId: target.id,
+        name: pairedName,
+        type: "relation",
+        options: { relation: { databaseId, pairedPropertyId: created.id } },
+        position: await nextPropertyPosition(target.id),
+      })
+      .returning();
+    const relation: RelationConfig = { databaseId: target.id, pairedPropertyId: paired.id };
+    const [linked] = await tx
+      .update(databaseProperty)
+      .set({ options: { relation } })
+      .where(eq(databaseProperty.id, created.id))
+      .returning();
+    return linked;
+  });
   notifySchema(databaseId);
+  if (target && target.id !== databaseId) notifySchema(target.id);
   return created;
 }
 
@@ -209,8 +360,17 @@ export async function ensureOption(userId: string, propertyId: string, name: str
 
 export async function deleteProperty(userId: string, propertyId: string) {
   const prop = await requireProperty(userId, propertyId);
+  const pairedId = prop.type === "relation" ? prop.options.relation?.pairedPropertyId : null;
+  const [paired] = pairedId ? await db.select().from(databaseProperty).where(eq(databaseProperty.id, pairedId)) : [];
   await db.transaction(async (tx) => {
     await tx.delete(databaseProperty).where(eq(databaseProperty.id, propertyId));
+    // The other side of a two-way relation stays, as a one-way relation with its values intact.
+    if (paired?.options.relation) {
+      await tx
+        .update(databaseProperty)
+        .set({ options: { ...paired.options, relation: { ...paired.options.relation, pairedPropertyId: null } } })
+        .where(eq(databaseProperty.id, paired.id));
+    }
     await tx
       .update(page)
       .set({ properties: sql`${page.properties} - ${propertyId}` })
@@ -225,6 +385,7 @@ export async function deleteProperty(userId: string, propertyId: string) {
           config: {
             ...c,
             groupBy: c.groupBy === propertyId ? undefined : c.groupBy,
+            dateBy: c.dateBy === propertyId ? undefined : c.dateBy,
             sorts: c.sorts?.filter((s) => s.propertyId !== propertyId),
             filters: c.filters?.filter((f) => f.propertyId !== propertyId),
             hidden: c.hidden?.filter((h) => h !== propertyId),
@@ -234,12 +395,19 @@ export async function deleteProperty(userId: string, propertyId: string) {
     }
   });
   notifySchema(prop.databaseId);
+  if (paired && paired.databaseId !== prop.databaseId) notifySchema(paired.databaseId);
 }
 
 export async function addView(userId: string, databaseId: string, input: { name: string; type: ViewType }) {
   await requireDatabase(userId, databaseId);
   const props = await getProperties(databaseId);
-  const groupBy = input.type === "board" ? props.find((p) => p.type === "select")?.id : undefined;
+  const config: ViewConfig = {};
+  if (input.type === "board") config.groupBy = props.find((p) => p.type === "select")?.id;
+  if (input.type === "calendar") {
+    config.dateBy = props.find((p) => p.type === "date")?.id;
+    // Calendar entries are small: show only titles until the user picks properties to show.
+    config.hidden = props.map((p) => p.id);
+  }
   const [{ max }] = await db
     .select({ max: sql<number | null>`max(${databaseView.position})` })
     .from(databaseView)
@@ -248,9 +416,9 @@ export async function addView(userId: string, databaseId: string, input: { name:
     .insert(databaseView)
     .values({
       databaseId,
-      name: input.name.trim() || (input.type === "board" ? "Board" : "Table"),
+      name: input.name.trim() || { table: "Table", board: "Board", calendar: "Calendar" }[input.type],
       type: input.type,
-      config: groupBy ? { groupBy } : {},
+      config,
       position: (Number(max) || 0) + 1,
     })
     .returning();
@@ -341,18 +509,86 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
     properties,
     views,
     rows,
+    relations: await getRelationTargets(properties),
   };
+}
+
+export type RelationTargetRow = { id: string; title: string; icon: string | null };
+export type RelationTarget = {
+  /** Null when the related database was deleted or is in the trash. */
+  database: { id: string; title: string; icon: string | null } | null;
+  /** Name of the paired property on the related database, for two-way relations. */
+  pairedName: string | null;
+  /** Live rows of the related database, in manual order: link candidates and display titles. */
+  rows: RelationTargetRow[];
+};
+
+/**
+ * The related database and its rows for every relation property, keyed by property id. Related
+ * databases are in the same workspace as the source (checked when the property is created), so
+ * the caller's access to the source covers them.
+ */
+export async function getRelationTargets(properties: DatabaseProperty[]): Promise<Record<string, RelationTarget>> {
+  const targetIds = [
+    ...new Set(properties.flatMap((p) => (p.type === "relation" && p.options.relation ? [p.options.relation.databaseId] : []))),
+  ];
+  if (!targetIds.length) return {};
+  const pairedIds = properties.flatMap((p) => (p.options.relation?.pairedPropertyId ? [p.options.relation.pairedPropertyId] : []));
+  const [databases, rows, paired] = await Promise.all([
+    db
+      .select({ id: page.id, title: page.title, icon: page.icon })
+      .from(page)
+      .where(and(inArray(page.id, targetIds), eq(page.kind, "database"), isNull(page.archivedAt))),
+    db
+      .select({ id: page.id, title: page.title, icon: page.icon, parentId: page.parentId })
+      .from(page)
+      .where(and(inArray(page.parentId, targetIds), isNull(page.archivedAt)))
+      .orderBy(asc(page.position), asc(page.createdAt)),
+    pairedIds.length
+      ? db
+          .select({ id: databaseProperty.id, name: databaseProperty.name })
+          .from(databaseProperty)
+          .where(inArray(databaseProperty.id, pairedIds))
+      : Promise.resolve([]),
+  ]);
+  const out: Record<string, RelationTarget> = {};
+  for (const prop of properties) {
+    const targetId = prop.type === "relation" ? prop.options.relation?.databaseId : undefined;
+    if (!targetId) continue;
+    const database = databases.find((d) => d.id === targetId) ?? null;
+    const pairedId = prop.options.relation?.pairedPropertyId;
+    out[prop.id] = {
+      database,
+      pairedName: (pairedId && paired.find((p) => p.id === pairedId)?.name) || null,
+      rows: database
+        ? rows.filter((r) => r.parentId === targetId).map(({ id, title, icon }) => ({ id, title, icon }))
+        : [],
+    };
+  }
+  return out;
+}
+
+/** Live databases of a workspace, for choosing the target of a relation. */
+export async function listWorkspaceDatabases(userId: string, workspaceId: string) {
+  await requireMembership(userId, workspaceId);
+  return db
+    .select({ id: page.id, title: page.title, icon: page.icon })
+    .from(page)
+    .where(and(eq(page.workspaceId, workspaceId), eq(page.kind, "database"), isNull(page.archivedAt)))
+    .orderBy(asc(page.title));
 }
 
 /** A single row with its database schema, for the property panel on a row page. */
 export async function getRow(userId: string, rowId: string) {
   const row = await requirePageAccess(userId, rowId);
   if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
-  await requireDatabase(userId, row.parentId);
+  const database = await requireDatabase(userId, row.parentId);
   const properties = await getProperties(row.parentId);
   return {
     databaseId: row.parentId,
+    databaseTitle: database.title,
     row: { id: row.id, title: row.title, properties: row.properties },
     properties,
+    relations: await getRelationTargets(properties),
   };
 }

@@ -479,6 +479,54 @@ async function main() {
   const listView = await mcp.call("create_database_view", { database_id: dbPage.id, name: "Bad", type: "board", group_by: "Tags" });
   check(listView.isError && listView.text.includes("select property"), "boards refuse non-select grouping", listView.text);
 
+  // ---- relations (two-way sync) and calendar views
+  const customers = await mcp.ok("create_database", { parent_id: root.id, title: "Customers" });
+  const acme = await mcp.ok("create_database_row", { database_id: customers.id, title: "Acme" });
+  const globex = await mcp.ok("create_database_row", { database_id: customers.id, title: "Globex" });
+  const relProp = await mcp.ok("add_database_property", {
+    database_id: dbPage.id,
+    name: "Customer",
+    type: "relation",
+    related_database_id: customers.id,
+    two_way: true,
+    paired_property_name: "Jobs",
+  });
+  check(relProp.property.two_way && relProp.property.paired_property === "Jobs", "add_database_property creates a two-way relation", relProp);
+  const customerSchema = await mcp.ok("get_database", { database_id: customers.id });
+  check(
+    customerSchema.properties.some((p: { name: string; type: string }) => p.name === "Jobs" && p.type === "relation"),
+    "the related database gets the paired property",
+    customerSchema.properties,
+  );
+  const job = await mcp.ok("create_database_row", { database_id: dbPage.id, title: "Install", properties: { Customer: ["acme"] } });
+  check(job.properties.Customer?.[0]?.id === acme.id, "relation values resolve row titles to ids", job.properties);
+  let acmePage = await mcp.ok("get_page", { page_id: acme.id });
+  check(acmePage.properties.Jobs?.[0]?.id === job.id, "creating a row mirrors the link on the related row", acmePage.properties);
+  await mcp.ok("update_database_row", { row_id: job.id, properties: { Customer: [globex.id] } });
+  acmePage = await mcp.ok("get_page", { page_id: acme.id });
+  const globexPage = await mcp.ok("get_page", { page_id: globex.id });
+  check(!acmePage.properties.Jobs && globexPage.properties.Jobs?.[0]?.id === job.id, "changing a relation moves the mirrored link", {
+    acme: acmePage.properties,
+    globex: globexPage.properties,
+  });
+  const byCustomer = await mcp.ok("query_database", {
+    database_id: dbPage.id,
+    filters: [{ property: "Customer", op: "contains", value: "Globex" }],
+  });
+  check(byCustomer.total === 1 && byCustomer.rows[0].id === job.id, "query_database filters by related row title", byCustomer);
+  const badLink = await mcp.call("update_database_row", { row_id: job.id, properties: { Customer: ["Nobody"] } });
+  check(badLink.isError && badLink.text.includes("not a row"), "relations reject rows outside the related database", badLink.text);
+  await mcp.ok("delete_database_property", { database_id: dbPage.id, property: "Customer" });
+  const afterUnpair = await mcp.ok("get_database", { database_id: customers.id });
+  const jobs = afterUnpair.properties.find((p: { name: string }) => p.name === "Jobs");
+  check(jobs && jobs.two_way === false, "deleting one side leaves the other as a one-way relation", afterUnpair.properties);
+
+  await mcp.ok("add_database_property", { database_id: dbPage.id, name: "Due", type: "date" });
+  const calendar = await mcp.ok("create_database_view", { database_id: dbPage.id, name: "Calendar", type: "calendar" });
+  check(calendar.type === "calendar" && calendar.date_by === "Due", "calendar views default to the first date property", calendar);
+  const calendarBad = await mcp.call("update_database_view", { database_id: dbPage.id, view_id: calendar.id, date_by: "Status" });
+  check(calendarBad.isError && calendarBad.text.includes("date property"), "calendars refuse non-date properties", calendarBad.text);
+
   // ---- history: read an old version and bring it back
   const history = await mcp.ok("list_page_history", { page_id: root.id });
   check(history.versions.some((v: { by: string | null }) => v.by?.includes(" via ")), "list_page_history names the MCP client", history);

@@ -13,7 +13,7 @@ import {
 } from "@/db/schema";
 import { AccessError, requireMembership, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
-import { normalizeRowProperties, withCode } from "@/server/databases";
+import { normalizeRowProperties, syncPairedRelations, withCode } from "@/server/databases";
 
 export type TreeNode = {
   id: string;
@@ -177,6 +177,8 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
     ]);
     await db.insert(databaseView).values({ databaseId: created.id, name: names.table, type: "table", position: 1 });
   }
+
+  if (parentKind === "database") await syncPairedRelations(created.id, input.parentId!, {}, properties);
 
   const collab = getCollab();
   if (input.markdown?.trim()) await collab.replaceContent(created.id, input.markdown, actor);

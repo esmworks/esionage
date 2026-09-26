@@ -10,8 +10,9 @@ approve them over OAuth.
   icons, trash with restore, and full-text search over titles and content.
 - **Realtime collaboration**: several people can edit the same page at once (Yjs over WebSocket
   via Hocuspocus), with live cursors.
-- **Databases**: typed properties (text, number, select, multi-select, date, checkbox, URL),
-  table and board views, filters, sorting and grouping. Every row is also a page.
+- **Databases**: typed properties (text, number, select, multi-select, date, checkbox, URL, and
+  one- or two-way relations to other databases), table, board and calendar views, filters, sorting
+  and grouping. Every row is also a page.
 - **Page history**: versions are saved automatically while you edit and before every AI edit.
   You can preview and restore any version.
 - **Workspaces and members**: add people by email as owners or members, or send an invitation

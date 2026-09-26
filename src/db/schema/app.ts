@@ -118,7 +118,13 @@ export const page = pgTable(
 
 export { PROPERTY_TYPES, type PropertyType };
 export type SelectOption = { id: string; name: string; color: string };
-export type PropertyOptions = { options?: SelectOption[] };
+/**
+ * A relation links rows of this database to rows of another database in the same workspace.
+ * Values are arrays of row ids. A two-way relation has a paired relation property on the target
+ * database that is kept in sync (`pairedPropertyId`).
+ */
+export type RelationConfig = { databaseId: string; pairedPropertyId?: string | null };
+export type PropertyOptions = { options?: SelectOption[]; relation?: RelationConfig };
 
 export const databaseProperty = pgTable(
   "database_property",
@@ -136,12 +142,14 @@ export const databaseProperty = pgTable(
   (t) => [index("database_property_db_idx").on(t.databaseId)],
 );
 
-export type ViewType = "table" | "board";
+export type ViewType = "table" | "board" | "calendar";
 export type SortRule = { propertyId: string; direction: "asc" | "desc" };
 export type FilterOp = "contains" | "equals" | "not_equals" | "is_empty" | "is_not_empty" | "gt" | "lt";
 export type FilterRule = { propertyId: string; op: FilterOp; value?: unknown };
 export type ViewConfig = {
   groupBy?: string;
+  /** Calendar views: the date property that places rows on days. */
+  dateBy?: string;
   sorts?: SortRule[];
   filters?: FilterRule[];
   hidden?: string[];

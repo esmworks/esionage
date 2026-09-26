@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { cn, MenuItem, MenuSeparator } from "@/components/ui";
 import type { ViewConfig } from "@/db/schema/app";
+import { isSortable } from "@/lib/properties";
 import { Floating, useFloating } from "./floating";
 import { OpenLink, PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
@@ -104,7 +105,9 @@ export function TableView({
                 readOnly={readOnly}
                 actions={{
                   rename: (name) => api.renameProperty(p.id, name),
-                  sort: (direction) => setConfig({ ...view.config, sorts: [{ propertyId: p.id, direction }] }),
+                  sort: isSortable(p.type)
+                    ? (direction) => setConfig({ ...view.config, sorts: [{ propertyId: p.id, direction }] })
+                    : undefined,
                   hide: () => setConfig({ ...view.config, hidden: [...(view.config.hidden ?? []), p.id] }),
                   setOptions: (options) => api.setOptions(p, options),
                   remove: () => api.deleteProperty(p.id),
@@ -113,7 +116,7 @@ export function TableView({
             ))}
             {!readOnly && (
               <th className="border-y border-border p-0 text-left font-normal">
-                <AddPropertyButton onCreate={(name, type) => api.addProperty(name, type)} />
+                <AddPropertyButton onCreate={(name, type, relation) => api.addProperty(name, type, undefined, relation)} />
               </th>
             )}
           </tr>

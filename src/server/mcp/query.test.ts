@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyView, PropertyValueError, type RowLike } from "@/lib/properties";
 import {
+  describeProperty,
   describeViewConfig,
   displayProperties,
   resolvePropertyKey,
@@ -118,5 +119,65 @@ describe("display helpers", () => {
       filters: [{ property: "Status", op: "equals", value: "Done" }],
       sorts: [{ property: "title", direction: "asc" }],
     });
+  });
+});
+
+describe("relations", () => {
+  const customer: PropertyDef = {
+    id: "p_customer",
+    name: "Customer",
+    type: "relation",
+    options: { relation: { databaseId: "db-customers", pairedPropertyId: "p_jobs" } },
+  };
+  const all = [...props, customer];
+  const targets = {
+    p_customer: {
+      database: { id: "db-customers", title: "Customers" },
+      pairedName: "Jobs",
+      rows: [
+        { id: "c1", title: "Acme" },
+        { id: "c2", title: "Globex" },
+        { id: "c3", title: "Globex" },
+      ],
+    },
+  };
+
+  it("filters by related row id or unique title", () => {
+    expect(toFilterRule(all, { property: "customer", op: "contains", value: "acme" }, targets)).toEqual({
+      propertyId: "p_customer",
+      op: "contains",
+      value: "c1",
+    });
+    expect(toFilterRule(all, { property: "Customer", op: "not_equals", value: "c3" }, targets).value).toBe("c3");
+    expect(() => toFilterRule(all, { property: "Customer", op: "contains", value: "Globex" }, targets)).toThrow(/2 rows/);
+    expect(() => toFilterRule(all, { property: "Customer", op: "contains", value: "Nope" }, targets)).toThrow(/not a row/);
+    expect(() => toFilterRule(all, { property: "Customer", op: "gt", value: "c1" }, targets)).toThrow(/supports contains/);
+  });
+
+  it("is not sortable", () => {
+    expect(() => toSortRule(all, { property: "Customer" })).toThrow(/can't be sorted/);
+  });
+
+  it("shows linked rows as id and title, skipping rows that no longer exist", () => {
+    expect(displayProperties(all, { p_customer: ["c2", "gone", "c1"] }, targets)).toEqual({
+      Customer: [
+        { id: "c2", title: "Globex" },
+        { id: "c1", title: "Acme" },
+      ],
+    });
+    expect(displayProperties(all, { p_customer: ["gone"] }, targets)).toEqual({});
+  });
+
+  it("describes the related database, pairing and calendar date property", () => {
+    expect(describeProperty(customer, targets)).toMatchObject({
+      type: "relation",
+      related_database_id: "db-customers",
+      related_database: "Customers",
+      two_way: true,
+      paired_property: "Jobs",
+    });
+    expect(
+      describeViewConfig(all, { dateBy: "p_est", filters: [{ propertyId: "p_customer", op: "contains", value: "c1" }] }, targets),
+    ).toEqual({ date_by: "Estimate", filters: [{ property: "Customer", op: "contains", value: "Acme" }] });
   });
 });

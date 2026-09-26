@@ -5,29 +5,50 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem, MenuSeparator } from "@/components/ui";
 import { PROPERTY_TYPES } from "@/lib/property-types";
+import { pageLabel } from "@/lib/labels";
 import { SELECT_COLORS } from "@/lib/properties";
 import { OptionChip } from "./property-cell";
 import { PropertyTypeIcon, usePropertyTypeLabel } from "./property-icons";
-import type { Property, PropertyType, SelectOption } from "./types";
+import { RelationSetup } from "./relation-cell";
+import { useRelations } from "./relation-context";
+import type { Property, PropertyType, RelationInput, SelectOption } from "./types";
 
 /** Name + type picker used by the table "+" header and the row page "Add property". */
 export function AddPropertyPanel({
   onCreate,
   onDone,
 }: {
-  onCreate: (name: string, type: PropertyType) => void | Promise<unknown>;
+  onCreate: (name: string, type: PropertyType, relation?: RelationInput) => void | Promise<unknown>;
   onDone: () => void;
 }) {
   const t = useTranslations("database.propertyMenu");
   const typeLabel = usePropertyTypeLabel();
   const [name, setName] = useState("");
+  const [step, setStep] = useState<"type" | "relation">("type");
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
+  // A new property without a name is named after its type, in the user's language.
+  const nameFor = (type: PropertyType) => name.trim() || typeLabel(type);
   const create = (type: PropertyType) => {
-    // A new property without a name is named after its type, in the user's language.
-    void onCreate(name.trim() || typeLabel(type), type);
+    if (type === "relation") {
+      setStep("relation");
+      return;
+    }
+    void onCreate(nameFor(type), type);
     onDone();
   };
+  if (step === "relation") {
+    return (
+      <RelationSetup
+        name={nameFor("relation")}
+        onBack={() => setStep("type")}
+        onCreate={(relation) => {
+          void onCreate(nameFor("relation"), "relation", relation);
+          onDone();
+        }}
+      />
+    );
+  }
   return (
     <div className="w-60">
       <div className="p-1">
@@ -53,7 +74,8 @@ export function AddPropertyPanel({
 
 export type PropertyMenuActions = {
   rename: (name: string) => void;
-  sort: (direction: "asc" | "desc") => void;
+  /** Omitted for properties that can't be sorted (relations). */
+  sort?: (direction: "asc" | "desc") => void;
   hide?: () => void;
   setOptions?: (options: SelectOption[]) => void;
   remove?: () => void;
@@ -140,27 +162,32 @@ export function PropertyMenu({
             <PropertyTypeIcon type={prop.type} />
             {typeLabel(prop.type)}
           </div>
+          {prop.type === "relation" && <RelationInfo prop={prop} />}
           <MenuSeparator />
         </>
       )}
-      <MenuItem
-        icon={<ArrowUp className="h-3.5 w-3.5" />}
-        onClick={() => {
-          actions.sort("asc");
-          onDone();
-        }}
-      >
-        {t("sortAscending")}
-      </MenuItem>
-      <MenuItem
-        icon={<ArrowDown className="h-3.5 w-3.5" />}
-        onClick={() => {
-          actions.sort("desc");
-          onDone();
-        }}
-      >
-        {t("sortDescending")}
-      </MenuItem>
+      {actions.sort && (
+        <>
+          <MenuItem
+            icon={<ArrowUp className="h-3.5 w-3.5" />}
+            onClick={() => {
+              actions.sort?.("asc");
+              onDone();
+            }}
+          >
+            {t("sortAscending")}
+          </MenuItem>
+          <MenuItem
+            icon={<ArrowDown className="h-3.5 w-3.5" />}
+            onClick={() => {
+              actions.sort?.("desc");
+              onDone();
+            }}
+          >
+            {t("sortDescending")}
+          </MenuItem>
+        </>
+      )}
       {actions.hide && (
         <MenuItem
           icon={<EyeOff className="h-3.5 w-3.5" />}
@@ -312,6 +339,20 @@ function OptionsEditor({
           <Plus className="h-4 w-4" />
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Which database a relation points to, and whether it is mirrored there. */
+function RelationInfo({ prop }: { prop: Property }) {
+  const t = useTranslations("database.relation");
+  const tc = useTranslations("common");
+  const target = useRelations()?.targets[prop.id];
+  if (!target?.database) return <div className="px-2 pb-1 text-xs text-fg-faint">{t("missingDatabase")}</div>;
+  return (
+    <div className="px-2 pb-1 text-xs text-fg-muted">
+      <div className="truncate">{t("relatedTo", { title: pageLabel(target.database.title, tc("untitled")) })}</div>
+      {target.pairedName && <div className="truncate">{t("pairedWith", { name: target.pairedName })}</div>}
     </div>
   );
 }

@@ -20,6 +20,8 @@ export const DATABASE_ERROR_CODES = [
   "lastView",
   "parentInTrash",
   "nestedDatabase",
+  "invalidRelation",
+  "invalidRelationTarget",
 ] as const;
 export type DatabaseErrorCode = (typeof DATABASE_ERROR_CODES)[number];
 export type DatabaseErrorParams = Record<string, string>;
@@ -95,6 +97,16 @@ export function normalizeValue(prop: PropertyDef, value: unknown): unknown {
         });
       }
       return option.id;
+    }
+    case "relation": {
+      // Row ids (or, from MCP, row titles) — resolved and checked against the related database by
+      // the server. Order is kept, duplicates dropped.
+      const raw = Array.isArray(value) ? value : [value];
+      if (raw.some((v) => typeof v !== "string")) {
+        throw new PropertyValueError(`"${prop.name}" takes a list of row ids`, "invalidRelation", { property: prop.name });
+      }
+      const unique = [...new Set((raw as string[]).map((v) => v.trim()).filter(Boolean))];
+      return unique.length ? unique : null;
     }
     case "multi_select": {
       const list = Array.isArray(value) ? value : [value];
@@ -254,6 +266,7 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
     case "select":
       return [{ op: "equals", label: "is" }, { op: "not_equals", label: "isNot" }, ...empty];
     case "multi_select":
+    case "relation":
       return [{ op: "contains", label: "contains" }, { op: "not_equals", label: "doesNotContain" }, ...empty];
     case "date":
       return [
@@ -273,6 +286,11 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
 
 export function filterNeedsValue(op: FilterOp) {
   return op !== "is_empty" && op !== "is_not_empty";
+}
+
+/** Property types a view can sort by (relations hold row ids, which have no meaningful order). */
+export function isSortable(type: PropertyType | "title") {
+  return type !== "relation";
 }
 
 /** A position strictly between two neighbours (either may be missing) for manual ordering. */

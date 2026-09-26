@@ -7,11 +7,13 @@
     "multiSelect": "Çoklu seçim",
     "date": "Tarih",
     "checkbox": "Onay kutusu",
-    "url": "URL"
+    "url": "URL",
+    "relation": "İlişki"
   },
   "views": {
     "table": "Tablo",
-    "board": "Pano"
+    "board": "Pano",
+    "calendar": "Takvim"
   },
   "colors": {
     "gray": "Gri",
@@ -60,7 +62,11 @@
     "shownInView": "Bu görünümde gösterilenler",
     "noProperties": "Henüz özellik yok",
     "hidden": "Gizli",
-    "shown": "Gösteriliyor"
+    "shown": "Gösteriliyor",
+    "calendarBy": "Takvim tarihi",
+    "calendarWithName": "Tarih: {name}",
+    "calendarNeedsDate": "Takvimler satırları bir tarih özelliğine göre yerleştirir.",
+    "newDateProperty": "Yeni tarih özelliği"
   },
   "activeRules": {
     "clear": "Temizle",
@@ -172,6 +178,39 @@
     "noProperties": "Özellik yok",
     "addProperty": "Özellik ekle"
   },
+  "relation": {
+    "chooseDatabase": "İlişkili veritabanı",
+    "loadingDatabases": "Veritabanları yükleniyor…",
+    "thisDatabase": "{title} (bu veritabanı)",
+    "twoWay": "{title} içinde de göster",
+    "twoWayHint": "Orada bağlı satırları listeleyen bir özellik ekler.",
+    "pairedName": "{title} içindeki özellik adı",
+    "create": "İlişki ekle",
+    "back": "Geri",
+    "relatedTo": "İlişkili: {title}",
+    "pairedWith": "İki yönlü, karşı tarafta “{name}”",
+    "missingDatabase": "İlişkili veritabanı silinmiş veya çöp kutusunda.",
+    "search": "{title} içinde ara",
+    "input": "{property} için satır bağla",
+    "linked": "Bağlı",
+    "noRows": "Henüz satır yok",
+    "noMatches": "Eşleşen satır yok",
+    "newRow": "Yeni satır",
+    "open": "{title} sayfasını aç",
+    "unlink": "{title} bağlantısını kaldır"
+  },
+  "calendar": {
+    "today": "Bugün",
+    "previous": "Önceki ay",
+    "next": "Sonraki ay",
+    "needsDateTitle": "Takvimler satırları bir tarih özelliğinin günlerine yerleştirir",
+    "needsDateBody": "Bu veritabanında henüz tarih özelliği yok.",
+    "addDateProperty": "{name} özelliği ekle",
+    "defaultDateProperty": "Tarih",
+    "addOnDay": "{date} için satır ekle",
+    "noDate": "{property} olmayan {count, plural, other {# satır}}",
+    "noDateTitle": "{property} olmayan satırlar"
+  },
   "errors": {
     "invalidUrl": "“{property}” bir http(s) veya mailto URL’si olmalıdır.",
     "invalidNumber": "“{property}” bir sayı olmalıdır.",
@@ -186,6 +225,8 @@
     "lastView": "Bir veritabanında en az bir görünüm olmalıdır.",
     "accessDenied": "Bulunamadı veya erişim izniniz yok.",
     "parentInTrash": "Üst sayfa çöp kutusunda. Önce onu geri yükleyin.",
-    "nestedDatabase": "Bir veritabanının içinde başka bir veritabanı olamaz."
+    "nestedDatabase": "Bir veritabanının içinde başka bir veritabanı olamaz.",
+    "invalidRelation": "“{property}” yalnızca ilişkili veritabanının satırlarına bağlanabilir.",
+    "invalidRelationTarget": "İlişki aynı çalışma alanındaki bir veritabanını göstermelidir."
   }
 }

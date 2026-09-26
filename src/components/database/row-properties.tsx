@@ -2,25 +2,33 @@
 
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addPropertyAction,
+  createRowAction,
   ensureOptionAction,
   loadRowAction,
   updateRowPropertiesAction,
 } from "@/app/actions/databases";
-import { useChannel } from "@/components/collab/use-channel";
+import { useChannel, useChannels } from "@/components/collab/use-channel";
 import type { PropertyType, SelectOption } from "@/db/schema/app";
 import { Floating, useFloating } from "./floating";
 import { PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
 import { AddPropertyPanel } from "./property-menu";
-import type { Property } from "./types";
+import { RelationProvider, type RelationContextValue } from "./relation-context";
+import type { Property, RelationInput, RelationTarget } from "./types";
 
-type Loaded = { properties: Property[]; values: Record<string, unknown> };
+type Loaded = {
+  databaseTitle: string;
+  properties: Property[];
+  values: Record<string, unknown>;
+  relations: Record<string, RelationTarget>;
+};
 
 /** Editable property list shown above a database row's page body. */
 export function RowProperties({
+  workspaceId,
   databaseId,
   rowId,
   readOnly,
@@ -42,7 +50,14 @@ export function RowProperties({
     const mine = ++seq.current;
     const res = await loadRowAction(rowId);
     if (mine !== seq.current) return;
-    if (res.ok) setData({ properties: res.data.properties, values: res.data.row.properties });
+    if (res.ok) {
+      setData({
+        databaseTitle: res.data.databaseTitle,
+        properties: res.data.properties,
+        values: res.data.row.properties,
+        relations: res.data.relations,
+      });
+    }
     else setError(res.error);
   }, [rowId]);
 
@@ -51,11 +66,19 @@ export function RowProperties({
   }, [refetch]);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useChannel(`db:${databaseId}`, (event) => {
+  const onSignal = (event: string) => {
     if (event !== "rows" && event !== "schema") return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => void refetch(), 60);
-  });
+  };
+  useChannel(`db:${databaseId}`, onSignal);
+  // Related rows appear by title, so their databases' changes matter too.
+  useChannels(
+    Object.values(data?.relations ?? {}).flatMap((r) =>
+      r.database && r.database.id !== databaseId ? [`db:${r.database.id}`] : [],
+    ),
+    onSignal,
+  );
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
   const setValue = async (propertyId: string, value: unknown) => {
@@ -93,11 +116,36 @@ export function RowProperties({
     return option;
   };
 
-  const addProperty = async (name: string, type: PropertyType) => {
-    const res = await addPropertyAction(databaseId, { name, type });
+  const addProperty = async (name: string, type: PropertyType, relation?: RelationInput) => {
+    const res = await addPropertyAction(databaseId, { name, type, relation });
     if (!res.ok) setError(res.error);
     await refetch();
   };
+
+  const createRelatedRow = useCallback(
+    async (targetDatabaseId: string, title: string) => {
+      const res = await createRowAction(workspaceId, targetDatabaseId, { title });
+      if (!res.ok) {
+        setError(res.error);
+        return null;
+      }
+      await refetch();
+      return res.data.id;
+    },
+    [workspaceId, refetch],
+  );
+
+  const relationContext = useMemo<RelationContextValue | null>(
+    () =>
+      data && {
+        workspaceId,
+        databaseId,
+        databaseTitle: data.databaseTitle,
+        targets: data.relations,
+        createRow: createRelatedRow,
+      },
+    [data, workspaceId, databaseId, createRelatedRow],
+  );
 
   if (!data) {
     return error ? (
@@ -110,38 +158,44 @@ export function RowProperties({
   const valueOf = (id: string) => (id in pending ? pending[id].value : data.values[id]);
 
   return (
-    <div className="mb-6 border-b border-border pb-4">
-      <div className="flex flex-col gap-0.5">
-        {data.properties.map((p) => (
-          <div key={p.id} className="flex min-h-[30px] items-start gap-2">
-            <div className="flex h-[30px] w-40 shrink-0 items-center gap-1.5 px-1 text-sm text-fg-muted">
-              <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate" title={p.name}>
-                {p.name}
-              </span>
+    <RelationProvider value={relationContext}>
+      <div className="mb-6 border-b border-border pb-4">
+        <div className="flex flex-col gap-0.5">
+          {data.properties.map((p) => (
+            <div key={p.id} className="flex min-h-[30px] items-start gap-2">
+              <div className="flex h-[30px] w-40 shrink-0 items-center gap-1.5 px-1 text-sm text-fg-muted">
+                <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate" title={p.name}>
+                  {p.name}
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <PropertyCell
+                  variant="panel"
+                  wrap
+                  prop={p}
+                  value={valueOf(p.id)}
+                  readOnly={readOnly}
+                  onChange={(v) => void setValue(p.id, v)}
+                  onCreateOption={createOption}
+                />
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <PropertyCell
-                variant="panel"
-                wrap
-                prop={p}
-                value={valueOf(p.id)}
-                readOnly={readOnly}
-                onChange={(v) => void setValue(p.id, v)}
-                onCreateOption={createOption}
-              />
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
+        {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">{t("noProperties")}</p>}
+        {!readOnly && <AddPropertyRow onCreate={addProperty} />}
+        {error && <p className="mt-2 px-1 text-xs text-danger">{error}</p>}
       </div>
-      {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">{t("noProperties")}</p>}
-      {!readOnly && <AddPropertyRow onCreate={addProperty} />}
-      {error && <p className="mt-2 px-1 text-xs text-danger">{error}</p>}
-    </div>
+    </RelationProvider>
   );
 }
 
-function AddPropertyRow({ onCreate }: { onCreate: (name: string, type: PropertyType) => Promise<void> }) {
+function AddPropertyRow({
+  onCreate,
+}: {
+  onCreate: (name: string, type: PropertyType, relation?: RelationInput) => Promise<void>;
+}) {
   const t = useTranslations("database.rowProperties");
   const menu = useFloating<HTMLButtonElement>();
   return (

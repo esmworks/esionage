@@ -7,11 +7,13 @@
     "multiSelect": "Multi-select",
     "date": "Date",
     "checkbox": "Checkbox",
-    "url": "URL"
+    "url": "URL",
+    "relation": "Relation"
   },
   "views": {
     "table": "Table",
-    "board": "Board"
+    "board": "Board",
+    "calendar": "Calendar"
   },
   "colors": {
     "gray": "Gray",
@@ -60,7 +62,11 @@
     "shownInView": "Shown in this view",
     "noProperties": "No properties yet",
     "hidden": "Hidden",
-    "shown": "Shown"
+    "shown": "Shown",
+    "calendarBy": "Calendar date",
+    "calendarWithName": "Date: {name}",
+    "calendarNeedsDate": "Calendars place rows by a date property.",
+    "newDateProperty": "New date property"
   },
   "activeRules": {
     "clear": "Clear",
@@ -172,6 +178,39 @@
     "noProperties": "No properties",
     "addProperty": "Add property"
   },
+  "relation": {
+    "chooseDatabase": "Related database",
+    "loadingDatabases": "Loading databases…",
+    "thisDatabase": "{title} (this database)",
+    "twoWay": "Show on {title} too",
+    "twoWayHint": "Adds a property there that lists the linked rows.",
+    "pairedName": "Property name on {title}",
+    "create": "Add relation",
+    "back": "Back",
+    "relatedTo": "Related to {title}",
+    "pairedWith": "Two-way, shown as “{name}”",
+    "missingDatabase": "The related database was deleted or is in the trash.",
+    "search": "Search in {title}",
+    "input": "Link rows to {property}",
+    "linked": "Linked",
+    "noRows": "No rows yet",
+    "noMatches": "No matching rows",
+    "newRow": "New row",
+    "open": "Open {title}",
+    "unlink": "Remove link to {title}"
+  },
+  "calendar": {
+    "today": "Today",
+    "previous": "Previous month",
+    "next": "Next month",
+    "needsDateTitle": "Calendars place rows on the days of a date property",
+    "needsDateBody": "This database has no date property yet.",
+    "addDateProperty": "Add {name} property",
+    "defaultDateProperty": "Date",
+    "addOnDay": "Add a row on {date}",
+    "noDate": "{count, plural, one {# row} other {# rows}} without {property}",
+    "noDateTitle": "Rows without {property}"
+  },
   "errors": {
     "invalidUrl": "“{property}” must be an http(s) or mailto URL.",
     "invalidNumber": "“{property}” must be a number.",
@@ -186,6 +225,8 @@
     "lastView": "A database needs at least one view.",
     "accessDenied": "Not found, or you don’t have access.",
     "parentInTrash": "The parent page is in the trash. Restore it first.",
-    "nestedDatabase": "A database can’t contain another database."
+    "nestedDatabase": "A database can’t contain another database.",
+    "invalidRelation": "“{property}” can only link to rows of its related database.",
+    "invalidRelationTarget": "A relation must point to a database in the same workspace."
   }
 }

@@ -45,6 +45,7 @@ const databases = vi.hoisted(() => ({
   deleteProperty: vi.fn(),
   addView: vi.fn(),
   updateView: vi.fn(),
+  getRelationTargets: vi.fn(async () => ({})),
   makeOption: vi.fn((name: string, index: number) => ({ id: `opt-new-${index}`, name: name.trim(), color: "gray" })),
 }));
 vi.mock("@/server/databases", () => databases);
@@ -252,6 +253,55 @@ describe("database properties", () => {
     const r = await callTool(writer, "delete_database_property", { database_id: "db-1", property: "notes" });
     expect(databases.deleteProperty).toHaveBeenCalledWith("user-1", "prop-notes");
     expect(r.data.deleted.name).toBe("Notes");
+  });
+});
+
+describe("relations and calendars", () => {
+  it("needs a related database for a relation and passes the two-way settings", async () => {
+    const missing = await callTool(writer, "add_database_property", { database_id: "db-1", name: "Customer", type: "relation" });
+    expect(missing.text).toMatch(/related_database_id/);
+    const misplaced = await callTool(writer, "add_database_property", {
+      database_id: "db-1",
+      name: "Due",
+      type: "date",
+      related_database_id: "db-2",
+    });
+    expect(misplaced.text).toMatch(/only apply to relation/);
+    databases.addProperty.mockResolvedValue({
+      id: "prop-customer",
+      name: "Customer",
+      type: "relation",
+      options: { relation: { databaseId: "db-2", pairedPropertyId: "prop-jobs" } },
+    });
+    const r = await callTool(writer, "add_database_property", {
+      database_id: "db-1",
+      name: "Customer",
+      type: "relation",
+      related_database_id: "db-2",
+      two_way: true,
+      paired_property_name: "Jobs",
+    });
+    expect(databases.addProperty).toHaveBeenCalledWith("user-1", "db-1", {
+      name: "Customer",
+      type: "relation",
+      options: undefined,
+      relation: { databaseId: "db-2", twoWay: true, pairedName: "Jobs" },
+    });
+    expect(r.data.property).toMatchObject({ related_database_id: "db-2", two_way: true });
+  });
+
+  it("creates calendar views on a date property only", async () => {
+    const due = { id: "prop-due", name: "Due", type: "date", options: {} };
+    databases.getDatabase.mockResolvedValue({ ...database, properties: [status, notes, due] });
+    const wrong = await callTool(writer, "create_database_view", { database_id: "db-1", name: "Cal", type: "calendar", date_by: "Notes" });
+    expect(wrong.text).toMatch(/date property/);
+    const onBoard = await callTool(writer, "create_database_view", { database_id: "db-1", name: "B", type: "board", date_by: "Due" });
+    expect(onBoard.text).toMatch(/only applies to calendar/);
+    expect(databases.addView).not.toHaveBeenCalled();
+    databases.addView.mockResolvedValue({ id: "view-3", name: "Cal", type: "calendar", config: { dateBy: "prop-due" } });
+    const r = await callTool(writer, "create_database_view", { database_id: "db-1", name: "Cal", type: "calendar" });
+    expect(databases.addView).toHaveBeenCalledWith("user-1", "db-1", { name: "Cal", type: "calendar" });
+    expect(r.data).toMatchObject({ type: "calendar", date_by: "Due" });
   });
 });
 

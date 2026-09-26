@@ -1,7 +1,29 @@
 import type { FilterOp, FilterRule, PropertyOptions, PropertyType, SortRule, ViewConfig } from "@/db/schema/app";
-import { CREATED_KEY, displayValue, PropertyValueError, TITLE_KEY, UPDATED_KEY } from "@/lib/properties";
+import { pageLabel } from "@/lib/labels";
+import { CREATED_KEY, displayValue, isSortable, PropertyValueError, TITLE_KEY, UPDATED_KEY } from "@/lib/properties";
 
 export type PropertyDef = { id: string; name: string; type: PropertyType; options: PropertyOptions };
+
+/** Related database and its live rows per relation property id (see databases.getRelationTargets). */
+export type RelationTargets = Record<
+  string,
+  { database: { id: string; title: string } | null; pairedName?: string | null; rows: { id: string; title: string }[] }
+>;
+
+/** A related row by id or (case-insensitive, unique) title. */
+function relatedRowId(prop: PropertyDef, targets: RelationTargets, value: unknown): string {
+  const rows = targets[prop.id]?.rows ?? [];
+  const raw = String(value ?? "").trim();
+  const byId = rows.find((r) => r.id === raw);
+  if (byId) return byId.id;
+  const matches = rows.filter((r) => r.title.trim().toLowerCase() === raw.toLowerCase());
+  if (matches.length === 1) return matches[0].id;
+  throw new PropertyValueError(
+    matches.length
+      ? `"${raw}" matches ${matches.length} rows related to "${prop.name}"; use a row id`
+      : `"${raw}" is not a row of the database related to "${prop.name}"`,
+  );
+}
 
 export const FILTER_OPS = ["contains", "equals", "not_equals", "is_empty", "is_not_empty", "gt", "lt"] as const satisfies readonly FilterOp[];
 
@@ -45,14 +67,21 @@ export type FilterInput = { property: string; op: FilterOp; value?: unknown };
 export type SortInput = { property: string; direction?: "asc" | "desc" };
 
 /** Converts an agent-facing filter (names, option names) to a stored FilterRule (ids). */
-export function toFilterRule(props: PropertyDef[], input: FilterInput): FilterRule {
+export function toFilterRule(props: PropertyDef[], input: FilterInput, targets: RelationTargets = {}): FilterRule {
   const { key, prop } = resolvePropertyKey(props, input.property);
   if (!VALUE_OPS.has(input.op)) return { propertyId: key, op: input.op };
   if (input.value === undefined || input.value === null || input.value === "") {
     throw new PropertyValueError(`Filter "${input.op}" on "${input.property}" needs a value`);
   }
   let value: unknown = input.value;
-  if (prop?.type === "select" || prop?.type === "multi_select") {
+  if (prop?.type === "relation") {
+    if (input.op !== "contains" && input.op !== "not_equals") {
+      throw new PropertyValueError(
+        `Relation "${prop.name}" supports contains, not_equals (does not contain), is_empty and is_not_empty`,
+      );
+    }
+    value = relatedRowId(prop, targets, value);
+  } else if (prop?.type === "select" || prop?.type === "multi_select") {
     if (input.op === "gt" || input.op === "lt") {
       throw new PropertyValueError(`"${input.op}" is not supported on select property "${prop.name}"`);
     }
@@ -69,18 +98,33 @@ export function toFilterRule(props: PropertyDef[], input: FilterInput): FilterRu
 }
 
 export function toSortRule(props: PropertyDef[], input: SortInput): SortRule {
-  return { propertyId: resolvePropertyKey(props, input.property).key, direction: input.direction ?? "asc" };
+  const { key, prop } = resolvePropertyKey(props, input.property);
+  if (prop && !isSortable(prop.type)) throw new PropertyValueError(`Relation "${prop.name}" can't be sorted`);
+  return { propertyId: key, direction: input.direction ?? "asc" };
 }
 
-/** Row values keyed by property name with option names instead of ids. Empty values are omitted. */
-export function displayProperties(props: PropertyDef[], values: Record<string, unknown>) {
+/**
+ * Row values keyed by property name with option names instead of ids and related rows as
+ * `{id, title}`. Empty values are omitted.
+ */
+export function displayProperties(props: PropertyDef[], values: Record<string, unknown>, targets: RelationTargets = {}) {
   const out: Record<string, unknown> = {};
   for (const prop of props) {
-    const value = displayValue(prop, values[prop.id]);
+    const value =
+      prop.type === "relation" ? relatedRows(prop, targets, values[prop.id]) : displayValue(prop, values[prop.id]);
     if (value === null || value === undefined || (Array.isArray(value) && value.length === 0)) continue;
     out[prop.name] = value;
   }
   return out;
+}
+
+function relatedRows(prop: PropertyDef, targets: RelationTargets, value: unknown) {
+  if (!Array.isArray(value)) return null;
+  const byId = new Map((targets[prop.id]?.rows ?? []).map((r) => [r.id, r]));
+  return value.flatMap((id) => {
+    const row = byId.get(id);
+    return row ? [{ id: row.id, title: pageLabel(row.title) }] : [];
+  });
 }
 
 function keyName(props: PropertyDef[], key: string) {
@@ -88,15 +132,21 @@ function keyName(props: PropertyDef[], key: string) {
 }
 
 /** A view's stored config with property and option names, for get_database output. */
-export function describeViewConfig(props: PropertyDef[], config: ViewConfig) {
+export function describeViewConfig(props: PropertyDef[], config: ViewConfig, targets: RelationTargets = {}) {
   const byId = new Map(props.map((p) => [p.id, p]));
+  const filterValue = (prop: PropertyDef, value: unknown) => {
+    if (prop.type !== "relation") return displayValue(prop, value) ?? value;
+    const row = targets[prop.id]?.rows.find((r) => r.id === value);
+    return row ? pageLabel(row.title) : value;
+  };
   return {
     ...(config.groupBy ? { group_by: keyName(props, config.groupBy) } : {}),
+    ...(config.dateBy ? { date_by: keyName(props, config.dateBy) } : {}),
     ...(config.filters?.length
       ? {
           filters: config.filters.map((f) => {
             const prop = byId.get(f.propertyId);
-            const value = prop && f.value !== undefined ? (displayValue(prop, f.value) ?? f.value) : f.value;
+            const value = prop && f.value !== undefined ? filterValue(prop, f.value) : f.value;
             return { property: keyName(props, f.propertyId), op: f.op, ...(value !== undefined ? { value } : {}) };
           }),
         }
@@ -107,13 +157,23 @@ export function describeViewConfig(props: PropertyDef[], config: ViewConfig) {
   };
 }
 
-export function describeProperty(prop: PropertyDef) {
+export function describeProperty(prop: PropertyDef, targets: RelationTargets = {}) {
+  const relation = prop.type === "relation" ? prop.options.relation : undefined;
+  const target = targets[prop.id];
   return {
     id: prop.id,
     name: prop.name,
     type: prop.type,
     ...(prop.type === "select" || prop.type === "multi_select"
       ? { options: (prop.options.options ?? []).map((o) => o.name) }
+      : {}),
+    ...(relation
+      ? {
+          related_database_id: relation.databaseId,
+          ...(target?.database ? { related_database: pageLabel(target.database.title) } : {}),
+          two_way: Boolean(relation.pairedPropertyId),
+          ...(target?.pairedName ? { paired_property: target.pairedName } : {}),
+        }
       : {}),
   };
 }

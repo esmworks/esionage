@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { PropertyOptions, PropertyType } from "@/db/schema/app";
+import type { FilterRule, PropertyOptions, PropertyType } from "@/db/schema/app";
 import {
   applyView,
   displayValue,
   filterNeedsValue,
   filterOperators,
   groupRows,
+  isSortable,
   normalizeValue,
   positionBetween,
   PropertyValueError,
@@ -184,5 +185,32 @@ describe("groupRows", () => {
     const groups = groupRows(rows, status);
     expect(groups.map((g) => g.option?.name ?? null)).toEqual([null, "Not started", "In progress", "Done"]);
     expect(groups.map((g) => g.rows.map((r) => r.id))).toEqual([["b", "e"], ["c"], [], ["a", "d"]]);
+  });
+});
+
+describe("relation values", () => {
+  const rel = prop("relation", { relation: { databaseId: "db-2" } });
+
+  it("keeps row references in order without duplicates and clears when empty", () => {
+    expect(normalizeValue(rel, ["r2", " r1 ", "r2"])).toEqual(["r2", "r1"]);
+    expect(normalizeValue(rel, "r1")).toEqual(["r1"]);
+    expect(normalizeValue(rel, [])).toBeNull();
+    expect(normalizeValue(rel, ["", " "])).toBeNull();
+  });
+
+  it("rejects values that are not row references", () => {
+    expect(() => normalizeValue(rel, [1, 2])).toThrow(PropertyValueError);
+    expect(() => normalizeValue(rel, true)).toThrow(PropertyValueError);
+  });
+
+  it("filters by linked row and is not sortable", () => {
+    expect(filterOperators("relation").map((o) => o.op)).toEqual(["contains", "not_equals", "is_empty", "is_not_empty"]);
+    expect(isSortable("relation")).toBe(false);
+    expect(isSortable("date")).toBe(true);
+    const rows = [row("a", "A", { p_relation: ["r1", "r2"] }), row("b", "B", { p_relation: ["r3"] }), row("c", "C")];
+    const ids = (filters: FilterRule[]) => applyView(rows, { filters }).map((r) => r.id);
+    expect(ids([{ propertyId: "p_relation", op: "contains", value: "r2" }])).toEqual(["a"]);
+    expect(ids([{ propertyId: "p_relation", op: "not_equals", value: "r2" }])).toEqual(["b", "c"]);
+    expect(ids([{ propertyId: "p_relation", op: "is_empty" }])).toEqual(["c"]);
   });
 });

@@ -306,7 +306,7 @@ function Card({
   );
 }
 
-function CardTitleInput({ initial, onDone }: { initial: string; onDone: (title: string) => void }) {
+export function CardTitleInput({ initial, onDone }: { initial: string; onDone: (title: string) => void }) {
   const t = useTranslations("database.board");
   const [value, setValue] = useState(initial);
   const input = useRef<HTMLInputElement>(null);

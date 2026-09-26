@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  CalendarDays,
   ChevronDown,
   Eye,
   EyeOff,
@@ -20,14 +21,19 @@ import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem, MenuSeparator } from "@/components/ui";
 import type { FilterOp, FilterRule, SortRule, ViewConfig, ViewType } from "@/db/schema/app";
-import { filterNeedsValue, filterOperators } from "@/lib/properties";
+import { pageLabel } from "@/lib/labels";
+import { filterNeedsValue, filterOperators, isSortable } from "@/lib/properties";
 import { Floating, useFloating } from "./floating";
 import { useFormatDate } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
+import { linkedRows, useRelations } from "./relation-context";
 import { TITLE, type Property, type View } from "./types";
 
+const VIEW_ICONS = { table: Sheet, board: Kanban, calendar: CalendarDays } as const;
+export const VIEW_TYPES = ["table", "board", "calendar"] as const satisfies readonly ViewType[];
+
 export function ViewIcon({ type, className }: { type: ViewType; className?: string }) {
-  const Icon = type === "board" ? Kanban : Sheet;
+  const Icon = VIEW_ICONS[type] ?? Sheet;
   return <Icon className={className ?? "h-3.5 w-3.5"} strokeWidth={1.75} aria-hidden />;
 }
 
@@ -78,7 +84,7 @@ export function ViewTabs({
           </button>
           <Floating open={add.open} anchor={add.el} onClose={add.close}>
             <div className="px-2 pt-1 pb-1.5 text-xs text-fg-muted">{t("viewTabs.addViewHeading")}</div>
-            {(["table", "board"] as const).map((type) => (
+            {VIEW_TYPES.map((type) => (
               <MenuItem
                 key={type}
                 icon={<ViewIcon type={type} />}
@@ -87,7 +93,7 @@ export function ViewTabs({
                   onAdd(type);
                 }}
               >
-                {t(type === "board" ? "views.board" : "views.table")}
+                {t(`views.${type}`)}
               </MenuItem>
             ))}
           </Floating>
@@ -241,12 +247,14 @@ export function ViewToolbar({
   properties,
   onConfig,
   onCreateGroupProperty,
+  onCreateDateProperty,
   readOnly,
 }: {
   view: View;
   properties: Property[];
   onConfig: (config: ViewConfig) => void;
   onCreateGroupProperty: () => void;
+  onCreateDateProperty: () => void;
   readOnly?: boolean;
 }) {
   const t = useTranslations("database");
@@ -261,6 +269,9 @@ export function ViewToolbar({
   const columns = columnsOf(properties, t("nameColumn"));
   const selectProps = properties.filter((p) => p.type === "select");
   const groupBy = selectProps.find((p) => p.id === config.groupBy) ?? selectProps[0];
+  const dateMenu = useFloating<HTMLButtonElement>();
+  const dateProps = properties.filter((p) => p.type === "date");
+  const dateBy = dateProps.find((p) => p.id === config.dateBy) ?? dateProps[0];
 
   if (readOnly) return null;
   return (
@@ -286,7 +297,11 @@ export function ViewToolbar({
         onClick={sortMenu.toggle}
       />
       <Floating open={sortMenu.open} anchor={sortMenu.el} onClose={sortMenu.close} align="end">
-        <SortEditor columns={columns} sorts={sorts} onChange={(s) => onConfig({ ...config, sorts: s })} />
+        <SortEditor
+          columns={columns.filter((c) => isSortable(c.type))}
+          sorts={sorts}
+          onChange={(s) => onConfig({ ...config, sorts: s })}
+        />
       </Floating>
 
       {view.type === "board" && (
@@ -324,6 +339,46 @@ export function ViewToolbar({
               }}
             >
               {t("toolbar.newSelectProperty")}
+            </MenuItem>
+          </Floating>
+        </>
+      )}
+
+      {view.type === "calendar" && (
+        <>
+          <ToolbarButton
+            icon={<CalendarDays className="h-3.5 w-3.5" />}
+            label={dateBy ? t("toolbar.calendarWithName", { name: dateBy.name }) : t("toolbar.calendarBy")}
+            buttonRef={dateMenu.ref}
+            onClick={dateMenu.toggle}
+          />
+          <Floating open={dateMenu.open} anchor={dateMenu.el} onClose={dateMenu.close} align="end">
+            <div className="px-2 pt-1 pb-1.5 text-xs text-fg-muted">{t("toolbar.calendarBy")}</div>
+            {dateProps.map((p) => (
+              <MenuItem
+                key={p.id}
+                active={p.id === dateBy?.id}
+                icon={<PropertyTypeIcon type={p.type} />}
+                onClick={() => {
+                  dateMenu.close();
+                  onConfig({ ...config, dateBy: p.id });
+                }}
+              >
+                {p.name}
+              </MenuItem>
+            ))}
+            {!dateProps.length && (
+              <div className="px-2 pb-1 text-xs text-fg-faint">{t("toolbar.calendarNeedsDate")}</div>
+            )}
+            <MenuSeparator />
+            <MenuItem
+              icon={<Plus className="h-3.5 w-3.5" />}
+              onClick={() => {
+                dateMenu.close();
+                onCreateDateProperty();
+              }}
+            >
+              {t("toolbar.newDateProperty")}
             </MenuItem>
           </Floating>
         </>
@@ -439,6 +494,8 @@ function useDescribeFilter() {
   const format = useFormatter();
   const formatDate = useFormatDate();
   const operatorLabel = useOperatorLabel();
+  const relations = useRelations();
+  const tc = useTranslations("common");
   return (f: FilterRule, columns: Column[]) => {
     const col = columns.find((c) => c.id === f.propertyId);
     if (!col) return t("unknownFilter");
@@ -449,6 +506,9 @@ function useDescribeFilter() {
     let value = String(f.value ?? "");
     if (col.prop && (col.type === "select" || col.type === "multi_select")) {
       value = col.prop.options.options?.find((o) => o.id === f.value)?.name ?? "…";
+    } else if (col.prop && col.type === "relation") {
+      const row = linkedRows(relations?.targets[col.prop.id], [f.value])[0];
+      value = row ? pageLabel(row.title, tc("untitled")) : "…";
     } else if (col.type === "number" && typeof f.value === "number") {
       value = format.number(f.value, { maximumFractionDigits: 10 });
     } else if (col.type === "date" && value) {
@@ -571,6 +631,20 @@ function FilterValue({
   onChange: (value: unknown, debounce?: boolean) => void;
 }) {
   const t = useTranslations("database.filter");
+  const tc = useTranslations("common");
+  const relations = useRelations();
+  if (col.type === "relation" && col.prop) {
+    const rows = relations?.targets[col.prop.id]?.rows ?? [];
+    return (
+      <NativeSelect
+        label={t("value")}
+        value={typeof value === "string" ? value : ""}
+        onChange={(v) => onChange(v || undefined)}
+        options={[{ value: "", label: t("choose") }, ...rows.map((r) => ({ value: r.id, label: pageLabel(r.title, tc("untitled")) }))]}
+        className="w-full"
+      />
+    );
+  }
   if ((col.type === "select" || col.type === "multi_select") && col.prop) {
     const options = col.prop.options.options ?? [];
     return (
