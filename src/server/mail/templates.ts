@@ -95,3 +95,20 @@ export function testEmail(locale: Locale): RenderedEmail {
     paragraphs: [t("test.body", { appUrl: env.appUrl })],
   });
 }
+
+export function invitationEmail(
+  locale: Locale,
+  invitation: { inviterName: string; workspaceName: string; email: string; role: "owner" | "member"; link: string },
+): RenderedEmail {
+  const t = emailTranslator(locale);
+  const names = { inviter: invitation.inviterName, workspace: invitation.workspaceName };
+  return renderEmail(locale, {
+    subject: t("invitation.subject", names),
+    heading: t("invitation.heading", names),
+    paragraphs: [
+      t("invitation.body", { ...names, role: t(`invitation.roles.${invitation.role}`) }),
+      t("invitation.expires", { email: invitation.email }),
+    ],
+    action: { label: t("invitation.action"), url: invitation.link },
+  });
+}

@@ -14,6 +14,7 @@ import {
 import { CopyButton } from "@/components/settings/copy-button";
 import { Button, Input } from "@/components/ui";
 import type { WorkspaceRole } from "@/db/schema/app";
+import type { AddMemberResult } from "@/server/workspaces";
 
 type Member = { userId: string; name: string; email: string; role: WorkspaceRole };
 type Invitation = { id: string; email: string; role: WorkspaceRole; expiresAt: Date; link: string };
@@ -236,7 +237,7 @@ function AddMemberForm({ workspaceId }: { workspaceId: string }) {
   const t = useTranslations("settings.members");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<WorkspaceRole>("member");
-  const [invited, setInvited] = useState<{ email: string; link: string } | null>(null);
+  const [invited, setInvited] = useState<Extract<AddMemberResult, { kind: "invited" }> | null>(null);
   const { pending, error, run } = useAction();
 
   return (
@@ -250,7 +251,7 @@ function AddMemberForm({ workspaceId }: { workspaceId: string }) {
           () => addMemberAction(workspaceId, email, role),
           (result) => {
             setEmail("");
-            if (result.kind === "invited") setInvited({ email: result.email, link: result.link });
+            if (result.kind === "invited") setInvited(result);
           },
         );
       }}
@@ -282,7 +283,12 @@ function AddMemberForm({ workspaceId }: { workspaceId: string }) {
       {error && <p className="text-xs text-danger">{error}</p>}
       {invited && (
         <div className="space-y-2 rounded-md border border-border bg-bg-subtle p-3">
-          <p className="text-sm">{t("invited", { email: invited.email })}</p>
+          <p className="text-sm">
+            {t(
+              invited.delivery === "sent" ? "invitedEmailed" : invited.delivery === "failed" ? "invitedEmailFailed" : "invited",
+              { email: invited.email },
+            )}
+          </p>
           <div className="flex items-center gap-2">
             <Input readOnly value={invited.link} onFocus={(e) => e.currentTarget.select()} aria-label={t("inviteLink")} />
             <CopyButton value={invited.link} label={t("copyLink")} />

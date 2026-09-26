@@ -1,6 +1,6 @@
 {
   "metaTitle": "Davet",
-  "title": "{workspace} çalışma alanına katılın",
+  "title": "Davet: “{workspace}”",
   "invalidTitle": "Davet bulunamadı",
   "invalidBody": "Bu davet bağlantısı geçersiz, süresi dolmuş ya da iptal edilmiş. Sizi davet eden kişiden yeni bir bağlantı isteyin.",
   "home": "Esionage'a git",

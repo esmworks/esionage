@@ -5,5 +5,16 @@
     "subject": "Esionage test e-postası",
     "heading": "E-posta gönderimi çalışıyor",
     "body": "Bu, {appUrl} adresindeki Esionage sunucunuzdan gönderilen bir test mesajı. Bunu okuyabiliyorsanız e-posta ayarları doğru demektir."
+  },
+  "invitation": {
+    "subject": "{inviter} sizi Esionage'a davet etti: “{workspace}”",
+    "heading": "Davet: “{workspace}”",
+    "body": "{inviter}, sizi Esionage'daki “{workspace}” adlı çalışma alanına {role} olarak davet etti.",
+    "expires": "Bağlantı 7 gün geçerlidir. Daveti kabul etmek için {email} adresiyle kaydolun.",
+    "action": "Daveti kabul et",
+    "roles": {
+      "owner": "sahip",
+      "member": "üye"
+    }
   }
 }

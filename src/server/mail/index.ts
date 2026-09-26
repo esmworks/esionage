@@ -2,7 +2,7 @@ import nodemailer, { type Transporter } from "nodemailer";
 import { type MailConfig, MailConfigError, readMailConfig } from "./config";
 
 export { MailConfigError } from "./config";
-export { type EmailContent, type RenderedEmail, renderEmail, testEmail } from "./templates";
+export { type EmailContent, type RenderedEmail, invitationEmail, renderEmail, testEmail } from "./templates";
 
 /**
  * - `smtp`: mail is sent through the configured server.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MailConfigError, readMailConfig } from "./config";
-import { renderEmail, testEmail } from "./templates";
+import { invitationEmail, renderEmail, testEmail } from "./templates";
 
 const FROM = "Esionage <no-reply@example.com>";
 
@@ -81,5 +81,31 @@ describe("renderEmail", () => {
     expect(tr.subject).toBe("Esionage test e-postası");
     expect(tr.html).toContain('<html lang="tr">');
     expect(tr.text).toContain("E-posta gönderimi çalışıyor");
+  });
+});
+
+describe("invitationEmail", () => {
+  const invitation = {
+    inviterName: "Erhan",
+    workspaceName: "<Sales & Ops>",
+    email: "ayse@example.com",
+    role: "member" as const,
+    link: "https://notes.example.com/invite/abc123",
+  };
+
+  it("puts the link and the invited email in both versions", () => {
+    const mail = invitationEmail("en", invitation);
+    expect(mail.subject).toBe("Erhan invited you to “<Sales & Ops>” on Esionage");
+    expect(mail.text).toContain("Accept invitation: https://notes.example.com/invite/abc123");
+    expect(mail.text).toContain("ayse@example.com");
+    expect(mail.html).toContain('href="https://notes.example.com/invite/abc123"');
+    expect(mail.html).toContain("&lt;Sales &amp; Ops&gt;");
+    expect(mail.html).not.toContain("<Sales & Ops>");
+  });
+
+  it("is written in the requested language", () => {
+    const mail = invitationEmail("tr", { ...invitation, role: "owner" });
+    expect(mail.text).toContain("sahip olarak davet etti");
+    expect(mail.text).toContain("Daveti kabul et: https://notes.example.com/invite/abc123");
   });
 });

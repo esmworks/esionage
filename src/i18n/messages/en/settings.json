@@ -27,7 +27,9 @@
     "copyLink": "Copy link",
     "cancelInvitation": "Cancel invitation",
     "invited": "{email} has no account yet. Send them this link to join; it works for 7 days.",
-    "inviteLink": "Invitation link"
+    "inviteLink": "Invitation link",
+    "invitedEmailed": "We emailed an invitation to {email}. You can also share this link; it works for 7 days.",
+    "invitedEmailFailed": "{email} has no account yet and the invitation email could not be sent. Send them this link yourself; it works for 7 days."
   },
   "language": {
     "heading": "Language",

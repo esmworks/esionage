@@ -1,6 +1,6 @@
 {
   "metaTitle": "Invitation",
-  "title": "Join {workspace}",
+  "title": "Join “{workspace}”",
   "invalidTitle": "Invitation not found",
   "invalidBody": "This invitation link is invalid, has expired or was cancelled. Ask the person who invited you for a new one.",
   "home": "Go to Esionage",

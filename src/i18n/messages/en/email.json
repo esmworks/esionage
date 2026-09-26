@@ -5,5 +5,16 @@
     "subject": "Test email from Esionage",
     "heading": "Email delivery works",
     "body": "This is a test message from your Esionage server at {appUrl}. If you can read it, email is set up correctly."
+  },
+  "invitation": {
+    "subject": "{inviter} invited you to “{workspace}” on Esionage",
+    "heading": "Join “{workspace}”",
+    "body": "{inviter} invited you to join “{workspace}” on Esionage as {role}.",
+    "expires": "The link works for 7 days. Sign up with {email} to accept.",
+    "action": "Accept invitation",
+    "roles": {
+      "owner": "an owner",
+      "member": "a member"
+    }
   }
 }

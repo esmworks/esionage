@@ -3,7 +3,9 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/db";
 import { user, workspace, workspaceInvitation, workspaceMember, type WorkspaceRole } from "@/db/schema";
+import { isLocale, type Locale } from "@/i18n/config";
 import { env } from "@/lib/env";
+import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
 import { AccessError, requireMembership } from "@/server/access";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
@@ -102,13 +104,55 @@ const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 export const invitationLink = (token: string) => `${env.appUrl}/invite/${token}`;
 
+/**
+ * - `sent`: the invitation email went out (or, in development without SMTP, to the log).
+ * - `failed`: SMTP is set up but sending failed; the owner has to share the link.
+ * - `off`: no email on this server; the owner shares the link.
+ */
+export type InvitationDelivery = "sent" | "failed" | "off";
+
 export type AddMemberResult =
   | { kind: "added" }
-  | { kind: "invited"; email: string; link: string };
+  | { kind: "invited"; email: string; link: string; delivery: InvitationDelivery };
+
+/** The inviter's interface language; the invitee has none yet. */
+async function requestLocale(): Promise<Locale> {
+  try {
+    const locale = await getLocale();
+    return isLocale(locale) ? locale : "en";
+  } catch {
+    return "en";
+  }
+}
+
+async function emailInvitation(
+  actorId: string,
+  workspaceId: string,
+  invitation: { email: string; role: WorkspaceRole; link: string },
+): Promise<InvitationDelivery> {
+  if (mailStatus() === "disabled") return "off";
+  try {
+    const [[inviter], [ws], locale] = await Promise.all([
+      db.select({ name: user.name }).from(user).where(eq(user.id, actorId)).limit(1),
+      db.select({ name: workspace.name }).from(workspace).where(eq(workspace.id, workspaceId)).limit(1),
+      requestLocale(),
+    ]);
+    const content = invitationEmail(locale, {
+      inviterName: inviter?.name ?? "",
+      workspaceName: ws?.name ?? "",
+      ...invitation,
+    });
+    await sendMail({ to: invitation.email, ...content });
+    return "sent";
+  } catch (error) {
+    console.error("could not send invitation email", error);
+    return "failed";
+  }
+}
 
 /**
- * Adds the account that uses this email. Without one, creates (or renews) an invitation whose
- * link the owner shares themselves; there is no email delivery.
+ * Adds the account that uses this email. Without one, creates (or renews) an invitation and emails
+ * its link when the server can send email; the owner can always share the link themselves.
  */
 export async function addMember(
   actorId: string,
@@ -133,7 +177,9 @@ export async function addMember(
         target: [workspaceInvitation.workspaceId, workspaceInvitation.email],
         set: { role, token, invitedBy: actorId, expiresAt, createdAt: new Date() },
       });
-    return { kind: "invited", email: clean, link: invitationLink(token) };
+    const link = invitationLink(token);
+    const delivery = await emailInvitation(actorId, workspaceId, { email: clean, role, link });
+    return { kind: "invited", email: clean, link, delivery };
   }
   const inserted = await db
     .insert(workspaceMember)

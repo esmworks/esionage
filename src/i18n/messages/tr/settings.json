@@ -27,7 +27,9 @@
     "copyLink": "Bağlantıyı kopyala",
     "cancelInvitation": "Daveti iptal et",
     "invited": "{email} için henüz hesap yok. Katılması için bu bağlantıyı gönderin; 7 gün geçerlidir.",
-    "inviteLink": "Davet bağlantısı"
+    "inviteLink": "Davet bağlantısı",
+    "invitedEmailed": "{email} adresine davet e-postası gönderildi. Bu bağlantıyı siz de paylaşabilirsiniz; 7 gün geçerlidir.",
+    "invitedEmailFailed": "{email} için henüz hesap yok ve davet e-postası gönderilemedi. Bu bağlantıyı kendiniz gönderin; 7 gün geçerlidir."
   },
   "language": {
     "heading": "Dil",
