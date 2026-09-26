@@ -1,0 +1,49 @@
+{
+  "documentTitle": "{title} · Esionage",
+  "header": {
+    "history": "Page history",
+    "more": "More",
+    "copyLink": "Copy link",
+    "moveToTrash": "Move to trash"
+  },
+  "archived": {
+    "banner": "This page is in the trash.",
+    "deletePermanently": "Delete permanently",
+    "confirmDelete": "Delete this page and everything inside it permanently? This cannot be undone."
+  },
+  "icon": {
+    "add": "Add icon",
+    "remove": "Remove icon"
+  },
+  "title": {
+    "label": "Page title"
+  },
+  "connection": {
+    "live": "Live",
+    "connecting": "Connecting",
+    "offline": "Offline"
+  },
+  "errors": {
+    "accessLost": "You no longer have access to this page."
+  },
+  "history": {
+    "title": "Page history",
+    "previewTitle": "Version preview",
+    "reasons": {
+      "auto": "Autosave",
+      "beforeRestore": "Before restore",
+      "manual": "Saved version",
+      "beforeAiEdit": "Before AI edit",
+      "beforeAiEditBy": "Before edit by {client}"
+    },
+    "empty": "No versions yet. Versions are saved automatically while you edit and before any AI app changes this page.",
+    "restore": "Restore this version",
+    "restoring": "Restoring…",
+    "restoreHint": "The current content is saved as a version first.",
+    "errors": {
+      "list": "Could not load the page history. Reload the page and try again.",
+      "version": "Could not load this version.",
+      "restore": "Could not restore this version."
+    }
+  }
+}

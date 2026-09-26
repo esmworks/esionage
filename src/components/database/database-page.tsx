@@ -2,6 +2,7 @@
 
 import { Plus, TriangleAlert, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import type { ViewConfig, ViewType } from "@/db/schema/app";
@@ -13,6 +14,8 @@ import { useDatabase } from "./use-database";
 import { ActiveRulesBar, ViewTabs, ViewToolbar } from "./view-bar";
 
 export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string; databaseId: string }) {
+  const t = useTranslations("database");
+  const locale = useLocale();
   const { snapshot, rows, loadError, error, api } = useDatabase(databaseId);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -42,9 +45,9 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
     return loadError ? (
       <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-fg-muted">
         <TriangleAlert className="h-4 w-4 text-danger" />
-        Could not load this database: {loadError}
+        {t("page.loadError", { error: loadError })}
         <Button size="sm" variant="ghost" onClick={() => void api.refetch()}>
-          Retry
+          {t("page.retry")}
         </Button>
       </div>
     ) : (
@@ -55,7 +58,8 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
   const setConfig = (v: View, config: ViewConfig) => api.updateView(v, { config });
 
   const addView = async (type: ViewType) => {
-    const base = type === "board" ? "Board" : "Table";
+    // Names for new views follow the UI language; existing names are stored data and stay as-is.
+    const base = t(type === "board" ? "views.board" : "views.table");
     const taken = new Set(views.map((v) => v.name));
     let name = base;
     for (let i = 2; taken.has(name); i++) name = `${base} ${i}`;
@@ -64,9 +68,15 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
   };
 
   const createGroupProperty = async () => {
-    const names = new Set(snapshot.properties.map((p) => p.name.toLowerCase()));
-    const name = names.has("status") ? "Group" : "Status";
-    const created = await api.addProperty(name, "select", ["Not started", "In progress", "Done"]);
+    const lower = (s: string) => s.toLocaleLowerCase(locale);
+    const names = new Set(snapshot.properties.map((p) => lower(p.name)));
+    const status = t("page.defaultGroupProperty");
+    const name = names.has(lower(status)) ? t("page.defaultGroupPropertyFallback") : status;
+    const created = await api.addProperty(name, "select", [
+      t("page.defaultGroupOptions.notStarted"),
+      t("page.defaultGroupOptions.inProgress"),
+      t("page.defaultGroupOptions.done"),
+    ]);
     if (created && view?.type === "board") await setConfig(view, { ...view.config, groupBy: created.id });
   };
 
@@ -105,7 +115,7 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
             {!readOnly && (
               <Button size="sm" variant="primary" onClick={newRow} className="ml-1">
                 <Plus className="h-3.5 w-3.5" />
-                New
+                {t("page.new")}
               </Button>
             )}
           </div>
@@ -121,7 +131,7 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
           <span className="flex-1">{error}</span>
           <button
             type="button"
-            aria-label="Dismiss"
+            aria-label={t("page.dismiss")}
             onClick={api.clearError}
             className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-hover hover:text-fg"
           >
@@ -142,12 +152,12 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
       <div className="pt-2">
         {!view ? (
           <div className="py-10 text-center text-sm text-fg-muted">
-            This database has no views.
+            {t("page.noViews")}
             {!readOnly && (
               <div className="mt-3">
                 <Button size="sm" onClick={() => addView("table")}>
                   <Plus className="h-3.5 w-3.5" />
-                  Add a table view
+                  {t("page.addTableView")}
                 </Button>
               </div>
             )}
@@ -180,8 +190,9 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
 }
 
 function DatabaseSkeleton() {
+  const t = useTranslations("database.page");
   return (
-    <div aria-busy="true" aria-label="Loading database" className="animate-pulse">
+    <div aria-busy="true" aria-label={t("loading")} className="animate-pulse">
       <div className="flex items-center gap-2 border-b border-border pb-2">
         <div className="h-6 w-20 rounded-md bg-bg-hover" />
         <div className="h-6 w-16 rounded-md bg-bg-hover" />

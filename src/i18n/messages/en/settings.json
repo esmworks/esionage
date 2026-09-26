@@ -1,0 +1,69 @@
+{
+  "metaTitle": "Settings",
+  "title": "Settings",
+  "workspace": {
+    "heading": "Workspace",
+    "nameLabel": "Name",
+    "ownersOnly": "Only owners can rename the workspace."
+  },
+  "members": {
+    "heading": "Members",
+    "description": "Everyone here can read and edit every page in this workspace. Owners can also manage members.",
+    "you": "(you)",
+    "roleOf": "Role of {name}",
+    "roleLabel": "Role",
+    "roles": {
+      "owner": "Owner",
+      "member": "Member"
+    },
+    "leave": "Leave",
+    "addLabel": "Add a member by the email they signed up with",
+    "emailPlaceholder": "name@example.com",
+    "addButton": "Add",
+    "adding": "Adding…"
+  },
+  "language": {
+    "heading": "Language",
+    "label": "Interface language",
+    "followBrowser": "Follow browser",
+    "note": "This setting applies to this browser only."
+  },
+  "connectedApps": {
+    "heading": "Connected apps",
+    "description": "Apps you have allowed to use Esionage on your behalf, for example AI assistants connected over MCP.",
+    "empty": "No apps are connected yet.",
+    "connected": "Connected {date}",
+    "connectedAndUpdated": "Connected {connected}, updated {updated}",
+    "revoke": "Revoke access",
+    "revoking": "Revoking…",
+    "disconnect": "Disconnect {name}",
+    "revokeError": "Could not revoke access. Try again."
+  },
+  "mcp": {
+    "heading": "Connect an AI assistant",
+    "description": "Esionage has a built-in MCP server. Assistants that support remote MCP servers can search, read and edit your pages and databases after you sign in and approve access. Every edit an assistant makes is saved to page history first, so you can undo it.",
+    "serverUrl": "Server URL",
+    "claude": {
+      "title": "Claude",
+      "body": "Open Settings, then Connectors, choose Add custom connector and paste the server URL. Claude opens Esionage in your browser so you can sign in and allow access."
+    },
+    "claudeCode": {
+      "title": "Claude Code",
+      "body": "Run this in a terminal, then use /mcp inside Claude Code to sign in."
+    },
+    "other": {
+      "title": "Other MCP clients",
+      "body": "Add a remote server with the Streamable HTTP transport and the URL above. The client discovers sign-in through standard OAuth 2.1 metadata; it can register itself automatically or use a client ID metadata document. Choose read-only access on the approval screen if the client should not edit anything."
+    }
+  },
+  "errors": {
+    "nameRequired": "Give the workspace a name.",
+    "noAccount": "No account uses this email. Ask them to sign up first.",
+    "alreadyMember": "This person is already a member.",
+    "notMember": "This person is not a member.",
+    "lastOwner": "A workspace needs at least one owner.",
+    "lastOwnerRemove": "A workspace needs at least one owner. Make someone else an owner first.",
+    "ownersOnly": "Only workspace owners can do this.",
+    "unknownRole": "Unknown role."
+  }
+}

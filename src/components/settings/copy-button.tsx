@@ -1,10 +1,13 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/components/ui";
 
-export function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
+export function CopyButton({ value, label: customLabel }: { value: string; label?: string }) {
+  const tc = useTranslations("common");
+  const label = customLabel ?? tc("copy");
   const [copied, setCopied] = useState(false);
   return (
     <Button
@@ -21,7 +24,7 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
       }}
     >
       {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-      {copied ? "Copied" : label}
+      {copied ? tc("copied") : label}
     </Button>
   );
 }

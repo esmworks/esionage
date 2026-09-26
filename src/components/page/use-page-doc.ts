@@ -1,6 +1,7 @@
 "use client";
 
 import type { HocuspocusProvider } from "@hocuspocus/provider";
+import { useTranslations } from "next-intl";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type * as Y from "yjs";
 import { acquireDoc } from "@/components/collab/socket";
@@ -10,10 +11,11 @@ export type PageDoc = { doc: Y.Doc; provider: HocuspocusProvider };
 
 /** Opens the page's shared document; `synced` flips once the server state has arrived. */
 export function usePageDoc(pageId: string) {
-  const [state, setState] = useState<{ pageDoc: PageDoc | null; synced: boolean; error: string | null }>({
+  const t = useTranslations("page.errors");
+  const [state, setState] = useState<{ pageDoc: PageDoc | null; synced: boolean; accessLost: boolean }>({
     pageDoc: null,
     synced: false,
-    error: null,
+    accessLost: false,
   });
 
   useEffect(() => {
@@ -21,10 +23,9 @@ export function usePageDoc(pageId: string) {
     const { doc, provider } = shared;
     const pageDoc: PageDoc = { doc, provider };
     // A reused provider may already be synced and won't emit "synced" again.
-    setState({ pageDoc, synced: provider.isSynced, error: null });
+    setState({ pageDoc, synced: provider.isSynced, accessLost: false });
     const onSynced = () => setState((s) => (s.pageDoc?.doc === doc ? { ...s, synced: true } : s));
-    const onAuthFailed = () =>
-      setState((s) => (s.pageDoc?.doc === doc ? { ...s, error: "You no longer have access to this page." } : s));
+    const onAuthFailed = () => setState((s) => (s.pageDoc?.doc === doc ? { ...s, accessLost: true } : s));
     provider.on("synced", onSynced);
     provider.on("authenticationFailed", onAuthFailed);
     return () => {
@@ -34,7 +35,8 @@ export function usePageDoc(pageId: string) {
     };
   }, [pageId]);
 
-  return state;
+  // Translated at render time so a language change also updates a message already shown.
+  return { pageDoc: state.pageDoc, synced: state.synced, error: state.accessLost ? t("accessLost") : null };
 }
 
 /** Live title from the shared doc's meta map. */

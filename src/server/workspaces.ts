@@ -1,26 +1,59 @@
 import { and, asc, eq, sql } from "drizzle-orm";
+import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/db";
 import { user, workspace, workspaceMember, type WorkspaceRole } from "@/db/schema";
 import { AccessError, requireMembership } from "@/server/access";
+import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
 
-export async function createPersonalWorkspace(userId: string, userName: string) {
+/** "Erhan's workspace" / "Erhan'ın çalışma alanı", in the language of the sign-up request. */
+async function personalWorkspaceName(userName: string) {
   const firstName = userName.trim().split(/\s+/)[0] || "My";
+  try {
+    const [locale, t] = await Promise.all([getLocale(), getTranslations("home")]);
+    return t("personalWorkspace", { name: locale === "tr" ? turkishGenitive(firstName) : firstName });
+  } catch {
+    // Outside a request (scripts, tests) there is no locale to read.
+    return `${firstName}'s workspace`;
+  }
+}
+
+export async function createPersonalWorkspace(userId: string, userName: string) {
+  const name = await personalWorkspaceName(userName);
   await db.transaction(async (tx) => {
     const [ws] = await tx
       .insert(workspace)
-      .values({ name: `${firstName}'s workspace` })
+      .values({ name })
       .returning({ id: workspace.id });
     await tx.insert(workspaceMember).values({ workspaceId: ws.id, userId, role: "owner" });
   });
 }
 
-/** An error whose message is safe to show to the user. */
-export class WorkspaceError extends Error {}
+export type WorkspaceErrorCode =
+  | "nameRequired"
+  | "noAccount"
+  | "alreadyMember"
+  | "notMember"
+  | "lastOwner"
+  | "lastOwnerRemove";
+
+/**
+ * An expected failure the user can act on. `code` is stable and translated by the UI; the
+ * English `message` is for logs.
+ */
+export class WorkspaceError extends Error {
+  readonly code: WorkspaceErrorCode;
+
+  constructor(code: WorkspaceErrorCode, message: string) {
+    super(message);
+    this.name = "WorkspaceError";
+    this.code = code;
+  }
+}
 
 export async function createWorkspace(userId: string, name: string) {
   const clean = name.trim().slice(0, 80);
-  if (!clean) throw new WorkspaceError("Give the workspace a name.");
+  if (!clean) throw new WorkspaceError("nameRequired", "Give the workspace a name.");
   return db.transaction(async (tx) => {
     const [ws] = await tx.insert(workspace).values({ name: clean }).returning({ id: workspace.id });
     await tx.insert(workspaceMember).values({ workspaceId: ws.id, userId, role: "owner" });
@@ -41,7 +74,7 @@ export async function getWorkspace(userId: string, workspaceId: string) {
 export async function renameWorkspace(userId: string, workspaceId: string, name: string) {
   await requireMembership(userId, workspaceId, "owner");
   const clean = name.trim().slice(0, 80);
-  if (!clean) throw new WorkspaceError("Give the workspace a name.");
+  if (!clean) throw new WorkspaceError("nameRequired", "Give the workspace a name.");
   await db.update(workspace).set({ name: clean }).where(eq(workspace.id, workspaceId));
 }
 
@@ -69,13 +102,13 @@ export async function addMember(actorId: string, workspaceId: string, email: str
     .from(user)
     .where(eq(sql`lower(${user.email})`, email.trim().toLowerCase()))
     .limit(1);
-  if (!target) throw new WorkspaceError("No account uses this email. Ask them to sign up first.");
+  if (!target) throw new WorkspaceError("noAccount", "No account uses this email. Ask them to sign up first.");
   const inserted = await db
     .insert(workspaceMember)
     .values({ workspaceId, userId: target.id, role })
     .onConflictDoNothing()
     .returning({ userId: workspaceMember.userId });
-  if (!inserted.length) throw new WorkspaceError("This person is already a member.");
+  if (!inserted.length) throw new WorkspaceError("alreadyMember", "This person is already a member.");
 }
 
 /** Locks the owner rows so concurrent demotions/removals can't leave a workspace ownerless. */
@@ -96,9 +129,9 @@ export async function setMemberRole(actorId: string, workspaceId: string, target
       .from(workspaceMember)
       .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)))
       .for("update");
-    if (!current) throw new WorkspaceError("This person is not a member.");
+    if (!current) throw new WorkspaceError("notMember", "This person is not a member.");
     if (current.role === "owner" && role !== "owner" && (await countOwners(workspaceId, tx)) <= 1) {
-      throw new WorkspaceError("A workspace needs at least one owner.");
+      throw new WorkspaceError("lastOwner", "A workspace needs at least one owner.");
     }
     await tx
       .update(workspaceMember)
@@ -117,9 +150,9 @@ export async function removeMember(actorId: string, workspaceId: string, targetI
       .from(workspaceMember)
       .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)))
       .for("update");
-    if (!current) throw new WorkspaceError("This person is not a member.");
+    if (!current) throw new WorkspaceError("notMember", "This person is not a member.");
     if (current.role === "owner" && (await countOwners(workspaceId, tx)) <= 1) {
-      throw new WorkspaceError("A workspace needs at least one owner. Make someone else an owner first.");
+      throw new WorkspaceError("lastOwnerRemove", "A workspace needs at least one owner. Make someone else an owner first.");
     }
     await tx
       .delete(workspaceMember)

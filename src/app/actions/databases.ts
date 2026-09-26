@@ -1,7 +1,8 @@
 "use server";
 
+import { getTranslations } from "next-intl/server";
 import type { PropertyType, SelectOption, ViewConfig, ViewType } from "@/db/schema";
-import { PropertyValueError } from "@/lib/properties";
+import { isDatabaseErrorCode, PropertyValueError } from "@/lib/properties";
 import { AccessError } from "@/server/access";
 import * as databases from "@/server/databases";
 import * as pages from "@/server/pages";
@@ -9,7 +10,20 @@ import { requireUserId } from "@/server/session";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
-// Domain errors (validation, access, plain `new Error(...)` guards) carry user-facing messages;
+/**
+ * Translates a domain error for the UI. Errors carry a stable `code` (plus `params`) next to their
+ * English message, which stays as-is for MCP clients. Access errors without a code read as "not
+ * found or no access"; anything else uncoded falls back to the generic message.
+ */
+async function errorMessage(error: Error): Promise<string> {
+  const t = await getTranslations();
+  const { code, params } = error as { code?: unknown; params?: Record<string, string> };
+  if (isDatabaseErrorCode(code)) return t(`database.errors.${code}`, params ?? {});
+  if (error instanceof AccessError) return t("database.errors.accessDenied");
+  return t("common.genericError");
+}
+
+// Domain errors (validation, access, plain `new Error(...)` guards) become translated messages;
 // driver/query errors are logged and hidden so SQL details never reach the client.
 async function run<T>(fn: (userId: string) => Promise<T>): Promise<ActionResult<T>> {
   const userId = await requireUserId();
@@ -21,10 +35,11 @@ async function run<T>(fn: (userId: string) => Promise<T>): Promise<ActionResult<
       error instanceof AccessError ||
       (error instanceof Error && error.constructor === Error)
     ) {
-      return { ok: false, error: error.message };
+      return { ok: false, error: await errorMessage(error) };
     }
     console.error("[database action]", error);
-    return { ok: false, error: "Something went wrong" };
+    const t = await getTranslations("common");
+    return { ok: false, error: t("genericError") };
   }
 }
 

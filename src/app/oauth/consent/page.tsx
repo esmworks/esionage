@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { listWorkspaces } from "@/server/pages";
 import { getSession } from "@/server/session";
-import { describeScope, getConsentClient, verifySignedAuthorizationQuery } from "@/server/mcp/consent";
+import { getConsentClient, verifySignedAuthorizationQuery } from "@/server/mcp/consent";
 import { WRITE_SCOPE } from "@/server/mcp/principal";
 import { ConsentForm } from "./consent-form";
+import { scopeKey } from "./scopes";
 
-export const metadata: Metadata = { title: "Authorize app" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("consent");
+  return { title: t("metaTitle") };
+}
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -55,13 +60,16 @@ export default async function ConsentPage({ searchParams }: { searchParams: Sear
   const session = await getSession();
   // A session can expire between login and consent; signing in again resumes the flow.
   if (!session) redirect(`/sign-in?${query.toString()}`);
+  const t = await getTranslations("consent");
+  const format = await getFormatter();
+  const describe = (scope: string) => {
+    const key = scopeKey(scope);
+    return key ? t(`scopes.${key}`) : scope;
+  };
 
   if (!(await verifySignedAuthorizationQuery(query))) {
     return (
-      <Problem
-        title="This link has expired"
-        body="The authorization request is invalid or too old. Go back to the app you were connecting and start again."
-      />
+      <Problem title={t("expired.title")} body={t("expired.body")} />
     );
   }
 
@@ -69,10 +77,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Sear
   const client = await getConsentClient(clientId);
   if (!client) {
     return (
-      <Problem
-        title="Unknown app"
-        body="The app asking for access is not registered with Esionage or has been disabled. Go back and try connecting again."
-      />
+      <Problem title={t("unknownClient.title")} body={t("unknownClient.body")} />
     );
   }
 
@@ -93,9 +98,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Sear
           </span>
         )}
         <div className="min-w-0">
-          <h1 className="text-base font-semibold">
-            {client.name} wants to access your Esionage account
-          </h1>
+          <h1 className="text-base font-semibold">{t("heading", { client: client.name })}</h1>
           {client.uri && siteHost && (
             <a href={client.uri} target="_blank" rel="noreferrer" className="text-sm text-accent hover:underline">
               {siteHost}
@@ -106,8 +109,8 @@ export default async function ConsentPage({ searchParams }: { searchParams: Sear
 
       <p className="mt-4 text-xs text-fg-muted">
         {client.metadataDocument
-          ? `This app is identified by ${hostOf(client.clientId) ?? client.clientId}.`
-          : "This app registered itself automatically and has not been reviewed by Esionage. Only continue if you started this connection."}
+          ? t("identifiedBy", { host: hostOf(client.clientId) ?? client.clientId })
+          : t("unverified")}
       </p>
 
       <ConsentForm
@@ -115,9 +118,9 @@ export default async function ConsentPage({ searchParams }: { searchParams: Sear
         user={{ name: session.user.name, email: session.user.email }}
         scopes={scopes
           .filter((s) => s !== WRITE_SCOPE)
-          .map((s) => ({ scope: s, label: describeScope(s) }))}
-        write={scopes.includes(WRITE_SCOPE) ? { scope: WRITE_SCOPE, label: describeScope(WRITE_SCOPE) } : null}
-        workspaces={workspaces.map((w) => w.name)}
+          .map((s) => ({ scope: s, label: describe(s) }))}
+        write={scopes.includes(WRITE_SCOPE) ? { scope: WRITE_SCOPE, label: describe(WRITE_SCOPE) } : null}
+        workspaces={workspaces.length ? format.list(workspaces.map((w) => w.name), { type: "conjunction" }) : null}
         redirectHost={redirectHost}
       />
     </Shell>

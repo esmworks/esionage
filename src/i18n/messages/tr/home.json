@@ -1,0 +1,8 @@
+{
+  "welcome": "Tekrar hoş geldiniz, {name}",
+  "recent": "Son düzenlenenler",
+  "empty": "Burada henüz bir şey yok. Başlamak için ilk sayfanızı oluşturun.",
+  "newPage": "Yeni sayfa",
+  "newDatabase": "Yeni veritabanı",
+  "personalWorkspace": "{name} çalışma alanı"
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Popover } from "@/components/ui";
 
 const EMOJIS = [
@@ -20,6 +21,7 @@ export function IconPicker({
   disabled?: boolean;
   children: (toggle: () => void) => React.ReactNode;
 }) {
+  const t = useTranslations("page.icon");
   return (
     <Popover trigger={({ toggle }) => <>{children(disabled ? () => {} : toggle)}</>} className="w-72">
       {(close) => (
@@ -48,7 +50,7 @@ export function IconPicker({
               }}
               className="mt-1 w-full rounded px-2 py-1.5 text-left text-sm text-fg-muted hover:bg-bg-hover"
             >
-              Remove icon
+              {t("remove")}
             </button>
           )}
         </div>

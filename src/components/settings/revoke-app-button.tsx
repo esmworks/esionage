@@ -1,12 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { revokeConnectedAppAction } from "@/app/actions/oauth";
 import { Button } from "@/components/ui";
 
 export function RevokeAppButton({ clientId, name }: { clientId: string; name: string }) {
   const router = useRouter();
+  const t = useTranslations("settings.connectedApps");
+  const tc = useTranslations("common");
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -14,7 +17,7 @@ export function RevokeAppButton({ clientId, name }: { clientId: string; name: st
   if (!confirming) {
     return (
       <Button size="sm" onClick={() => setConfirming(true)}>
-        Revoke
+        {t("revoke")}
       </Button>
     );
   }
@@ -23,7 +26,7 @@ export function RevokeAppButton({ clientId, name }: { clientId: string; name: st
     <div className="flex shrink-0 flex-col items-end gap-1">
       <div className="flex gap-1">
         <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={pending}>
-          Cancel
+          {tc("cancel")}
         </Button>
         <Button
           size="sm"
@@ -35,12 +38,12 @@ export function RevokeAppButton({ clientId, name }: { clientId: string; name: st
                 await revokeConnectedAppAction(clientId);
                 router.refresh();
               } catch {
-                setError("Could not revoke access. Try again.");
+                setError(t("revokeError"));
               }
             })
           }
         >
-          {pending ? "Revoking…" : `Disconnect ${name}`}
+          {pending ? t("revoking") : t("disconnect", { name })}
         </Button>
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}

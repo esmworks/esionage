@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addPropertyAction,
@@ -29,6 +30,7 @@ export function RowProperties({
   rowId: string;
   readOnly?: boolean;
 }) {
+  const t = useTranslations("database.rowProperties");
   const [data, setData] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Values written locally but not yet confirmed by a refetch.
@@ -132,7 +134,7 @@ export function RowProperties({
           </div>
         ))}
       </div>
-      {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">No properties</p>}
+      {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">{t("noProperties")}</p>}
       {!readOnly && <AddPropertyRow onCreate={addProperty} />}
       {error && <p className="mt-2 px-1 text-xs text-danger">{error}</p>}
     </div>
@@ -140,6 +142,7 @@ export function RowProperties({
 }
 
 function AddPropertyRow({ onCreate }: { onCreate: (name: string, type: PropertyType) => Promise<void> }) {
+  const t = useTranslations("database.rowProperties");
   const menu = useFloating<HTMLButtonElement>();
   return (
     <>
@@ -150,7 +153,7 @@ function AddPropertyRow({ onCreate }: { onCreate: (name: string, type: PropertyT
         className="mt-1 inline-flex h-[30px] items-center gap-1.5 rounded-md px-1 text-sm text-fg-muted hover:bg-bg-hover hover:text-fg"
       >
         <Plus className="h-3.5 w-3.5" />
-        Add property
+        {t("addProperty")}
       </button>
       <Floating open={menu.open} anchor={menu.el} onClose={menu.close}>
         <AddPropertyPanel onCreate={onCreate} onDone={menu.close} />

@@ -1,0 +1,69 @@
+{
+  "metaTitle": "Ayarlar",
+  "title": "Ayarlar",
+  "workspace": {
+    "heading": "Çalışma alanı",
+    "nameLabel": "Ad",
+    "ownersOnly": "Çalışma alanını yalnızca sahipler yeniden adlandırabilir."
+  },
+  "members": {
+    "heading": "Üyeler",
+    "description": "Buradaki herkes bu çalışma alanındaki tüm sayfaları okuyup düzenleyebilir. Sahipler ayrıca üyeleri yönetebilir.",
+    "you": "(siz)",
+    "roleOf": "{name} adlı üyenin rolü",
+    "roleLabel": "Rol",
+    "roles": {
+      "owner": "Sahip",
+      "member": "Üye"
+    },
+    "leave": "Ayrıl",
+    "addLabel": "Kayıt olurken kullandığı e-posta adresiyle üye ekleyin",
+    "emailPlaceholder": "ad@ornek.com",
+    "addButton": "Ekle",
+    "adding": "Ekleniyor…"
+  },
+  "language": {
+    "heading": "Dil",
+    "label": "Arayüz dili",
+    "followBrowser": "Tarayıcı dilini kullan",
+    "note": "Bu ayar yalnızca bu tarayıcı için geçerlidir."
+  },
+  "connectedApps": {
+    "heading": "Bağlı uygulamalar",
+    "description": "Esionage'ı sizin adınıza kullanmasına izin verdiğiniz uygulamalar; örneğin MCP üzerinden bağlanan yapay zekâ asistanları.",
+    "empty": "Henüz bağlı uygulama yok.",
+    "connected": "Bağlandı: {date}",
+    "connectedAndUpdated": "Bağlandı: {connected} · Güncellendi: {updated}",
+    "revoke": "Erişimi kaldır",
+    "revoking": "Kaldırılıyor…",
+    "disconnect": "{name} bağlantısını kes",
+    "revokeError": "Erişim kaldırılamadı. Tekrar deneyin."
+  },
+  "mcp": {
+    "heading": "Yapay zekâ asistanı bağlayın",
+    "description": "Esionage'ın yerleşik bir MCP sunucusu var. Uzak MCP sunucularını destekleyen asistanlar, siz giriş yapıp erişimi onayladıktan sonra sayfalarınızda ve veritabanlarınızda arama yapabilir, bunları okuyup düzenleyebilir. Bir asistanın yaptığı her düzenleme önce sayfa geçmişine kaydedilir, böylece geri alabilirsiniz.",
+    "serverUrl": "Sunucu URL'si",
+    "claude": {
+      "title": "Claude",
+      "body": "Claude'da Settings > Connectors bölümünü açın, Add custom connector seçeneğini seçip sunucu URL'sini yapıştırın. Claude, giriş yapıp erişime izin verebilmeniz için Esionage'ı tarayıcınızda açar."
+    },
+    "claudeCode": {
+      "title": "Claude Code",
+      "body": "Bu komutu bir terminalde çalıştırın, ardından giriş yapmak için Claude Code içinde /mcp komutunu kullanın."
+    },
+    "other": {
+      "title": "Diğer MCP istemcileri",
+      "body": "Streamable HTTP aktarımını ve yukarıdaki URL'yi kullanarak uzak bir sunucu ekleyin. İstemci, giriş yöntemini standart OAuth 2.1 meta verilerinden bulur; kendini otomatik olarak kaydedebilir ya da bir istemci kimliği meta veri belgesi (client ID metadata document) kullanabilir. İstemcinin hiçbir şeyi düzenlememesini istiyorsanız onay ekranında salt okunur erişimi seçin."
+    }
+  },
+  "errors": {
+    "nameRequired": "Çalışma alanına bir ad verin.",
+    "noAccount": "Bu e-posta adresini kullanan bir hesap yok. Önce kayıt olmasını isteyin.",
+    "alreadyMember": "Bu kişi zaten üye.",
+    "notMember": "Bu kişi üye değil.",
+    "lastOwner": "Bir çalışma alanının en az bir sahibi olmalı.",
+    "lastOwnerRemove": "Bir çalışma alanının en az bir sahibi olmalı. Önce başka birini sahip yapın.",
+    "ownersOnly": "Bunu yalnızca çalışma alanı sahipleri yapabilir.",
+    "unknownRole": "Bilinmeyen rol."
+  }
+}

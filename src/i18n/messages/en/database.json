@@ -1,0 +1,191 @@
+{
+  "nameColumn": "Name",
+  "types": {
+    "text": "Text",
+    "number": "Number",
+    "select": "Select",
+    "multiSelect": "Multi-select",
+    "date": "Date",
+    "checkbox": "Checkbox",
+    "url": "URL"
+  },
+  "views": {
+    "table": "Table",
+    "board": "Board"
+  },
+  "colors": {
+    "gray": "Gray",
+    "brown": "Brown",
+    "orange": "Orange",
+    "yellow": "Yellow",
+    "green": "Green",
+    "blue": "Blue",
+    "purple": "Purple",
+    "pink": "Pink",
+    "red": "Red"
+  },
+  "page": {
+    "loadError": "Could not load this database: {error}",
+    "retry": "Retry",
+    "new": "New",
+    "dismiss": "Dismiss",
+    "noViews": "This database has no views.",
+    "addTableView": "Add a table view",
+    "loading": "Loading database",
+    "defaultGroupProperty": "Status",
+    "defaultGroupPropertyFallback": "Group",
+    "defaultGroupOptions": {
+      "notStarted": "Not started",
+      "inProgress": "In progress",
+      "done": "Done"
+    },
+    "defaultTagsProperty": "Tags"
+  },
+  "viewTabs": {
+    "addView": "Add view",
+    "addViewHeading": "Add a view",
+    "rename": "Rename",
+    "viewName": "View name",
+    "deleteView": "Delete view"
+  },
+  "toolbar": {
+    "filter": "Filter",
+    "sort": "Sort",
+    "group": "Group",
+    "groupWithName": "Group: {name}",
+    "groupBy": "Group by",
+    "groupNeedsSelect": "Boards group by a select property.",
+    "newSelectProperty": "New select property",
+    "properties": "Properties",
+    "shownInView": "Shown in this view",
+    "noProperties": "No properties yet",
+    "hidden": "Hidden",
+    "shown": "Shown"
+  },
+  "activeRules": {
+    "clear": "Clear",
+    "unknownProperty": "Unknown",
+    "unknownFilter": "Unknown filter",
+    "filterWithValue": "{property} {operator} {value}",
+    "filterWithoutValue": "{property} {operator}",
+    "sortedAscending": "{property}, ascending",
+    "sortedDescending": "{property}, descending"
+  },
+  "filter": {
+    "empty": "No filters applied to this view",
+    "property": "Property",
+    "condition": "Condition",
+    "value": "Value",
+    "choose": "Choose…",
+    "remove": "Remove filter",
+    "add": "Add filter",
+    "clearAll": "Clear all",
+    "ops": {
+      "contains": "Contains",
+      "doesNotContain": "Does not contain",
+      "is": "Is",
+      "isNot": "Is not",
+      "isEmpty": "Is empty",
+      "isNotEmpty": "Is not empty",
+      "equals": "=",
+      "notEquals": "≠",
+      "greaterThan": ">",
+      "lessThan": "<",
+      "isBefore": "Is before",
+      "isAfter": "Is after",
+      "isChecked": "Is checked",
+      "isUnchecked": "Is unchecked"
+    }
+  },
+  "sort": {
+    "empty": "No sorts applied to this view",
+    "property": "Property",
+    "direction": "Direction",
+    "ascending": "Ascending",
+    "descending": "Descending",
+    "remove": "Remove sort",
+    "add": "Add sort",
+    "clearAll": "Clear all"
+  },
+  "table": {
+    "new": "New",
+    "noRows": "No rows yet.",
+    "noMatches": "No rows match the current filters.",
+    "addProperty": "Add property",
+    "rowActions": "Row actions",
+    "sortedAscending": "Sorted ascending",
+    "sortedDescending": "Sorted descending"
+  },
+  "rowMenu": {
+    "open": "Open"
+  },
+  "board": {
+    "needsSelectTitle": "Boards group rows by a select property",
+    "needsSelectBody": "This database has no select property yet.",
+    "addGroupProperty": "Add a {name} property",
+    "noValue": "No {property}",
+    "cardCount": "{count, plural, one {# card} other {# cards}}",
+    "addCard": "Add card",
+    "new": "New",
+    "cardActions": "Card actions",
+    "namePlaceholder": "Type a name…",
+    "nameLabel": "Name"
+  },
+  "cell": {
+    "empty": "Empty",
+    "removeOption": "Remove {name}",
+    "enterNumber": "Enter a number",
+    "enterUrl": "Enter a valid URL (https://…) or email",
+    "date": "Date",
+    "today": "Today",
+    "clear": "Clear",
+    "searchOrCreate": "Search or create an option",
+    "optionInput": "{property} option",
+    "typeToCreate": "Type to create an option",
+    "selectOptions": "Select options or create one",
+    "selectOption": "Select an option or create one",
+    "create": "Create"
+  },
+  "propertyMenu": {
+    "name": "Property name",
+    "type": "Type",
+    "sortAscending": "Sort ascending",
+    "sortDescending": "Sort descending",
+    "hide": "Hide in view",
+    "editOptions": "Edit options",
+    "delete": "Delete property",
+    "confirmDelete": "Delete “{name}”?",
+    "confirmDeleteBody": "Its values are removed from every row. This cannot be undone.",
+    "back": "Back",
+    "optionsTitle": "{name} options",
+    "noOptions": "No options yet",
+    "optionName": "Option name",
+    "renameOption": "Rename",
+    "deleteOption": "Delete option",
+    "deleteOptionNamed": "Delete {name}",
+    "color": "Color {color}",
+    "addOptionPlaceholder": "Add an option",
+    "newOption": "New option",
+    "addOption": "Add option"
+  },
+  "rowProperties": {
+    "noProperties": "No properties",
+    "addProperty": "Add property"
+  },
+  "errors": {
+    "invalidUrl": "“{property}” must be an http(s) or mailto URL.",
+    "invalidNumber": "“{property}” must be a number.",
+    "invalidCheckbox": "“{property}” must be true or false.",
+    "invalidDate": "“{property}” must be a date (YYYY-MM-DD).",
+    "unknownOption": "“{value}” is not an option of “{property}”.",
+    "unknownProperty": "Unknown property “{property}”.",
+    "unsupportedType": "Unsupported property type “{type}”.",
+    "notADatabase": "This page is not a database.",
+    "notADatabaseRow": "This page is not a database row.",
+    "notASelectProperty": "This is not a select property.",
+    "lastView": "A database needs at least one view.",
+    "accessDenied": "Not found, or you don’t have access.",
+    "parentInTrash": "The parent page is in the trash. Restore it first.",
+    "nestedDatabase": "A database can’t contain another database."
+  }
+}

@@ -2,6 +2,7 @@
 
 import { Check, ExternalLink, Plus, X } from "lucide-react";
 import Link from "next/link";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/components/ui";
 import { Floating } from "./floating";
@@ -18,6 +19,8 @@ export function OptionChip({
   onRemove?: () => void;
   className?: string;
 }) {
+  const t = useTranslations("database.cell");
+  const tc = useTranslations("common");
   return (
     <span
       className={cn(
@@ -25,11 +28,11 @@ export function OptionChip({
         className,
       )}
     >
-      <span className="truncate">{option.name || "Untitled"}</span>
+      <span className="truncate">{option.name || tc("untitled")}</span>
       {onRemove && (
         <button
           type="button"
-          aria-label={`Remove ${option.name}`}
+          aria-label={t("removeOption", { name: option.name })}
           className="-mr-0.5 rounded text-fg-muted hover:text-fg"
           onClick={(e) => {
             e.stopPropagation();
@@ -53,10 +56,23 @@ function selectedOptions(prop: Property, value: unknown): SelectOption[] {
   return ids.map((id) => options.find((o) => o.id === id)).filter((o): o is SelectOption => Boolean(o));
 }
 
-export function formatDate(value: string) {
-  const d = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+/**
+ * Formats stored date values (`YYYY-MM-DD`) in the UI locale. Dates are calendar days, so they are
+ * read and printed in UTC; the viewer's time zone must not shift them by a day.
+ */
+export function useFormatDate() {
+  const format = useFormatter();
+  return (value: string) => {
+    const d = new Date(`${value.slice(0, 10)}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}/.test(value) || Number.isNaN(d.getTime())) return value;
+    return format.dateTime(d, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+  };
+}
+
+/** Formats a number value in the UI locale (grouping and decimal separator). */
+export function useFormatNumber() {
+  const format = useFormatter();
+  return (value: number) => format.number(value, { maximumFractionDigits: 10 });
 }
 
 export function isEmptyValue(prop: Property, value: unknown) {
@@ -69,12 +85,14 @@ export function isEmptyValue(prop: Property, value: unknown) {
 
 /** Read-only rendering of a property value (board cards, read-only panels). */
 export function PropertyDisplay({ prop, value, wrap }: { prop: Property; value: unknown; wrap?: boolean }) {
+  const formatDate = useFormatDate();
+  const formatNumber = useFormatNumber();
   if (value === null || value === undefined || value === "") return null;
   switch (prop.type) {
     case "text":
       return <span className={cn(wrap ? "whitespace-pre-wrap break-words" : "truncate")}>{String(value)}</span>;
     case "number":
-      return <span className="tabular-nums">{typeof value === "number" ? value.toLocaleString("en-US", { maximumFractionDigits: 10 }) : String(value)}</span>;
+      return <span className="tabular-nums">{typeof value === "number" ? formatNumber(value) : String(value)}</span>;
     case "url":
       return (
         <a
@@ -146,6 +164,7 @@ export function PropertyCell({
   autoEdit?: boolean;
   placeholder?: string;
 }) {
+  const t = useTranslations("database.cell");
   const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
   const [editing, setEditing] = useState(Boolean(autoEdit) && !readOnly);
 
@@ -191,8 +210,8 @@ export function PropertyCell({
         }}
       >
         {empty ? (
-          (placeholder ?? (variant === "panel" ? "Empty" : null)) && (
-            <span className="truncate text-fg-faint">{placeholder ?? "Empty"}</span>
+          (placeholder ?? (variant === "panel" ? t("empty") : null)) && (
+            <span className="truncate text-fg-faint">{placeholder ?? t("empty")}</span>
           )
         ) : (
           <PropertyDisplay prop={prop} value={value} wrap={wrap} />
@@ -252,14 +271,34 @@ function CellEditor({
   }
 }
 
+/**
+ * Parses a typed number in either "1234.5" or "1234,5" style, so it works for English and Turkish
+ * input alike. A single separator kind is a decimal point unless it repeats ("1.234.567"); with
+ * both kinds, the last one is the decimal point and the other groups thousands ("1.234,5",
+ * "1,234.5").
+ */
+export function parseNumber(raw: string): number | undefined {
+  let s = raw.replace(/[\s\u00a0\u202f']/g, "");
+  if (!s) return undefined;
+  const lastComma = s.lastIndexOf(",");
+  const lastDot = s.lastIndexOf(".");
+  if (lastComma !== -1 && lastDot !== -1) {
+    const decimal = lastComma > lastDot ? "," : ".";
+    const group = decimal === "," ? "." : ",";
+    s = s.split(group).join("").replace(decimal, ".");
+  } else {
+    const sep = lastComma !== -1 ? "," : lastDot !== -1 ? "." : null;
+    if (sep) s = s.split(sep).length > 2 ? s.split(sep).join("") : s.replace(sep, ".");
+  }
+  const n = Number(s);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 /** Parses editor input into a storable value; returns undefined when it is invalid. */
 export function parseInput(prop: Property, raw: string): unknown {
   const s = raw.trim();
   if (!s) return null;
-  if (prop.type === "number") {
-    const n = Number(s.replace(",", "."));
-    return Number.isFinite(n) ? n : undefined;
-  }
+  if (prop.type === "number") return parseNumber(s);
   if (prop.type === "url") {
     if (/^(https?:\/\/|mailto:)/i.test(s)) return s;
     if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return `mailto:${s}`;
@@ -267,6 +306,18 @@ export function parseInput(prop: Property, raw: string): unknown {
     return undefined;
   }
   return raw;
+}
+
+/**
+ * Initial editor text for a stored value. Numbers use the locale's decimal separator (no
+ * grouping), so what the user sees is what `parseNumber` reads back.
+ */
+function editText(value: unknown, locale: string) {
+  if (value === null || value === undefined) return "";
+  if (typeof value !== "number") return String(value);
+  const decimal = new Intl.NumberFormat(locale).formatToParts(1.5).find((p) => p.type === "decimal")?.value;
+  const s = String(value);
+  return decimal === "," && !s.includes("e") ? s.replace(".", ",") : s;
 }
 
 function TextEditor({
@@ -282,7 +333,9 @@ function TextEditor({
   onChange: (value: unknown) => void;
   onClose: () => void;
 }) {
-  const initial = value === null || value === undefined ? "" : String(value);
+  const t = useTranslations("database.cell");
+  const locale = useLocale();
+  const initial = editText(value, locale);
   const [draft, setDraft] = useState(initial);
   const [invalid, setInvalid] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -341,7 +394,7 @@ function TextEditor({
       />
       {invalid && (
         <div className="border-t border-border px-2 py-1 text-xs text-danger">
-          {prop.type === "number" ? "Enter a number" : "Enter a valid URL (https://…) or email"}
+          {prop.type === "number" ? t("enterNumber") : t("enterUrl")}
         </div>
       )}
     </Floating>
@@ -359,6 +412,7 @@ function DateEditor({
   onChange: (value: unknown) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("database.cell");
   const [draft, setDraft] = useState(typeof value === "string" ? value : "");
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
@@ -368,7 +422,7 @@ function DateEditor({
         ref={input}
         type="date"
         value={draft}
-        aria-label="Date"
+        aria-label={t("date")}
         onChange={(e) => {
           setDraft(e.target.value);
           if (e.target.value) onChange(e.target.value);
@@ -387,7 +441,7 @@ function DateEditor({
             onChange(iso);
           }}
         >
-          Today
+          {t("today")}
         </button>
         <button
           type="button"
@@ -397,7 +451,7 @@ function DateEditor({
             onClose();
           }}
         >
-          Clear
+          {t("clear")}
         </button>
       </div>
     </Floating>
@@ -418,6 +472,7 @@ export function OptionPicker({
   onCreateOption: CreateOption;
   onDone: () => void;
 }) {
+  const t = useTranslations("database.cell");
   const multi = prop.type === "multi_select";
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -489,8 +544,8 @@ export function OptionPicker({
         <input
           ref={input}
           value={query}
-          placeholder={selected.length ? "" : "Search or create an option"}
-          aria-label={`${prop.name} option`}
+          placeholder={selected.length ? "" : t("searchOrCreate")}
+          aria-label={t("optionInput", { property: prop.name })}
           onChange={(e) => {
             setQuery(e.target.value);
             setActive(0);
@@ -513,10 +568,10 @@ export function OptionPicker({
         />
       </div>
       <div className="max-h-64 overflow-y-auto p-1">
-        {!items.length && <div className="px-2 py-1.5 text-xs text-fg-faint">Type to create an option</div>}
+        {!items.length && <div className="px-2 py-1.5 text-xs text-fg-faint">{t("typeToCreate")}</div>}
         {items.length > 0 && (
           <div className="px-2 pt-1 pb-1.5 text-xs text-fg-muted">
-            {multi ? "Select options or create one" : "Select an option or create one"}
+            {multi ? t("selectOptions") : t("selectOption")}
           </div>
         )}
         {items.map((item, i) => (
@@ -533,7 +588,7 @@ export function OptionPicker({
             {item.kind === "create" ? (
               <>
                 <Plus className="h-3.5 w-3.5 text-fg-muted" />
-                <span className="text-fg-muted">Create</span>
+                <span className="text-fg-muted">{t("create")}</span>
                 <OptionChip option={{ id: "new", name: query.trim(), color: "gray" }} />
               </>
             ) : (
@@ -552,6 +607,7 @@ export function OptionPicker({
 
 /** Small labelled icon link used for "Open" affordances. */
 export function OpenLink({ href, children }: { href: string; children?: ReactNode }) {
+  const t = useTranslations("database.rowMenu");
   return (
     <Link
       href={href}
@@ -559,7 +615,7 @@ export function OpenLink({ href, children }: { href: string; children?: ReactNod
       onClick={(e) => e.stopPropagation()}
     >
       <ExternalLink className="h-3 w-3" />
-      {children ?? "Open"}
+      {children ?? t("open")}
     </Link>
   );
 }

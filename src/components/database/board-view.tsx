@@ -2,8 +2,10 @@
 
 import { Ellipsis, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Button, cn, MenuItem, MenuSeparator } from "@/components/ui";
+import { pageLabel } from "@/lib/labels";
 import { groupRows, positionBetween, type RowGroup } from "@/lib/properties";
 import { Floating, useFloating } from "./floating";
 import { isEmptyValue, OptionChip, PropertyDisplay } from "./property-cell";
@@ -29,6 +31,7 @@ export function BoardView({
   readOnly?: boolean;
   onCreateGroupProperty: () => void;
 }) {
+  const t = useTranslations("database");
   const selectProps = properties.filter((p) => p.type === "select");
   const groupBy = selectProps.find((p) => p.id === view.config.groupBy) ?? selectProps[0];
   const [dragId, setDragId] = useState<string | null>(null);
@@ -39,13 +42,13 @@ export function BoardView({
     return (
       <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed border-border px-6 py-10">
         <div>
-          <p className="text-sm font-medium">Boards group rows by a select property</p>
-          <p className="mt-1 text-sm text-fg-muted">This database has no select property yet.</p>
+          <p className="text-sm font-medium">{t("board.needsSelectTitle")}</p>
+          <p className="mt-1 text-sm text-fg-muted">{t("board.needsSelectBody")}</p>
         </div>
         {!readOnly && (
           <Button size="sm" onClick={onCreateGroupProperty}>
             <Plus className="h-3.5 w-3.5" />
-            Add a Status property
+            {t("board.addGroupProperty", { name: t("page.defaultGroupProperty") })}
           </Button>
         )}
       </div>
@@ -111,7 +114,7 @@ export function BoardView({
         return (
           <section
             key={key || "__none"}
-            aria-label={group.option?.name ?? `No ${groupBy.name}`}
+            aria-label={group.option?.name ?? t("board.noValue", { property: groupBy.name })}
             className={cn(
               "flex w-64 shrink-0 flex-col rounded-lg p-1.5 transition-colors",
               dropping ? "bg-bg-hover" : "bg-bg-subtle",
@@ -121,15 +124,20 @@ export function BoardView({
               {group.option ? (
                 <OptionChip option={group.option} />
               ) : (
-                <span className="truncate text-sm text-fg-muted">No {groupBy.name}</span>
+                <span className="truncate text-sm text-fg-muted">{t("board.noValue", { property: groupBy.name })}</span>
               )}
-              <span className="text-xs text-fg-faint tabular-nums">{group.rows.length}</span>
+              <span
+                className="text-xs text-fg-faint tabular-nums"
+                title={t("board.cardCount", { count: group.rows.length })}
+              >
+                {group.rows.length}
+              </span>
               <span className="flex-1" />
               {!readOnly && (
                 <button
                   type="button"
-                  aria-label="Add card"
-                  title="Add card"
+                  aria-label={t("board.addCard")}
+                  title={t("board.addCard")}
                   onClick={() => addCard(group)}
                   className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-active hover:text-fg"
                 >
@@ -183,7 +191,7 @@ export function BoardView({
                   className="flex h-8 items-center gap-1.5 rounded-md px-1.5 text-sm text-fg-muted hover:bg-bg-hover hover:text-fg"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  New
+                  {t("board.new")}
                 </button>
               )}
             </div>
@@ -221,6 +229,8 @@ function Card({
   onDragStart: (e: DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
 }) {
+  const t = useTranslations("database");
+  const tc = useTranslations("common");
   const router = useRouter();
   const menu = useFloating<HTMLButtonElement>();
   const href = `/w/${workspaceId}/p/${row.id}`;
@@ -242,7 +252,7 @@ function Card({
         <CardTitleInput initial={row.title} onDone={onTitle} />
       ) : (
         <div className={cn("pr-6 text-sm font-medium break-words", !row.title && "text-fg-faint")}>
-          {row.title || "Untitled"}
+          {pageLabel(row.title, tc("untitled"))}
         </div>
       )}
       {shown.length > 0 && (
@@ -259,7 +269,7 @@ function Card({
           <button
             ref={menu.ref}
             type="button"
-            aria-label="Card actions"
+            aria-label={t("board.cardActions")}
             onClick={menu.toggle}
             className={cn(
               "flex h-6 w-6 items-center justify-center rounded border border-border bg-bg text-fg-muted hover:text-fg",
@@ -276,7 +286,7 @@ function Card({
                 router.push(href);
               }}
             >
-              Open
+              {t("rowMenu.open")}
             </MenuItem>
             <MenuSeparator />
             <MenuItem
@@ -287,7 +297,7 @@ function Card({
                 onDelete();
               }}
             >
-              Delete
+              {tc("delete")}
             </MenuItem>
           </Floating>
         </div>
@@ -297,6 +307,7 @@ function Card({
 }
 
 function CardTitleInput({ initial, onDone }: { initial: string; onDone: (title: string) => void }) {
+  const t = useTranslations("database.board");
   const [value, setValue] = useState(initial);
   const input = useRef<HTMLInputElement>(null);
   const done = useRef(false);
@@ -310,8 +321,8 @@ function CardTitleInput({ initial, onDone }: { initial: string; onDone: (title: 
     <input
       ref={input}
       value={value}
-      placeholder="Type a name…"
-      aria-label="Name"
+      placeholder={t("namePlaceholder")}
+      aria-label={t("nameLabel")}
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => setValue(e.target.value)}
       onBlur={finish}

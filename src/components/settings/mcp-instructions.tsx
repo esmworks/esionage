@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { mcpResource } from "@/lib/env";
 import { CopyButton } from "./copy-button";
 
@@ -11,46 +12,36 @@ function Snippet({ value }: { value: string }) {
 }
 
 /** How to connect Claude and other MCP clients to this Esionage instance. */
-export function McpInstructions() {
+export async function McpInstructions() {
+  const t = await getTranslations("settings.mcp");
   const url = mcpResource();
   const claudeCode = `claude mcp add --transport http esionage ${url}`;
 
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-sm font-semibold">Connect an AI assistant</h2>
-        <p className="mt-1 text-sm text-fg-muted">
-          Esionage has a built-in MCP server. Assistants that support remote MCP servers can search, read and edit your
-          pages and databases after you sign in and approve access. Every edit an assistant makes is saved to page history
-          first, so you can undo it.
-        </p>
+        <h2 className="text-sm font-semibold">{t("heading")}</h2>
+        <p className="mt-1 text-sm text-fg-muted">{t("description")}</p>
       </div>
 
       <div className="space-y-1.5">
-        <div className="text-sm font-medium">Server URL</div>
+        <div className="text-sm font-medium">{t("serverUrl")}</div>
         <Snippet value={url} />
       </div>
 
       <div className="space-y-4 text-sm">
         <div>
-          <h3 className="font-medium">Claude</h3>
-          <p className="mt-1 text-fg-muted">
-            Open Settings, then Connectors, choose Add custom connector and paste the server URL. Claude opens Esionage in
-            your browser so you can sign in and allow access.
-          </p>
+          <h3 className="font-medium">{t("claude.title")}</h3>
+          <p className="mt-1 text-fg-muted">{t("claude.body")}</p>
         </div>
         <div className="space-y-1.5">
-          <h3 className="font-medium">Claude Code</h3>
-          <p className="text-fg-muted">Run this in a terminal, then use /mcp inside Claude Code to sign in.</p>
+          <h3 className="font-medium">{t("claudeCode.title")}</h3>
+          <p className="text-fg-muted">{t("claudeCode.body")}</p>
           <Snippet value={claudeCode} />
         </div>
         <div>
-          <h3 className="font-medium">Other MCP clients</h3>
-          <p className="mt-1 text-fg-muted">
-            Add a remote server with the Streamable HTTP transport and the URL above. The client discovers sign-in through
-            standard OAuth 2.1 metadata; it can register itself automatically or use a client ID metadata document.
-            Choose read-only access on the approval screen if the client should not edit anything.
-          </p>
+          <h3 className="font-medium">{t("other.title")}</h3>
+          <p className="mt-1 text-fg-muted">{t("other.body")}</p>
         </div>
       </div>
     </section>

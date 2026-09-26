@@ -1,0 +1,191 @@
+{
+  "nameColumn": "Ad",
+  "types": {
+    "text": "Metin",
+    "number": "Sayı",
+    "select": "Seçim",
+    "multiSelect": "Çoklu seçim",
+    "date": "Tarih",
+    "checkbox": "Onay kutusu",
+    "url": "URL"
+  },
+  "views": {
+    "table": "Tablo",
+    "board": "Pano"
+  },
+  "colors": {
+    "gray": "Gri",
+    "brown": "Kahverengi",
+    "orange": "Turuncu",
+    "yellow": "Sarı",
+    "green": "Yeşil",
+    "blue": "Mavi",
+    "purple": "Mor",
+    "pink": "Pembe",
+    "red": "Kırmızı"
+  },
+  "page": {
+    "loadError": "Bu veritabanı yüklenemedi: {error}",
+    "retry": "Tekrar dene",
+    "new": "Yeni",
+    "dismiss": "Kapat",
+    "noViews": "Bu veritabanında hiç görünüm yok.",
+    "addTableView": "Tablo görünümü ekle",
+    "loading": "Veritabanı yükleniyor",
+    "defaultGroupProperty": "Durum",
+    "defaultGroupPropertyFallback": "Grup",
+    "defaultGroupOptions": {
+      "notStarted": "Başlanmadı",
+      "inProgress": "Devam ediyor",
+      "done": "Tamamlandı"
+    },
+    "defaultTagsProperty": "Etiketler"
+  },
+  "viewTabs": {
+    "addView": "Görünüm ekle",
+    "addViewHeading": "Görünüm ekleyin",
+    "rename": "Yeniden adlandır",
+    "viewName": "Görünüm adı",
+    "deleteView": "Görünümü sil"
+  },
+  "toolbar": {
+    "filter": "Filtrele",
+    "sort": "Sırala",
+    "group": "Grupla",
+    "groupWithName": "Grup: {name}",
+    "groupBy": "Grupla",
+    "groupNeedsSelect": "Panolar bir seçim özelliğine göre gruplanır.",
+    "newSelectProperty": "Yeni seçim özelliği",
+    "properties": "Özellikler",
+    "shownInView": "Bu görünümde gösterilenler",
+    "noProperties": "Henüz özellik yok",
+    "hidden": "Gizli",
+    "shown": "Gösteriliyor"
+  },
+  "activeRules": {
+    "clear": "Temizle",
+    "unknownProperty": "Bilinmeyen",
+    "unknownFilter": "Bilinmeyen filtre",
+    "filterWithValue": "{property} {operator} {value}",
+    "filterWithoutValue": "{property} {operator}",
+    "sortedAscending": "{property}, artan",
+    "sortedDescending": "{property}, azalan"
+  },
+  "filter": {
+    "empty": "Bu görünüme filtre uygulanmadı",
+    "property": "Özellik",
+    "condition": "Koşul",
+    "value": "Değer",
+    "choose": "Seçin…",
+    "remove": "Filtreyi kaldır",
+    "add": "Filtre ekle",
+    "clearAll": "Tümünü temizle",
+    "ops": {
+      "contains": "İçerir",
+      "doesNotContain": "İçermez",
+      "is": "Eşittir",
+      "isNot": "Eşit değildir",
+      "isEmpty": "Boş",
+      "isNotEmpty": "Boş değil",
+      "equals": "=",
+      "notEquals": "≠",
+      "greaterThan": ">",
+      "lessThan": "<",
+      "isBefore": "Şundan önce",
+      "isAfter": "Şundan sonra",
+      "isChecked": "İşaretli",
+      "isUnchecked": "İşaretsiz"
+    }
+  },
+  "sort": {
+    "empty": "Bu görünüme sıralama uygulanmadı",
+    "property": "Özellik",
+    "direction": "Yön",
+    "ascending": "Artan",
+    "descending": "Azalan",
+    "remove": "Sıralamayı kaldır",
+    "add": "Sıralama ekle",
+    "clearAll": "Tümünü temizle"
+  },
+  "table": {
+    "new": "Yeni",
+    "noRows": "Henüz satır yok.",
+    "noMatches": "Geçerli filtrelere uyan satır yok.",
+    "addProperty": "Özellik ekle",
+    "rowActions": "Satır işlemleri",
+    "sortedAscending": "Artan sıralı",
+    "sortedDescending": "Azalan sıralı"
+  },
+  "rowMenu": {
+    "open": "Aç"
+  },
+  "board": {
+    "needsSelectTitle": "Panolar satırları bir seçim özelliğine göre gruplar",
+    "needsSelectBody": "Bu veritabanında henüz seçim özelliği yok.",
+    "addGroupProperty": "{name} özelliği ekle",
+    "noValue": "{property} yok",
+    "cardCount": "{count, plural, other {# kart}}",
+    "addCard": "Kart ekle",
+    "new": "Yeni",
+    "cardActions": "Kart işlemleri",
+    "namePlaceholder": "Bir ad yazın…",
+    "nameLabel": "Ad"
+  },
+  "cell": {
+    "empty": "Boş",
+    "removeOption": "{name} seçeneğini kaldır",
+    "enterNumber": "Bir sayı girin",
+    "enterUrl": "Geçerli bir URL (https://…) veya e-posta adresi girin",
+    "date": "Tarih",
+    "today": "Bugün",
+    "clear": "Temizle",
+    "searchOrCreate": "Seçenek arayın veya oluşturun",
+    "optionInput": "{property} seçeneği",
+    "typeToCreate": "Seçenek oluşturmak için yazın",
+    "selectOptions": "Seçenekleri seçin veya yenisini oluşturun",
+    "selectOption": "Bir seçenek seçin veya yenisini oluşturun",
+    "create": "Oluştur"
+  },
+  "propertyMenu": {
+    "name": "Özellik adı",
+    "type": "Tür",
+    "sortAscending": "Artan sırala",
+    "sortDescending": "Azalan sırala",
+    "hide": "Görünümde gizle",
+    "editOptions": "Seçenekleri düzenle",
+    "delete": "Özelliği sil",
+    "confirmDelete": "“{name}” silinsin mi?",
+    "confirmDeleteBody": "Değerleri tüm satırlardan kaldırılır. Bu işlem geri alınamaz.",
+    "back": "Geri",
+    "optionsTitle": "{name} seçenekleri",
+    "noOptions": "Henüz seçenek yok",
+    "optionName": "Seçenek adı",
+    "renameOption": "Yeniden adlandır",
+    "deleteOption": "Seçeneği sil",
+    "deleteOptionNamed": "{name} seçeneğini sil",
+    "color": "Renk: {color}",
+    "addOptionPlaceholder": "Seçenek ekleyin",
+    "newOption": "Yeni seçenek",
+    "addOption": "Seçenek ekle"
+  },
+  "rowProperties": {
+    "noProperties": "Özellik yok",
+    "addProperty": "Özellik ekle"
+  },
+  "errors": {
+    "invalidUrl": "“{property}” bir http(s) veya mailto URL’si olmalıdır.",
+    "invalidNumber": "“{property}” bir sayı olmalıdır.",
+    "invalidCheckbox": "“{property}” doğru ya da yanlış olmalıdır.",
+    "invalidDate": "“{property}” bir tarih (YYYY-AA-GG) olmalıdır.",
+    "unknownOption": "“{value}”, “{property}” özelliğinin bir seçeneği değil.",
+    "unknownProperty": "Bilinmeyen özellik: “{property}”.",
+    "unsupportedType": "Desteklenmeyen özellik türü: “{type}”.",
+    "notADatabase": "Bu sayfa bir veritabanı değil.",
+    "notADatabaseRow": "Bu sayfa bir veritabanı satırı değil.",
+    "notASelectProperty": "Bu bir seçim özelliği değil.",
+    "lastView": "Bir veritabanında en az bir görünüm olmalıdır.",
+    "accessDenied": "Bulunamadı veya erişim izniniz yok.",
+    "parentInTrash": "Üst sayfa çöp kutusunda. Önce onu geri yükleyin.",
+    "nestedDatabase": "Bir veritabanının içinde başka bir veritabanı olamaz."
+  }
+}

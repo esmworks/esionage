@@ -2,11 +2,22 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Button, Input } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
 
 type Mode = "sign-in" | "sign-up";
+
+/** better-auth error codes we have our own wording for; anything else gets the generic message. */
+const ERROR_KEYS = {
+  INVALID_EMAIL_OR_PASSWORD: "invalidCredentials",
+  USER_ALREADY_EXISTS: "emailTaken",
+  USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: "emailTaken",
+  PASSWORD_TOO_SHORT: "passwordTooShort",
+  PASSWORD_TOO_LONG: "passwordTooLong",
+  INVALID_EMAIL: "invalidEmail",
+} as const;
 
 /**
  * Shared sign-in / sign-up form. When reached from an OAuth authorization (MCP client
@@ -15,6 +26,9 @@ type Mode = "sign-in" | "sign-up";
  */
 export function AuthForm({ mode }: { mode: Mode }) {
   const router = useRouter();
+  const t = useTranslations("auth");
+  const tc = useTranslations("common");
+  const text = mode === "sign-in" ? "signIn" : "signUp";
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [search, setSearch] = useState("");
@@ -33,7 +47,10 @@ export function AuthForm({ mode }: { mode: Mode }) {
         : await authClient.signUp.email({ email, password, name: String(form.get("name")) });
     setPending(false);
     if (result.error) {
-      setError(result.error.message ?? "Something went wrong");
+      const code = result.error.code as keyof typeof ERROR_KEYS | undefined;
+      if (result.error.status === 429) setError(t("errors.tooManyAttempts"));
+      else if (code && code in ERROR_KEYS) setError(t(`errors.${ERROR_KEYS[code]}`));
+      else setError(tc("genericError"));
       return;
     }
     const data = result.data as { url?: string; redirect?: boolean } | null;
@@ -47,19 +64,19 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <h1 className="text-base font-semibold">{mode === "sign-in" ? "Sign in" : "Create your account"}</h1>
+      <h1 className="text-base font-semibold">{t(`${text}.title`)}</h1>
       {mode === "sign-up" && (
         <label className="block space-y-1.5">
-          <span className="text-sm text-fg-muted">Name</span>
+          <span className="text-sm text-fg-muted">{t("fields.name")}</span>
           <Input name="name" required autoComplete="name" />
         </label>
       )}
       <label className="block space-y-1.5">
-        <span className="text-sm text-fg-muted">Email</span>
+        <span className="text-sm text-fg-muted">{t("fields.email")}</span>
         <Input name="email" type="email" required autoComplete="email" />
       </label>
       <label className="block space-y-1.5">
-        <span className="text-sm text-fg-muted">Password</span>
+        <span className="text-sm text-fg-muted">{t("fields.password")}</span>
         <Input
           name="password"
           type="password"
@@ -70,13 +87,13 @@ export function AuthForm({ mode }: { mode: Mode }) {
       </label>
       {error && <p className="text-sm text-danger">{error}</p>}
       <Button type="submit" variant="primary" className="w-full" disabled={pending}>
-        {pending ? "Please wait…" : mode === "sign-in" ? "Sign in" : "Create account"}
+        {pending ? t("pending") : t(`${text}.submit`)}
       </Button>
       <p className="text-center text-sm text-fg-muted">
-        {mode === "sign-in" ? "No account yet? " : "Already have an account? "}
+        {t(`${text}.switchPrompt`)}{" "}
         {/* Keep the OAuth query so a new user can finish connecting an app. */}
         <Link href={`/${mode === "sign-in" ? "sign-up" : "sign-in"}${search}`} className="text-accent hover:underline">
-          {mode === "sign-in" ? "Create one" : "Sign in"}
+          {t(`${text}.switchLink`)}
         </Link>
       </p>
     </form>

@@ -1,12 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { createWorkspaceAction } from "@/app/actions/workspaces";
 import { Button, Dialog, Input } from "@/components/ui";
 
 export function NewWorkspaceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
+  const t = useTranslations("sidebar.newWorkspace");
+  const tc = useTranslations("common");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -32,16 +35,16 @@ export function NewWorkspaceDialog({ open, onClose }: { open: boolean; onClose: 
           });
         }}
       >
-        <h2 className="text-base font-semibold">New workspace</h2>
-        <p className="text-sm text-fg-muted">A separate space with its own pages and members.</p>
-        <Input autoFocus placeholder="Workspace name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+        <h2 className="text-base font-semibold">{t("title")}</h2>
+        <p className="text-sm text-fg-muted">{t("description")}</p>
+        <Input autoFocus placeholder={t("namePlaceholder")} value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
         {error && <p className="text-xs text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={close}>
-            Cancel
+            {tc("cancel")}
           </Button>
           <Button type="submit" variant="primary" disabled={pending || !name.trim()}>
-            {pending ? "Creating…" : "Create"}
+            {pending ? t("creating") : t("create")}
           </Button>
         </div>
       </form>

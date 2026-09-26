@@ -11,7 +11,13 @@ import {
   type ViewConfig,
   type ViewType,
 } from "@/db/schema";
-import { applyView, normalizeValue, PropertyValueError, SELECT_COLORS } from "@/lib/properties";
+import {
+  applyView,
+  normalizeValue,
+  PropertyValueError,
+  SELECT_COLORS,
+  type DatabaseErrorCode,
+} from "@/lib/properties";
 import { AccessError, requirePageAccess } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 
@@ -26,9 +32,17 @@ export type DatabaseRow = {
   updatedAt: Date;
 };
 
+/**
+ * Tags a guard error with a stable code the UI translates. The class and English message are
+ * unchanged, so MCP output and `instanceof` checks behave as before.
+ */
+export function withCode<E extends Error>(error: E, code: DatabaseErrorCode): E & { code: DatabaseErrorCode } {
+  return Object.assign(error, { code });
+}
+
 async function requireDatabase(userId: string, databaseId: string) {
   const p = await requirePageAccess(userId, databaseId);
-  if (p.kind !== "database") throw new AccessError("Not a database");
+  if (p.kind !== "database") throw withCode(new AccessError("Not a database"), "notADatabase");
   return p;
 }
 
@@ -92,6 +106,8 @@ export async function normalizeRowProperties(databaseId: string, input: Record<s
     if (!prop) {
       throw new PropertyValueError(
         `Unknown property "${key}". Available: ${props.map((p) => `${p.name} (${p.type})`).join(", ") || "none"}`,
+        "unknownProperty",
+        { property: key },
       );
     }
     out[prop.id] = normalizeValue(prop, value);
@@ -101,7 +117,7 @@ export async function normalizeRowProperties(databaseId: string, input: Record<s
 
 export async function updateRowProperties(userId: string, rowId: string, patch: Record<string, unknown>) {
   const row = await requirePageAccess(userId, rowId);
-  if (!row.parentId) throw new Error("Page is not a database row");
+  if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
   await requireDatabase(userId, row.parentId);
   const normalized = await normalizeRowProperties(row.parentId, patch);
   const next = { ...row.properties };
@@ -120,7 +136,9 @@ export async function addProperty(
   input: { name: string; type: PropertyType; options?: string[] },
 ) {
   await requireDatabase(userId, databaseId);
-  if (!PROPERTY_TYPES.includes(input.type)) throw new PropertyValueError(`Unsupported type "${input.type}"`);
+  if (!PROPERTY_TYPES.includes(input.type)) {
+    throw new PropertyValueError(`Unsupported type "${input.type}"`, "unsupportedType", { type: String(input.type) });
+  }
   const [{ max }] = await db
     .select({ max: sql<number | null>`max(${databaseProperty.position})` })
     .from(databaseProperty)
@@ -174,7 +192,9 @@ export async function updateProperty(
 /** Adds a select option by name if missing and returns it (used when typing a new tag). */
 export async function ensureOption(userId: string, propertyId: string, name: string) {
   const prop = await requireProperty(userId, propertyId);
-  if (prop.type !== "select" && prop.type !== "multi_select") throw new Error("Not a select property");
+  if (prop.type !== "select" && prop.type !== "multi_select") {
+    throw withCode(new Error("Not a select property"), "notASelectProperty");
+  }
   const options = prop.options.options ?? [];
   const existing = options.find((o) => o.name.toLowerCase() === name.trim().toLowerCase());
   if (existing) return existing;
@@ -263,7 +283,7 @@ export async function deleteView(userId: string, viewId: string) {
     .select({ count: sql<number>`count(*)::int` })
     .from(databaseView)
     .where(eq(databaseView.databaseId, view.databaseId));
-  if (count <= 1) throw new Error("A database needs at least one view");
+  if (count <= 1) throw withCode(new Error("A database needs at least one view"), "lastView");
   await db.delete(databaseView).where(eq(databaseView.id, viewId));
   notifySchema(view.databaseId);
 }
@@ -275,7 +295,7 @@ export async function moveRow(
   { position, groupBy, groupValue }: { position?: number; groupBy?: string; groupValue?: string | null },
 ) {
   const row = await requirePageAccess(userId, rowId);
-  if (!row.parentId) throw new Error("Page is not a database row");
+  if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
   await requireDatabase(userId, row.parentId);
   const properties = { ...row.properties };
   if (groupBy) {
@@ -327,7 +347,7 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
 /** A single row with its database schema, for the property panel on a row page. */
 export async function getRow(userId: string, rowId: string) {
   const row = await requirePageAccess(userId, rowId);
-  if (!row.parentId) throw new Error("Page is not a database row");
+  if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
   await requireDatabase(userId, row.parentId);
   const properties = await getProperties(row.parentId);
   return {

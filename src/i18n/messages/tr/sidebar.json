@@ -1,0 +1,43 @@
+{
+  "workspaceMenu": {
+    "newWorkspace": "Yeni çalışma alanı",
+    "settingsAndMembers": "Ayarlar ve üyeler",
+    "signOut": "Çıkış yap"
+  },
+  "nav": {
+    "search": "Ara",
+    "settings": "Ayarlar",
+    "trash": "Çöp kutusu"
+  },
+  "pages": {
+    "heading": "Sayfalar",
+    "new": "Yeni",
+    "newPage": "Yeni sayfa",
+    "newDatabase": "Yeni veritabanı",
+    "createFirst": "İlk sayfanızı oluşturun",
+    "collapse": "Daralt",
+    "expand": "Genişlet",
+    "actions": "Sayfa işlemleri",
+    "moveToTrash": "Çöp kutusuna taşı",
+    "addInside": "İçine sayfa ekle",
+    "noChildren": "İçinde sayfa yok"
+  },
+  "search": {
+    "placeholder": "Sayfalarda ve içerikte ara…",
+    "label": "Ara",
+    "noResults": "Sonuç bulunamadı"
+  },
+  "trash": {
+    "title": "Çöp kutusu",
+    "empty": "Çöp kutusu boş",
+    "deletePermanently": "Kalıcı olarak sil",
+    "confirmDelete": "Kalıcı olarak silinsin mi? Bu işlem geri alınamaz."
+  },
+  "newWorkspace": {
+    "title": "Yeni çalışma alanı",
+    "description": "Kendi sayfaları ve üyeleri olan ayrı bir alan.",
+    "namePlaceholder": "Çalışma alanı adı",
+    "create": "Oluştur",
+    "creating": "Oluşturuluyor…"
+  }
+}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { DatabasePage } from "@/components/database/database-page";
 import { RowProperties } from "@/components/database/row-properties";
 import { PageView } from "@/components/page/page-view";
@@ -22,8 +23,8 @@ async function load(userId: string, pageId: string) {
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const user = await requireUser();
   const { pageId } = await params;
-  const p = await load(user.id, pageId);
-  return { title: pageLabel(p.title) };
+  const [p, t] = await Promise.all([load(user.id, pageId), getTranslations("common")]);
+  return { title: pageLabel(p.title, t("untitled")) };
 }
 
 export default async function PageRoute({ params }: Params) {

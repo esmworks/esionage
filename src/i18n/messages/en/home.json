@@ -1,0 +1,8 @@
+{
+  "welcome": "Welcome back, {name}",
+  "recent": "Recently edited",
+  "empty": "Nothing here yet. Create your first page to get started.",
+  "newPage": "New page",
+  "newDatabase": "New database",
+  "personalWorkspace": "{name}'s workspace"
+}

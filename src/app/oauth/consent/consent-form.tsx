@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
@@ -23,9 +24,11 @@ export function ConsentForm({
   user: { name: string; email: string };
   scopes: ScopeItem[];
   write: ScopeItem | null;
-  workspaces: string[];
+  /** Names of the user's workspaces, already joined into a localized list. */
+  workspaces: string | null;
   redirectHost: string | null;
 }) {
+  const t = useTranslations("consent");
   const [allowWrite, setAllowWrite] = useState(true);
   const [pending, setPending] = useState<"allow" | "deny" | "switch" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +50,8 @@ export function ConsentForm({
     const next = data?.url ?? data?.redirect_uri;
     if (error || !next) {
       setPending(null);
-      setError(error?.message ?? "Could not complete the request. Go back to the app and try again.");
+      // better-auth's messages are English only, so show our own wording.
+      setError(t("error"));
       return;
     }
     window.location.href = next;
@@ -67,12 +71,12 @@ export function ConsentForm({
           <div className="truncate text-fg-muted">{user.email}</div>
         </div>
         <Button size="sm" variant="ghost" onClick={switchAccount} disabled={pending !== null}>
-          Not you?
+          {t("notYou")}
         </Button>
       </div>
 
       <div>
-        <p className="text-sm font-medium">This will allow {clientName} to:</p>
+        <p className="text-sm font-medium">{t("willAllow", { client: clientName })}</p>
         <ul className="mt-2 space-y-1.5 text-sm">
           {scopes.map((s) => (
             <li key={s.scope} className="flex gap-2">
@@ -92,7 +96,7 @@ export function ConsentForm({
                 <span>
                   {write.label}
                   <span className="block text-xs text-fg-muted">
-                    Uncheck to give read-only access. Every edit is saved to page history first, so you can undo it.
+                    {t("readOnlyHint")}
                   </span>
                 </span>
               </label>
@@ -102,22 +106,21 @@ export function ConsentForm({
       </div>
 
       <p className="text-xs text-fg-muted">
-        Access covers every workspace you belong to
-        {workspaces.length ? `: ${workspaces.join(", ")}` : ""}. You can disconnect the app at any time in Settings.
+        {workspaces ? t("access.listed", { workspaces }) : t("access.all")}
       </p>
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <div className="flex gap-2">
         <Button className="flex-1" onClick={() => decide(false)} disabled={pending !== null}>
-          {pending === "deny" ? "Denying…" : "Deny"}
+          {pending === "deny" ? t("denying") : t("deny")}
         </Button>
         <Button variant="primary" className="flex-1" onClick={() => decide(true)} disabled={pending !== null}>
-          {pending === "allow" ? "Allowing…" : "Allow"}
+          {pending === "allow" ? t("allowing") : t("allow")}
         </Button>
       </div>
       {redirectHost && (
-        <p className="text-center text-xs text-fg-muted">You will be sent back to {redirectHost}.</p>
+        <p className="text-center text-xs text-fg-muted">{t("redirectNotice", { host: redirectHost })}</p>
       )}
     </div>
   );

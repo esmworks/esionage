@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addPropertyAction,
@@ -23,14 +24,13 @@ import { TITLE } from "./types";
 
 type Pending = { rowId: string; key: string; value: unknown; version: number };
 
+/** A failed database action; its message is already translated on the server. */
+class ActionError extends Error {}
+
 async function unwrap<T>(p: Promise<ActionResult<T>>): Promise<T> {
   const res = await p;
-  if (!res.ok) throw new Error(res.error);
+  if (!res.ok) throw new ActionError(res.error);
   return res.data;
-}
-
-function message(error: unknown) {
-  return error instanceof Error ? error.message : "Something went wrong";
 }
 
 /**
@@ -39,6 +39,14 @@ function message(error: unknown) {
  * so a refetch that races an in-flight write never flashes the old value.
  */
 export function useDatabase(databaseId: string) {
+  const tc = useTranslations("common");
+  const genericError = tc("genericError");
+  // Other failures (thrown page actions, network errors) carry untranslated text, so they get
+  // the generic message instead.
+  const message = useCallback(
+    (error: unknown) => (error instanceof ActionError ? error.message : genericError),
+    [genericError],
+  );
   const [snapshot, setSnapshot] = useState<DatabaseSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +65,7 @@ export function useDatabase(databaseId: string) {
     }
     setLoadError(null);
     setSnapshot(res.data);
-  }, [databaseId]);
+  }, [databaseId, message]);
 
   useEffect(() => {
     void refetch();
@@ -71,7 +79,7 @@ export function useDatabase(databaseId: string) {
   });
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
-  const report = useCallback((e: unknown) => setError(message(e)), []);
+  const report = useCallback((e: unknown) => setError(message(e)), [message]);
 
   const rows: Row[] = useMemo(() => {
     if (!snapshot) return [];

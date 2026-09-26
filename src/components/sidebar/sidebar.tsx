@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { archivePageAction, createPageAction, getTreeAction, movePageAction } from "@/app/actions/pages";
@@ -49,6 +50,7 @@ export function Sidebar({
   user: { id: string; name: string; email: string };
 }) {
   const router = useRouter();
+  const t = useTranslations("sidebar");
   const pathname = usePathname();
   const activeId = /\/p\/([\w-]+)/.exec(pathname)?.[1] ?? null;
   const [tree, setTree] = useState(initialTree);
@@ -180,7 +182,7 @@ export function Sidebar({
                   setNewWorkspaceOpen(true);
                 }}
               >
-                New workspace
+                {t("workspaceMenu.newWorkspace")}
               </MenuItem>
               <MenuSeparator />
               <MenuItem
@@ -190,10 +192,10 @@ export function Sidebar({
                   router.push(`/w/${workspaceId}/settings`);
                 }}
               >
-                Settings & members
+                {t("workspaceMenu.settingsAndMembers")}
               </MenuItem>
               <MenuItem icon={<LogOut className="h-4 w-4" />} onClick={signOut}>
-                Sign out
+                {t("workspaceMenu.signOut")}
               </MenuItem>
             </>
           )}
@@ -201,20 +203,20 @@ export function Sidebar({
 
         <div className="mt-1 space-y-px">
           <SidebarButton icon={<Search className="h-4 w-4" />} onClick={() => setSearchOpen(true)} hint="⌘K">
-            Search
+            {t("nav.search")}
           </SidebarButton>
           <SidebarButton icon={<Settings className="h-4 w-4" />} href={`/w/${workspaceId}/settings`}>
-            Settings
+            {t("nav.settings")}
           </SidebarButton>
         </div>
       </div>
 
       <div className="flex items-center justify-between px-4 pb-1 pt-2">
-        <span className="text-xs font-medium text-fg-muted">Pages</span>
+        <span className="text-xs font-medium text-fg-muted">{t("pages.heading")}</span>
         <Popover
           align="end"
           trigger={({ toggle }) => (
-            <IconButton label="New" onClick={toggle}>
+            <IconButton label={t("pages.new")} onClick={toggle}>
               <Plus className="h-4 w-4" />
             </IconButton>
           )}
@@ -228,7 +230,7 @@ export function Sidebar({
                   create(null, "page");
                 }}
               >
-                New page
+                {t("pages.newPage")}
               </MenuItem>
               <MenuItem
                 icon={<Database className="h-4 w-4" />}
@@ -237,21 +239,21 @@ export function Sidebar({
                   create(null, "database");
                 }}
               >
-                New database
+                {t("pages.newDatabase")}
               </MenuItem>
             </>
           )}
         </Popover>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label="Pages">
+      <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label={t("pages.heading")}>
         {roots.length === 0 && (
           <button
             type="button"
             onClick={() => create(null)}
             className="w-full rounded-md px-2 py-1.5 text-left text-fg-muted hover:bg-bg-hover"
           >
-            Create your first page
+            {t("pages.createFirst")}
           </button>
         )}
         <TreeLevel
@@ -270,7 +272,7 @@ export function Sidebar({
 
       <div className="border-t border-border p-2">
         <SidebarButton icon={<Trash2 className="h-4 w-4" />} onClick={() => setTrashOpen(true)}>
-          Trash
+          {t("nav.trash")}
         </SidebarButton>
       </div>
 
@@ -354,6 +356,8 @@ function TreeItem({
   ...props
 }: TreeProps & { node: TreeNode; prev?: TreeNode; next?: TreeNode }) {
   const { depth, childrenOf, expanded, activeId, workspaceId, onToggle, onCreate, onArchive, onMove } = props;
+  const t = useTranslations("sidebar");
+  const tc = useTranslations("common");
   const kids = childrenOf.get(node.id) ?? [];
   const isOpen = expanded.has(node.id);
   const [drop, setDrop] = useState<DropTarget>(null);
@@ -413,7 +417,7 @@ function TreeItem({
         )}
         <button
           type="button"
-          aria-label={isOpen ? "Collapse" : "Expand"}
+          aria-label={isOpen ? t("pages.collapse") : t("pages.expand")}
           // Databases list their rows on the database page, not in the tree.
           disabled={!canNest}
           onClick={() => onToggle(node.id)}
@@ -431,13 +435,13 @@ function TreeItem({
           {canNest && (kids.length > 0 || isOpen) && (
             <PageIcon icon={node.icon} kind={node.kind} className="text-sm" />
           )}
-          <span className="truncate">{pageLabel(node.title)}</span>
+          <span className="truncate">{pageLabel(node.title, tc("untitled"))}</span>
         </Link>
         <div className="hidden items-center group-hover:flex">
           <Popover
             align="end"
             trigger={({ toggle }) => (
-              <IconButton label="Page actions" onClick={toggle}>
+              <IconButton label={t("pages.actions")} onClick={toggle}>
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </IconButton>
             )}
@@ -451,12 +455,12 @@ function TreeItem({
                   onArchive(node.id);
                 }}
               >
-                Move to trash
+                {t("pages.moveToTrash")}
               </MenuItem>
             )}
           </Popover>
           {canNest && (
-            <IconButton label="Add a page inside" onClick={() => onCreate(node.id)}>
+            <IconButton label={t("pages.addInside")} onClick={() => onCreate(node.id)}>
               <Plus className="h-3.5 w-3.5" />
             </IconButton>
           )}
@@ -467,7 +471,7 @@ function TreeItem({
           <TreeLevel nodes={kids} {...props} depth={depth + 1} />
         ) : (
           <p className="py-1 text-xs text-fg-faint" style={{ paddingLeft: 28 + depth * 14 }}>
-            No pages inside
+            {t("pages.noChildren")}
           </p>
         )
       )}

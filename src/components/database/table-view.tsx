@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, Ellipsis, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { cn, MenuItem, MenuSeparator } from "@/components/ui";
 import type { ViewConfig } from "@/db/schema/app";
@@ -16,11 +17,12 @@ const NAME_WIDTH = 280;
 const WIDTHS: Partial<Record<Property["type"], number>> = { checkbox: 110, number: 140, date: 170 };
 const colWidth = (p: Property) => WIDTHS[p.type] ?? 200;
 
-export function titleProperty(databaseId: string): Property {
+/** The implicit Name column as a text property; `name` is its translated label. */
+export function titleProperty(databaseId: string, name: string): Property {
   return {
     id: TITLE,
     databaseId,
-    name: "Name",
+    name,
     type: "text",
     options: {},
     position: 0,
@@ -49,10 +51,12 @@ export function TableView({
   /** True when filters hide rows, to explain an empty table. */
   filtered: boolean;
 }) {
+  const t = useTranslations("database");
+  const tc = useTranslations("common");
   const [editTitleOf, setEditTitleOf] = useState<string | null>(null);
   const hidden = new Set(view.config.hidden ?? []);
   const visible = properties.filter((p) => !hidden.has(p.id));
-  const titleProp = titleProperty(databaseId);
+  const titleProp = titleProperty(databaseId, t("nameColumn"));
   const sortOf = (id: string) => view.config.sorts?.find((s) => s.propertyId === id)?.direction;
 
   const setConfig = (config: ViewConfig) => api.updateView(view, { config });
@@ -81,7 +85,7 @@ export function TableView({
             <th aria-hidden />
             <HeaderCell
               prop={null}
-              label="Name"
+              label={t("nameColumn")}
               icon="title"
               sort={sortOf(TITLE)}
               readOnly={readOnly}
@@ -126,7 +130,7 @@ export function TableView({
                     prop={titleProp}
                     value={row.title}
                     readOnly={readOnly}
-                    placeholder="Untitled"
+                    placeholder={tc("untitled")}
                     autoEdit={editTitleOf === row.id}
                     onChange={(v) => {
                       setEditTitleOf(null);
@@ -157,7 +161,7 @@ export function TableView({
       </table>
       {!rows.length && (
         <div className="ml-8 border-b border-border px-2 py-6 text-sm text-fg-faint" style={{ width: totalWidth - 32 }}>
-          {filtered ? "No rows match the current filters." : "No rows yet."}
+          {filtered ? t("table.noMatches") : t("table.noRows")}
         </div>
       )}
       {!readOnly && (
@@ -168,7 +172,7 @@ export function TableView({
           style={{ width: totalWidth - 32 }}
         >
           <Plus className="h-4 w-4" />
-          New
+          {t("table.new")}
         </button>
       )}
     </div>
@@ -190,6 +194,7 @@ function HeaderCell({
   readOnly?: boolean;
   actions: React.ComponentProps<typeof PropertyMenu>["actions"];
 }) {
+  const t = useTranslations("database.table");
   const menu = useFloating<HTMLButtonElement>();
   return (
     <th className={cn("border-y border-border p-0 text-left font-normal", prop && "border-l")}>
@@ -202,8 +207,8 @@ function HeaderCell({
       >
         <PropertyTypeIcon type={icon} className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{label}</span>
-        {sort === "asc" && <ArrowUp className="h-3 w-3 shrink-0 text-accent" aria-label="Sorted ascending" />}
-        {sort === "desc" && <ArrowDown className="h-3 w-3 shrink-0 text-accent" aria-label="Sorted descending" />}
+        {sort === "asc" && <ArrowUp className="h-3 w-3 shrink-0 text-accent" aria-label={t("sortedAscending")} />}
+        {sort === "desc" && <ArrowDown className="h-3 w-3 shrink-0 text-accent" aria-label={t("sortedDescending")} />}
       </button>
       <Floating open={menu.open} anchor={menu.el} onClose={menu.close}>
         <PropertyMenu prop={prop} actions={actions} onDone={menu.close} />
@@ -213,14 +218,15 @@ function HeaderCell({
 }
 
 function AddPropertyButton({ onCreate }: { onCreate: React.ComponentProps<typeof AddPropertyPanel>["onCreate"] }) {
+  const t = useTranslations("database.table");
   const menu = useFloating<HTMLButtonElement>();
   return (
     <>
       <button
         ref={menu.ref}
         type="button"
-        aria-label="Add property"
-        title="Add property"
+        aria-label={t("addProperty")}
+        title={t("addProperty")}
         onClick={menu.toggle}
         className="flex h-[33px] w-full items-center justify-center text-fg-muted hover:bg-bg-hover hover:text-fg"
       >
@@ -234,6 +240,8 @@ function AddPropertyButton({ onCreate }: { onCreate: React.ComponentProps<typeof
 }
 
 function RowMenu({ workspaceId, rowId, onDelete }: { workspaceId: string; rowId: string; onDelete: () => void }) {
+  const t = useTranslations("database");
+  const tc = useTranslations("common");
   const menu = useFloating<HTMLButtonElement>();
   const router = useRouter();
   return (
@@ -241,7 +249,7 @@ function RowMenu({ workspaceId, rowId, onDelete }: { workspaceId: string; rowId:
       <button
         ref={menu.ref}
         type="button"
-        aria-label="Row actions"
+        aria-label={t("table.rowActions")}
         onClick={menu.toggle}
         className={cn(
           "flex h-6 w-6 items-center justify-center rounded text-fg-faint hover:bg-bg-hover hover:text-fg",
@@ -258,7 +266,7 @@ function RowMenu({ workspaceId, rowId, onDelete }: { workspaceId: string; rowId:
             router.push(`/w/${workspaceId}/p/${rowId}`);
           }}
         >
-          Open
+          {t("rowMenu.open")}
         </MenuItem>
         <MenuSeparator />
         <MenuItem
@@ -269,7 +277,7 @@ function RowMenu({ workspaceId, rowId, onDelete }: { workspaceId: string; rowId:
             onDelete();
           }}
         >
-          Delete
+          {tc("delete")}
         </MenuItem>
       </Floating>
     </>

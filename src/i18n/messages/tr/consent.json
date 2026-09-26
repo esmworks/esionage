@@ -1,0 +1,35 @@
+{
+  "metaTitle": "Uygulamayı yetkilendir",
+  "expired": {
+    "title": "Bu bağlantının süresi doldu",
+    "body": "Yetkilendirme isteği geçersiz ya da çok eski. Bağlamaya çalıştığınız uygulamaya dönüp yeniden başlayın."
+  },
+  "unknownClient": {
+    "title": "Bilinmeyen uygulama",
+    "body": "Erişim isteyen uygulama Esionage'a kayıtlı değil ya da devre dışı bırakılmış. Geri dönüp yeniden bağlanmayı deneyin."
+  },
+  "heading": "{client}, Esionage hesabınıza erişmek istiyor",
+  "identifiedBy": "Bu uygulamanın kimliği {host} üzerinden doğrulanıyor.",
+  "unverified": "Bu uygulama kendini otomatik olarak kaydetti ve Esionage tarafından incelenmedi. Yalnızca bu bağlantıyı siz başlattıysanız devam edin.",
+  "notYou": "Siz değil misiniz?",
+  "willAllow": "{client} uygulamasına şu izinler verilecek:",
+  "readOnlyHint": "Salt okunur erişim vermek için işareti kaldırın. Her düzenleme önce sayfa geçmişine kaydedilir, böylece geri alabilirsiniz.",
+  "access": {
+    "all": "Erişim, üyesi olduğunuz tüm çalışma alanlarını kapsar. Uygulamanın bağlantısını istediğiniz zaman Ayarlar'dan kesebilirsiniz.",
+    "listed": "Erişim, üyesi olduğunuz tüm çalışma alanlarını kapsar: {workspaces}. Uygulamanın bağlantısını istediğiniz zaman Ayarlar'dan kesebilirsiniz."
+  },
+  "deny": "Reddet",
+  "denying": "Reddediliyor…",
+  "allow": "İzin ver",
+  "allowing": "İzin veriliyor…",
+  "redirectNotice": "Ardından {host} adresine yönlendirileceksiniz.",
+  "error": "İstek tamamlanamadı. Uygulamaya dönüp tekrar deneyin.",
+  "scopes": {
+    "openid": "Kimliğinizi doğrulama",
+    "profile": "Adınızı ve profil fotoğrafınızı görme",
+    "email": "E-posta adresinizi görme",
+    "offlineAccess": "Yeniden giriş yapmanızı istemeden bağlı kalma",
+    "pagesRead": "Çalışma alanlarınızdaki sayfaları ve veritabanlarını okuma",
+    "pagesWrite": "Sayfa ve veritabanı satırı oluşturma, bunları düzenleme ve sayfaları çöp kutusuna taşıma"
+  }
+}

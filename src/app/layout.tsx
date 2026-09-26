@@ -1,15 +1,27 @@
 import type { Metadata } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
+import { TimeZoneCookie } from "@/components/time-zone-cookie";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: { default: "Esionage", template: "%s · Esionage" },
-  description: "Open-source workspace for docs and databases, with MCP access for AI agents.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("common");
+  return {
+    title: { default: "Esionage", template: "%s · Esionage" },
+    description: t("appDescription"),
+  };
+}
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body>{children}</body>
+    <html lang={locale} suppressHydrationWarning>
+      <body>
+        <NextIntlClientProvider>
+          {children}
+          <TimeZoneCookie />
+        </NextIntlClientProvider>
+      </body>
     </html>
   );
 }

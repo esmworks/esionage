@@ -2,6 +2,7 @@
 
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { searchAction } from "@/app/actions/pages";
 import { cn, Dialog, PageIcon, pageLabel } from "@/components/ui";
@@ -9,6 +10,8 @@ import type { SearchHit } from "@/server/pages";
 
 export function SearchDialog({ workspaceId, open, onClose }: { workspaceId: string; open: boolean; onClose: () => void }) {
   const router = useRouter();
+  const t = useTranslations("sidebar.search");
+  const tc = useTranslations("common");
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [active, setActive] = useState(0);
@@ -66,14 +69,14 @@ export function SearchDialog({ workspaceId, open, onClose }: { workspaceId: stri
               go(hits[active]);
             }
           }}
-          placeholder="Search pages and content…"
-          aria-label="Search"
+          placeholder={t("placeholder")}
+          aria-label={t("label")}
           className="h-12 flex-1 bg-transparent text-sm outline-none placeholder:text-fg-faint"
         />
       </div>
       <ul className="max-h-[50vh] overflow-y-auto p-1">
         {query.trim() && !loading && hits.length === 0 && (
-          <li className="px-3 py-6 text-center text-sm text-fg-muted">No results</li>
+          <li className="px-3 py-6 text-center text-sm text-fg-muted">{t("noResults")}</li>
         )}
         {hits.map((hit, i) => (
           <li key={hit.id}>
@@ -85,7 +88,7 @@ export function SearchDialog({ workspaceId, open, onClose }: { workspaceId: stri
             >
               <PageIcon icon={hit.icon} kind={hit.kind} className="mt-0.5 text-sm" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{pageLabel(hit.title)}</span>
+                <span className="block truncate text-sm font-medium">{pageLabel(hit.title, tc("untitled"))}</span>
                 {hit.snippet && <span className="line-clamp-2 text-xs text-fg-muted">{hit.snippet}</span>}
               </span>
             </button>

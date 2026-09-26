@@ -1,0 +1,49 @@
+{
+  "documentTitle": "{title} · Esionage",
+  "header": {
+    "history": "Sayfa geçmişi",
+    "more": "Diğer işlemler",
+    "copyLink": "Bağlantıyı kopyala",
+    "moveToTrash": "Çöp kutusuna taşı"
+  },
+  "archived": {
+    "banner": "Bu sayfa çöp kutusunda.",
+    "deletePermanently": "Kalıcı olarak sil",
+    "confirmDelete": "Bu sayfa ve içindeki her şey kalıcı olarak silinsin mi? Bu işlem geri alınamaz."
+  },
+  "icon": {
+    "add": "Simge ekle",
+    "remove": "Simgeyi kaldır"
+  },
+  "title": {
+    "label": "Sayfa başlığı"
+  },
+  "connection": {
+    "live": "Canlı",
+    "connecting": "Bağlanıyor",
+    "offline": "Çevrimdışı"
+  },
+  "errors": {
+    "accessLost": "Artık bu sayfaya erişiminiz yok."
+  },
+  "history": {
+    "title": "Sayfa geçmişi",
+    "previewTitle": "Sürüm önizlemesi",
+    "reasons": {
+      "auto": "Otomatik kayıt",
+      "beforeRestore": "Geri yüklemeden önce",
+      "manual": "Kaydedilen sürüm",
+      "beforeAiEdit": "Yapay zekâ düzenlemesinden önce",
+      "beforeAiEditBy": "{client} düzenlemesinden önce"
+    },
+    "empty": "Henüz sürüm yok. Siz düzenlerken ve bir yapay zekâ uygulaması bu sayfayı değiştirmeden önce sürümler otomatik olarak kaydedilir.",
+    "restore": "Bu sürümü geri yükle",
+    "restoring": "Geri yükleniyor…",
+    "restoreHint": "Mevcut içerik önce bir sürüm olarak kaydedilir.",
+    "errors": {
+      "list": "Sayfa geçmişi yüklenemedi. Sayfayı yenileyip tekrar deneyin.",
+      "version": "Bu sürüm yüklenemedi.",
+      "restore": "Bu sürüm geri yüklenemedi."
+    }
+  }
+}

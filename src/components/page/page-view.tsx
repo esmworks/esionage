@@ -2,6 +2,7 @@
 
 import { History, Link2, MoreHorizontal, RotateCcw, SmilePlus, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
@@ -40,6 +41,9 @@ export function PageView({
   children?: ReactNode;
 }) {
   const router = useRouter();
+  const t = useTranslations("page");
+  const tc = useTranslations("common");
+  const untitled = tc("untitled");
   const { pageDoc, synced, error } = usePageDoc(page.id);
   const title = useDocTitle(pageDoc?.doc, page.title);
   const [icon, setIcon] = useState(page.icon);
@@ -51,8 +55,8 @@ export function PageView({
 
   // Keep the tab title in sync with live renames.
   useEffect(() => {
-    document.title = `${pageLabel(title)} · Esionage`;
-  }, [title]);
+    document.title = t("documentTitle", { title: pageLabel(title, untitled) });
+  }, [title, untitled, t]);
 
   function changeIcon(next: string | null) {
     setIcon(next);
@@ -77,7 +81,7 @@ export function PageView({
   }
 
   function deleteForever() {
-    if (!confirm("Delete this page and everything inside it permanently? This cannot be undone.")) return;
+    if (!confirm(t("archived.confirmDelete"))) return;
     startTransition(async () => {
       await deletePagePermanentlyAction(page.id);
       router.push(`/w/${workspaceId}`);
@@ -98,27 +102,27 @@ export function PageView({
                 className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-bg-hover hover:text-fg"
               >
                 <PageIcon icon={c.icon} kind={c.kind} className="text-sm" />
-                <span className="max-w-40 truncate">{pageLabel(c.title)}</span>
+                <span className="max-w-40 truncate">{pageLabel(c.title, untitled)}</span>
               </Link>
               <span className="text-fg-faint">/</span>
             </span>
           ))}
           <span className="flex min-w-0 items-center gap-1 px-1 text-fg">
             <PageIcon icon={icon} kind={page.kind} className="text-sm" />
-            <span className="max-w-60 truncate">{pageLabel(title)}</span>
+            <span className="max-w-60 truncate">{pageLabel(title, untitled)}</span>
           </span>
         </nav>
         <div className="flex items-center gap-1">
           <ConnectionDot synced={synced} error={error} />
           {showBody && (
-            <IconButton label="Page history" className="h-7 w-7" onClick={() => setHistoryOpen(true)}>
+            <IconButton label={t("header.history")} className="h-7 w-7" onClick={() => setHistoryOpen(true)}>
               <History className="h-4 w-4" />
             </IconButton>
           )}
           <Popover
             align="end"
             trigger={({ toggle }) => (
-              <IconButton label="More" className="h-7 w-7" onClick={toggle}>
+              <IconButton label={t("header.more")} className="h-7 w-7" onClick={toggle}>
                 <MoreHorizontal className="h-4 w-4" />
               </IconButton>
             )}
@@ -132,7 +136,7 @@ export function PageView({
                     close();
                   }}
                 >
-                  Copy link
+                  {t("header.copyLink")}
                 </MenuItem>
                 {!page.archived && (
                   <MenuItem
@@ -143,7 +147,7 @@ export function PageView({
                       moveToTrash();
                     }}
                   >
-                    Move to trash
+                    {t("header.moveToTrash")}
                   </MenuItem>
                 )}
               </>
@@ -154,12 +158,12 @@ export function PageView({
 
       {page.archived && (
         <div className="flex items-center justify-center gap-3 bg-danger px-4 py-2 text-sm text-white">
-          This page is in the trash.
+          {t("archived.banner")}
           <Button size="sm" className="border-white/60 bg-transparent text-white hover:bg-white/10" onClick={restore} disabled={pending}>
-            <RotateCcw className="h-3.5 w-3.5" /> Restore
+            <RotateCcw className="h-3.5 w-3.5" /> {tc("restore")}
           </Button>
           <Button size="sm" className="border-white/60 bg-transparent text-white hover:bg-white/10" onClick={deleteForever} disabled={pending}>
-            Delete permanently
+            {t("archived.deletePermanently")}
           </Button>
         </div>
       )}
@@ -180,7 +184,7 @@ export function PageView({
                     onClick={toggle}
                     className={cn("-ml-2 opacity-0 transition-opacity group-hover:opacity-100", page.archived && "hidden")}
                   >
-                    <SmilePlus className="h-4 w-4" /> Add icon
+                    <SmilePlus className="h-4 w-4" /> {t("icon.add")}
                   </Button>
                 )
               }
@@ -203,7 +207,7 @@ export function PageView({
             {pageDoc && synced ? (
               <CollabEditor pageDoc={pageDoc} user={user} editable={editable} />
             ) : (
-              <div className="px-[54px] text-sm text-fg-faint">Loading…</div>
+              <div className="px-[54px] text-sm text-fg-faint">{tc("loading")}</div>
             )}
           </div>
         )}
@@ -225,6 +229,8 @@ function TitleField({
   onChange: (value: string) => void;
   onEnter: () => void;
 }) {
+  const t = useTranslations("page");
+  const tc = useTranslations("common");
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -238,8 +244,8 @@ function TitleField({
       rows={1}
       value={value}
       readOnly={!editable}
-      placeholder="Untitled"
-      aria-label="Page title"
+      placeholder={tc("untitled")}
+      aria-label={t("title.label")}
       onChange={(e) => onChange(e.target.value.replace(/\n/g, ""))}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
@@ -253,7 +259,8 @@ function TitleField({
 }
 
 function ConnectionDot({ synced, error }: { synced: boolean; error: string | null }) {
-  const label = error ? "Offline" : synced ? "Live" : "Connecting";
+  const t = useTranslations("page.connection");
+  const label = error ? t("offline") : synced ? t("live") : t("connecting");
   return (
     <span className="mr-1 flex items-center gap-1.5 text-xs text-fg-faint" title={label}>
       <span className={cn("h-1.5 w-1.5 rounded-full", error ? "bg-danger" : synced ? "bg-emerald-500" : "bg-amber-400")} />

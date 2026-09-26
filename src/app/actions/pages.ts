@@ -1,5 +1,6 @@
 "use server";
 
+import { getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import type { PageKind } from "@/db/schema";
 import * as pages from "@/server/pages";
@@ -12,8 +13,22 @@ export async function createPageAction(input: {
   title?: string;
 }) {
   const userId = await requireUserId();
-  const created = await pages.createPage({ userId }, input);
+  const seedNames = input.kind === "database" ? await databaseSeedNames() : undefined;
+  const created = await pages.createPage({ userId }, { ...input, seedNames });
   return { id: created.id };
+}
+
+/** Starter property, option and view names for a new database, in the user's language. */
+async function databaseSeedNames(): Promise<pages.DatabaseSeedNames> {
+  const t = await getTranslations("database");
+  return {
+    status: t("page.defaultGroupProperty"),
+    notStarted: t("page.defaultGroupOptions.notStarted"),
+    inProgress: t("page.defaultGroupOptions.inProgress"),
+    done: t("page.defaultGroupOptions.done"),
+    tags: t("page.defaultTagsProperty"),
+    table: t("views.table"),
+  };
 }
 
 export async function renamePageAction(pageId: string, title: string) {

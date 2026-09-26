@@ -2,10 +2,40 @@ import type { FilterOp, FilterRule, PropertyOptions, PropertyType, SelectOption,
 
 export const SELECT_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
 
+/**
+ * Stable codes for user-facing database errors. The English `message` stays the contract for MCP
+ * clients; the UI translates by `code` (see `database.errors.*` messages).
+ */
+export const DATABASE_ERROR_CODES = [
+  "invalidUrl",
+  "invalidNumber",
+  "invalidCheckbox",
+  "invalidDate",
+  "unknownOption",
+  "unknownProperty",
+  "unsupportedType",
+  "notADatabase",
+  "notADatabaseRow",
+  "notASelectProperty",
+  "lastView",
+  "parentInTrash",
+  "nestedDatabase",
+] as const;
+export type DatabaseErrorCode = (typeof DATABASE_ERROR_CODES)[number];
+export type DatabaseErrorParams = Record<string, string>;
+
+export function isDatabaseErrorCode(code: unknown): code is DatabaseErrorCode {
+  return typeof code === "string" && (DATABASE_ERROR_CODES as readonly string[]).includes(code);
+}
+
 export class PropertyValueError extends Error {
-  constructor(message: string) {
+  code?: DatabaseErrorCode;
+  params: DatabaseErrorParams;
+  constructor(message: string, code?: DatabaseErrorCode, params: DatabaseErrorParams = {}) {
     super(message);
     this.name = "PropertyValueError";
+    this.code = code;
+    this.params = params;
   }
 }
 
@@ -29,37 +59,53 @@ export function normalizeValue(prop: PropertyDef, value: unknown): unknown {
     case "url": {
       const url = String(value).trim();
       if (!/^https?:\/\//i.test(url) && !/^mailto:/i.test(url)) {
-        throw new PropertyValueError(`"${prop.name}" must be an http(s) or mailto URL`);
+        throw new PropertyValueError(`"${prop.name}" must be an http(s) or mailto URL`, "invalidUrl", {
+          property: prop.name,
+        });
       }
       return url;
     }
     case "number": {
       const n = typeof value === "number" ? value : Number(String(value).replace(",", "."));
-      if (!Number.isFinite(n)) throw new PropertyValueError(`"${prop.name}" must be a number`);
+      if (!Number.isFinite(n)) throw new PropertyValueError(`"${prop.name}" must be a number`, "invalidNumber", { property: prop.name });
       return n;
     }
     case "checkbox":
       if (typeof value === "boolean") return value;
       if (value === "true" || value === 1) return true;
       if (value === "false" || value === 0) return false;
-      throw new PropertyValueError(`"${prop.name}" must be true or false`);
+      throw new PropertyValueError(`"${prop.name}" must be true or false`, "invalidCheckbox", {
+        property: prop.name,
+      });
     case "date": {
       const s = String(value);
       if (!/^\d{4}-\d{2}-\d{2}/.test(s) || Number.isNaN(Date.parse(s))) {
-        throw new PropertyValueError(`"${prop.name}" must be an ISO date (YYYY-MM-DD)`);
+        throw new PropertyValueError(`"${prop.name}" must be an ISO date (YYYY-MM-DD)`, "invalidDate", {
+          property: prop.name,
+        });
       }
       return s.slice(0, 10);
     }
     case "select": {
       const option = findOption(prop.options.options, value);
-      if (!option) throw new PropertyValueError(`"${value}" is not an option of "${prop.name}"`);
+      if (!option) {
+        throw new PropertyValueError(`"${value}" is not an option of "${prop.name}"`, "unknownOption", {
+          value: String(value),
+          property: prop.name,
+        });
+      }
       return option.id;
     }
     case "multi_select": {
       const list = Array.isArray(value) ? value : [value];
       return list.map((v) => {
         const option = findOption(prop.options.options, v);
-        if (!option) throw new PropertyValueError(`"${v}" is not an option of "${prop.name}"`);
+        if (!option) {
+          throw new PropertyValueError(`"${v}" is not an option of "${prop.name}"`, "unknownOption", {
+            value: String(v),
+            property: prop.name,
+          });
+        }
         return option.id;
       });
     }
@@ -161,46 +207,66 @@ export function applyView<T extends RowLike>(
   });
 }
 
-/** Filter operators offered per property type (`title` is the implicit Name column). */
-export function filterOperators(type: PropertyType | "title"): { op: FilterOp; label: string }[] {
+/** Message keys (`database.filter.ops.*`) for filter operator labels. */
+export type FilterOpLabel =
+  | "contains"
+  | "doesNotContain"
+  | "is"
+  | "isNot"
+  | "isEmpty"
+  | "isNotEmpty"
+  | "equals"
+  | "notEquals"
+  | "greaterThan"
+  | "lessThan"
+  | "isBefore"
+  | "isAfter"
+  | "isChecked"
+  | "isUnchecked";
+
+/**
+ * Filter operators offered per property type (`title` is the implicit Name column). `label` is a
+ * message key under `database.filter.ops`, translated by the UI.
+ */
+export function filterOperators(type: PropertyType | "title"): { op: FilterOp; label: FilterOpLabel }[] {
   const empty = [
-    { op: "is_empty" as const, label: "Is empty" },
-    { op: "is_not_empty" as const, label: "Is not empty" },
+    { op: "is_empty" as const, label: "isEmpty" as const },
+    { op: "is_not_empty" as const, label: "isNotEmpty" as const },
   ];
   switch (type) {
     case "title":
     case "text":
     case "url":
       return [
-        { op: "contains", label: "Contains" },
-        { op: "equals", label: "Is" },
-        { op: "not_equals", label: "Is not" },
+        { op: "contains", label: "contains" },
+        { op: "equals", label: "is" },
+        { op: "not_equals", label: "isNot" },
         ...empty,
       ];
     case "number":
       return [
-        { op: "equals", label: "=" },
-        { op: "not_equals", label: "≠" },
-        { op: "gt", label: ">" },
-        { op: "lt", label: "<" },
+        { op: "equals", label: "equals" },
+        { op: "not_equals", label: "notEquals" },
+        { op: "gt", label: "greaterThan" },
+        { op: "lt", label: "lessThan" },
         ...empty,
       ];
     case "select":
-      return [{ op: "equals", label: "Is" }, { op: "not_equals", label: "Is not" }, ...empty];
+      return [{ op: "equals", label: "is" }, { op: "not_equals", label: "isNot" }, ...empty];
     case "multi_select":
-      return [{ op: "contains", label: "Contains" }, { op: "not_equals", label: "Does not contain" }, ...empty];
+      return [{ op: "contains", label: "contains" }, { op: "not_equals", label: "doesNotContain" }, ...empty];
     case "date":
       return [
-        { op: "equals", label: "Is" },
-        { op: "lt", label: "Is before" },
-        { op: "gt", label: "Is after" },
+        { op: "equals", label: "is" },
+        { op: "lt", label: "isBefore" },
+        { op: "gt", label: "isAfter" },
         ...empty,
       ];
     case "checkbox":
       // `false` counts as empty, so unchecked rows match whether or not they were ever touched.
       return [
-        { op: "is_not_empty", label: "Is checked" },
-        { op: "is_empty", label: "Is unchecked" },
+        { op: "is_not_empty", label: "isChecked" },
+        { op: "is_empty", label: "isUnchecked" },
       ];
   }
 }

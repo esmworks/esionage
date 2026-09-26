@@ -13,7 +13,7 @@ import {
 } from "@/db/schema";
 import { AccessError, requireMembership, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
-import { normalizeRowProperties } from "@/server/databases";
+import { normalizeRowProperties, withCode } from "@/server/databases";
 
 export type TreeNode = {
   id: string;
@@ -97,6 +97,27 @@ export type CreatePageInput = {
   markdown?: string;
   /** Row values, keyed by property id or name, when the parent is a database. */
   properties?: Record<string, unknown>;
+  /** Names for a new database's starter properties and view, in the creator's language. */
+  seedNames?: DatabaseSeedNames;
+};
+
+export type DatabaseSeedNames = {
+  status: string;
+  notStarted: string;
+  inProgress: string;
+  done: string;
+  tags: string;
+  table: string;
+};
+
+/** Used when no language is known, e.g. databases created by MCP clients. */
+export const ENGLISH_SEED_NAMES: DatabaseSeedNames = {
+  status: "Status",
+  notStarted: "Not started",
+  inProgress: "In progress",
+  done: "Done",
+  tags: "Tags",
+  table: "Table",
 };
 
 export async function createPage(actor: WriteActor, input: CreatePageInput) {
@@ -108,8 +129,10 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
     const parent = await requirePageAccess(userId, input.parentId);
     workspaceId = parent.workspaceId;
     parentKind = parent.kind;
-    if (parent.archivedAt) throw new AccessError("Parent page is in the trash");
-    if (parent.kind === "database" && kind === "database") throw new Error("A database can't contain another database");
+    if (parent.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
+    if (parent.kind === "database" && kind === "database") {
+      throw withCode(new Error("A database can't contain another database"), "nestedDatabase");
+    }
   } else {
     await requireMembership(userId, workspaceId);
   }
@@ -135,23 +158,24 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
     .returning();
 
   if (kind === "database") {
+    const names = input.seedNames ?? ENGLISH_SEED_NAMES;
     await db.insert(databaseProperty).values([
       {
         databaseId: created.id,
-        name: "Status",
+        name: names.status,
         type: "select",
         position: 1,
         options: {
           options: [
-            { id: crypto.randomUUID(), name: "Not started", color: "gray" },
-            { id: crypto.randomUUID(), name: "In progress", color: "blue" },
-            { id: crypto.randomUUID(), name: "Done", color: "green" },
+            { id: crypto.randomUUID(), name: names.notStarted, color: "gray" },
+            { id: crypto.randomUUID(), name: names.inProgress, color: "blue" },
+            { id: crypto.randomUUID(), name: names.done, color: "green" },
           ],
         },
       },
-      { databaseId: created.id, name: "Tags", type: "multi_select", position: 2, options: { options: [] } },
+      { databaseId: created.id, name: names.tags, type: "multi_select", position: 2, options: { options: [] } },
     ]);
-    await db.insert(databaseView).values({ databaseId: created.id, name: "Table", type: "table", position: 1 });
+    await db.insert(databaseView).values({ databaseId: created.id, name: names.table, type: "table", position: 1 });
   }
 
   const collab = getCollab();

@@ -1,0 +1,43 @@
+{
+  "workspaceMenu": {
+    "newWorkspace": "New workspace",
+    "settingsAndMembers": "Settings & members",
+    "signOut": "Sign out"
+  },
+  "nav": {
+    "search": "Search",
+    "settings": "Settings",
+    "trash": "Trash"
+  },
+  "pages": {
+    "heading": "Pages",
+    "new": "New",
+    "newPage": "New page",
+    "newDatabase": "New database",
+    "createFirst": "Create your first page",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "actions": "Page actions",
+    "moveToTrash": "Move to trash",
+    "addInside": "Add a page inside",
+    "noChildren": "No pages inside"
+  },
+  "search": {
+    "placeholder": "Search pages and content…",
+    "label": "Search",
+    "noResults": "No results"
+  },
+  "trash": {
+    "title": "Trash",
+    "empty": "Trash is empty",
+    "deletePermanently": "Delete permanently",
+    "confirmDelete": "Delete permanently? This cannot be undone."
+  },
+  "newWorkspace": {
+    "title": "New workspace",
+    "description": "A separate space with its own pages and members.",
+    "namePlaceholder": "Workspace name",
+    "create": "Create",
+    "creating": "Creating…"
+  }
+}

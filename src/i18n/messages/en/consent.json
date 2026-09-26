@@ -1,0 +1,35 @@
+{
+  "metaTitle": "Authorize app",
+  "expired": {
+    "title": "This link has expired",
+    "body": "The authorization request is invalid or too old. Go back to the app you were connecting and start again."
+  },
+  "unknownClient": {
+    "title": "Unknown app",
+    "body": "The app asking for access is not registered with Esionage or has been disabled. Go back and try connecting again."
+  },
+  "heading": "{client} wants to access your Esionage account",
+  "identifiedBy": "This app is identified by {host}.",
+  "unverified": "This app registered itself automatically and has not been reviewed by Esionage. Only continue if you started this connection.",
+  "notYou": "Not you?",
+  "willAllow": "This will allow {client} to:",
+  "readOnlyHint": "Uncheck to give read-only access. Every edit is saved to page history first, so you can undo it.",
+  "access": {
+    "all": "Access covers every workspace you belong to. You can disconnect the app at any time in Settings.",
+    "listed": "Access covers every workspace you belong to: {workspaces}. You can disconnect the app at any time in Settings."
+  },
+  "deny": "Deny",
+  "denying": "Denying…",
+  "allow": "Allow",
+  "allowing": "Allowing…",
+  "redirectNotice": "You will be sent back to {host}.",
+  "error": "Could not complete the request. Go back to the app and try again.",
+  "scopes": {
+    "openid": "Confirm who you are",
+    "profile": "See your name and profile picture",
+    "email": "See your email address",
+    "offlineAccess": "Stay connected without asking you to sign in again",
+    "pagesRead": "Read pages and databases in your workspaces",
+    "pagesWrite": "Create and edit pages and database rows, and move pages to the trash"
+  }
+}
