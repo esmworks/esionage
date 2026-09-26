@@ -1,4 +1,4 @@
-# esionage
+# Esionage
 
 An open-source, self-hostable Notion alternative with realtime collaboration and a built-in
 MCP server, so AI assistants such as Claude can search, read and edit your workspace after you
