@@ -17,10 +17,10 @@ import {
   type PropertyDef,
 } from "./query";
 
-const INSTRUCTIONS = `esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
+const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
 Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, date, checkbox, url).
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
-Page bodies are read and written as Markdown. Before every content change esionage saves a history snapshot, so the user can undo your edits from the page history.
+Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history.
 Always share the returned url with the user when you create or change something.`;
 
 const id = (what: string) => z.string().min(1).describe(`The ${what} id (a UUID from another tool's output).`);
@@ -42,14 +42,14 @@ const requireWrite: ScopeChallengeHandler = ({ authInfo }) => {
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
 
 export function createMcpServer(principal: McpPrincipal) {
-  const server = new McpServer({ name: "esionage", version: "0.1.0" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "esionage", title: "Esionage", version: "0.1.0" }, { instructions: INSTRUCTIONS });
   const { userId } = principal;
   const actor: WriteActor = { userId, oauthClientId: principal.clientId };
 
   const assertWrite = () => {
     if (!principal.scopes.includes(WRITE_SCOPE)) {
       throw new ToolInputError(
-        "This connection is read-only: the user did not grant the pages:write permission. Ask the user to reconnect esionage and allow editing.",
+        "This connection is read-only: the user did not grant the pages:write permission. Ask the user to reconnect Esionage and allow editing.",
       );
     }
   };
@@ -281,7 +281,7 @@ export function createMcpServer(principal: McpPrincipal) {
         assertWrite();
         if (title === undefined && markdown === undefined) throw new ToolInputError("Provide title and/or markdown.");
         const { page } = await loadPage(page_id);
-        if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in esionage before editing.");
+        if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in Esionage before editing.");
         const changed: string[] = [];
         if (markdown !== undefined) {
           if (page.kind === "database") {
@@ -310,7 +310,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Move a page to the trash",
       description:
-        "Move a page (with all its sub-pages, or a database with its rows) to the trash. This is reversible: the user can restore it from the trash in esionage.",
+        "Move a page (with all its sub-pages, or a database with its rows) to the trash. This is reversible: the user can restore it from the trash in Esionage.",
       inputSchema: z.object({ page_id: id("page") }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,
@@ -326,7 +326,7 @@ export function createMcpServer(principal: McpPrincipal) {
           in_trash: true,
           note: page.archivedAt
             ? "The page was already in the trash."
-            : "Moved to the trash with its sub-pages. It can be restored from the trash in esionage.",
+            : "Moved to the trash with its sub-pages. It can be restored from the trash in Esionage.",
         };
       }),
   );

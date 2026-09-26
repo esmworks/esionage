@@ -51,7 +51,7 @@ export function PageView({
 
   // Keep the tab title in sync with live renames.
   useEffect(() => {
-    document.title = `${pageLabel(title)} · esionage`;
+    document.title = `${pageLabel(title)} · Esionage`;
   }, [title]);
 
   function changeIcon(next: string | null) {

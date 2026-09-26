@@ -15,7 +15,7 @@ export async function ConnectedApps() {
       <div>
         <h2 className="text-sm font-semibold">Connected apps</h2>
         <p className="mt-1 text-sm text-fg-muted">
-          Apps you have allowed to use esionage on your behalf, for example AI assistants connected over MCP.
+          Apps you have allowed to use Esionage on your behalf, for example AI assistants connected over MCP.
         </p>
       </div>
       {apps.length === 0 ? (

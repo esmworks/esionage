@@ -33,7 +33,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <div className="w-full max-w-md">
         <div className="mb-8 flex items-center justify-center gap-2 text-lg font-semibold">
           <span className="flex h-7 w-7 items-center justify-center rounded-md bg-fg text-sm text-bg">e</span>
-          esionage
+          Esionage
         </div>
         <div className="rounded-xl border border-border bg-bg p-6 shadow-sm">{children}</div>
       </div>
@@ -71,7 +71,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Sear
     return (
       <Problem
         title="Unknown app"
-        body="The app asking for access is not registered with esionage or has been disabled. Go back and try connecting again."
+        body="The app asking for access is not registered with Esionage or has been disabled. Go back and try connecting again."
       />
     );
   }
@@ -94,7 +94,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Sear
         )}
         <div className="min-w-0">
           <h1 className="text-base font-semibold">
-            {client.name} wants to access your esionage account
+            {client.name} wants to access your Esionage account
           </h1>
           {client.uri && siteHost && (
             <a href={client.uri} target="_blank" rel="noreferrer" className="text-sm text-accent hover:underline">
@@ -107,7 +107,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Sear
       <p className="mt-4 text-xs text-fg-muted">
         {client.metadataDocument
           ? `This app is identified by ${hostOf(client.clientId) ?? client.clientId}.`
-          : "This app registered itself automatically and has not been reviewed by esionage. Only continue if you started this connection."}
+          : "This app registered itself automatically and has not been reviewed by Esionage. Only continue if you started this connection."}
       </p>
 
       <ConsentForm

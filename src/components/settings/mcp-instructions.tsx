@@ -10,7 +10,7 @@ function Snippet({ value }: { value: string }) {
   );
 }
 
-/** How to connect Claude and other MCP clients to this esionage instance. */
+/** How to connect Claude and other MCP clients to this Esionage instance. */
 export function McpInstructions() {
   const url = mcpResource();
   const claudeCode = `claude mcp add --transport http esionage ${url}`;
@@ -20,7 +20,7 @@ export function McpInstructions() {
       <div>
         <h2 className="text-sm font-semibold">Connect an AI assistant</h2>
         <p className="mt-1 text-sm text-fg-muted">
-          esionage has a built-in MCP server. Assistants that support remote MCP servers can search, read and edit your
+          Esionage has a built-in MCP server. Assistants that support remote MCP servers can search, read and edit your
           pages and databases after you sign in and approve access. Every edit an assistant makes is saved to page history
           first, so you can undo it.
         </p>
@@ -35,7 +35,7 @@ export function McpInstructions() {
         <div>
           <h3 className="font-medium">Claude</h3>
           <p className="mt-1 text-fg-muted">
-            Open Settings, then Connectors, choose Add custom connector and paste the server URL. Claude opens esionage in
+            Open Settings, then Connectors, choose Add custom connector and paste the server URL. Claude opens Esionage in
             your browser so you can sign in and allow access.
           </p>
         </div>
