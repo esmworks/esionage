@@ -104,7 +104,8 @@ claude mcp add --transport http esionage http://localhost:3000/mcp
 The client opens a browser window where you sign in and approve access. Tools include `list_workspaces`,
 `search`, `get_page`, `list_pages`, `create_page`, `update_page`, `archive_page`,
 `get_database`, `query_database`, `create_database_row`, `update_database_row`,
-`create_database` and `add_database_property`.
+`create_database`, `add_database_property` (including one- or two-way relations) and
+`create_database_view` (table, board or calendar).
 
 ## Development
 

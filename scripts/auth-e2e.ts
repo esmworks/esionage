@@ -53,7 +53,11 @@ async function authPost(path: string, body: unknown, { jar, headers }: { jar?: J
     body: JSON.stringify(body),
   });
   jar?.store(res);
-  return { status: res.status, body: (await res.json().catch(() => null)) as any };
+  return {
+    status: res.status,
+    retryAfter: Number(res.headers.get("x-retry-after") ?? res.headers.get("retry-after") ?? 0),
+    body: (await res.json().catch(() => null)) as any,
+  };
 }
 
 /** Asks the database, not the signed cookie cache (which may keep a revoked session up to 60 s). */
@@ -62,10 +66,17 @@ async function sessionOf(jar: Jar) {
   return (await res.json().catch(() => null)) as { user?: { email: string } } | null;
 }
 
+/**
+ * Production builds rate limit sign-in (3 per 10 s per IP, rolling), and in CI this run follows
+ * the MCP e2e's sign-ins; wait out a 429 instead of failing on it.
+ */
 async function signIn(password: string) {
-  const jar = new Jar();
-  const res = await authPost("/sign-in/email", { email: EMAIL, password }, { jar });
-  return { ...res, jar };
+  for (let attempt = 0; ; attempt++) {
+    const jar = new Jar();
+    const res = await authPost("/sign-in/email", { email: EMAIL, password }, { jar });
+    if (res.status !== 429 || attempt === 2) return { ...res, jar };
+    await new Promise((r) => setTimeout(r, (res.retryAfter || 10) * 1000 + 250));
+  }
 }
 
 type MailpitMessage = { ID: string; Subject: string; Text: string; HTML: string; To: { Address: string }[] };
@@ -135,8 +146,10 @@ async function main() {
   check(again.status === 400 && again.body?.code === "INVALID_TOKEN", "the token works only once", again.body);
 
   check(!(await sessionOf(first.jar))?.user, "existing sessions are revoked");
-  check((await signIn(OLD_PASSWORD)).status === 401, "the old password no longer works");
-  check((await signIn(NEW_PASSWORD)).status === 200, "the new password works");
+  const oldSignIn = await signIn(OLD_PASSWORD);
+  check(oldSignIn.status === 401, "the old password no longer works", { status: oldSignIn.status, body: oldSignIn.body });
+  const newSignIn = await signIn(NEW_PASSWORD);
+  check(newSignIn.status === 200, "the new password works", { status: newSignIn.status, body: newSignIn.body });
 
   console.log(`\nAll ${passed} checks passed.`);
 }

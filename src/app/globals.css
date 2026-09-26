@@ -88,13 +88,52 @@
   --bn-font-family: var(--font-sans);
 }
 
-/* Select option colors, shared by tables, boards and property pickers. */
-.opt-gray { background: rgba(120, 120, 128, 0.16); }
-.opt-brown { background: rgba(150, 100, 60, 0.2); }
-.opt-orange { background: rgba(240, 140, 40, 0.22); }
-.opt-yellow { background: rgba(230, 190, 40, 0.26); }
-.opt-green { background: rgba(60, 170, 100, 0.22); }
-.opt-blue { background: rgba(50, 120, 230, 0.2); }
-.opt-purple { background: rgba(140, 90, 220, 0.2); }
-.opt-pink { background: rgba(220, 80, 150, 0.2); }
-.opt-red { background: rgba(220, 70, 70, 0.22); }
+/*
+ * Select option colors, shared by tables, boards and property pickers. `.opt-*` paints a chip;
+ * `.tint-*` only sets the palette so a board column and its cards can take the option's color.
+ */
+.opt-gray, .tint-gray { --opt-bg: #e3e2e0; --opt-fg: #32302c; --opt-tint: #f5f5f3; --opt-card: #ffffff; }
+.opt-brown, .tint-brown { --opt-bg: #eee0da; --opt-fg: #442a1e; --opt-tint: #f9f4f2; --opt-card: #ffffff; }
+.opt-orange, .tint-orange { --opt-bg: #fadec9; --opt-fg: #49290e; --opt-tint: #fcf4ee; --opt-card: #ffffff; }
+.opt-yellow, .tint-yellow { --opt-bg: #fdecc8; --opt-fg: #402c1b; --opt-tint: #fbf6e9; --opt-card: #ffffff; }
+.opt-green, .tint-green { --opt-bg: #dbeddb; --opt-fg: #1c3829; --opt-tint: #f2f7f2; --opt-card: #ffffff; }
+.opt-blue, .tint-blue { --opt-bg: #d3e5ef; --opt-fg: #183347; --opt-tint: #f0f5f9; --opt-card: #ffffff; }
+.opt-purple, .tint-purple { --opt-bg: #e8deee; --opt-fg: #412454; --opt-tint: #f6f2f9; --opt-card: #ffffff; }
+.opt-pink, .tint-pink { --opt-bg: #f5e0e9; --opt-fg: #4c2337; --opt-tint: #faf1f5; --opt-card: #ffffff; }
+.opt-red, .tint-red { --opt-bg: #ffe2dd; --opt-fg: #5d1715; --opt-tint: #fcf2f1; --opt-card: #ffffff; }
+
+@media (prefers-color-scheme: dark) {
+  .opt-gray, .tint-gray { --opt-bg: #45474c; --opt-fg: #ececee; --opt-tint: #202124; --opt-card: #2a2b2f; }
+  .opt-brown, .tint-brown { --opt-bg: #5c4136; --opt-fg: #f1e6e1; --opt-tint: #241f1d; --opt-card: #312925; }
+  .opt-orange, .tint-orange { --opt-bg: #7a4a22; --opt-fg: #fbe9da; --opt-tint: #27211c; --opt-card: #352a21; }
+  .opt-yellow, .tint-yellow { --opt-bg: #7a6128; --opt-fg: #fbf1d8; --opt-tint: #26241b; --opt-card: #333022; }
+  .opt-green, .tint-green { --opt-bg: #2d5a41; --opt-fg: #dff1e5; --opt-tint: #1c2521; --opt-card: #24322b; }
+  .opt-blue, .tint-blue { --opt-bg: #2a4a72; --opt-fg: #e0ecf9; --opt-tint: #1c232d; --opt-card: #243145; }
+  .opt-purple, .tint-purple { --opt-bg: #4d3469; --opt-fg: #efe4f8; --opt-tint: #221e2a; --opt-card: #2f283a; }
+  .opt-pink, .tint-pink { --opt-bg: #6a3250; --opt-fg: #f8e2ed; --opt-tint: #271e24; --opt-card: #362730; }
+  .opt-red, .tint-red { --opt-bg: #713731; --opt-fg: #fbe3df; --opt-tint: #291e1d; --opt-card: #382826; }
+}
+
+.opt-gray, .opt-brown, .opt-orange, .opt-yellow, .opt-green, .opt-blue, .opt-purple, .opt-pink, .opt-red {
+  background: var(--opt-bg);
+  color: var(--opt-fg);
+}
+
+/* Wide pages keep text aligned to a 1104px column while boards scroll edge to edge. */
+.page-gutter {
+  padding-inline: max(3rem, calc((100% - 1104px) / 2));
+}
+
+.board-card {
+  background: var(--opt-card, var(--bg));
+  box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.06), 0 1px 3px rgba(15, 15, 15, 0.08);
+}
+.board-card:hover {
+  background: color-mix(in srgb, var(--opt-card, var(--bg)) 94%, var(--fg));
+}
+
+@media (prefers-color-scheme: dark) {
+  .board-card {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+}

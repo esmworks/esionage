@@ -12,8 +12,6 @@ import { isEmptyValue, OptionChip, PropertyDisplay } from "./property-cell";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
 
-const MAX_CARD_PROPS = 3;
-
 export function BoardView({
   workspaceId,
   view,
@@ -40,24 +38,29 @@ export function BoardView({
 
   if (!groupBy) {
     return (
-      <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed border-border px-6 py-10">
-        <div>
-          <p className="text-sm font-medium">{t("board.needsSelectTitle")}</p>
-          <p className="mt-1 text-sm text-fg-muted">{t("board.needsSelectBody")}</p>
+      <div className="page-gutter">
+        <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed border-border px-6 py-10">
+          <div>
+            <p className="text-sm font-medium">{t("board.needsSelectTitle")}</p>
+            <p className="mt-1 text-sm text-fg-muted">{t("board.needsSelectBody")}</p>
+          </div>
+          {!readOnly && (
+            <Button size="sm" onClick={onCreateGroupProperty}>
+              <Plus className="h-3.5 w-3.5" />
+              {t("board.addGroupProperty", { name: t("page.defaultGroupProperty") })}
+            </Button>
+          )}
         </div>
-        {!readOnly && (
-          <Button size="sm" onClick={onCreateGroupProperty}>
-            <Plus className="h-3.5 w-3.5" />
-            {t("board.addGroupProperty", { name: t("page.defaultGroupProperty") })}
-          </Button>
-        )}
       </div>
     );
   }
 
   const hidden = new Set(view.config.hidden ?? []);
   const cardProps = properties.filter((p) => p.id !== groupBy.id && !hidden.has(p.id));
-  const groups = groupRows(rows, groupBy);
+  // The "no value" column only earns space when it has cards; while dragging it appears at the end
+  // (so the other columns don't shift) as a place to clear the value.
+  const [noValue, ...optionGroups] = groupRows(rows, groupBy);
+  const groups = noValue.rows.length ? [noValue, ...optionGroups] : dragId ? [...optionGroups, noValue] : optionGroups;
   const manualOrder = !(view.config.sorts?.length);
   const groupKey = (g: RowGroup<Row>) => g.option?.id ?? "";
 
@@ -107,103 +110,106 @@ export function BoardView({
   };
 
   return (
-    <div className="-mx-2 flex items-start gap-3 overflow-x-auto px-2 pb-4 [color-scheme:light_dark]">
-      {groups.map((group) => {
-        const key = groupKey(group);
-        const dropping = dragId !== null && drop?.group === key;
-        return (
-          <section
-            key={key || "__none"}
-            aria-label={group.option?.name ?? t("board.noValue", { property: groupBy.name })}
-            className={cn(
-              "flex w-64 shrink-0 flex-col rounded-lg p-1.5 transition-colors",
-              dropping ? "bg-bg-hover" : "bg-bg-subtle",
-            )}
-          >
-            <header className="flex h-8 items-center gap-2 px-1.5">
-              {group.option ? (
-                <OptionChip option={group.option} />
-              ) : (
-                <span className="truncate text-sm text-fg-muted">{t("board.noValue", { property: groupBy.name })}</span>
+    <div className="page-gutter overflow-x-auto pb-6 [color-scheme:light_dark]">
+      <div className="flex w-max items-start gap-3">
+        {groups.map((group) => {
+          const key = groupKey(group);
+          const dropping = dragId !== null && drop?.group === key;
+          return (
+            <section
+              key={key || "__none"}
+              aria-label={group.option?.name ?? t("board.noValue", { property: groupBy.name })}
+              className={cn(
+                `tint-${group.option?.color ?? "gray"}`,
+                "group/col flex w-[17rem] shrink-0 flex-col rounded-xl bg-[var(--opt-tint)] p-2 transition-shadow",
+                dropping && "ring-2 ring-accent/50",
               )}
-              <span
-                className="text-xs text-fg-faint tabular-nums"
-                title={t("board.cardCount", { count: group.rows.length })}
-              >
-                {group.rows.length}
-              </span>
-              <span className="flex-1" />
-              {!readOnly && (
-                <button
-                  type="button"
-                  aria-label={t("board.addCard")}
-                  title={t("board.addCard")}
-                  onClick={() => addCard(group)}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-active hover:text-fg"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </header>
-            <div
-              className="flex min-h-10 flex-col gap-1.5 pt-1"
-              onDragOver={(e) => onDragOver(e, group)}
-              onDragLeave={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node)) setDrop(null);
-              }}
-              onDrop={(e) => onDrop(e, group)}
             >
-              {group.rows.map((row) => {
-                const visibleIndex = group.rows.filter((r) => r.id !== dragId).findIndex((r) => r.id === row.id);
-                return (
-                  <div key={row.id}>
-                    {dropping && drop.index === visibleIndex && row.id !== dragId && <DropLine />}
-                    <Card
-                      workspaceId={workspaceId}
-                      row={row}
-                      props={cardProps}
-                      readOnly={readOnly}
-                      dragging={dragId === row.id}
-                      editTitle={editTitleOf === row.id}
-                      onTitle={(title) => {
-                        setEditTitleOf(null);
-                        if (title !== row.title) void api.setCell(row.id, TITLE, title);
-                      }}
-                      onDelete={() => api.deleteRow(row.id)}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData("text/plain", row.id);
-                        e.dataTransfer.effectAllowed = "move";
-                        setDragId(row.id);
-                      }}
-                      onDragEnd={() => {
-                        setDragId(null);
-                        setDrop(null);
-                      }}
-                    />
-                  </div>
-                );
-              })}
-              {dropping && drop.index >= group.rows.filter((r) => r.id !== dragId).length && <DropLine />}
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => addCard(group)}
-                  className="flex h-8 items-center gap-1.5 rounded-md px-1.5 text-sm text-fg-muted hover:bg-bg-hover hover:text-fg"
+              <header className="flex h-8 items-center gap-2 px-1">
+                {group.option ? (
+                  <OptionChip option={group.option} className="font-medium" />
+                ) : (
+                  <span className="truncate text-sm text-fg-muted">{t("board.noValue", { property: groupBy.name })}</span>
+                )}
+                <span
+                  className="text-xs text-fg-muted tabular-nums"
+                  title={t("board.cardCount", { count: group.rows.length })}
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                  {t("board.new")}
-                </button>
-              )}
-            </div>
-          </section>
-        );
-      })}
+                  {group.rows.length}
+                </span>
+                <span className="flex-1" />
+                {!readOnly && (
+                  <button
+                    type="button"
+                    aria-label={t("board.addCard")}
+                    title={t("board.addCard")}
+                    onClick={() => addCard(group)}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted opacity-0 group-hover/col:opacity-100 hover:bg-fg/10 hover:text-fg focus-visible:opacity-100"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </header>
+              <div
+                className="flex min-h-10 flex-col gap-2 pt-1"
+                onDragOver={(e) => onDragOver(e, group)}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) setDrop(null);
+                }}
+                onDrop={(e) => onDrop(e, group)}
+              >
+                {group.rows.map((row) => {
+                  const visibleIndex = group.rows.filter((r) => r.id !== dragId).findIndex((r) => r.id === row.id);
+                  return (
+                    <div key={row.id}>
+                      {dropping && drop.index === visibleIndex && row.id !== dragId && <DropLine />}
+                      <Card
+                        workspaceId={workspaceId}
+                        row={row}
+                        props={cardProps}
+                        readOnly={readOnly}
+                        dragging={dragId === row.id}
+                        editTitle={editTitleOf === row.id}
+                        onTitle={(title) => {
+                          setEditTitleOf(null);
+                          if (title !== row.title) void api.setCell(row.id, TITLE, title);
+                        }}
+                        onDelete={() => api.deleteRow(row.id)}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", row.id);
+                          e.dataTransfer.effectAllowed = "move";
+                          setDragId(row.id);
+                        }}
+                        onDragEnd={() => {
+                          setDragId(null);
+                          setDrop(null);
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+                {dropping && drop.index >= group.rows.filter((r) => r.id !== dragId).length && <DropLine />}
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => addCard(group)}
+                    className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-fg-muted hover:bg-fg/5 hover:text-fg"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {t("board.new")}
+                  </button>
+                )}
+              </div>
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 function DropLine() {
-  return <div className="mb-1.5 h-0.5 rounded bg-accent" />;
+  return <div className="mb-2 h-0.5 rounded bg-accent" />;
 }
 
 function Card({
@@ -234,7 +240,7 @@ function Card({
   const router = useRouter();
   const menu = useFloating<HTMLButtonElement>();
   const href = `/w/${workspaceId}/p/${row.id}`;
-  const shown = props.filter((p) => !isEmptyValue(p, row.properties[p.id])).slice(0, MAX_CARD_PROPS);
+  const shown = props.filter((p) => !isEmptyValue(p, row.properties[p.id]));
 
   return (
     <div
@@ -244,21 +250,24 @@ function Card({
       onDragEnd={onDragEnd}
       onClick={() => !editTitle && router.push(href)}
       className={cn(
-        "group relative cursor-pointer rounded-md border border-border bg-bg px-2.5 py-2 shadow-sm hover:bg-bg-subtle",
+        "board-card group relative cursor-pointer rounded-lg px-3 py-2.5",
         dragging && "opacity-40",
       )}
     >
       {editTitle ? (
         <CardTitleInput initial={row.title} onDone={onTitle} />
       ) : (
-        <div className={cn("pr-6 text-sm font-medium break-words", !row.title && "text-fg-faint")}>
-          {pageLabel(row.title, tc("untitled"))}
+        <div className="flex gap-1.5 pr-6 text-sm leading-5 font-medium">
+          {row.icon && <span className="shrink-0">{row.icon}</span>}
+          <span className={cn("min-w-0 break-words", !row.title && "text-fg-faint")}>
+            {pageLabel(row.title, tc("untitled"))}
+          </span>
         </div>
       )}
       {shown.length > 0 && (
-        <div className="mt-1.5 flex flex-col gap-1 text-xs">
+        <div className="mt-2 flex flex-col items-start gap-1.5 text-xs">
           {shown.map((p) => (
-            <div key={p.id} className="flex min-w-0 items-center text-fg-muted" title={p.name}>
+            <div key={p.id} className="flex max-w-full min-w-0 items-center text-fg-muted" title={p.name}>
               <PropertyDisplay prop={p} value={row.properties[p.id]} />
             </div>
           ))}
@@ -272,7 +281,7 @@ function Card({
             aria-label={t("board.cardActions")}
             onClick={menu.toggle}
             className={cn(
-              "flex h-6 w-6 items-center justify-center rounded border border-border bg-bg text-fg-muted hover:text-fg",
+              "board-card flex h-6 w-6 items-center justify-center rounded-md text-fg-muted hover:text-fg",
               menu.open ? "visible" : "invisible group-hover:visible",
             )}
           >

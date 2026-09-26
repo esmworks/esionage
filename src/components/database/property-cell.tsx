@@ -25,7 +25,7 @@ export function OptionChip({
   return (
     <span
       className={cn(
-        `opt-${option.color} inline-flex max-w-full min-w-0 items-center gap-0.5 rounded px-1.5 text-xs leading-5 text-fg`,
+        `opt-${option.color} inline-flex max-w-full min-w-0 items-center gap-0.5 rounded px-1.5 text-xs leading-5`,
         className,
       )}
     >
@@ -34,7 +34,7 @@ export function OptionChip({
         <button
           type="button"
           aria-label={t("removeOption", { name: option.name })}
-          className="-mr-0.5 rounded text-fg-muted hover:text-fg"
+          className="-mr-0.5 rounded opacity-60 hover:opacity-100"
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
