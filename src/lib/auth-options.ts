@@ -1,5 +1,5 @@
 import type { BetterAuthOptions } from "better-auth";
-import { createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { jwt } from "better-auth/plugins";
 import { mcp } from "@better-auth/mcp";
 import { cimd } from "@better-auth/cimd";
@@ -22,33 +22,54 @@ function isNativeRedirect(uri: unknown) {
   }
 }
 
-/**
- * RFC 7591 defaults `application_type` to "web", which forbids loopback redirects. Desktop and
- * CLI MCP clients often register loopback callbacks without sending the field, so infer "native"
- * for them; the provider still validates every redirect URI for that type.
- */
-const inferNativeClients = createAuthMiddleware(async (ctx) => {
-  if (ctx.path !== "/oauth2/register") return;
-  const body = ctx.body as { application_type?: unknown; redirect_uris?: unknown } | undefined;
-  if (!body || body.application_type !== undefined) return;
-  const uris = body.redirect_uris;
-  if (!Array.isArray(uris) || uris.length === 0 || !uris.every(isNativeRedirect)) return;
-  return { context: { body: { ...body, application_type: "native" } } };
-});
+/** The `?invite=` token of an auth request (sign-up from an invitation link). */
+export function inviteTokenOf(ctx: { query?: unknown; request?: Request } | null | undefined) {
+  const fromQuery = (ctx?.query as { invite?: unknown } | undefined)?.invite;
+  if (typeof fromQuery === "string") return fromQuery;
+  if (!ctx?.request) return null;
+  return new URL(ctx.request.url).searchParams.get("invite");
+}
 
-/** Database-independent auth options, shared by the app and the schema generator. */
-export function baseAuthOptions() {
+/** Checks an invitation link against the email signing up; injected so this file needs no database. */
+export type InvitationCheck = (token: string, email: string) => Promise<boolean>;
+
+export function baseAuthOptions({ invitationAllowsSignUp }: { invitationAllowsSignUp?: InvitationCheck } = {}) {
+  const before = createAuthMiddleware(async (ctx) => {
+    if (ctx.path === "/sign-up/email" && env.signUpDisabled) {
+      // Closed sign-up still admits people holding an invitation link for their email.
+      const token = inviteTokenOf(ctx);
+      const email = (ctx.body as { email?: unknown } | undefined)?.email;
+      const allowed =
+        token && typeof email === "string" && invitationAllowsSignUp && (await invitationAllowsSignUp(token, email));
+      if (!allowed) {
+        throw APIError.from("BAD_REQUEST", {
+          message: "Email and password sign up is not enabled",
+          code: "EMAIL_PASSWORD_SIGN_UP_DISABLED",
+        });
+      }
+    }
+    // RFC 7591 defaults `application_type` to "web", which forbids loopback redirects. Desktop and
+    // CLI MCP clients often register loopback callbacks without sending the field, so infer
+    // "native" for them; the provider still validates every redirect URI for that type.
+    if (ctx.path !== "/oauth2/register") return;
+    const body = ctx.body as { application_type?: unknown; redirect_uris?: unknown } | undefined;
+    if (!body || body.application_type !== undefined) return;
+    const uris = body.redirect_uris;
+    if (!Array.isArray(uris) || uris.length === 0 || !uris.every(isNativeRedirect)) return;
+    return { context: { body: { ...body, application_type: "native" } } };
+  });
+
+  // Database-independent options, shared by the app and the schema generator.
   return {
     baseURL: env.appUrl,
     emailAndPassword: {
       enabled: true,
-      disableSignUp: env.signUpDisabled,
       minPasswordLength: 8,
     },
     session: {
       cookieCache: { enabled: true, maxAge: 60 },
     },
-    hooks: { before: inferNativeClients },
+    hooks: { before },
     plugins: [
       jwt(),
       mcp({

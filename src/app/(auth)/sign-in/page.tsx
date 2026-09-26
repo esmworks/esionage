@@ -8,6 +8,16 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("metaTitle") };
 }
 
-export default function SignInPage() {
-  return <AuthForm mode="sign-in" signUpEnabled={!env.signUpDisabled} />;
+/** Only same-origin paths, so `?next=` can't send people to another site. */
+function safeNext(value: string | string[] | undefined) {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : "/";
+}
+
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { next } = await searchParams;
+  return <AuthForm mode="sign-in" signUpEnabled={!env.signUpDisabled} next={safeNext(next)} />;
 }

@@ -9,7 +9,7 @@ import { MembersSection, WorkspaceNameForm } from "@/components/settings/workspa
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
 import { AccessError } from "@/server/access";
 import { requireUser } from "@/server/session";
-import { getWorkspace, listMembers } from "@/server/workspaces";
+import { getWorkspace, listInvitations, listMembers } from "@/server/workspaces";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("settings");
@@ -28,6 +28,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
   if (!loaded) notFound();
   const [workspace, members] = loaded;
   const isOwner = workspace.role === "owner";
+  const invitations = isOwner ? await listInvitations(user.id, workspaceId) : [];
   const [t, cookieStore] = await Promise.all([getTranslations("settings"), cookies()]);
   const savedLocale = cookieStore.get(LOCALE_COOKIE)?.value;
 
@@ -45,6 +46,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
         currentUserId={user.id}
         isOwner={isOwner}
         members={members.map((m) => ({ userId: m.userId, name: m.name, email: m.email, role: m.role }))}
+        invitations={invitations}
       />
 
       <LanguageSettings current={isLocale(savedLocale) ? savedLocale : null} />

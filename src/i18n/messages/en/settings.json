@@ -17,10 +17,17 @@
       "member": "Member"
     },
     "leave": "Leave",
-    "addLabel": "Add a member by the email they signed up with",
+    "addLabel": "Add a member by email. People without an account get an invitation link.",
     "emailPlaceholder": "name@example.com",
     "addButton": "Add",
-    "adding": "Adding…"
+    "adding": "Adding…",
+    "pendingHeading": "Pending invitations",
+    "expires": "Link expires {date}",
+    "expired": "Link expired. Invite again for a new one.",
+    "copyLink": "Copy link",
+    "cancelInvitation": "Cancel invitation",
+    "invited": "{email} has no account yet. Send them this link to join; it works for 7 days.",
+    "inviteLink": "Invitation link"
   },
   "language": {
     "heading": "Language",
@@ -58,12 +65,13 @@
   },
   "errors": {
     "nameRequired": "Give the workspace a name.",
-    "noAccount": "No account uses this email. Ask them to sign up first.",
     "alreadyMember": "This person is already a member.",
     "notMember": "This person is not a member.",
     "lastOwner": "A workspace needs at least one owner.",
     "lastOwnerRemove": "A workspace needs at least one owner. Make someone else an owner first.",
     "ownersOnly": "Only workspace owners can do this.",
-    "unknownRole": "Unknown role."
+    "unknownRole": "Unknown role.",
+    "invitationInvalid": "This invitation is invalid or has expired.",
+    "invitationEmailMismatch": "This invitation is for a different email address."
   }
 }

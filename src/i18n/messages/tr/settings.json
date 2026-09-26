@@ -17,10 +17,17 @@
       "member": "Üye"
     },
     "leave": "Ayrıl",
-    "addLabel": "Kayıt olurken kullandığı e-posta adresiyle üye ekleyin",
+    "addLabel": "E-posta adresiyle üye ekleyin. Hesabı olmayanlar için davet bağlantısı oluşturulur.",
     "emailPlaceholder": "ad@ornek.com",
     "addButton": "Ekle",
-    "adding": "Ekleniyor…"
+    "adding": "Ekleniyor…",
+    "pendingHeading": "Bekleyen davetler",
+    "expires": "Bağlantı {date} tarihinde geçersiz olur",
+    "expired": "Bağlantının süresi doldu. Yenisi için tekrar davet edin.",
+    "copyLink": "Bağlantıyı kopyala",
+    "cancelInvitation": "Daveti iptal et",
+    "invited": "{email} için henüz hesap yok. Katılması için bu bağlantıyı gönderin; 7 gün geçerlidir.",
+    "inviteLink": "Davet bağlantısı"
   },
   "language": {
     "heading": "Dil",
@@ -58,12 +65,13 @@
   },
   "errors": {
     "nameRequired": "Çalışma alanına bir ad verin.",
-    "noAccount": "Bu e-posta adresini kullanan bir hesap yok. Önce kayıt olmasını isteyin.",
     "alreadyMember": "Bu kişi zaten üye.",
     "notMember": "Bu kişi üye değil.",
     "lastOwner": "Bir çalışma alanının en az bir sahibi olmalı.",
     "lastOwnerRemove": "Bir çalışma alanının en az bir sahibi olmalı. Önce başka birini sahip yapın.",
     "ownersOnly": "Bunu yalnızca çalışma alanı sahipleri yapabilir.",
-    "unknownRole": "Bilinmeyen rol."
+    "unknownRole": "Bilinmeyen rol.",
+    "invitationInvalid": "Bu davet geçersiz ya da süresi dolmuş.",
+    "invitationEmailMismatch": "Bu davet başka bir e-posta adresi için."
   }
 }

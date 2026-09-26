@@ -6,7 +6,8 @@ import page from "./en/page.json";
 import home from "./en/home.json";
 import settings from "./en/settings.json";
 import database from "./en/database.json";
+import invite from "./en/invite.json";
 
-const messages = { common, auth, consent, sidebar, page, home, settings, database };
+const messages = { common, auth, consent, sidebar, page, home, settings, database, invite };
 
 export default messages;

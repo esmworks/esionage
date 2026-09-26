@@ -1,19 +1,22 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import {
   addMemberAction,
   removeMemberAction,
   renameWorkspaceAction,
+  revokeInvitationAction,
   setMemberRoleAction,
   type ActionResult,
 } from "@/app/actions/workspaces";
+import { CopyButton } from "@/components/settings/copy-button";
 import { Button, Input } from "@/components/ui";
 import type { WorkspaceRole } from "@/db/schema/app";
 
 type Member = { userId: string; name: string; email: string; role: WorkspaceRole };
+type Invitation = { id: string; email: string; role: WorkspaceRole; expiresAt: Date; link: string };
 
 function useAction() {
   const tc = useTranslations("common");
@@ -87,11 +90,14 @@ export function MembersSection({
   currentUserId,
   isOwner,
   members,
+  invitations,
 }: {
   workspaceId: string;
   currentUserId: string;
   isOwner: boolean;
   members: Member[];
+  /** Pending invitations; only owners get them. */
+  invitations: Invitation[];
 }) {
   const t = useTranslations("settings.members");
   return (
@@ -107,6 +113,16 @@ export function MembersSection({
           <MemberRow key={m.userId} workspaceId={workspaceId} member={m} isSelf={m.userId === currentUserId} isOwner={isOwner} />
         ))}
       </ul>
+      {isOwner && invitations.length > 0 && (
+        <div className="space-y-1.5">
+          <h3 className="text-sm text-fg-muted">{t("pendingHeading")}</h3>
+          <ul className="divide-y divide-border rounded-md border border-border">
+            {invitations.map((invitation) => (
+              <InvitationRow key={invitation.id} workspaceId={workspaceId} invitation={invitation} />
+            ))}
+          </ul>
+        </div>
+      )}
       {isOwner && <AddMemberForm workspaceId={workspaceId} />}
     </section>
   );
@@ -187,10 +203,40 @@ function MemberRow({
   );
 }
 
+function InvitationRow({ workspaceId, invitation }: { workspaceId: string; invitation: Invitation }) {
+  const t = useTranslations("settings.members");
+  const format = useFormatter();
+  const now = useNow();
+  const { pending, error, run } = useAction();
+  const expired = invitation.expiresAt.getTime() <= now.getTime();
+
+  return (
+    <li className="px-4 py-3">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium">{invitation.email}</div>
+          <div className={`truncate text-xs ${expired ? "text-danger" : "text-fg-muted"}`}>
+            {t(`roles.${invitation.role}`)} ·{" "}
+            {expired
+              ? t("expired")
+              : t("expires", { date: format.dateTime(invitation.expiresAt, { dateStyle: "medium" }) })}
+          </div>
+        </div>
+        {!expired && <CopyButton value={invitation.link} label={t("copyLink")} />}
+        <Button size="sm" disabled={pending} onClick={() => run(() => revokeInvitationAction(workspaceId, invitation.id))}>
+          {t("cancelInvitation")}
+        </Button>
+      </div>
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+    </li>
+  );
+}
+
 function AddMemberForm({ workspaceId }: { workspaceId: string }) {
   const t = useTranslations("settings.members");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<WorkspaceRole>("member");
+  const [invited, setInvited] = useState<{ email: string; link: string } | null>(null);
   const { pending, error, run } = useAction();
 
   return (
@@ -199,7 +245,14 @@ function AddMemberForm({ workspaceId }: { workspaceId: string }) {
       onSubmit={(e) => {
         e.preventDefault();
         if (!email.trim()) return;
-        run(() => addMemberAction(workspaceId, email, role), () => setEmail(""));
+        setInvited(null);
+        run(
+          () => addMemberAction(workspaceId, email, role),
+          (result) => {
+            setEmail("");
+            if (result.kind === "invited") setInvited({ email: result.email, link: result.link });
+          },
+        );
       }}
     >
       <label htmlFor="member-email" className="text-sm text-fg-muted">
@@ -227,6 +280,15 @@ function AddMemberForm({ workspaceId }: { workspaceId: string }) {
         </Button>
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
+      {invited && (
+        <div className="space-y-2 rounded-md border border-border bg-bg-subtle p-3">
+          <p className="text-sm">{t("invited", { email: invited.email })}</p>
+          <div className="flex items-center gap-2">
+            <Input readOnly value={invited.link} onFocus={(e) => e.currentTarget.select()} aria-label={t("inviteLink")} />
+            <CopyButton value={invited.link} label={t("copyLink")} />
+          </div>
+        </div>
+      )}
     </form>
   );
 }

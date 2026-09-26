@@ -8,6 +8,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { PROPERTY_TYPES, type PropertyType } from "../../lib/property-types";
@@ -54,6 +55,28 @@ export const workspaceMember = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.workspaceId, t.userId] }), index("workspace_member_user_idx").on(t.userId)],
+);
+
+/**
+ * A pending invitation for an email that has no account yet. The token in the invitation link is
+ * the only way to redeem it, since email addresses are not verified.
+ */
+export const workspaceInvitation = pgTable(
+  "workspace_invitation",
+  {
+    id: id(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    /** Stored lowercased. */
+    email: text("email").notNull(),
+    role: text("role").$type<WorkspaceRole>().notNull().default("member"),
+    token: text("token").notNull().unique(),
+    invitedBy: text("invited_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("workspace_invitation_email_idx").on(t.workspaceId, t.email)],
 );
 
 export type PageKind = "page" | "database";

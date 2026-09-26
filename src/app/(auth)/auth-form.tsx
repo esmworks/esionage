@@ -25,11 +25,28 @@ const ERROR_KEYS = {
  * connecting), the page URL carries the signed authorization query; the oauth-provider
  * client plugin forwards it and the server answers with the URL to continue to.
  */
-export function AuthForm({ mode, signUpEnabled = true }: { mode: Mode; signUpEnabled?: boolean }) {
+export function AuthForm({
+  mode,
+  signUpEnabled = true,
+  invite,
+  next = "/",
+  title,
+}: {
+  mode: Mode;
+  signUpEnabled?: boolean;
+  /** Sign-up from an invitation link: the email is fixed and the link token admits it. */
+  invite?: { token: string; email: string };
+  /** Same-origin path to open afterwards. */
+  next?: string;
+  title?: string;
+}) {
   const router = useRouter();
   const t = useTranslations("auth");
   const tc = useTranslations("common");
   const text = mode === "sign-in" ? "signIn" : "signUp";
+  const switchHref = invite
+    ? `/sign-in?next=${encodeURIComponent(`/invite/${invite.token}`)}`
+    : null;
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [search, setSearch] = useState("");
@@ -40,12 +57,17 @@ export function AuthForm({ mode, signUpEnabled = true }: { mode: Mode; signUpEna
     setError(null);
     setPending(true);
     const form = new FormData(e.currentTarget);
-    const email = String(form.get("email"));
+    const email = invite?.email ?? String(form.get("email"));
     const password = String(form.get("password"));
     const result =
       mode === "sign-in"
         ? await authClient.signIn.email({ email, password })
-        : await authClient.signUp.email({ email, password, name: String(form.get("name")) });
+        : await authClient.signUp.email({
+            email,
+            password,
+            name: String(form.get("name")),
+            fetchOptions: invite ? { query: { invite: invite.token } } : undefined,
+          });
     setPending(false);
     if (result.error) {
       const code = result.error.code as keyof typeof ERROR_KEYS | undefined;
@@ -59,11 +81,11 @@ export function AuthForm({ mode, signUpEnabled = true }: { mode: Mode; signUpEna
       window.location.href = data.url;
       return;
     }
-    router.push("/");
+    router.push(next);
     router.refresh();
   }
 
-  if (mode === "sign-up" && !signUpEnabled) {
+  if (mode === "sign-up" && !signUpEnabled && !invite) {
     return (
       <div className="space-y-4">
         <h1 className="text-base font-semibold">{t("signUp.disabledTitle")}</h1>
@@ -79,7 +101,7 @@ export function AuthForm({ mode, signUpEnabled = true }: { mode: Mode; signUpEna
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <h1 className="text-base font-semibold">{t(`${text}.title`)}</h1>
+      <h1 className="text-base font-semibold">{title ?? t(`${text}.title`)}</h1>
       {mode === "sign-up" && (
         <label className="block space-y-1.5">
           <span className="text-sm text-fg-muted">{t("fields.name")}</span>
@@ -88,7 +110,11 @@ export function AuthForm({ mode, signUpEnabled = true }: { mode: Mode; signUpEna
       )}
       <label className="block space-y-1.5">
         <span className="text-sm text-fg-muted">{t("fields.email")}</span>
-        <Input name="email" type="email" required autoComplete="email" />
+        {invite ? (
+          <Input name="email" type="email" value={invite.email} readOnly aria-readonly />
+        ) : (
+          <Input name="email" type="email" required autoComplete="email" />
+        )}
       </label>
       <label className="block space-y-1.5">
         <span className="text-sm text-fg-muted">{t("fields.password")}</span>
@@ -108,7 +134,10 @@ export function AuthForm({ mode, signUpEnabled = true }: { mode: Mode; signUpEna
         <p className="text-center text-sm text-fg-muted">
           {t(`${text}.switchPrompt`)}{" "}
           {/* Keep the OAuth query so a new user can finish connecting an app. */}
-          <Link href={`/${mode === "sign-in" ? "sign-up" : "sign-in"}${search}`} className="text-accent hover:underline">
+          <Link
+            href={switchHref ?? `/${mode === "sign-in" ? "sign-up" : "sign-in"}${search}`}
+            className="text-accent hover:underline"
+          >
             {t(`${text}.switchLink`)}
           </Link>
         </p>

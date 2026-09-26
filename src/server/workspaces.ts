@@ -1,7 +1,9 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/db";
-import { user, workspace, workspaceMember, type WorkspaceRole } from "@/db/schema";
+import { user, workspace, workspaceInvitation, workspaceMember, type WorkspaceRole } from "@/db/schema";
+import { env } from "@/lib/env";
 import { AccessError, requireMembership } from "@/server/access";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
@@ -31,11 +33,12 @@ export async function createPersonalWorkspace(userId: string, userName: string) 
 
 export type WorkspaceErrorCode =
   | "nameRequired"
-  | "noAccount"
   | "alreadyMember"
   | "notMember"
   | "lastOwner"
-  | "lastOwnerRemove";
+  | "lastOwnerRemove"
+  | "invitationInvalid"
+  | "invitationEmailMismatch";
 
 /**
  * An expected failure the user can act on. `code` is stable and translated by the UI; the
@@ -94,21 +97,139 @@ export async function listMembers(userId: string, workspaceId: string) {
     .orderBy(asc(workspaceMember.createdAt));
 }
 
-/** Adds an existing account by email. There is no email delivery in v1, so no invitations. */
-export async function addMember(actorId: string, workspaceId: string, email: string, role: WorkspaceRole) {
+const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
+export const invitationLink = (token: string) => `${env.appUrl}/invite/${token}`;
+
+export type AddMemberResult =
+  | { kind: "added" }
+  | { kind: "invited"; email: string; link: string };
+
+/**
+ * Adds the account that uses this email. Without one, creates (or renews) an invitation whose
+ * link the owner shares themselves; there is no email delivery.
+ */
+export async function addMember(
+  actorId: string,
+  workspaceId: string,
+  email: string,
+  role: WorkspaceRole,
+): Promise<AddMemberResult> {
   await requireMembership(actorId, workspaceId, "owner");
+  const clean = normalizeEmail(email);
   const [target] = await db
     .select({ id: user.id })
     .from(user)
-    .where(eq(sql`lower(${user.email})`, email.trim().toLowerCase()))
+    .where(eq(sql`lower(${user.email})`, clean))
     .limit(1);
-  if (!target) throw new WorkspaceError("noAccount", "No account uses this email. Ask them to sign up first.");
+  if (!target) {
+    const token = randomBytes(32).toString("base64url");
+    const expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
+    await db
+      .insert(workspaceInvitation)
+      .values({ workspaceId, email: clean, role, token, invitedBy: actorId, expiresAt })
+      .onConflictDoUpdate({
+        target: [workspaceInvitation.workspaceId, workspaceInvitation.email],
+        set: { role, token, invitedBy: actorId, expiresAt, createdAt: new Date() },
+      });
+    return { kind: "invited", email: clean, link: invitationLink(token) };
+  }
   const inserted = await db
     .insert(workspaceMember)
     .values({ workspaceId, userId: target.id, role })
     .onConflictDoNothing()
     .returning({ userId: workspaceMember.userId });
+  await db
+    .delete(workspaceInvitation)
+    .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.email, clean)));
   if (!inserted.length) throw new WorkspaceError("alreadyMember", "This person is already a member.");
+  return { kind: "added" };
+}
+
+/** Pending invitations, including expired ones so owners can renew them. Owners only. */
+export async function listInvitations(actorId: string, workspaceId: string) {
+  await requireMembership(actorId, workspaceId, "owner");
+  const rows = await db
+    .select({
+      id: workspaceInvitation.id,
+      email: workspaceInvitation.email,
+      role: workspaceInvitation.role,
+      token: workspaceInvitation.token,
+      expiresAt: workspaceInvitation.expiresAt,
+    })
+    .from(workspaceInvitation)
+    .where(eq(workspaceInvitation.workspaceId, workspaceId))
+    .orderBy(asc(workspaceInvitation.createdAt));
+  return rows.map(({ token, ...row }) => ({ ...row, link: invitationLink(token) }));
+}
+
+export async function revokeInvitation(actorId: string, workspaceId: string, invitationId: string) {
+  await requireMembership(actorId, workspaceId, "owner");
+  await db
+    .delete(workspaceInvitation)
+    .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.id, invitationId)));
+}
+
+/** The unexpired invitation behind a link, or null. Callers must not reveal the token elsewhere. */
+export async function findInvitation(token: string) {
+  if (!token) return null;
+  const [row] = await db
+    .select({
+      email: workspaceInvitation.email,
+      role: workspaceInvitation.role,
+      workspaceId: workspaceInvitation.workspaceId,
+      workspaceName: workspace.name,
+    })
+    .from(workspaceInvitation)
+    .innerJoin(workspace, eq(workspace.id, workspaceInvitation.workspaceId))
+    .where(and(eq(workspaceInvitation.token, token), gt(workspaceInvitation.expiresAt, new Date())))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function emailHasAccount(email: string) {
+  const [row] = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(sql`lower(${user.email})`, normalizeEmail(email)))
+    .limit(1);
+  return Boolean(row);
+}
+
+/** Whether this link lets `email` create an account while public sign-up is closed. */
+export async function invitationAllowsSignUp(token: string, email: string) {
+  const invitation = await findInvitation(token);
+  return invitation !== null && invitation.email === normalizeEmail(email);
+}
+
+/**
+ * Redeems an invitation for the signed-in account. The account's email must be the invited one,
+ * so a forwarded link can't be used by someone else. Returns the workspace id.
+ */
+export async function acceptInvitation(token: string, userId: string, userEmail: string) {
+  return db.transaction(async (tx) => {
+    const [invitation] = await tx
+      .select({
+        id: workspaceInvitation.id,
+        workspaceId: workspaceInvitation.workspaceId,
+        email: workspaceInvitation.email,
+        role: workspaceInvitation.role,
+      })
+      .from(workspaceInvitation)
+      .where(and(eq(workspaceInvitation.token, token), gt(workspaceInvitation.expiresAt, new Date())))
+      .for("update");
+    if (!invitation) throw new WorkspaceError("invitationInvalid", "This invitation is invalid or has expired.");
+    if (invitation.email !== normalizeEmail(userEmail)) {
+      throw new WorkspaceError("invitationEmailMismatch", "This invitation is for a different email address.");
+    }
+    await tx
+      .insert(workspaceMember)
+      .values({ workspaceId: invitation.workspaceId, userId, role: invitation.role })
+      .onConflictDoNothing();
+    await tx.delete(workspaceInvitation).where(eq(workspaceInvitation.id, invitation.id));
+    return invitation.workspaceId;
+  });
 }
 
 /** Locks the owner rows so concurrent demotions/removals can't leave a workspace ownerless. */

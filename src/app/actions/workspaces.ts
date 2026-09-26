@@ -4,12 +4,14 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import type { WorkspaceRole } from "@/db/schema";
 import { AccessError } from "@/server/access";
-import { requireUserId } from "@/server/session";
+import { getSession, requireUserId } from "@/server/session";
 import {
+  acceptInvitation,
   addMember,
   createWorkspace,
   removeMember,
   renameWorkspace,
+  revokeInvitation,
   setMemberRole,
   WorkspaceError,
   type WorkspaceErrorCode,
@@ -69,5 +71,21 @@ export async function removeMemberAction(workspaceId: string, targetId: string) 
   const userId = await requireUserId();
   const result = await run(() => removeMember(userId, workspaceId, targetId));
   refresh(workspaceId);
+  return result;
+}
+
+export async function revokeInvitationAction(workspaceId: string, invitationId: string) {
+  const userId = await requireUserId();
+  const result = await run(() => revokeInvitation(userId, workspaceId, invitationId));
+  refresh(workspaceId);
+  return result;
+}
+
+/** Joins the workspace of an invitation link as the signed-in account. Returns the workspace id. */
+export async function acceptInvitationAction(token: string) {
+  const session = await getSession();
+  if (!session) throw new Error("Unauthorized");
+  const result = await run(() => acceptInvitation(token, session.user.id, session.user.email));
+  if (result.ok) refresh(result.data);
   return result;
 }

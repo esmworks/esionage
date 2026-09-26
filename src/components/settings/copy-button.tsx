@@ -12,6 +12,7 @@ export function CopyButton({ value, label: customLabel }: { value: string; label
   return (
     <Button
       size="sm"
+      className="shrink-0 whitespace-nowrap"
       aria-label={`${label}: ${value}`}
       onClick={async () => {
         try {
