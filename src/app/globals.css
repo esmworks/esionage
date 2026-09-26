@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --bg-subtle: #f7f7f8;
+  --bg-hover: #efeff1;
+  --bg-active: #e6e6e9;
+  --fg: #1f2023;
+  --fg-muted: #6b6d75;
+  --fg-faint: #9a9ca3;
+  --border: #e4e4e7;
+  --accent: #2f6fed;
+  --accent-fg: #ffffff;
+  --danger: #d03b3b;
+  --ring: rgba(47, 111, 237, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #18191b;
+    --bg-subtle: #202124;
+    --bg-hover: #2a2b2f;
+    --bg-active: #33353a;
+    --fg: #e8e8ea;
+    --fg-muted: #a1a3aa;
+    --fg-faint: #6f727a;
+    --border: #2f3034;
+    --accent: #5b8ff5;
+    --accent-fg: #0d1117;
+    --danger: #ef6b6b;
+    --ring: rgba(91, 143, 245, 0.4);
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-active: var(--bg-active);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-danger: var(--danger);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+  }
+}
+
+/* BlockNote follows the app's tokens so editor, menus and popovers match both themes. */
+:root .bn-container[data-color-scheme] {
+  --bn-colors-editor-background: var(--bg);
+  --bn-colors-editor-text: var(--fg);
+  --bn-colors-menu-background: var(--bg);
+  --bn-colors-menu-text: var(--fg);
+  --bn-colors-tooltip-background: var(--bg-active);
+  --bn-colors-tooltip-text: var(--fg);
+  --bn-colors-hovered-background: var(--bg-hover);
+  --bn-colors-hovered-text: var(--fg);
+  --bn-colors-selected-background: var(--bg-active);
+  --bn-colors-selected-text: var(--fg);
+  --bn-colors-disabled-background: var(--bg-subtle);
+  --bn-colors-disabled-text: var(--fg-faint);
+  --bn-colors-border: var(--border);
+  --bn-colors-side-menu: var(--fg-faint);
+  --bn-font-family: var(--font-sans);
+}
+
+/* Select option colors, shared by tables, boards and property pickers. */
+.opt-gray { background: rgba(120, 120, 128, 0.16); }
+.opt-brown { background: rgba(150, 100, 60, 0.2); }
+.opt-orange { background: rgba(240, 140, 40, 0.22); }
+.opt-yellow { background: rgba(230, 190, 40, 0.26); }
+.opt-green { background: rgba(60, 170, 100, 0.22); }
+.opt-blue { background: rgba(50, 120, 230, 0.2); }
+.opt-purple { background: rgba(140, 90, 220, 0.2); }
+.opt-pink { background: rgba(220, 80, 150, 0.2); }
+.opt-red { background: rgba(220, 70, 70, 0.22); }

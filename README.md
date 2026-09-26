@@ -1,0 +1,89 @@
+# esionage
+
+An open-source, self-hostable Notion alternative with realtime collaboration and a built-in
+MCP server, so AI assistants such as Claude can search, read and edit your workspace after you
+approve them over OAuth.
+
+## Features
+
+- **Pages**: nested pages, a block editor (BlockNote) with slash menu and markdown shortcuts,
+  icons, trash with restore, and full-text search over titles and content.
+- **Realtime collaboration**: several people can edit the same page at once (Yjs over WebSocket
+  via Hocuspocus), with live cursors.
+- **Databases**: typed properties (text, number, select, multi-select, date, checkbox, URL),
+  table and board views, filters, sorting and grouping. Every row is also a page.
+- **Page history**: versions are saved automatically while you edit and before every AI edit.
+  You can preview and restore any version.
+- **Workspaces and members**: add people by email as owners or members.
+- **MCP server with OAuth 2.1**: remote MCP endpoint at `/mcp`.
+  - Supports Client ID Metadata Documents and Dynamic Client Registration, with PKCE and a
+    consent screen.
+  - Tokens are audience-bound. Apps can be read-only or read-write, and you can revoke them in
+    Settings.
+
+## Quick start (Docker)
+
+```bash
+cp .env.example .env
+# set BETTER_AUTH_SECRET to the output of: openssl rand -base64 32
+docker compose up -d --build
+```
+
+Open http://localhost:3000 and create an account. Migrations run automatically when the app
+container starts.
+
+If the app is reachable under another URL (a domain behind a reverse proxy, another port), set
+`APP_URL` to that public origin. It is the OAuth issuer and the MCP resource identifier, so it
+must match what clients see.
+
+## Connect an AI assistant
+
+The server URL is `<APP_URL>/mcp`. Settings → *Connect an AI assistant* shows ready-to-copy
+instructions. For example, with Claude Code:
+
+```bash
+claude mcp add --transport http esionage http://localhost:3000/mcp
+```
+
+The client opens a browser window where you sign in and approve access. Tools include `list_workspaces`,
+`search`, `get_page`, `list_pages`, `create_page`, `update_page`, `archive_page`,
+`get_database`, `query_database`, `create_database_row`, `update_database_row`,
+`create_database` and `add_database_property`.
+
+## Development
+
+Requirements: Node.js 24 and pnpm 11 (via `corepack enable`), plus Docker for PostgreSQL.
+
+```bash
+pnpm install
+cp .env.example .env      # set BETTER_AUTH_SECRET
+docker compose up -d db
+pnpm db:migrate
+pnpm dev                  # http://localhost:3000
+```
+
+Useful scripts:
+
+| Script | What it does |
+| --- | --- |
+| `pnpm typecheck` | TypeScript check |
+| `pnpm test` | Unit tests (Vitest) |
+| `pnpm build` | Production build |
+| `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
+| `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
+
+## Architecture
+
+- A single Node process (`server.ts`) serves Next.js (App Router) and the Hocuspocus
+  collaboration server on the `/collab` WebSocket path.
+  - Route handlers, server actions and MCP tools write into open documents through the same
+    Hocuspocus instance, so AI edits appear live in open editors.
+  - The `/collab` connection is authenticated with a short-lived HMAC token.
+- The Yjs document is the source of truth for page content. On every save, the app also stores
+  derived markdown and plain text in PostgreSQL for search and MCP reads.
+- Auth is Better Auth: email/password for people, and the OAuth provider, JWT, MCP and CIMD
+  plugins for apps. Data access uses Drizzle ORM on PostgreSQL 18.
+
+## License
+
+[Apache License 2.0](LICENSE). See [NOTICE](NOTICE).

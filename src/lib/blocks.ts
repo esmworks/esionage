@@ -1,0 +1,39 @@
+/** Minimal structural view of BlockNote blocks; enough to extract searchable text. */
+type InlineNode = { type: string; text?: string; content?: InlineNode[] | string };
+type TableContent = { type: "tableContent"; rows: { cells: (InlineNode[] | { content: InlineNode[] })[] }[] };
+export type BlockLike = {
+  content?: InlineNode[] | TableContent | string;
+  children?: BlockLike[];
+};
+
+function inlineText(nodes: InlineNode[] | string | undefined): string {
+  if (!nodes) return "";
+  if (typeof nodes === "string") return nodes;
+  return nodes.map((n) => (typeof n.text === "string" ? n.text : inlineText(n.content))).join("");
+}
+
+function blockText(block: BlockLike): string {
+  const { content } = block;
+  if (!content) return "";
+  if (typeof content === "string" || Array.isArray(content)) return inlineText(content);
+  if (content.type === "tableContent") {
+    return content.rows
+      .map((row) => row.cells.map((cell) => inlineText(Array.isArray(cell) ? cell : cell.content)).join(" "))
+      .join("\n");
+  }
+  return "";
+}
+
+/** Plain text of a block tree, one line per block, for full-text search. */
+export function blocksToPlainText(blocks: BlockLike[]): string {
+  const lines: string[] = [];
+  const walk = (list: BlockLike[]) => {
+    for (const block of list) {
+      const text = blockText(block).trim();
+      if (text) lines.push(text);
+      if (block.children?.length) walk(block.children);
+    }
+  };
+  walk(blocks);
+  return lines.join("\n");
+}

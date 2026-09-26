@@ -1,0 +1,57 @@
+import type { Metadata } from "next";
+import { notFound, redirect } from "next/navigation";
+import { DatabasePage } from "@/components/database/database-page";
+import { RowProperties } from "@/components/database/row-properties";
+import { PageView } from "@/components/page/page-view";
+import { pageLabel } from "@/lib/labels";
+import { AccessError } from "@/server/access";
+import { getBreadcrumbs, getPage } from "@/server/pages";
+import { requireUser } from "@/server/session";
+
+type Params = { params: Promise<{ workspaceId: string; pageId: string }> };
+
+async function load(userId: string, pageId: string) {
+  try {
+    return await getPage(userId, pageId);
+  } catch (error) {
+    if (error instanceof AccessError) notFound();
+    throw error;
+  }
+}
+
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const user = await requireUser();
+  const { pageId } = await params;
+  const p = await load(user.id, pageId);
+  return { title: pageLabel(p.title) };
+}
+
+export default async function PageRoute({ params }: Params) {
+  const user = await requireUser();
+  const { workspaceId, pageId } = await params;
+  const p = await load(user.id, pageId);
+  if (p.workspaceId !== workspaceId) redirect(`/w/${p.workspaceId}/p/${p.id}`);
+
+  const crumbs = await getBreadcrumbs(user.id, pageId);
+  const parent = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null;
+  const isRow = parent?.kind === "database";
+  const archived = Boolean(p.archivedAt);
+
+  return (
+    <PageView
+      key={p.id}
+      workspaceId={workspaceId}
+      page={{ id: p.id, title: p.title, icon: p.icon, kind: p.kind, archived }}
+      crumbs={crumbs}
+      user={{ id: user.id, name: user.name }}
+      showBody={p.kind !== "database"}
+      wide={p.kind === "database"}
+    >
+      {p.kind === "database" ? (
+        <DatabasePage workspaceId={workspaceId} databaseId={p.id} />
+      ) : isRow ? (
+        <RowProperties workspaceId={workspaceId} databaseId={parent.id} rowId={p.id} readOnly={archived} />
+      ) : null}
+    </PageView>
+  );
+}

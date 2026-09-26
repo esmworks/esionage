@@ -1,0 +1,277 @@
+"use client";
+
+import { ArrowDown, ArrowUp, Ellipsis, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { cn, MenuItem, MenuSeparator } from "@/components/ui";
+import type { ViewConfig } from "@/db/schema/app";
+import { Floating, useFloating } from "./floating";
+import { OpenLink, PropertyCell } from "./property-cell";
+import { PropertyTypeIcon } from "./property-icons";
+import { AddPropertyPanel, PropertyMenu } from "./property-menu";
+import { TITLE, type Property, type Row, type View } from "./types";
+import type { DatabaseApi } from "./use-database";
+
+const NAME_WIDTH = 280;
+const WIDTHS: Partial<Record<Property["type"], number>> = { checkbox: 110, number: 140, date: 170 };
+const colWidth = (p: Property) => WIDTHS[p.type] ?? 200;
+
+export function titleProperty(databaseId: string): Property {
+  return {
+    id: TITLE,
+    databaseId,
+    name: "Name",
+    type: "text",
+    options: {},
+    position: 0,
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+  };
+}
+
+export function TableView({
+  workspaceId,
+  databaseId,
+  view,
+  properties,
+  rows,
+  api,
+  readOnly,
+  filtered,
+}: {
+  workspaceId: string;
+  databaseId: string;
+  view: View;
+  properties: Property[];
+  rows: Row[];
+  api: DatabaseApi;
+  readOnly?: boolean;
+  /** True when filters hide rows, to explain an empty table. */
+  filtered: boolean;
+}) {
+  const [editTitleOf, setEditTitleOf] = useState<string | null>(null);
+  const hidden = new Set(view.config.hidden ?? []);
+  const visible = properties.filter((p) => !hidden.has(p.id));
+  const titleProp = titleProperty(databaseId);
+  const sortOf = (id: string) => view.config.sorts?.find((s) => s.propertyId === id)?.direction;
+
+  const setConfig = (config: ViewConfig) => api.updateView(view, { config });
+  const createOption = api.createOption;
+
+  const addRow = async () => {
+    const id = await api.createRow();
+    if (id) setEditTitleOf(id);
+  };
+
+  const totalWidth = 32 + NAME_WIDTH + visible.reduce((sum, p) => sum + colWidth(p), 0) + (readOnly ? 0 : 36);
+
+  return (
+    <div className="-mx-2 overflow-x-auto pb-3 [color-scheme:light_dark]">
+      <table className="table-fixed border-collapse text-sm" style={{ width: totalWidth }}>
+        <colgroup>
+          <col style={{ width: 32 }} />
+          <col style={{ width: NAME_WIDTH }} />
+          {visible.map((p) => (
+            <col key={p.id} style={{ width: colWidth(p) }} />
+          ))}
+          {!readOnly && <col style={{ width: 36 }} />}
+        </colgroup>
+        <thead>
+          <tr>
+            <th aria-hidden />
+            <HeaderCell
+              prop={null}
+              label="Name"
+              icon="title"
+              sort={sortOf(TITLE)}
+              readOnly={readOnly}
+              actions={{
+                rename: () => {},
+                sort: (direction) => setConfig({ ...view.config, sorts: [{ propertyId: TITLE, direction }] }),
+              }}
+            />
+            {visible.map((p) => (
+              <HeaderCell
+                key={p.id}
+                prop={p}
+                label={p.name}
+                icon={p.type}
+                sort={sortOf(p.id)}
+                readOnly={readOnly}
+                actions={{
+                  rename: (name) => api.renameProperty(p.id, name),
+                  sort: (direction) => setConfig({ ...view.config, sorts: [{ propertyId: p.id, direction }] }),
+                  hide: () => setConfig({ ...view.config, hidden: [...(view.config.hidden ?? []), p.id] }),
+                  setOptions: (options) => api.setOptions(p, options),
+                  remove: () => api.deleteProperty(p.id),
+                }}
+              />
+            ))}
+            {!readOnly && (
+              <th className="border-y border-border p-0 text-left font-normal">
+                <AddPropertyButton onCreate={(name, type) => api.addProperty(name, type)} />
+              </th>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id} className="group">
+              <td className="p-0 align-middle">
+                {!readOnly && <RowMenu workspaceId={workspaceId} rowId={row.id} onDelete={() => api.deleteRow(row.id)} />}
+              </td>
+              <td className="relative border-b border-border p-0 align-top">
+                <div className="font-medium">
+                  <PropertyCell
+                    prop={titleProp}
+                    value={row.title}
+                    readOnly={readOnly}
+                    placeholder="Untitled"
+                    autoEdit={editTitleOf === row.id}
+                    onChange={(v) => {
+                      setEditTitleOf(null);
+                      void api.setCell(row.id, TITLE, v ?? "");
+                    }}
+                    onCreateOption={createOption}
+                  />
+                </div>
+                <span className="absolute inset-y-0 right-1 hidden items-center group-hover:flex">
+                  <OpenLink href={`/w/${workspaceId}/p/${row.id}`} />
+                </span>
+              </td>
+              {visible.map((p) => (
+                <td key={p.id} className="border-b border-l border-border p-0 align-top">
+                  <PropertyCell
+                    prop={p}
+                    value={row.properties[p.id]}
+                    readOnly={readOnly}
+                    onChange={(v) => void api.setCell(row.id, p.id, v)}
+                    onCreateOption={createOption}
+                  />
+                </td>
+              ))}
+              {!readOnly && <td className="border-b border-l border-border" />}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {!rows.length && (
+        <div className="ml-8 border-b border-border px-2 py-6 text-sm text-fg-faint" style={{ width: totalWidth - 32 }}>
+          {filtered ? "No rows match the current filters." : "No rows yet."}
+        </div>
+      )}
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={addRow}
+          className="ml-8 flex h-[33px] items-center gap-1.5 rounded-md px-2 text-sm text-fg-muted hover:bg-bg-hover hover:text-fg"
+          style={{ width: totalWidth - 32 }}
+        >
+          <Plus className="h-4 w-4" />
+          New
+        </button>
+      )}
+    </div>
+  );
+}
+
+function HeaderCell({
+  prop,
+  label,
+  icon,
+  sort,
+  readOnly,
+  actions,
+}: {
+  prop: Property | null;
+  label: string;
+  icon: Property["type"] | "title";
+  sort?: "asc" | "desc";
+  readOnly?: boolean;
+  actions: React.ComponentProps<typeof PropertyMenu>["actions"];
+}) {
+  const menu = useFloating<HTMLButtonElement>();
+  return (
+    <th className={cn("border-y border-border p-0 text-left font-normal", prop && "border-l")}>
+      <button
+        ref={menu.ref}
+        type="button"
+        disabled={readOnly}
+        onClick={menu.toggle}
+        className="flex h-[33px] w-full items-center gap-1.5 px-2 text-sm text-fg-muted hover:bg-bg-hover disabled:hover:bg-transparent"
+      >
+        <PropertyTypeIcon type={icon} className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{label}</span>
+        {sort === "asc" && <ArrowUp className="h-3 w-3 shrink-0 text-accent" aria-label="Sorted ascending" />}
+        {sort === "desc" && <ArrowDown className="h-3 w-3 shrink-0 text-accent" aria-label="Sorted descending" />}
+      </button>
+      <Floating open={menu.open} anchor={menu.el} onClose={menu.close}>
+        <PropertyMenu prop={prop} actions={actions} onDone={menu.close} />
+      </Floating>
+    </th>
+  );
+}
+
+function AddPropertyButton({ onCreate }: { onCreate: React.ComponentProps<typeof AddPropertyPanel>["onCreate"] }) {
+  const menu = useFloating<HTMLButtonElement>();
+  return (
+    <>
+      <button
+        ref={menu.ref}
+        type="button"
+        aria-label="Add property"
+        title="Add property"
+        onClick={menu.toggle}
+        className="flex h-[33px] w-full items-center justify-center text-fg-muted hover:bg-bg-hover hover:text-fg"
+      >
+        <Plus className="h-4 w-4" />
+      </button>
+      <Floating open={menu.open} anchor={menu.el} onClose={menu.close} align="end">
+        <AddPropertyPanel onCreate={onCreate} onDone={menu.close} />
+      </Floating>
+    </>
+  );
+}
+
+function RowMenu({ workspaceId, rowId, onDelete }: { workspaceId: string; rowId: string; onDelete: () => void }) {
+  const menu = useFloating<HTMLButtonElement>();
+  const router = useRouter();
+  return (
+    <>
+      <button
+        ref={menu.ref}
+        type="button"
+        aria-label="Row actions"
+        onClick={menu.toggle}
+        className={cn(
+          "flex h-6 w-6 items-center justify-center rounded text-fg-faint hover:bg-bg-hover hover:text-fg",
+          menu.open ? "visible" : "invisible group-hover:visible",
+        )}
+      >
+        <Ellipsis className="h-4 w-4" />
+      </button>
+      <Floating open={menu.open} anchor={menu.el} onClose={menu.close}>
+        <MenuItem
+          icon={<ExternalLink className="h-3.5 w-3.5" />}
+          onClick={() => {
+            menu.close();
+            router.push(`/w/${workspaceId}/p/${rowId}`);
+          }}
+        >
+          Open
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem
+          danger
+          icon={<Trash2 className="h-3.5 w-3.5" />}
+          onClick={() => {
+            menu.close();
+            onDelete();
+          }}
+        >
+          Delete
+        </MenuItem>
+      </Floating>
+    </>
+  );
+}
