@@ -228,7 +228,7 @@ export function PageView({
         {showBody && (
           <div className="mt-4 min-h-[40vh]">
             {pageDoc && synced ? (
-              <CollabEditor pageDoc={pageDoc} user={user} editable={editable} />
+              <CollabEditor pageDoc={pageDoc} user={user} editable={editable} workspaceId={workspaceId} pageId={page.id} />
             ) : (
               // Without a connection the error above explains why nothing loads.
               !error && <div className="px-[54px] text-sm text-fg-faint">{tc("loading")}</div>

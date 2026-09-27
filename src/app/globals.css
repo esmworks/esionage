@@ -194,3 +194,16 @@
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 }
+
+/*
+ * Databases inside a page body use the editor column as their gutter: controls and tables start at
+ * the text's edge and wide views scroll sideways inside the block. The editor's pre-wrapped text
+ * doesn't apply to them.
+ */
+.database-embed {
+  white-space: normal;
+}
+.database-embed .page-gutter,
+.database-embed .page-gutter-table {
+  padding-inline: 0;
+}
