@@ -255,5 +255,10 @@
       "aliases": "breadcrumb sayfa yolu üst sayfalar konum",
       "label": "Sayfa yolu"
     }
+  },
+  "upload": {
+    "tooLarge": "{name} çok büyük. Dosyalar en fazla {limit} olabilir.",
+    "quotaExceeded": "{name} yüklenmedi: bu çalışma alanı {limit} dosya depolama alanının tamamını kullandı.",
+    "failed": "{name} yüklenemedi."
   }
 }

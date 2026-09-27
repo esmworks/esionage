@@ -255,5 +255,10 @@
       "aliases": "breadcrumb path parents location",
       "label": "Breadcrumb"
     }
+  },
+  "upload": {
+    "tooLarge": "{name} is too large. Files can be at most {limit}.",
+    "quotaExceeded": "{name} wasn't uploaded: this workspace has used its {limit} of file storage.",
+    "failed": "Couldn't upload {name}."
   }
 }

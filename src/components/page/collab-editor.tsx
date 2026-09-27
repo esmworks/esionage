@@ -18,12 +18,13 @@ import {
 } from "@blocknote/react";
 import { X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { commentUsersAction } from "@/app/actions/comments";
 import { yUndoPluginKey } from "y-prosemirror";
 import type { UndoManager } from "yjs";
 import { useEditorDictionary } from "@/i18n/blocknote";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { formatBytes } from "@/lib/files";
 import { THREADS_MAP, type CommentAnchor } from "@/lib/comments";
 import { CommentsPanel } from "./comments-panel";
 import { CommentAuth, ServerThreadStore } from "./comment-store";
@@ -81,6 +82,7 @@ export default function CollabEditor({
 }) {
   const locale = useLocale();
   const tc = useTranslations("common");
+  const tu = useTranslations("page.upload");
   const dictionary = useEditorDictionary();
   const host = useMemo<EmbedHost>(() => ({ workspaceId, pageId, editable }), [workspaceId, pageId, editable]);
   const trail = useMemo(() => ({ workspaceId, crumbs }), [workspaceId, crumbs]);
@@ -97,6 +99,37 @@ export default function CollabEditor({
     () => CommentsExtension({ threadStore, resolveUsers: (ids: string[]) => commentUsersAction(pageId, ids) }),
     [pageId, threadStore],
   );
+  // Files dropped, pasted or picked in a file block go to the server (see api/files); the block keeps
+  // the URL it answers with. Read through a ref, so the editor isn't re-created when these change.
+  const uploadTo = useRef({ pageId, tu, setEmbedError });
+  useEffect(() => {
+    uploadTo.current = { pageId, tu, setEmbedError };
+  });
+  const uploadFile = useMemo(
+    () => async (file: File) => {
+      const { pageId, tu, setEmbedError } = uploadTo.current;
+      const res = await fetch(`/api/files?pageId=${encodeURIComponent(pageId)}`, {
+        method: "POST",
+        body: file,
+        headers: { "Content-Type": file.type || "application/octet-stream", "X-File-Name": encodeURIComponent(file.name) },
+      });
+      const data = (await res.json().catch(() => null)) as { url?: string; code?: string; limit?: number } | null;
+      if (!res.ok || !data?.url) {
+        const limit = data?.limit ? formatBytes(data.limit) : "";
+        const name = file.name || "file";
+        setEmbedError(
+          data?.code === "tooLarge"
+            ? tu("tooLarge", { name, limit })
+            : data?.code === "quotaExceeded"
+              ? tu("quotaExceeded", { name, limit })
+              : tu("failed", { name }),
+        );
+        throw new Error(`Upload failed (${res.status})`);
+      }
+      return data.url;
+    },
+    [],
+  );
   // withCollaboration spreads the remaining options into the editor options, so `dictionary`
   // reaches BlockNote as-is. A language change re-creates the editor against the same Y.Doc;
   // the provider is owned by usePageDoc and is not touched.
@@ -104,6 +137,7 @@ export default function CollabEditor({
     withCollaboration({
       schema: pageEditorSchema,
       dictionary,
+      uploadFile,
       extensions: [KeepUndoAttached(), FindReplace(), comments],
       collaboration: {
         fragment: pageDoc.doc.getXmlFragment(COLLAB_FRAGMENT),
@@ -112,7 +146,7 @@ export default function CollabEditor({
         showCursorLabels: "activity",
       },
     }),
-    [pageDoc, dictionary, comments],
+    [pageDoc, dictionary, comments, uploadFile],
   );
 
   useEffect(() => {

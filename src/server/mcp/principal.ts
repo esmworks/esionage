@@ -3,13 +3,14 @@ import type { AuthInfo } from "@modelcontextprotocol/server";
 export const READ_SCOPE = "pages:read";
 export const WRITE_SCOPE = "pages:write";
 export const NOTIFICATIONS_SCOPE = "notifications:read";
+export const FILES_SCOPE = "files:write";
 
 /**
  * What 401 and step-up challenges ask for. MCP clients request exactly the challenged scopes,
  * so naming only pages:read left them with a read-only token and no refresh token: every write
  * was challenged again. The consent screen still lets the user leave out pages:write.
  */
-export const CONNECT_SCOPES = [READ_SCOPE, WRITE_SCOPE, NOTIFICATIONS_SCOPE, "offline_access"] as const;
+export const CONNECT_SCOPES = [READ_SCOPE, WRITE_SCOPE, NOTIFICATIONS_SCOPE, FILES_SCOPE, "offline_access"] as const;
 
 /** The user and OAuth client an MCP request acts for. */
 export type McpPrincipal = { userId: string; clientId: string; scopes: string[] };

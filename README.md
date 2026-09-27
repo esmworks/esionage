@@ -49,6 +49,9 @@ approve them over OAuth.
   engines unless you allow them. Published databases show the views you pick (tables, boards,
   lists, galleries) and visitors switch between them. Owners decide whether members may publish
   and can take any published page offline.
+- **File uploads**: drop, paste or pick images, video, audio and other files into a page. They are
+  stored on disk or in S3-compatible storage, only people who can see a page showing them can open
+  them, and published pages show theirs (see [File uploads](#file-uploads)).
 - **Workspaces and members**: add people by email (several at once) as owners or members, send
   an invitation link to people who don't have an account yet, or turn on a join link anyone can
   use. Owners can export the member list as CSV, hand ownership to someone else, and decide who
@@ -106,6 +109,32 @@ proxy, set `2`.
 The compose file runs PostgreSQL 18 only while `COMPOSE_PROFILES=bundled-db` is set in `.env`.
 To use a database you already run, remove that line and set `EXTERNAL_DATABASE_URL` to its
 connection URL. The `db` service is then not created.
+
+## File uploads
+
+Images, video, audio and other files added to pages are stored on disk in `UPLOAD_DIR`
+(`./data/uploads` by default). With Docker Compose that directory is the `uploads` volume, so
+back it up together with the database. To use S3-compatible storage (AWS S3, Cloudflare R2, MinIO)
+instead, set `S3_BUCKET` and its credentials; files already stored are not moved when you switch.
+
+| Variable | Meaning |
+| --- | --- |
+| `UPLOAD_DIR` | Where files go with local storage. Default `./data/uploads`. |
+| `UPLOAD_MAX_FILE_MB` | Largest file, in MB. Default `50`. |
+| `UPLOAD_WORKSPACE_QUOTA_MB` | Most one workspace may store, in MB. Default `10240`; `0` means no limit. |
+| `S3_BUCKET` | Store files in this bucket instead of on disk. |
+| `S3_ENDPOINT` | The service's URL for R2, MinIO and others, e.g. `https://<account-id>.r2.cloudflarestorage.com`. Leave out for AWS S3. |
+| `S3_REGION` | Default `us-east-1` (R2 accepts it too). |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Credentials allowed to put, get and delete objects in the bucket. |
+| `S3_FORCE_PATH_STYLE` | Address the bucket by path (`<endpoint>/<bucket>/…`). Default `true` with `S3_ENDPOINT`, `false` for AWS. |
+| `S3_PREFIX` | Optional folder inside the bucket. |
+
+Limits are enforced while a file arrives. A file can be opened by anyone who can see the page it
+was uploaded to or a page of the same workspace showing it (so duplicates and pages made from
+templates share it), and by visitors of a published page showing it. Only raster images, video,
+audio and PDF open in the browser; everything else, SVG included, is downloaded. When a page is
+deleted for good, its files go once no other page shows them, and uploads no page ever used are
+removed after a day.
 
 ## Email
 
@@ -181,6 +210,9 @@ The client opens a browser window where you sign in and approve access. The tool
 - **Templates:** `list_templates`; `create_page` and `create_database_row` take a `template_id`.
 - **Comments:** `list_comments`, `add_comment` (start a thread on quoted text, or reply).
 - **Inbox:** `list_notifications`, when the user also grants the `notifications:read` permission.
+- **Files:** `attach_file` uploads an image, video, audio or other file to a page from a public
+  URL or base64 data, when the user also grants the `files:write` permission. URLs that lead to
+  private or loopback addresses are refused.
 - **Databases:** `get_database`, `query_database`, `create_database`, `create_database_row`,
   `create_database_rows`, `update_database_row`, `update_database_rows`, `add_database_property`
   (including one- or two-way relations), `update_database_property`, `delete_database_property`,
@@ -211,7 +243,7 @@ Useful scripts:
 | `pnpm build` | Production build |
 | `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
-| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, presence); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
+| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, presence, uploads); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
 

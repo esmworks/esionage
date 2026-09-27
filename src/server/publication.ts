@@ -373,6 +373,31 @@ async function chainTo(publisher: string, pageId: string, rootId: string): Promi
 }
 
 /**
+ * Whether a published site shows any of these pages: the page or one above it is published and
+ * `getPublishedPage` would serve the page under that publication (see chainTo). Used by the file
+ * route, so visitors of a published page can load the files its body shows.
+ */
+export async function anyPagePublished(pageIds: string[]): Promise<boolean> {
+  const ids = [...new Set(pageIds)];
+  if (!ids.length) return false;
+  const rows = await db.execute<{ start: string; root: string; published_by: string | null }>(sql`
+    with recursive up as (
+      select id, parent_id, id as start, 0 as depth from ${page} where ${inArray(page.id, ids)}
+      union all
+      select p.id, p.parent_id, up.start, up.depth + 1
+      from ${page} p join up on p.id = up.parent_id
+      where up.depth < ${MAX_DEPTH}
+    )
+    select up.start, pub.page_id as root, pub.published_by
+    from up join ${pagePublication} pub on pub.page_id = up.id
+  `);
+  for (const row of rows) {
+    if (row.published_by && (await chainTo(row.published_by, row.start, row.root))) return true;
+  }
+  return false;
+}
+
+/**
  * The page body with its database blocks resolved. A block's database is shown only when it is
  * published with this page, i.e. reachable from the published page like any of its subpages: an
  * inline database under the page is, a linked view of a database elsewhere is not.

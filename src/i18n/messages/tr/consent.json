@@ -31,6 +31,7 @@
     "offlineAccess": "Yeniden giriş yapmanızı istemeden bağlı kalma",
     "pagesRead": "Çalışma alanlarınızdaki sayfaları ve veritabanlarını okuma",
     "pagesWrite": "Sayfa ve veritabanı satırı oluşturma, bunları düzenleme ve sayfaları çöp kutusuna taşıma",
-    "notificationsRead": "Gelen kutunuzdaki bildirimleri okuma"
+    "notificationsRead": "Gelen kutunuzdaki bildirimleri okuma",
+    "filesWrite": "Sayfalara bir bağlantıdan ya da uygulamanın kendisinden dosya yükleme"
   }
 }

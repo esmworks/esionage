@@ -4,6 +4,18 @@
 
 ### Added
 
+- **File uploads:** image, video, audio and file blocks now take files: drop, paste or pick one
+  and it is uploaded instead of asking for a URL. Files are stored on a local volume by default or
+  in S3-compatible storage (AWS S3, Cloudflare R2, MinIO) with `S3_BUCKET` and its credentials.
+  `UPLOAD_MAX_FILE_MB` (default 50) and `UPLOAD_WORKSPACE_QUOTA_MB` (default 10240) limit a file
+  and a workspace, checked while the upload arrives. A file opens for people who can see a page
+  showing it, so duplicates and pages made from templates share it, and for visitors of published
+  pages. Only raster images, video, audio and PDF open in the browser; SVG and everything else
+  download. Deleting a page for good removes files no other page shows, and uploads nothing used
+  are removed after a day. Docker Compose keeps files in a new `uploads` volume.
+- **MCP:** `attach_file` uploads a file to a page from a URL or base64 data and adds it to the
+  body. It needs the new `files:write` scope; apps registered earlier may request it too. URLs
+  that resolve to private, loopback or link-local addresses, or redirect to them, are refused.
 - **Presence:** the page header shows who else has the page open, as avatars in their cursor
   colors with "+N" for more than four; click them for everyone's names. People who can only view
   the page count too, each person shows once however many tabs they have open, and you don't see

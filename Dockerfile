@@ -25,6 +25,8 @@ COPY next.config.ts tsconfig.json server.ts ./
 COPY src ./src
 COPY drizzle ./drizzle
 COPY scripts/migrate.ts scripts/send-test-email.ts ./scripts/
+# Uploaded files (local storage). Mount a volume here; see docker-compose.yml.
+RUN mkdir -p /app/data/uploads && chown -R node:node /app/data
 USER node
 EXPOSE 3000
 # Apply pending migrations, then start Next + the collaboration server in one process.

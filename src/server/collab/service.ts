@@ -61,6 +61,13 @@ function commentError(error: unknown): unknown {
   return error;
 }
 
+/** A fresh page holds one empty paragraph; appending drops it instead of leaving a gap. */
+function withoutTrailingEmpty<B extends { type: string; children: unknown[] }>(blocks: B[]): B[] {
+  return blocks.filter(
+    (b, i) => !(i === blocks.length - 1 && b.type === "paragraph" && !blocksToPlainText([b as never]) && !b.children.length),
+  );
+}
+
 async function deriveContent(doc: Y.Doc) {
   const blocks = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
   const markdown = (await blocksToMarkdown(blocks)).trim();
@@ -396,16 +403,13 @@ export function createCollab() {
       await writeBlocks(
         pageId,
         actor,
-        async (existing) => {
-          const added = await markdownToBlocks(markdown, existing, { keepMissingInline: false });
-          // A fresh page holds one empty paragraph; drop it instead of leaving a gap.
-          const trimmed = existing.filter(
-            (b, i) => !(i === existing.length - 1 && b.type === "paragraph" && !blocksToPlainText([b]) && !b.children.length),
-          );
-          return [...trimmed, ...added];
-        },
+        async (existing) => [...withoutTrailingEmpty(existing), ...(await markdownToBlocks(markdown, existing, { keepMissingInline: false }))],
         snapshot,
       );
+    },
+
+    async appendBlocks(pageId, blocks, actor, snapshot = false) {
+      await writeBlocks(pageId, actor, async (existing) => [...withoutTrailingEmpty(existing), ...(blocks as typeof existing)], snapshot);
     },
 
     async setTitle(pageId, title, actor) {

@@ -5,6 +5,8 @@ node_modules
 *.tsbuildinfo
 next-env.d.ts
 coverage
+# Uploaded files (local storage driver, UPLOAD_DIR default)
+/data/
 
 # Local task checklist
 TASKS.md

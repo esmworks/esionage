@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import { McpServer, type ScopeChallengeHandler } from "@modelcontextprotocol/server";
 import * as z from "zod";
 import {
@@ -51,6 +52,9 @@ import { CARD_SIZES, COVER_SOURCES, TIMELINE_ZOOMS, VIEW_TYPES } from "@/lib/vie
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import * as comments from "@/server/comments";
 import * as databases from "@/server/databases";
+import * as files from "@/server/files";
+import { uploadLimits } from "@/server/storage";
+import { blockTypeFor, formatBytes } from "@/lib/files";
 import { resolveEmbeds } from "@/server/embeds";
 import * as forms from "@/server/forms";
 import * as notifications from "@/server/notifications";
@@ -60,7 +64,7 @@ import { builtinTemplates, isBuiltinTemplateKey } from "@/lib/builtin-templates"
 import * as workspaces from "@/server/workspaces";
 import { MAX_MARKDOWN_CHARS, pageUrl, runTool, sliceText, ToolInputError } from "./format";
 import { env } from "@/lib/env";
-import { CONNECT_SCOPES, NOTIFICATIONS_SCOPE, WRITE_SCOPE, type McpPrincipal } from "./principal";
+import { CONNECT_SCOPES, FILES_SCOPE, NOTIFICATIONS_SCOPE, WRITE_SCOPE, type McpPrincipal } from "./principal";
 import {
   describeProperty,
   describeChartSeries,
@@ -83,6 +87,7 @@ Page bodies are read and written as Markdown. Before every content change Esiona
 Beyond plain Markdown, page bodies know a few block forms: a callout is a GitHub alert (\`> [!NOTE]\`, TIP, IMPORTANT, WARNING or CAUTION on its own line, then the \`> \` text; a leading emoji becomes its icon), \`$…$\` is an inline equation and a \`$$\` line pair wraps a block equation (LaTeX), a \`\`\`mermaid fence is a diagram, and the lines \`<!-- esionage:toc -->\` and \`<!-- esionage:breadcrumb -->\` are a table of contents and the page's breadcrumb. A dollar sign of the text itself is written \`\\$\`.
 People discuss pages in comment threads anchored to text of the page: list_comments reads them, add_comment starts a thread on quoted text or replies to one.
 list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them and new comments in their threads.
+attach_file adds an image, video, audio or other file to a page, from a URL or base64 data. Files in page bodies show up in the Markdown with paths like /api/files/<id>.
 Templates are starting points for new pages and rows: list_templates lists a workspace's page templates (and the built-in gallery) or a database's row templates; create_page and create_database_row take a template_id. A database's default row template is used by create_database_row when no properties or body are given. Templates don't show up in search or list_pages.
 Always share the returned url with the user when you create or change something.`;
 
@@ -653,6 +658,21 @@ const requireNotifications: ScopeChallengeHandler = ({ authInfo }) => {
   return { scopes, errorDescription: "This tool needs the notifications:read scope" };
 };
 
+/** attach_file needs files:write on top of pages:write, and challenges for both the same way. */
+const requireFiles: ScopeChallengeHandler = ({ authInfo }) => {
+  if (!authInfo || (authInfo.scopes.includes(FILES_SCOPE) && authInfo.scopes.includes(WRITE_SCOPE))) return undefined;
+  const scopes = [...new Set([...authInfo.scopes, ...CONNECT_SCOPES])] as [string, ...string[]];
+  return { scopes, errorDescription: "This tool needs the files:write and pages:write scopes" };
+};
+
+/** `data:<type>;base64,<data>` or bare base64 (standard or URL-safe alphabet, whitespace allowed). */
+function decodeBase64(input: string): { bytes: Buffer; contentType: string | null } {
+  const dataUrl = /^data:([^;,]*)(?:;[^,]*)?;base64,/i.exec(input);
+  const data = (dataUrl ? input.slice(dataUrl[0].length) : input).replace(/\s+/g, "");
+  if (!data || !/^[A-Za-z0-9+/_-]+={0,2}$/.test(data)) throw new ToolInputError("base64 isn't valid base64 data.");
+  return { bytes: Buffer.from(data, "base64"), contentType: dataUrl?.[1] || null };
+}
+
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
 
 export function createMcpServer(principal: McpPrincipal) {
@@ -1062,6 +1082,84 @@ export function createMcpServer(principal: McpPrincipal) {
           changed,
           ...(markdown !== undefined ? { snapshot: "Saved the previous version to page history before writing." } : {}),
           url: pageUrl(page.workspaceId, page.id),
+        };
+      }),
+  );
+
+  const maxFile = uploadLimits().maxFileBytes;
+  server.registerTool(
+    "attach_file",
+    {
+      title: "Attach a file to a page",
+      description: `Upload a file (image, video, audio, PDF or any other file) to a page, either from a public http(s) URL, which Esionage downloads, or from base64 data. By default it is added to the end of the page body as an image, video, audio or file block, chosen by its type; a history snapshot is saved first. With append false it is only stored: put the returned path into the body yourself (e.g. \`![caption](/api/files/…)\` with update_page) within a day, or the unused upload is removed. Files can be at most ${formatBytes(maxFile)}, and URLs must point at a public address. Only people who can see the page can open the file.`,
+      inputSchema: z.object({
+        page_id: id("page"),
+        url: z.string().max(4000).optional().describe("A public http(s) URL to download the file from. Give url or base64."),
+        base64: z
+          .string()
+          .max(Math.ceil(maxFile / 3) * 4 + 1024)
+          .optional()
+          .describe("The file's bytes as base64 (a data: URL works too). Give url or base64."),
+        name: z.string().max(200).optional().describe("File name, with its extension. Taken from the URL when missing; needed for base64."),
+        content_type: z.string().max(255).optional().describe("Media type, e.g. image/png. Guessed from the name or the server when missing."),
+        caption: z.string().max(1000).optional().describe("Caption shown under the block."),
+        append: z.boolean().default(true).describe("Add the file to the end of the page body (default true)."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      scopeChallenge: requireFiles,
+    },
+    ({ page_id, url, base64, name, content_type, caption, append }) =>
+      runTool(async () => {
+        assertWrite();
+        if (!principal.scopes.includes(FILES_SCOPE)) {
+          throw new ToolInputError(
+            "This connection can't upload files: the user did not grant the files:write permission. Ask the user to reconnect Esionage and allow it.",
+          );
+        }
+        if ((url === undefined) === (base64 === undefined)) throw new ToolInputError("Give either url or base64, not both.");
+        const { page } = await loadPage(page_id);
+        if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in Esionage before adding files.");
+        if (page.kind === "database") throw new ToolInputError("Databases have no body. Attach the file to one of its rows.");
+        let stored: files.StoredFile;
+        try {
+          if (url !== undefined) {
+            stored = await files.uploadFromUrl(userId, page_id, url, { name, contentType: content_type });
+          } else {
+            if (!name) throw new ToolInputError("Give the file a name (with its extension) when sending base64.");
+            const decoded = decodeBase64(base64!);
+            stored = await files.uploadFile(userId, page_id, {
+              name,
+              contentType: content_type ?? decoded.contentType,
+              body: Readable.from([decoded.bytes]),
+              declaredSize: decoded.bytes.length,
+            });
+          }
+        } catch (error) {
+          if (error instanceof files.FileError) throw new ToolInputError(`${error.message}.`);
+          throw error;
+        }
+        const type = blockTypeFor(stored.contentType);
+        if (append) {
+          await getCollab().appendBlocks(
+            page_id,
+            [{ type, props: { url: stored.url, name: stored.name, caption: caption ?? "" } }],
+            actor,
+            true,
+          );
+        }
+        return {
+          id: stored.id,
+          name: stored.name,
+          content_type: stored.contentType,
+          size: stored.size,
+          block: type,
+          path: stored.url,
+          url: `${env.appUrl}${stored.url}`,
+          appended: append,
+          ...(append
+            ? { snapshot: "Saved the previous version to page history before adding the file." }
+            : { markdown: type === "image" ? `![${caption ?? stored.name}](${stored.url})` : `[${stored.name}](${stored.url})` }),
+          page_url: pageUrl(page.workspaceId, page.id),
         };
       }),
   );

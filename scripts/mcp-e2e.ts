@@ -93,7 +93,7 @@ async function register(as: Awaited<ReturnType<typeof discover>>, name: string):
       token_endpoint_auth_method: "none",
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
-      scope: "openid profile offline_access pages:read pages:write notifications:read",
+      scope: "openid profile offline_access pages:read pages:write notifications:read files:write",
     }),
   });
   const body = await json(res);
@@ -114,7 +114,7 @@ function authorizeUrl(as: { authorization_endpoint: string }, client: Client, st
     response_type: "code",
     client_id: client.client_id,
     redirect_uri: REDIRECT_URI,
-    scope: "openid profile offline_access pages:read pages:write notifications:read",
+    scope: "openid profile offline_access pages:read pages:write notifications:read files:write",
     state,
     code_challenge: challenge,
     code_challenge_method: "S256",
@@ -354,7 +354,7 @@ async function main() {
     "get_database", "query_database", "create_database_row", "create_database_rows", "update_database_row", "create_database", "add_database_property",
     "update_database_property", "delete_database_property", "create_database_view", "update_database_view", "move_page",
     "list_recent_pages", "list_users", "list_trash", "restore_page", "list_page_history", "get_page_version", "diff_page_version", "restore_page_version",
-    "list_notifications",
+    "list_notifications", "attach_file",
   ];
   check(expected.every((t) => toolNames.includes(t)), "tools/list returns every tool", toolNames);
   const getPageTool = list.message.result.tools.find((t: { name: string }) => t.name === "get_page");
@@ -385,6 +385,36 @@ async function main() {
   page = await mcp.ok("get_page", { page_id: root.id });
   check(page.markdown.trim() === "Replaced body.", "replace overwrites the body", page.markdown);
   check(page.title === `MCP e2e ${RUN} renamed`, "update_page renames", page.title);
+
+  // ---- files (files:write): base64 upload into the body, served to the signed-in user only
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  const attached = await mcp.ok("attach_file", { page_id: root.id, base64: png.toString("base64"), name: "pixel.png", caption: "One pixel" });
+  check(attached.block === "image" && attached.appended && attached.url === `${BASE}${attached.path}`, "attach_file uploads base64 and appends an image block", attached);
+  page = await mcp.ok("get_page", { page_id: root.id });
+  check(page.markdown.includes(attached.path), "the page body shows the attached file", page.markdown);
+  const served = await fetch(attached.url, { headers: { cookie: jar.header() } });
+  check(
+    served.status === 200 && served.headers.get("content-type") === "image/png" && Buffer.from(await served.arrayBuffer()).equals(png),
+    "the file route serves the attachment to the signed-in user",
+    served.status,
+  );
+  check(served.headers.get("x-content-type-options") === "nosniff", "…with nosniff");
+  check((await fetch(attached.url)).status === 404, "…and not to anyone else");
+  const ssrf = await mcp.call("attach_file", { page_id: root.id, url: `${BASE}/` });
+  check(ssrf.isError && /isn't public/.test(ssrf.text), "attach_file refuses URLs on private addresses", ssrf.text);
+  const upload = await fetch(`${BASE}/api/files?pageId=${root.id}`, {
+    method: "POST",
+    headers: { cookie: jar.header(), "x-file-name": "note.txt", "content-type": "text/plain", origin: BASE },
+    body: "hello",
+  });
+  const uploaded = await json(upload);
+  check(upload.status === 201 && uploaded.url?.startsWith("/api/files/"), "the editor's upload route stores a file", uploaded);
+  const note = await fetch(`${BASE}${uploaded.url}`, { headers: { cookie: jar.header() } });
+  check(
+    note.headers.get("content-disposition")?.startsWith("attachment;") && (await note.text()) === "hello",
+    "a text file is served as a download",
+    note.headers.get("content-disposition"),
+  );
 
   const hits = await mcp.ok("search", { query: `MCP e2e ${RUN}`, workspace_id: ws });
   check(hits.results.some((h: { id: string }) => h.id === root.id), "search finds the page", hits);
@@ -650,6 +680,13 @@ async function main() {
     roInbox.status === 403 && inboxStepUp.includes('error="insufficient_scope"') && inboxStepUp.includes("notifications:read"),
     "list_notifications without notifications:read → 403 insufficient_scope",
     { status: roInbox.status, inboxStepUp },
+  );
+  const roFile = await roMcp.request("tools/call", { name: "attach_file", arguments: { page_id: root.id, base64: "aGk=", name: "hi.txt" } });
+  const fileStepUp = roFile.headers.get("www-authenticate") ?? "";
+  check(
+    roFile.status === 403 && fileStepUp.includes('error="insufficient_scope"') && fileStepUp.includes("files:write"),
+    "attach_file without files:write → 403 insufficient_scope",
+    { status: roFile.status, fileStepUp },
   );
   const stillThere = await mcp.ok("get_page", { page_id: root.id });
   check(!stillThere.in_trash, "read-only token did not change anything");

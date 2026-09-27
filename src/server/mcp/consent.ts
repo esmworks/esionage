@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { oauthClient } from "@/db/schema";
 import { env } from "@/lib/env";
 import { clientDisplayName } from "./grants";
-import { NOTIFICATIONS_SCOPE, READ_SCOPE, WRITE_SCOPE } from "./principal";
+import { FILES_SCOPE, NOTIFICATIONS_SCOPE, READ_SCOPE, WRITE_SCOPE } from "./principal";
 
 /** Plain-language descriptions of every scope a client may request. */
 export const SCOPE_LABELS: Record<string, string> = {
@@ -15,6 +15,7 @@ export const SCOPE_LABELS: Record<string, string> = {
   [READ_SCOPE]: "Read pages and databases in your workspaces",
   [WRITE_SCOPE]: "Create and edit pages and database rows, and move pages to the trash",
   [NOTIFICATIONS_SCOPE]: "Read your inbox notifications",
+  [FILES_SCOPE]: "Upload files to pages, from a link or from the app itself",
 };
 
 export function describeScope(scope: string) {

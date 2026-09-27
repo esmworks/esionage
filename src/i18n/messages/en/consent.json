@@ -31,6 +31,7 @@
     "offlineAccess": "Stay connected without asking you to sign in again",
     "pagesRead": "Read pages and databases in your workspaces",
     "pagesWrite": "Create and edit pages and database rows, and move pages to the trash",
-    "notificationsRead": "Read your inbox notifications"
+    "notificationsRead": "Read your inbox notifications",
+    "filesWrite": "Upload files to pages, from a link or from the app itself"
   }
 }
