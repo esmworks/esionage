@@ -7,7 +7,7 @@ import { isLocale, type Locale } from "@/i18n/config";
 import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
 import { env } from "@/lib/env";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
-import { AccessError, requireMembership } from "@/server/access";
+import { AccessError, requireMember, requireMembership } from "@/server/access";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
 
@@ -99,8 +99,9 @@ export async function renameWorkspace(userId: string, workspaceId: string, name:
   await db.update(workspace).set({ name: clean }).where(eq(workspace.id, workspaceId));
 }
 
+/** Everyone in the workspace, guests included. Guests themselves can't list it. */
 export async function listMembers(userId: string, workspaceId: string) {
-  await requireMembership(userId, workspaceId);
+  await requireMember(userId, workspaceId);
   return db
     .select({
       userId: user.id,
@@ -117,7 +118,7 @@ export async function listMembers(userId: string, workspaceId: string) {
 
 /** When each member last changed a page in this workspace (content, title, properties, trash). */
 export async function lastEdits(userId: string, workspaceId: string): Promise<Map<string, Date>> {
-  await requireMembership(userId, workspaceId);
+  await requireMember(userId, workspaceId);
   const rows = await db
     .select({ userId: page.updatedBy, at: max(page.updatedAt) })
     .from(page)

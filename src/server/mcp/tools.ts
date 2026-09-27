@@ -912,7 +912,7 @@ export function createMcpServer(principal: McpPrincipal) {
     "list_users",
     {
       title: "List workspace members",
-      description: "List the members of a workspace with their name, email and role (owner or member).",
+      description: "List the people in a workspace with their name, email and role (owner, member or guest). Guests can't list them.",
       inputSchema: z.object({ workspace_id: id("workspace") }),
       annotations: READ,
     },

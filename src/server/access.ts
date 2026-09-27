@@ -45,10 +45,22 @@ export async function getMembership(userId: string, workspaceId: string) {
   return row ?? null;
 }
 
-/** For workspace-wide actions (creating top-level pages, managing members, workspace settings). */
+/** Anyone in the workspace, guests included: for reads that filter pages by `pageVisibleTo`. */
 export async function requireMembership(userId: string, workspaceId: string, role?: WorkspaceRole) {
   const membership = await getMembership(userId, workspaceId);
   if (!membership || (role && membership.role !== role)) throw new AccessError();
+  return membership;
+}
+
+export const isGuest = (role: WorkspaceRole) => role === "guest";
+
+/**
+ * An owner or member, not a guest: for creating top-level pages and for seeing who is in the
+ * workspace. Must match the roles `page_access_level` gives workspace-wide access to.
+ */
+export async function requireMember(userId: string, workspaceId: string) {
+  const membership = await requireMembership(userId, workspaceId);
+  if (isGuest(membership.role)) throw new AccessError();
   return membership;
 }
 

@@ -1,7 +1,8 @@
 /**
  * End-to-end check of page permissions against the database: defaults, inheritance, widening and
  * narrowing on subpages, visibility in lists, shared pages showing up as top-level pages, and the
- * guard that keeps someone with full access on every page. Creates its own users and workspace
+ * guard that keeps someone with full access on every page, what guests can and can't see, rows
+ * restricted inside a database, moving pages, and what a publication exposes. Creates its own users and workspace
  * and deletes them afterwards.
  *
  *   pnpm tsx scripts/access-e2e.ts
@@ -17,14 +18,23 @@ try {
 // Imported after .env is loaded: the database client reads DATABASE_URL when it is created.
 const { inArray } = await import("drizzle-orm");
 const { db } = await import("@/db");
-const { page, user, workspace, workspaceMember } = await import("@/db/schema");
+const { page, pagePublication, user, workspace, workspaceMember } = await import("@/db/schema");
+const { registerCollab } = await import("@/server/collab/bridge");
+const { listRows } = await import("@/server/databases");
+const { getPublishedPage } = await import("@/server/publication");
 const { AccessError, requirePageAccess, resolvePageAccess } = await import("@/server/access");
-const { getBreadcrumbs, getTree, listChildren } = await import("@/server/pages");
+const { createPage, getBreadcrumbs, getTree, listChildren, movePage, recentPages, searchPages } = await import(
+  "@/server/pages"
+);
+const { listMembers } = await import("@/server/workspaces");
 const { listPagePermissions, PermissionError, removePagePermission, setPagePermission } = await import(
   "@/server/permissions"
 );
 
 const RUN = `access-e2e-${Date.now().toString(36)}`;
+
+// Writes notify open editors through the collab service, which only runs inside the app server.
+registerCollab({ broadcast() {} } as unknown as Parameters<typeof registerCollab>[0]);
 
 let passed = 0;
 function check(condition: unknown, label: string, detail?: unknown): asserts condition {
@@ -54,7 +64,13 @@ async function levels(pageId: string, ...userIds: string[]) {
   return Promise.all(userIds.map(async (id) => (await resolvePageAccess(id, pageId)).level));
 }
 
-const ids = { owner: `${RUN}-owner`, alice: `${RUN}-alice`, bob: `${RUN}-bob`, outsider: `${RUN}-outsider` };
+const ids = {
+  owner: `${RUN}-owner`,
+  alice: `${RUN}-alice`,
+  bob: `${RUN}-bob`,
+  guest: `${RUN}-guest`,
+  outsider: `${RUN}-outsider`,
+};
 const userIds = Object.values(ids);
 const workspaceId = `${RUN}-ws`;
 
@@ -65,8 +81,9 @@ try {
     { workspaceId, userId: ids.owner, role: "owner" },
     { workspaceId, userId: ids.alice, role: "member" },
     { workspaceId, userId: ids.bob, role: "member" },
+    { workspaceId, userId: ids.guest, role: "guest" },
   ]);
-  // R ─ C ─ G, and T ─ P
+  // R ─ C ─ G, T ─ P, and the database D with rows D1, D2
   const P = (id: string, parentId: string | null, position: number) => ({
     id: `${RUN}-${id}`,
     workspaceId,
@@ -74,17 +91,25 @@ try {
     title: id,
     position,
   });
-  await db.insert(page).values([P("R", null, 1), P("T", null, 2)]);
+  await db.insert(page).values([P("R", null, 1), P("T", null, 2), { ...P("D", null, 3), kind: "database" as const }]);
+  await db.insert(page).values([P("D1", "D", 1), P("D2", "D", 2)]);
   await db.insert(page).values([P("C", "R", 1), P("P", "T", 1)]);
   await db.insert(page).values([P("G", "C", 1)]);
-  const [R, C, G, T, Pg] = ["R", "C", "G", "T", "P"].map((name) => `${RUN}-${name}`);
-  const { owner, alice, bob, outsider } = ids;
+  const [R, C, G, T, Pg, D, D1, D2] = ["R", "C", "G", "T", "P", "D", "D1", "D2"].map((name) => `${RUN}-${name}`);
+  const { owner, alice, bob, guest, outsider } = ids;
 
   // Defaults
   check(
-    JSON.stringify(await levels(G, owner, alice, bob, outsider)) === '["full","full","full","none"]',
-    "without entries members get full access, outsiders none",
+    JSON.stringify(await levels(G, owner, alice, bob, guest, outsider)) === '["full","full","full","none","none"]',
+    "without entries members get full access, guests and outsiders none",
   );
+  check((await getTree(guest, workspaceId)).length === 0, "a guest's tree starts empty");
+  await rejects(
+    () => createPage({ userId: guest }, { workspaceId, title: "guest page" }),
+    isAccessError,
+    "guests can't create top-level pages",
+  );
+  await rejects(() => listMembers(guest, workspaceId), isAccessError, "guests can't list the workspace's members");
 
   // The guard
   await rejects(
@@ -102,6 +127,7 @@ try {
     JSON.stringify(await levels(G, owner, alice, bob)) === '["full","view","view"]',
     "entries on a page apply to its subpages",
   );
+  check((await levels(R, guest))[0] === "none", "what everyone gets doesn't reach guests");
   await setPagePermission(owner, R, null, "edit");
   check((await levels(R, bob))[0] === "edit", "setting everyone again updates the same entry");
   await setPagePermission(owner, R, null, "view");
@@ -117,6 +143,19 @@ try {
     "a subpage entry for everyone narrows it, own entries still apply",
   );
   check((await levels(C, bob))[0] === "view", "narrowing a subpage leaves its parent alone");
+
+  // Moving a page changes who inherits access to it
+  await rejects(() => movePage(alice, C, null), isAccessError, "edit access can't move a page to another parent");
+  await movePage(alice, G, C, 5);
+  check(true, "edit access can still reorder a page among its siblings");
+
+  // A publication shows only what its publisher can see
+  const token = `${RUN}-token`;
+  await db.insert(pagePublication).values({ pageId: R, token, publishedBy: bob });
+  const publishedC = await getPublishedPage(token, C);
+  check(publishedC?.children.length === 0, "a publication leaves out subpages its publisher can't see", publishedC?.children);
+  check((await getPublishedPage(token, G)) === null, "…and won't serve them by id");
+  check((await getPublishedPage(token, C)) !== null, "…while serving the ones they can");
 
   const shared = await listPagePermissions(alice, G);
   check(shared.everyone === "none" && shared.level === "edit", "listing shows the everyone level and the viewer's", shared);
@@ -139,10 +178,38 @@ try {
     aliceTree,
   );
   const aliceRoots = (await listChildren(alice, workspaceId, null)).map((p) => p.id).sort();
-  check(JSON.stringify(aliceRoots) === JSON.stringify([Pg, R].sort()), "…and in the top-level list", aliceRoots);
+  check(JSON.stringify(aliceRoots) === JSON.stringify([Pg, R, D].sort()), "…and in the top-level list", aliceRoots);
   const crumbs = (await getBreadcrumbs(alice, Pg)).map((c) => c.id);
   check(JSON.stringify(crumbs) === JSON.stringify([Pg]), "breadcrumbs skip hidden ancestors", crumbs);
   check((await levels(Pg, bob))[0] === "none", "the shared page stays hidden from others");
+
+  // Guests see exactly what is shared with them
+  await setPagePermission(owner, Pg, guest, "edit");
+  const guestTree = await getTree(guest, workspaceId);
+  check(
+    guestTree.length === 1 && guestTree[0].id === Pg && guestTree[0].parentId === null,
+    "a guest's tree holds only the page shared with them, at the top level",
+    guestTree,
+  );
+  const guestRoots = (await listChildren(guest, workspaceId, null)).map((p) => p.id);
+  check(JSON.stringify(guestRoots) === JSON.stringify([Pg]), "…and so does their top-level list", guestRoots);
+  const guestRecent = (await recentPages(guest, workspaceId, 50)).map((p) => p.id);
+  check(JSON.stringify(guestRecent) === JSON.stringify([Pg]), "recent pages show guests only their pages", guestRecent);
+  const hits = async (q: string) => (await searchPages(guest, q, { workspaceId })).map((h) => h.id);
+  check((await hits("R")).length === 0 && JSON.stringify(await hits("P")) === JSON.stringify([Pg]), "search too");
+  check((await levels(Pg, guest))[0] === "edit", "a guest gets the level they were given");
+
+  // Rows restricted inside a database
+  await setPagePermission(owner, D2, owner, "full");
+  await setPagePermission(owner, D2, null, "none");
+  const rowIds = async (id: string) => (await listRows(id, D)).map((r) => r.id);
+  check(JSON.stringify(await rowIds(bob)) === JSON.stringify([D1]), "a restricted row is left out of its database");
+  check(JSON.stringify(await rowIds(owner)) === JSON.stringify([D1, D2]), "…but not for those it is shared with");
+
+  // Guests can't move pages to the top level
+  await setPagePermission(owner, Pg, guest, "full");
+  await rejects(() => movePage(guest, Pg, null), isAccessError, "a guest can't move a page to the top level");
+  await setPagePermission(owner, Pg, guest, "edit");
 
   // The guard also covers subpages with entries of their own
   await setPagePermission(owner, C, alice, "full");

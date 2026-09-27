@@ -42,7 +42,11 @@ export const workspace = pgTable("workspace", {
   ...timestamps,
 });
 
-export type WorkspaceRole = "owner" | "member";
+/**
+ * `owner` and `member` see every page unless a page permission restricts it; a `guest` sees only
+ * pages shared with them and can't create top-level pages or see who else is in the workspace.
+ */
+export type WorkspaceRole = "owner" | "member" | "guest";
 
 export const workspaceMember = pgTable(
   "workspace_member",

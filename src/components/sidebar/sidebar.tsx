@@ -76,6 +76,8 @@ export function Sidebar({
   const [, startTransition] = useTransition();
   const [moveError, setMoveError] = useState(false);
   const workspace = workspaces.find((w) => w.id === workspaceId);
+  // Guests only see pages shared with them and can't add top-level pages.
+  const guest = workspace?.role === "guest";
 
   useEffect(() => setExpanded(loadExpanded()), []);
   useEffect(() => setTree(initialTree), [initialTree]);
@@ -324,37 +326,39 @@ export function Sidebar({
 
         <div className="flex items-center justify-between px-4 pb-1 pt-2">
           <span className="text-xs font-medium text-fg-muted">{t("pages.heading")}</span>
-          <Popover
-            align="end"
-            trigger={({ toggle }) => (
-              <IconButton label={t("pages.new")} onClick={toggle}>
-                <Plus className="h-4 w-4" />
-              </IconButton>
-            )}
-          >
-            {(close) => (
-              <>
-                <MenuItem
-                  icon={<FileText className="h-4 w-4" />}
-                  onClick={() => {
-                    close();
-                    create(null, "page");
-                  }}
-                >
-                  {t("pages.newPage")}
-                </MenuItem>
-                <MenuItem
-                  icon={<Database className="h-4 w-4" />}
-                  onClick={() => {
-                    close();
-                    create(null, "database");
-                  }}
-                >
-                  {t("pages.newDatabase")}
-                </MenuItem>
-              </>
-            )}
-          </Popover>
+          {!guest && (
+            <Popover
+              align="end"
+              trigger={({ toggle }) => (
+                <IconButton label={t("pages.new")} onClick={toggle}>
+                  <Plus className="h-4 w-4" />
+                </IconButton>
+              )}
+            >
+              {(close) => (
+                <>
+                  <MenuItem
+                    icon={<FileText className="h-4 w-4" />}
+                    onClick={() => {
+                      close();
+                      create(null, "page");
+                    }}
+                  >
+                    {t("pages.newPage")}
+                  </MenuItem>
+                  <MenuItem
+                    icon={<Database className="h-4 w-4" />}
+                    onClick={() => {
+                      close();
+                      create(null, "database");
+                    }}
+                  >
+                    {t("pages.newDatabase")}
+                  </MenuItem>
+                </>
+              )}
+            </Popover>
+          )}
         </div>
 
         {moveError && (
@@ -363,7 +367,8 @@ export function Sidebar({
           </p>
         )}
         <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label={t("pages.heading")}>
-          {roots.length === 0 && (
+          {roots.length === 0 && guest && <p className="px-2 py-1.5 text-fg-muted">{t("pages.nothingShared")}</p>}
+          {roots.length === 0 && !guest && (
             <button
               type="button"
               onClick={() => create(null)}

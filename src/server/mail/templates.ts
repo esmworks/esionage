@@ -1,5 +1,6 @@
 import { createTranslator } from "next-intl";
 import type { Locale } from "@/i18n/config";
+import type { WorkspaceRole } from "@/db/schema";
 import { emailMessages } from "@/i18n/messages/email";
 import { env } from "@/lib/env";
 
@@ -98,7 +99,7 @@ export function testEmail(locale: Locale): RenderedEmail {
 
 export function invitationEmail(
   locale: Locale,
-  invitation: { inviterName: string; workspaceName: string; email: string; role: "owner" | "member"; link: string },
+  invitation: { inviterName: string; workspaceName: string; email: string; role: WorkspaceRole; link: string },
 ): RenderedEmail {
   const t = emailTranslator(locale);
   const names = { inviter: invitation.inviterName, workspace: invitation.workspaceName };

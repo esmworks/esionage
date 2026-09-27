@@ -2,6 +2,7 @@
   "welcome": "Tekrar hoş geldiniz, {name}",
   "recent": "Son düzenlenenler",
   "empty": "Burada henüz bir şey yok. Başlamak için ilk sayfanızı oluşturun.",
+  "emptyGuest": "Burada henüz sizinle paylaşılan bir şey yok. Biri sizinle bir sayfa paylaştığında burada görünecek.",
   "newPage": "Yeni sayfa",
   "newDatabase": "Yeni veritabanı",
   "personalWorkspace": "{name} çalışma alanı"

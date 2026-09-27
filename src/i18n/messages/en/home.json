@@ -2,6 +2,7 @@
   "welcome": "Welcome back, {name}",
   "recent": "Recently edited",
   "empty": "Nothing here yet. Create your first page to get started.",
+  "emptyGuest": "Nothing has been shared with you here yet. Pages appear once someone shares them with you.",
   "newPage": "New page",
   "newDatabase": "New database",
   "personalWorkspace": "{name}'s workspace"

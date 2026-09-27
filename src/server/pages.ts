@@ -11,7 +11,7 @@ import {
   user,
   type ViewType,
 } from "@/db/schema";
-import { accessRank, AccessError, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
+import { accessRank, AccessError, pageVisibleTo, requireMember, requireMembership, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { normalizeRowProperties, syncPairedRelations, withCode } from "@/server/databases";
 
@@ -147,7 +147,7 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
       throw withCode(new Error("A database can't contain another database"), "nestedDatabase");
     }
   } else {
-    await requireMembership(userId, workspaceId);
+    await requireMember(userId, workspaceId);
   }
 
   const properties =
@@ -271,8 +271,15 @@ export async function listTrash(userId: string, workspaceId: string) {
   `);
 }
 
+/**
+ * Reordering among the same siblings needs edit access. Moving under another parent changes who
+ * inherits access to the page, so it needs full access, like sharing; the top level also needs a
+ * member, since guests can't have top-level pages.
+ */
 export async function movePage(userId: string, pageId: string, newParentId: string | null, position?: number) {
-  const p = await requirePageAccess(userId, pageId, "edit");
+  const current = await requirePageAccess(userId, pageId, "edit");
+  const p = current.parentId === newParentId ? current : await requirePageAccess(userId, pageId, "full");
+  if (!newParentId && p.parentId !== null) await requireMember(userId, p.workspaceId);
   if (newParentId) {
     const parent = await requirePageAccess(userId, newParentId, "edit");
     if (parent.workspaceId !== p.workspaceId) throw new AccessError("Cannot move across workspaces");

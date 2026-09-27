@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { databaseProperty, databaseView, page, pagePermission, type PageKind, type RowProperties } from "@/db/schema";
 import { planDuplicate, type SourcePage } from "@/lib/duplicate";
 import { positionBetween } from "@/lib/properties";
-import { AccessError, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
+import { AccessError, pageVisibleTo, requireMember, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { syncPairedRelations, withCode } from "@/server/databases";
 
@@ -31,7 +31,7 @@ export async function duplicatePage(
     if (parent.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
     parentKind = parent.kind;
   } else {
-    await requireMembership(userId, source.workspaceId);
+    await requireMember(userId, source.workspaceId);
   }
   const title = `${source.title}${copySuffix}`.trim();
 

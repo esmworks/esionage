@@ -393,6 +393,7 @@ function MemberRow({
           >
             <option value="owner">{t("roles.owner")}</option>
             <option value="member">{t("roles.member")}</option>
+            <option value="guest">{t("roles.guest")}</option>
           </select>
         ) : (
           <span className="text-fg-muted">{t(`roles.${member.role}`)}</span>
@@ -657,6 +658,7 @@ function AddMembersDialog({ workspaceId, open, onClose }: { workspaceId: string;
               <select className={selectClass} value={role} onChange={(e) => setRole(e.target.value as WorkspaceRole)}>
                 <option value="member">{t("roles.member")}</option>
                 <option value="owner">{t("roles.owner")}</option>
+                <option value="guest">{t("roles.guest")}</option>
               </select>
             </label>
           </div>

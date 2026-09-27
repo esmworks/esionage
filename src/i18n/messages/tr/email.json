@@ -14,7 +14,8 @@
     "action": "Daveti kabul et",
     "roles": {
       "owner": "sahip",
-      "member": "üye"
+      "member": "üye",
+      "guest": "misafir"
     }
   },
   "passwordReset": {

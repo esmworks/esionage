@@ -39,7 +39,7 @@ async function fail(code: WorkspaceErrorCode | "ownersOnly" | "unknownRole"): Pr
   return { ok: false, error: t(code) };
 }
 
-const ROLES: WorkspaceRole[] = ["owner", "member"];
+const ROLES: WorkspaceRole[] = ["owner", "member", "guest"];
 const refresh = (workspaceId: string) => revalidatePath(`/w/${workspaceId}`, "layout");
 
 export async function createWorkspaceAction(name: string) {

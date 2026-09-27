@@ -18,7 +18,7 @@
   },
   "members": {
     "heading": "Üyeler",
-    "description": "Buradaki herkes bu çalışma alanındaki tüm sayfaları okuyup düzenleyebilir. Sahipler ayrıca üyeleri yönetebilir.",
+    "description": "Üyeler, paylaşımı kısıtlanmamış tüm sayfaları görür ve düzenler; misafirler yalnızca kendileriyle paylaşılan sayfaları görür. Sahipler ayrıca üyeleri yönetebilir.",
     "tabs": {
       "members": "Üyeler",
       "invitations": "Bekleyen davetler"
@@ -53,7 +53,8 @@
     "roleLabel": "Rol",
     "roles": {
       "owner": "Sahip",
-      "member": "Üye"
+      "member": "Üye",
+      "guest": "Misafir"
     },
     "neverEdited": "Henüz düzenleme yok",
     "actionsFor": "{name} için işlemler",

@@ -18,7 +18,7 @@
   },
   "members": {
     "heading": "Members",
-    "description": "Everyone here can read and edit every page in this workspace. Owners can also manage members.",
+    "description": "Members can see and edit every page unless its sharing is restricted; guests see only pages shared with them. Owners can also manage members.",
     "tabs": {
       "members": "Members",
       "invitations": "Pending invitations"
@@ -53,7 +53,8 @@
     "roleLabel": "Role",
     "roles": {
       "owner": "Owner",
-      "member": "Member"
+      "member": "Member",
+      "guest": "Guest"
     },
     "neverEdited": "No edits yet",
     "actionsFor": "Actions for {name}",

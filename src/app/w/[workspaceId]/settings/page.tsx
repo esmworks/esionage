@@ -11,7 +11,7 @@ import { MembersPanel } from "@/components/settings/members-panel";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
-import { AccessError } from "@/server/access";
+import { AccessError, isGuest } from "@/server/access";
 import { requireUser } from "@/server/session";
 import { getJoinLink, getWorkspace, lastEdits, listInvitations, listMembers } from "@/server/workspaces";
 
@@ -42,13 +42,16 @@ export default async function SettingsPage({
 }) {
   const user = await requireUser();
   const [{ workspaceId }, query] = await Promise.all([params, searchParams]);
-  const tab: Tab = TABS.find((name) => name === query.tab) ?? "general";
   const workspace = await getWorkspace(user.id, workspaceId).catch((error) => {
     if (error instanceof AccessError) return null;
     throw error;
   });
   if (!workspace) notFound();
   const isOwner = workspace.role === "owner";
+  // Guests only get their own account settings, not the workspace's.
+  const nav = isGuest(workspace.role) ? NAV.filter(({ group }) => group === "account") : NAV;
+  const allowed = nav.flatMap(({ tabs }) => tabs);
+  const tab: Tab = allowed.find((name) => name === query.tab) ?? (allowed.includes("general") ? "general" : allowed[0]);
   const t = await getTranslations("settings");
 
   return (
@@ -58,7 +61,7 @@ export default async function SettingsPage({
         className="shrink-0 border-b border-border px-3 pt-12 pb-3 md:sticky md:top-0 md:h-dvh md:w-60 md:overflow-y-auto md:border-r md:border-b-0 md:pb-4"
       >
         <div className="flex gap-6 overflow-x-auto [scrollbar-width:none] md:flex-col">
-          {NAV.map(({ group, tabs }) => (
+          {nav.map(({ group, tabs }) => (
             <div key={group} className="shrink-0">
               <div className="mb-1.5 px-2.5 text-[11px] font-medium tracking-wider text-fg-faint uppercase">
                 {t(`nav.${group}`)}

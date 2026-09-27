@@ -14,7 +14,8 @@
     "action": "Accept invitation",
     "roles": {
       "owner": "an owner",
-      "member": "a member"
+      "member": "a member",
+      "guest": "a guest"
     }
   },
   "passwordReset": {

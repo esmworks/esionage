@@ -3,28 +3,33 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { QuickCreate } from "@/components/workspace/quick-create";
 import { PageIcon } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
+import { getMembership, isGuest } from "@/server/access";
 import { recentPages } from "@/server/pages";
 import { requireUser } from "@/server/session";
 
 export default async function WorkspaceHome({ params }: { params: Promise<{ workspaceId: string }> }) {
   const user = await requireUser();
   const { workspaceId } = await params;
-  const pages = await recentPages(user.id, workspaceId, 12);
+  const [pages, membership] = await Promise.all([
+    recentPages(user.id, workspaceId, 12),
+    getMembership(user.id, workspaceId),
+  ]);
   const [t, tc, format] = await Promise.all([getTranslations("home"), getTranslations("common"), getFormatter()]);
   const now = new Date();
+  const guest = !membership || isGuest(membership.role);
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-6 py-12">
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold">{t("welcome", { name: user.name.split(/\s+/)[0] })}</h1>
-        <QuickCreate workspaceId={workspaceId} />
+        {!guest && <QuickCreate workspaceId={workspaceId} />}
       </div>
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">{t("recent")}</h2>
         {pages.length === 0 ? (
           <p className="rounded-md border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted">
-            {t("empty")}
+            {t(guest ? "emptyGuest" : "empty")}
           </p>
         ) : (
           <ul className="divide-y divide-border rounded-md border border-border">

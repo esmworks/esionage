@@ -98,7 +98,7 @@ export async function getDatabase(userId: string, databaseId: string) {
 }
 
 export async function listRows(userId: string, databaseId: string, config: ViewConfig = {}) {
-  // Rows share their database's access; a row page never grants more than its database.
+  // Rows inherit their database's access; rows restricted on their own are left out.
   await requireDatabase(userId, databaseId, "view");
   const [rows, properties] = await Promise.all([
     db
@@ -111,7 +111,7 @@ export async function listRows(userId: string, databaseId: string, config: ViewC
         updatedAt: page.updatedAt,
       })
       .from(page)
-      .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt)))
+      .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt), pageVisibleTo(userId)))
       .orderBy(asc(page.position), asc(page.createdAt)),
     getProperties(databaseId),
   ]);
@@ -582,7 +582,7 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
       updatedAt: page.updatedAt,
     })
     .from(page)
-    .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt)))
+    .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt), pageVisibleTo(userId)))
     .orderBy(asc(page.position), asc(page.createdAt));
   return {
     database: {

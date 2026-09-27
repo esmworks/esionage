@@ -18,7 +18,11 @@ export async function getSharingAction(pageId: string) {
   if (!target || level === "none") throw new AccessError();
   const [permissions, members] = await Promise.all([
     listPagePermissions(userId, pageId),
-    listMembers(userId, target.workspaceId),
+    // Guests can't see who is in the workspace, so they get no one to pick from.
+    listMembers(userId, target.workspaceId).catch((error) => {
+      if (error instanceof AccessError) return [];
+      throw error;
+    }),
   ]);
   return {
     ...permissions,

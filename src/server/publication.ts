@@ -3,13 +3,16 @@ import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { databaseProperty, databaseView, page, pagePublication, type PageKind, type ViewType } from "@/db/schema";
 import { applyView, isHiddenInView } from "@/lib/properties";
-import { requirePageAccess } from "@/server/access";
+import { accessRank, pageVisibleTo, requirePageAccess } from "@/server/access";
 import type { DatabaseProperty } from "@/server/databases";
 
 /**
  * Publish to web: a published page and its live subpages can be read by anyone holding the link
  * (`/s/<token>/…`), without signing in. Managing a publication needs full access to the page;
  * reading one needs only the token.
+ *
+ * A publication shows only what its publisher can see right now: subpages or rows restricted from
+ * them stay private, and it stops working once they lose access to the page or leave.
  */
 
 /** Deepest subpage reachable from a published page; deeper pages are not served. */
@@ -102,15 +105,16 @@ export type PublishedPage = {
 export async function getPublishedPage(token: string, pageId?: string): Promise<PublishedPage | null> {
   if (!token || token.length > 128) return null;
   const [root] = await db
-    .select({ id: page.id })
+    .select({ id: page.id, publishedBy: pagePublication.publishedBy })
     .from(pagePublication)
     .innerJoin(page, eq(page.id, pagePublication.pageId))
     .where(and(eq(pagePublication.token, token), isNull(page.archivedAt)))
     .limit(1);
-  if (!root) return null;
+  if (!root?.publishedBy) return null;
+  const publisher = root.publishedBy;
 
   const targetId = pageId ?? root.id;
-  const crumbs = await chainTo(targetId, root.id);
+  const crumbs = await chainTo(publisher, targetId, root.id);
   if (!crumbs) return null;
 
   const [target] = await db
@@ -142,8 +146,8 @@ export async function getPublishedPage(token: string, pageId?: string): Promise<
   const { bodyHtmlFromYdoc } = await import("@/server/published-body");
   const [bodyHtml, children, database, rowProperties] = await Promise.all([
     target.kind === "page" ? bodyHtmlFromYdoc(target.ydoc) : Promise.resolve(""),
-    target.kind === "database" ? Promise.resolve([]) : liveChildren(target.id),
-    target.kind === "database" ? publishedDatabase(target.id) : Promise.resolve(null),
+    target.kind === "database" ? Promise.resolve([]) : liveChildren(publisher, target.id),
+    target.kind === "database" ? publishedDatabase(publisher, target.id) : Promise.resolve(null),
     parent?.kind === "database" && target.parentId ? publicProperties(target.parentId) : Promise.resolve(null),
   ]);
 
@@ -164,16 +168,17 @@ export async function getPublishedPage(token: string, pageId?: string): Promise<
 }
 
 /**
- * Pages from `rootId` down to `pageId` when every page on the way is live and `pageId` lies
- * within MAX_DEPTH levels under the root; null otherwise.
+ * Pages from `rootId` down to `pageId` when every page on the way is live and visible to the
+ * publisher, and `pageId` lies within MAX_DEPTH levels under the root; null otherwise.
  */
-async function chainTo(pageId: string, rootId: string): Promise<PublishedCrumb[] | null> {
+async function chainTo(publisher: string, pageId: string, rootId: string): Promise<PublishedCrumb[] | null> {
   const rows = await db.execute<{
     id: string;
     title: string;
     icon: string | null;
     kind: PageKind;
     archived: boolean;
+    visible: boolean;
     depth: number;
   }>(sql`
     with recursive chain as (
@@ -184,18 +189,19 @@ async function chainTo(pageId: string, rootId: string): Promise<PublishedCrumb[]
       from ${page} p join chain c on p.id = c.parent_id
       where c.id <> ${rootId} and c.depth < ${MAX_DEPTH}
     )
-    select id, title, icon, kind, archived, depth from chain order by depth desc
+    select id, title, icon, kind, archived, ${accessRank(publisher, sql`id`)} > 0 as visible, depth
+    from chain order by depth desc
   `);
   const list = [...rows];
-  if (!list.length || list[0].id !== rootId || list.some((r) => r.archived)) return null;
+  if (!list.length || list[0].id !== rootId || list.some((r) => r.archived || !r.visible)) return null;
   return list.map((r) => ({ id: r.id, title: r.title, icon: r.icon, kind: r.kind }));
 }
 
-async function liveChildren(parentId: string): Promise<PublishedChild[]> {
+async function liveChildren(publisher: string, parentId: string): Promise<PublishedChild[]> {
   return db
     .select({ id: page.id, title: page.title, icon: page.icon, kind: page.kind })
     .from(page)
-    .where(and(eq(page.parentId, parentId), isNull(page.archivedAt)))
+    .where(and(eq(page.parentId, parentId), isNull(page.archivedAt), pageVisibleTo(publisher)))
     .orderBy(asc(page.position), asc(page.createdAt));
 }
 
@@ -208,7 +214,7 @@ async function publicProperties(databaseId: string) {
     .orderBy(asc(databaseProperty.position), asc(databaseProperty.createdAt));
 }
 
-async function publishedDatabase(databaseId: string): Promise<PublishedDatabase> {
+async function publishedDatabase(publisher: string, databaseId: string): Promise<PublishedDatabase> {
   const [properties, [view], rows] = await Promise.all([
     publicProperties(databaseId),
     db
@@ -227,7 +233,7 @@ async function publishedDatabase(databaseId: string): Promise<PublishedDatabase>
         updatedAt: page.updatedAt,
       })
       .from(page)
-      .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt)))
+      .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt), pageVisibleTo(publisher)))
       .orderBy(asc(page.position), asc(page.createdAt)),
   ]);
   if (!view) return { properties, view: null, rows };
