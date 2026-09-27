@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
+import { makeStatusOptions } from "@/lib/properties";
 import {
   databaseProperty,
   databaseView,
@@ -213,15 +214,9 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
       {
         databaseId: created.id,
         name: names.status,
-        type: "select",
+        type: "status",
         position: 1,
-        options: {
-          options: [
-            { id: crypto.randomUUID(), name: names.notStarted, color: "gray" },
-            { id: crypto.randomUUID(), name: names.inProgress, color: "blue" },
-            { id: crypto.randomUUID(), name: names.done, color: "green" },
-          ],
-        },
+        options: { options: makeStatusOptions([names.notStarted, names.inProgress, names.done]) },
       },
       { databaseId: created.id, name: names.tags, type: "multi_select", position: 2, options: { options: [] } },
     ]);

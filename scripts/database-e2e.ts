@@ -61,6 +61,15 @@ try {
   const tasks = await createPage(actor, { workspaceId, kind: "database", title: "Tasks" });
   const other = await createPage(actor, { workspaceId, kind: "database", title: "Other" });
 
+  // A new database starts with a status property whose options sit in the three status groups.
+  const starter = (await getDatabaseSnapshot(ids.owner, tasks.id)).properties.find((p) => p.name === "Status");
+  check(
+    starter?.type === "status" &&
+      starter.options.options?.map((o) => `${o.name}:${o.group}`).join() === "Not started:todo,In progress:in_progress,Done:done",
+    "a new database starts with a Status status property",
+    starter,
+  );
+
   // Deleting options clears them from rows
   const status = await addProperty(ids.owner, tasks.id, { name: "Stage", type: "select", options: ["A", "B"] });
   const tags = await addProperty(ids.owner, tasks.id, { name: "Tags", type: "multi_select", options: ["x", "y"] });

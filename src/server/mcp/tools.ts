@@ -1233,7 +1233,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a database",
       description:
-        'Create a new database (a table of rows) at the top level of a workspace or under a page. It starts with a "Status" select (Not started, In progress, Done) and a "Tags" multi-select; add more with add_database_property.',
+        'Create a new database (a table of rows) at the top level of a workspace or under a page. It starts with a "Status" status property (Not started, In progress, Done) and a "Tags" multi-select; add more with add_database_property.',
       inputSchema: z.object({
         workspace_id: z.string().optional().describe("Workspace for a top-level database. Ignored when parent_id is set."),
         parent_id: z.string().optional().describe("Page to create the database under."),
