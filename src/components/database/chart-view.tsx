@@ -3,7 +3,7 @@
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button, cn, PageIcon } from "@/components/ui";
 import type { AggregateFn, AggregateResult } from "@/lib/aggregate";
 import {
@@ -141,6 +141,9 @@ function Chart({
   const format = useFormatter();
   const [hover, setHover] = useState<(Target & { x: number; y: number }) | null>(null);
   const [open, setOpen] = useState<(Target & { anchor: HTMLElement }) | null>(null);
+  // A live update may redraw the chart under the pointer; the hovered mark may be gone.
+  useEffect(() => setHover(null), [data]);
+  const hoverSeries = hover?.segment !== undefined ? data.series[hover.segment] : undefined;
 
   const fn: AggregateFn = measure.kind === "count" ? "count_all" : measure.fn;
   const measureName =
@@ -148,7 +151,7 @@ function Chart({
       ? t("chart.countShort")
       : t("chart.measureOf", { calculation: tc(`menu.${measure.fn}`), property: properties.find((p) => p.id === measure.prop.id)?.name ?? "" });
   const nameOf = (g: { key: string; value: GroupValue; other?: boolean }) => (g.other ? t("chart.other") : groupName(g));
-  const seriesLabel = (s: ChartSeries) => (s.other ? t("chart.other") : seriesName(s));
+  const seriesLabel = (s: ChartSeries | undefined) => (!s ? "" : s.other ? t("chart.other") : seriesName(s));
   const show = (result: AggregateResult | null) => (result ? formatResult(fn, result) : "–");
   const tick = (value: number) =>
     data.format === "percent"
@@ -156,8 +159,7 @@ function Chart({
       : format.number(value, { notation: Math.abs(value) >= 10000 ? "compact" : "standard", maximumFractionDigits: 2 });
   const total = data.groups.reduce((sum, g) => sum + Math.max(0, g.amount), 0);
   const stacked = data.series.length > 0;
-  const colorOf = (value: GroupValue, slot: number, other: boolean | undefined, single: boolean) =>
-    markColor(value, slot, other, single);
+  const colorOf = markColor;
 
   const describe = (target: Target) => {
     const { group, segment } = target;
@@ -229,9 +231,9 @@ function Chart({
         {hover && (
           <Tooltip x={hover.x} y={hover.y} width={width}>
             <div className="font-medium">{nameOf(hover.group)}</div>
-            {hover.segment !== undefined ? (
-              <TooltipLine color={colorOf(data.series[hover.segment].value, data.series[hover.segment].slot, data.series[hover.segment].other, false)}>
-                {seriesLabel(data.series[hover.segment])}: <b className="font-medium">{show(hover.group.segments[hover.segment].result)}</b>
+            {hoverSeries && hover.segment !== undefined ? (
+              <TooltipLine color={colorOf(hoverSeries.value, hoverSeries.slot, hoverSeries.other, false)}>
+                {seriesLabel(hoverSeries)}: <b className="font-medium">{show(hover.group.segments[hover.segment].result)}</b>
               </TooltipLine>
             ) : (
               <div>
@@ -245,7 +247,7 @@ function Chart({
             )}
             <div className="text-fg-muted">
               {t("chart.rowCount", {
-                count: hover.segment !== undefined ? hover.group.segments[hover.segment].rows.length : hover.group.rows.length,
+                count: hoverSeries && hover.segment !== undefined ? hover.group.segments[hover.segment].rows.length : hover.group.rows.length,
               })}
             </div>
           </Tooltip>
@@ -499,8 +501,8 @@ function HorizontalBars({
   const bottom = 24;
   const n = data.groups.length;
   const height = top + n * rowH + bottom;
-  const labelW = Math.min(Math.max(...data.groups.map((g) => textWidth(nameOf(g)))) + 12, Math.max(80, width * 0.35), 200);
-  const right = showValues ? 56 : 16;
+  const labelW = Math.min(Math.max(...data.groups.map((g) => textWidth(nameOf(g)))) + 14, Math.max(80, width * 0.35), 200);
+  const right = showValues ? 56 : 24;
   const plotW = Math.max(80, width - labelW - right);
   const { ticks, lo, hi } = scaleOf(data, measure, Math.max(2, Math.min(6, Math.floor(plotW / 70))));
   const x = (v: number) => labelW + ((v - lo) / (hi - lo)) * plotW;
@@ -526,7 +528,7 @@ function HorizontalBars({
           <g key={g.key} {...handlers({ group: g })}>
             <rect className="hit" x={0} y={top + i * rowH} width={width} height={rowH} fill="transparent" strokeWidth={2} rx={4} />
             <text x={labelW - 10} y={y + barH / 2 + 4} textAnchor="end" className="fill-fg">
-              {fit(nameOf(g), labelW - 14)}
+              {fit(nameOf(g), labelW - 12)}
             </text>
             {stacked ? (
               <g className="mark">
@@ -581,10 +583,11 @@ function Line({ data, handlers, tick, show, nameOf, width, measure, showValues, 
   const zero = y(0);
   const svgW = left + plotW + 8;
   const every = Math.max(1, Math.ceil(44 / band));
-  // Runs of consecutive groups with a value; each run is one stretch of line.
+  // Runs of consecutive groups with a value; each run is one stretch of line. Rows without a value
+  // aren't a step along the axis: their point stands apart.
   const runs: number[][] = [];
   data.groups.forEach((g, i) => {
-    if (!g.result) return;
+    if (!g.result || g.value.kind === "none") return;
     const last = runs[runs.length - 1];
     if (last && last[last.length - 1] === i - 1) last.push(i);
     else runs.push([i]);

@@ -433,7 +433,7 @@
     "needsGroupTitle": "Charts group rows by a property such as a select, status, person or date",
     "needsGroupBody": "This database has no property a chart can group by yet.",
     "empty": "No rows to chart.",
-    "title": "{type} of {measure} by {property}",
+    "title": "{measure} by {property} ({type})",
     "tableCaption": "Values of {name}",
     "groupColumn": "Group",
     "rowCount": "{count, plural, one {# row} other {# rows}}",
