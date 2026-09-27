@@ -63,6 +63,20 @@ describe("published page body", () => {
     expect(await bodyHtmlFromYdoc(null)).toBe("");
   });
 
+  it("prefixes heading anchors when asked (several bodies in one print)", async () => {
+    const state = await ydocFrom([
+      { type: "heading", props: { level: 2 }, content: "One" },
+      { type: "paragraph", content: "text" },
+      { type: "heading", props: { level: 3 }, content: "Two" },
+    ]);
+    const [plain] = await bodySegmentsFromYdoc(state);
+    const [prefixed] = await bodySegmentsFromYdoc(state, { anchorPrefix: "p2-" });
+    expect(plain.kind === "html" && plain.html).toContain('id="heading-1"');
+    const html = prefixed.kind === "html" ? prefixed.html : "";
+    expect(html).toContain('<h2 id="p2-heading-1"');
+    expect(html).toContain('<h3 id="p2-heading-2"');
+  });
+
   it("shows uploaded PDFs in place and keeps other files as links", async () => {
     const id = "AbCdEfGhIjKlMnOpQrStUv_-";
     const state = await ydocFrom([

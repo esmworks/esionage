@@ -46,7 +46,10 @@ export function HeadingList({
   );
 }
 
-/** A page and the pages above it, the ones above as links (the last crumb is the page itself). */
+/**
+ * A page and the pages above it, the ones above as links (the last crumb is the page itself).
+ * Without `href` (print) they are all plain text.
+ */
 export function Trail({
   crumbs,
   href,
@@ -54,7 +57,7 @@ export function Trail({
   untitled,
 }: {
   crumbs: TrailCrumb[];
-  href: (id: string) => string;
+  href?: (id: string) => string;
   label: string;
   untitled: string;
 }) {
@@ -75,12 +78,16 @@ export function Trail({
               </span>
             ) : (
               <>
-                <Link
-                  href={href(c.id)}
-                  className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 no-underline hover:bg-bg-hover hover:text-fg"
-                >
-                  {inner}
-                </Link>
+                {href ? (
+                  <Link
+                    href={href(c.id)}
+                    className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 no-underline hover:bg-bg-hover hover:text-fg"
+                  >
+                    {inner}
+                  </Link>
+                ) : (
+                  <span className="flex min-w-0 items-center gap-1 px-1 py-0.5">{inner}</span>
+                )}
                 <span className="text-fg-faint">/</span>
               </>
             )}

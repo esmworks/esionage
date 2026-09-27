@@ -225,100 +225,114 @@ function runHeadings(blocks: PageBlock[], out: PageBlock[] = []): PageBlock[] {
   return out;
 }
 
-export async function bodySegmentsFromYdoc(
-  state: Uint8Array | null,
+export type BodyOptions = {
   /** How to show the pages the body mentions or links to; without it they are left out. */
-  { resolvePages }: { resolvePages?: (pageIds: string[]) => Promise<Map<string, PublishedPageRef>> } = {},
-): Promise<BodySegment[]> {
+  resolvePages?: (pageIds: string[]) => Promise<Map<string, PublishedPageRef>>;
+  /**
+   * Put before every heading anchor (`heading-3` → `p2-heading-3`), so several bodies can share one
+   * document (the print view with subpages) without their tables of contents mixing up. Callers
+   * pass a fixed ASCII prefix of their own.
+   */
+  anchorPrefix?: string;
+};
+
+export async function bodySegmentsFromYdoc(state: Uint8Array | null, options: BodyOptions = {}): Promise<BodySegment[]> {
   if (!state || state.byteLength === 0) return [];
   const doc = new Y.Doc();
   try {
     Y.applyUpdate(doc, state);
-    const blocks = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
-    const { pageIds } = bodyReferences(blocks);
-    const refs = pageIds.length && resolvePages ? await resolvePages(pageIds) : new Map<string, PublishedPageRef>();
-    const segments: BodySegment[] = [];
-    // Every heading of the page, filled in as the runs are written; tables of contents share it.
-    const headings: BodyHeading[] = [];
-    let run: PageBlock[] = [];
-    const flush = async () => {
-      if (!run.length) return;
-      const inRun = runHeadings(run).map((block) => {
-        const heading = {
-          anchor: `heading-${headings.length + 1}`,
-          level: Number((block.props as { level?: unknown }).level) || 1,
-          text: blocksToPlainText([{ ...block, children: [] }]),
-        };
-        headings.push(heading);
-        return heading;
-      });
-      let html = emptyLinesAsBreaks(await editor.blocksToHTMLLossy(resolveMentions(sanitizeBlocks(run), refs)));
-      run = [];
-      // The serializer escapes text, so "<h2" only ever starts a heading: the n-th one is the
-      // run's n-th heading block. The anchors are ours ("heading-3"), nothing from the document.
-      let n = 0;
-      html = html.replace(/<h([1-6])(?=[\s>])/g, (tag, level: string) => {
-        const heading = inRun[n++];
-        return heading ? `<h${level} id="${heading.anchor}"` : tag;
-      });
-      if (html) segments.push({ kind: "html", html });
-    };
-    const standalone = async (block: PageBlock) => {
-      if (block.type === TOC_BLOCK || block.type === BREADCRUMB_BLOCK) {
-        await flush();
-        segments.push(block.type === TOC_BLOCK ? { kind: "toc", headings } : { kind: "breadcrumb" });
-        return;
-      }
-      if (isWebBlockType(block.type)) {
-        const segment = webSegment(block);
-        if (!segment) return;
-        await flush();
-        segments.push(segment);
-        return;
-      }
-      const pdf = pdfOf(block);
-      if (pdf) {
-        const props = block.props as { name?: unknown; caption?: unknown };
-        await flush();
-        segments.push({
-          kind: "pdf",
-          fileId: pdf,
-          name: typeof props.name === "string" ? props.name : "",
-          caption: typeof props.caption === "string" ? props.caption : "",
-        });
-        return;
-      }
-      if (block.type === MERMAID_BLOCK) {
-        const source = plainText(block.content);
-        if (!source.trim()) return;
-        await flush();
-        segments.push({ kind: "mermaid", source });
-        return;
-      }
-      const props = block.props as { databaseId?: unknown; view?: unknown };
-      if (typeof props.databaseId !== "string" || !props.databaseId || !isEmbedBlockType(block.type)) return;
-      await flush();
-      segments.push({
-        kind: "embed",
-        type: block.type,
-        databaseId: props.databaseId,
-        view: block.type === "linkedView" ? parseLinkedView(props.view) : null,
-      });
-    };
-    for (const block of blocks) {
-      if (isStandalone(block)) {
-        await standalone(block);
-        continue;
-      }
-      const nested: PageBlock[] = [];
-      run.push(withoutNestedStandalone(block, nested));
-      for (const inner of nested) await standalone(inner);
-    }
-    await flush();
-    return segments;
+    return await bodySegmentsFromBlocks(editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT)), options);
   } finally {
     doc.destroy();
   }
+}
+
+/** The same for a body already read as blocks (from the live document, see collab `readBlocks`). */
+export async function bodySegmentsFromBlocks(
+  blocks: PageBlock[],
+  { resolvePages, anchorPrefix = "" }: BodyOptions = {},
+): Promise<BodySegment[]> {
+  const { pageIds } = bodyReferences(blocks);
+  const refs = pageIds.length && resolvePages ? await resolvePages(pageIds) : new Map<string, PublishedPageRef>();
+  const segments: BodySegment[] = [];
+  // Every heading of the page, filled in as the runs are written; tables of contents share it.
+  const headings: BodyHeading[] = [];
+  let run: PageBlock[] = [];
+  const flush = async () => {
+    if (!run.length) return;
+    const inRun = runHeadings(run).map((block) => {
+      const heading = {
+        anchor: `${anchorPrefix}heading-${headings.length + 1}`,
+        level: Number((block.props as { level?: unknown }).level) || 1,
+        text: blocksToPlainText([{ ...block, children: [] }]),
+      };
+      headings.push(heading);
+      return heading;
+    });
+    let html = emptyLinesAsBreaks(await editor.blocksToHTMLLossy(resolveMentions(sanitizeBlocks(run), refs)));
+    run = [];
+    // The serializer escapes text, so "<h2" only ever starts a heading: the n-th one is the
+    // run's n-th heading block. The anchors are ours ("heading-3"), nothing from the document.
+    let n = 0;
+    html = html.replace(/<h([1-6])(?=[\s>])/g, (tag, level: string) => {
+      const heading = inRun[n++];
+      return heading ? `<h${level} id="${heading.anchor}"` : tag;
+    });
+    if (html) segments.push({ kind: "html", html });
+  };
+  const standalone = async (block: PageBlock) => {
+    if (block.type === TOC_BLOCK || block.type === BREADCRUMB_BLOCK) {
+      await flush();
+      segments.push(block.type === TOC_BLOCK ? { kind: "toc", headings } : { kind: "breadcrumb" });
+      return;
+    }
+    if (isWebBlockType(block.type)) {
+      const segment = webSegment(block);
+      if (!segment) return;
+      await flush();
+      segments.push(segment);
+      return;
+    }
+    const pdf = pdfOf(block);
+    if (pdf) {
+      const props = block.props as { name?: unknown; caption?: unknown };
+      await flush();
+      segments.push({
+        kind: "pdf",
+        fileId: pdf,
+        name: typeof props.name === "string" ? props.name : "",
+        caption: typeof props.caption === "string" ? props.caption : "",
+      });
+      return;
+    }
+    if (block.type === MERMAID_BLOCK) {
+      const source = plainText(block.content);
+      if (!source.trim()) return;
+      await flush();
+      segments.push({ kind: "mermaid", source });
+      return;
+    }
+    const props = block.props as { databaseId?: unknown; view?: unknown };
+    if (typeof props.databaseId !== "string" || !props.databaseId || !isEmbedBlockType(block.type)) return;
+    await flush();
+    segments.push({
+      kind: "embed",
+      type: block.type,
+      databaseId: props.databaseId,
+      view: block.type === "linkedView" ? parseLinkedView(props.view) : null,
+    });
+  };
+  for (const block of blocks) {
+    if (isStandalone(block)) {
+      await standalone(block);
+      continue;
+    }
+    const nested: PageBlock[] = [];
+    run.push(withoutNestedStandalone(block, nested));
+    for (const inner of nested) await standalone(inner);
+  }
+  await flush();
+  return segments;
 }
 
 /** The body as one HTML string, leaving database blocks out. */

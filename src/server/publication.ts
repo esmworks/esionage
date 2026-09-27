@@ -317,16 +317,12 @@ export async function getPublishedPage(token: string, pageId?: string, viewId?: 
       )[0]
     : undefined;
 
-  const [body, children, database, rowProperties] = await Promise.all([
+  const [body, children, database, row] = await Promise.all([
     target.kind === "page" ? publishedBody(publisher, root.id, token, target.ydoc) : Promise.resolve([]),
     target.kind === "database" ? Promise.resolve([]) : liveChildren(publisher, target.id),
     target.kind === "database" ? publishedDatabase(publisher, target.id, { viewId }) : Promise.resolve(null),
-    parent?.kind === "database" && target.parentId ? databaseProperties(target.parentId) : Promise.resolve(null),
+    parent?.kind === "database" && target.parentId ? publishedRow(target, target.parentId) : Promise.resolve(null),
   ]);
-  // Public properties hold no people, so only the created and last edited times are filled in.
-  const [row] = rowProperties
-    ? await publicValues([{ ...target, properties: { ...target.properties, ...computedValues(rowProperties, { createdBy: null, ...target }) } }], rowProperties)
-    : [];
 
   return {
     token,
@@ -344,8 +340,25 @@ export async function getPublishedPage(token: string, pageId?: string, viewId?: 
       (child) => !body.some((b) => b.kind === "embed" && b.type === "database" && b.database?.id === child.id),
     ),
     database,
-    row: rowProperties ? { properties: publicProperties(rowProperties), values: row.properties } : null,
+    row,
   };
+}
+
+/**
+ * A database row's values as a published page shows them: every property but the private ones
+ * (see publicProperties). Also used by the print view (server/print.ts).
+ */
+export async function publishedRow(
+  target: { id: string; title: string; properties: Record<string, unknown>; createdAt: Date; updatedAt: Date },
+  databaseId: string,
+): Promise<NonNullable<PublishedPage["row"]>> {
+  const properties = await databaseProperties(databaseId);
+  // Public properties hold no people, so only the created and last edited times are filled in.
+  const [row] = await publicValues(
+    [{ ...target, properties: { ...target.properties, ...computedValues(properties, { createdBy: null, ...target }) } }],
+    properties,
+  );
+  return { properties: publicProperties(properties), values: row.properties };
 }
 
 /**
@@ -410,7 +423,7 @@ export async function anyPagePublished(pageIds: string[]): Promise<boolean> {
  * inline database under the page is, a linked view of a database elsewhere is not.
  */
 /** How a published page names pages it can't show, in the visitor's language (English outside a request). */
-async function mentionLabels() {
+export async function mentionLabels() {
   try {
     const [t, tc] = await Promise.all([getTranslations("page.mention"), getTranslations("common")]);
     return { untitled: tc("untitled"), private: t("noAccess"), deleted: t("deleted") };
@@ -517,9 +530,10 @@ const LAYOUTS: Partial<Record<ViewType, PublishedLayout>> = { board: "board", li
 
 /**
  * A published database's rows as one of its web views shows them (`viewId`, else the first), or as
- * `linked` (a linked view's own settings) does.
+ * `linked` (a linked view's own settings) does. Only rows `publisher` can see are listed; the
+ * print view (server/print.ts) passes the person printing.
  */
-async function publishedDatabase(
+export async function publishedDatabase(
   publisher: string,
   databaseId: string,
   { viewId, linked = null }: { viewId?: string; linked?: LinkedView | null } = {},

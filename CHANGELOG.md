@@ -4,6 +4,17 @@
 
 ### Added
 
+- **Export as PDF** (#47): "Export as PDF" in the page menu opens the page's print view
+  (`/print/<page id>`) in a new tab and the browser's print dialog once its images, fonts and
+  Mermaid diagrams have loaded ("Save as PDF"). The view draws the page like its published version
+  (shared with it: `components/published/published-body.tsx`), always in the light theme, with
+  print rules: `@page` margins, code blocks and tables wrapped to the page width, headings kept
+  with what follows, figures, callouts and table rows not split, backgrounds kept. Links to other
+  pages print as their titles ("No access" for pages hidden from the reader), PDFs and embedded
+  sites as a card naming them, toggles open. "Include subpages" adds the pages under it in sidebar
+  order (at most 100), each on a new sheet. Same access as opening the page (404 otherwise) and
+  the workspace's two-step policy; the body is read from the live document, so recent edits are
+  in. No new dependencies, no migration.
 - **Export with subpages and whole-workspace export:** "Export with subpages" in the page menu
   ("Export with row pages" for databases) downloads a ZIP of the page and everything under it, and
   owners can download the whole workspace from Settings → General → Export. Pages are Markdown,
