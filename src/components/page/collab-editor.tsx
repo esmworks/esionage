@@ -18,7 +18,7 @@ import {
 } from "@blocknote/react";
 import { X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { commentUsersAction } from "@/app/actions/comments";
 import { yUndoPluginKey } from "y-prosemirror";
 import type { UndoManager } from "yjs";
@@ -150,7 +150,11 @@ export default function CollabEditor({
     [pageDoc, dictionary, comments, uploadFile],
   );
 
-  useEffect(() => {
+  // BlockNoteView re-mounts its view whenever its `editable` prop changes, and while it does, a
+  // caret inside a link makes the link toolbar read a view that isn't there (moving a page to the
+  // trash crashed the page). So the view gets the value it started with, and changes go here.
+  const [mountEditable] = useState(editable);
+  useLayoutEffect(() => {
     editor.isEditable = editable;
   }, [editor, editable]);
 
@@ -167,7 +171,7 @@ export default function CollabEditor({
         <BlockNoteView
           key={locale}
           editor={editor}
-          editable={editable}
+          editable={mountEditable}
           slashMenu={false}
           formattingToolbar={false}
           className="esionage-editor"
