@@ -184,5 +184,19 @@
         "aliases": "linked view database db bağlı görünüm bagli gorunum veritabanı veritabani"
       }
     }
+  },
+  "find": {
+    "label": "Sayfada bul",
+    "placeholder": "Bul",
+    "replacePlaceholder": "Şununla değiştir",
+    "noResults": "Sonuç yok",
+    "matchCase": "Büyük/küçük harf duyarlı",
+    "previous": "Önceki eşleşme (Shift+Enter)",
+    "next": "Sonraki eşleşme (Enter)",
+    "showReplace": "Değiştirmeyi göster",
+    "hideReplace": "Değiştirmeyi gizle",
+    "replace": "Değiştir",
+    "replaceAll": "Tümünü değiştir",
+    "close": "Kapat (Esc)"
   }
 }

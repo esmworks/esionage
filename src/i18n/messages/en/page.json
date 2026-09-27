@@ -184,5 +184,19 @@
         "aliases": "linked view database db"
       }
     }
+  },
+  "find": {
+    "label": "Find in page",
+    "placeholder": "Find",
+    "replacePlaceholder": "Replace with",
+    "noResults": "No results",
+    "matchCase": "Match case",
+    "previous": "Previous match (Shift+Enter)",
+    "next": "Next match (Enter)",
+    "showReplace": "Show replace",
+    "hideReplace": "Hide replace",
+    "replace": "Replace",
+    "replaceAll": "Replace all",
+    "close": "Close (Esc)"
   }
 }

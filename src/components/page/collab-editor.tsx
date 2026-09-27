@@ -28,6 +28,8 @@ import { CommentsPanel } from "./comments-panel";
 import { CommentAuth, ServerThreadStore } from "./comment-store";
 import { LINKED_VIEW_BLOCK } from "@/lib/embed-blocks";
 import { EmbedHostProvider, type EmbedHost } from "./database-embed";
+import { FindBar } from "./find-bar";
+import { FindReplace } from "./find-replace";
 import { DatabasePicker, pageEditorSchema, placeEmbedBlock, useEmbedSlashItems, withEmbedItems, type PageEditor } from "./embed-blocks";
 import { userColor, type PageDoc } from "./use-page-doc";
 
@@ -96,7 +98,7 @@ export default function CollabEditor({
     withCollaboration({
       schema: pageEditorSchema,
       dictionary,
-      extensions: [KeepUndoAttached(), comments],
+      extensions: [KeepUndoAttached(), FindReplace(), comments],
       collaboration: {
         fragment: pageDoc.doc.getXmlFragment(COLLAB_FRAGMENT),
         provider: { awareness: pageDoc.provider.awareness ?? undefined },
@@ -118,6 +120,8 @@ export default function CollabEditor({
   // Keyed by language so the new editor mounts into a fresh element.
   return (
     <EmbedHostProvider value={host}>
+      {/* Search works for everyone; replacing only for people who may edit. */}
+      <FindBar editor={editor} editable={editable} />
       <BlockNoteView
         key={locale}
         editor={editor}
