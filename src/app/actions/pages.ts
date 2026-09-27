@@ -84,6 +84,13 @@ export async function getSnapshotAction(snapshotId: string) {
   return pages.getSnapshot(userId, snapshotId);
 }
 
+export async function diffSnapshotAction(snapshotId: string, against: "current" | "previous") {
+  const userId = await requireUserId();
+  // Loaded on demand: it brings the BlockNote server editor along.
+  const { diffSnapshot } = await import("@/server/page-history");
+  return diffSnapshot(userId, snapshotId, against === "previous" ? "previous" : "current");
+}
+
 export async function restoreSnapshotAction(snapshotId: string) {
   const userId = await requireUserId();
   await pages.restoreSnapshot({ userId }, snapshotId);

@@ -54,6 +54,11 @@
   "history": {
     "title": "Sayfa geçmişi",
     "previewTitle": "Sürüm önizlemesi",
+    "modes": {
+      "version": "Sürüm",
+      "current": "Güncel sayfayla karşılaştır",
+      "previous": "Önceki sürümle karşılaştır"
+    },
     "reasons": {
       "auto": "Otomatik kayıt",
       "beforeRestore": "Geri yüklemeden önce",
@@ -65,10 +70,22 @@
     "restore": "Bu sürümü geri yükle",
     "restoring": "Geri yükleniyor…",
     "restoreHint": "Mevcut içerik önce bir sürüm olarak kaydedilir.",
+    "diff": {
+      "rangeCurrent": "{from} sürümünden güncel sayfaya kadar yapılan değişiklikler",
+      "rangePrevious": "{from} ile {to} arasındaki değişiklikler",
+      "earlier": "Önceki sürüm",
+      "changedBy": "Değiştiren: {names}",
+      "actorApp": "{name} adına {client}",
+      "none": "Değişiklik yok.",
+      "oldest": "Bu, kaydedilmiş en eski sürüm; karşılaştırılacak daha eski bir sürüm yok.",
+      "showUnchanged": "{count, plural, other {Değişmeyen # bloğu göster}}",
+      "formatOnly": "Biçimi değişti"
+    },
     "errors": {
       "list": "Sayfa geçmişi yüklenemedi. Sayfayı yenileyip tekrar deneyin.",
       "version": "Bu sürüm yüklenemedi.",
-      "restore": "Bu sürüm geri yüklenemedi."
+      "restore": "Bu sürüm geri yüklenemedi.",
+      "diff": "Bu sürümler karşılaştırılamadı."
     }
   },
   "move": {

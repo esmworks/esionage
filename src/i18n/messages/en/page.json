@@ -54,6 +54,11 @@
   "history": {
     "title": "Page history",
     "previewTitle": "Version preview",
+    "modes": {
+      "version": "Version",
+      "current": "Compare with current",
+      "previous": "Compare with previous"
+    },
     "reasons": {
       "auto": "Autosave",
       "beforeRestore": "Before restore",
@@ -65,10 +70,22 @@
     "restore": "Restore this version",
     "restoring": "Restoring…",
     "restoreHint": "The current content is saved as a version first.",
+    "diff": {
+      "rangeCurrent": "Changes from the version of {from} to the current page",
+      "rangePrevious": "Changes from {from} to {to}",
+      "earlier": "the version before",
+      "changedBy": "Changed by {names}",
+      "actorApp": "{client} for {name}",
+      "none": "No changes.",
+      "oldest": "This is the oldest saved version, so there is nothing earlier to compare it with.",
+      "showUnchanged": "{count, plural, one {Show # unchanged block} other {Show # unchanged blocks}}",
+      "formatOnly": "Formatting changed"
+    },
     "errors": {
       "list": "Could not load the page history. Reload the page and try again.",
       "version": "Could not load this version.",
-      "restore": "Could not restore this version."
+      "restore": "Could not restore this version.",
+      "diff": "Could not compare these versions."
     }
   },
   "move": {

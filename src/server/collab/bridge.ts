@@ -14,6 +14,8 @@ export type Channel = `ws:${string}` | `db:${string}`;
 export interface CollabService {
   /** Current content, read from the live document when it is open. */
   readPage(pageId: string): Promise<PageContent>;
+  /** Current title and body as BlockNote blocks (plain JSON), from the live document when it is open. */
+  readBlocks(pageId: string): Promise<{ title: string; blocks: unknown[] }>;
   /** Replaces the body. Snapshots first when `snapshot` is set (MCP writes). */
   replaceContent(pageId: string, markdown: string, actor: WriteActor, snapshot?: boolean): Promise<void>;
   appendContent(pageId: string, markdown: string, actor: WriteActor, snapshot?: boolean): Promise<void>;

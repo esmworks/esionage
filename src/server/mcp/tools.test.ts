@@ -52,6 +52,9 @@ const databases = vi.hoisted(() => ({
 }));
 vi.mock("@/server/databases", () => databases);
 
+const pageHistory = vi.hoisted(() => ({ diffSnapshot: vi.fn() }));
+vi.mock("@/server/page-history", () => pageHistory);
+
 const workspaces = vi.hoisted(() => ({ listMembers: vi.fn() }));
 vi.mock("@/server/workspaces", () => workspaces);
 
@@ -763,6 +766,33 @@ describe("trash and history", () => {
     ]);
     const r = await callTool(reader, "list_page_history", { page_id: "page-1" });
     expect(r.data.versions[0]).toMatchObject({ id: "s1", by: "Erhan via Claude", saved_at: "2026-09-02T00:00:00.000Z" });
+  });
+
+  it("diff_page_version prints the changes and who made them", async () => {
+    const { diffBlocks, diffWords, flattenBlocks } = await import("@/lib/page-diff");
+    const para = (text: string) => ({ type: "paragraph", props: {}, content: text });
+    pageHistory.diffSnapshot.mockResolvedValue({
+      against: "current",
+      fromId: "s1",
+      toId: null,
+      title: diffWords("Plan", "Plan v2"),
+      changes: diffBlocks(flattenBlocks([para("The quick fox")]), flattenBlocks([para("The slow fox"), para("New")])),
+      actors: [{ name: "Erhan", client: "Claude" }],
+    });
+    const r = await callTool(reader, "diff_page_version", { version_id: "s1" });
+    expect(pageHistory.diffSnapshot).toHaveBeenCalledWith("user-1", "s1", "current");
+    expect(r.data).toMatchObject({
+      from: "s1",
+      to: "current",
+      changed: true,
+      title: "Plan{+ v2+}",
+      changed_by: ["Erhan via Claude"],
+      diff: "~ The [-quick-]{+slow+} fox\n+ New",
+    });
+
+    pageHistory.diffSnapshot.mockResolvedValue(null);
+    const oldest = await callTool(reader, "diff_page_version", { version_id: "s1", against: "previous" });
+    expect(oldest.data.note).toMatch(/oldest/);
   });
 });
 
