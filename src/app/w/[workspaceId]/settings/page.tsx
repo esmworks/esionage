@@ -1,4 +1,4 @@
-import { Globe, KeyRound, Plug, Settings, Shield, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
+import { Boxes, Globe, KeyRound, Plug, Settings, Shield, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -22,6 +22,7 @@ import {
 } from "@/components/settings/security-settings";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
 import { SitePages, SiteSettings } from "@/components/settings/site-settings";
+import { TeamspacesPanel } from "@/components/settings/teamspaces-panel";
 import { WorkspaceExport } from "@/components/settings/workspace-export";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
@@ -34,6 +35,7 @@ import { getNotificationPreferences } from "@/server/notification-preferences";
 import { listWorkspacePublications } from "@/server/publication";
 import { getSession, requireWorkspaceSession } from "@/server/session";
 import { getSite } from "@/server/site";
+import { canCreateTeamspace, listTeamspaces, teamspacesByMember } from "@/server/teamspaces";
 import {
   countMembersWithoutTwoFactor,
   getJoinLink,
@@ -49,11 +51,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("metaTitle") };
 }
 
-const TABS = ["general", "members", "security", "site", "preferences", "accountSecurity", "apps"] as const;
+const TABS = ["general", "members", "teamspaces", "security", "site", "preferences", "accountSecurity", "apps"] as const;
 type Tab = (typeof TABS)[number];
 const NAV: { group: "account" | "workspace"; tabs: Tab[] }[] = [
   { group: "account", tabs: ["preferences", "accountSecurity", "apps"] },
-  { group: "workspace", tabs: ["general", "members", "security", "site"] },
+  { group: "workspace", tabs: ["general", "members", "teamspaces", "security", "site"] },
 ];
 const ICONS: Record<Tab, LucideIcon> = {
   preferences: SlidersHorizontal,
@@ -61,6 +63,7 @@ const ICONS: Record<Tab, LucideIcon> = {
   apps: Plug,
   general: Settings,
   members: Users,
+  teamspaces: Boxes,
   security: Shield,
   site: Globe,
 };
@@ -140,6 +143,7 @@ export default async function SettingsPage({
             </>
           )}
           {tab === "members" && <MembersTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
+          {tab === "teamspaces" && <TeamspacesTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "security" && <SecurityTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "site" && (
             <SiteTab workspaceId={workspaceId} workspaceName={workspace.name} userId={user.id} isOwner={isOwner} />
@@ -269,11 +273,12 @@ async function SiteTab({
 }
 
 async function MembersTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
-  const [members, edits, invitations, joinLink] = await Promise.all([
+  const [members, edits, invitations, joinLink, teamspaces] = await Promise.all([
     listMembers(userId, workspaceId),
     lastEdits(userId, workspaceId),
     isOwner ? listInvitations(userId, workspaceId) : [],
     isOwner ? getJoinLink(userId, workspaceId) : null,
+    teamspacesByMember(userId, workspaceId),
   ]);
   return (
     <MembersPanel
@@ -283,6 +288,29 @@ async function MembersTab({ workspaceId, userId, isOwner }: { workspaceId: strin
       members={members.map((m) => ({ ...m, lastEditedAt: edits.get(m.userId) ?? null }))}
       invitations={invitations}
       joinLink={joinLink}
+      // A plain object: a Map doesn't cross to the client component.
+      teamspaces={Object.fromEntries(teamspaces)}
+      now={new Date()}
+    />
+  );
+}
+
+async function TeamspacesTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
+  const [teamspaces, canCreate, settings, members] = await Promise.all([
+    listTeamspaces(userId, workspaceId, { archived: "all" }),
+    canCreateTeamspace(userId, workspaceId),
+    getWorkspaceSettings(userId, workspaceId),
+    listMembers(userId, workspaceId),
+  ]);
+  return (
+    <TeamspacesPanel
+      workspaceId={workspaceId}
+      currentUserId={userId}
+      isOwner={isOwner}
+      teamspaces={teamspaces}
+      canCreate={canCreate}
+      teamspaceCreation={settings.teamspaceCreation}
+      members={members.map(({ userId: id, name, email, role }) => ({ userId: id, name, email, role }))}
       now={new Date()}
     />
   );

@@ -12,7 +12,8 @@ import publish from "./en/publish.json";
 import form from "./en/form.json";
 import imports from "./en/import.json";
 import security from "./en/security.json";
+import teamspaces from "./en/teamspaces.json";
 
-const messages = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish, form, import: imports, security };
+const messages = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish, form, import: imports, security, teamspaces };
 
 export default messages;

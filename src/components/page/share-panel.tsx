@@ -100,12 +100,9 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
   };
 
   const canManage = data?.level === "full";
-  // Members get at least the "everyone" level, so a lower entry of their own has no effect.
-  // Guests are never covered by "everyone".
-  const floorFor = (userId: string | null): PageLevel => {
-    const role = data?.members.find((m) => m.userId === userId)?.role;
-    return data && (role === "owner" || role === "member") ? data.everyone : "none";
-  };
+  // Those "everyone" reaches (the teamspace's members, or the workspace's for a private page) get
+  // at least that much, so a lower entry of their own has no effect. Guests are never reached.
+  const floorFor = (userId: string | null): PageLevel => (userId && data?.floors[userId]) || "none";
   const addLevel = (userId: string): PageLevel => {
     const floor = floorFor(userId);
     return RANK[floor] > RANK.edit ? floor : "edit";
@@ -337,7 +334,17 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
               <Users className="h-4 w-4" />
             </span>
           }
-          label={<PersonLabel name={t("everyone")} />}
+          label={
+            <PersonLabel
+              name={
+                data.space.kind === "private"
+                  ? t("everyone")
+                  : data.space.name
+                    ? t("everyoneIn", { name: data.space.name })
+                    : t("everyoneTeamspace")
+              }
+            />
+          }
           control={
             canManage ? (
               <LevelSelect
@@ -349,7 +356,9 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
             )
           }
         />
-        <p className="mt-1 text-xs text-fg-faint">{t("everyoneHint")}</p>
+        <p className="mt-1 text-xs text-fg-faint">
+          {data.space.kind === "private" ? t("everyoneHint") : t("everyoneTeamspaceHint")}
+        </p>
       </div>
 
       <div className="mt-3 flex justify-end border-t border-border pt-3">

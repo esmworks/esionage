@@ -55,6 +55,11 @@ export interface CollabService {
    * verification (after the workspace started requiring it).
    */
   disconnectHeldBack(workspaceId: string): Promise<void>;
+  /**
+   * Drops the connections to the teamspace's pages and databases (of these users, or everyone's),
+   * after its access narrowed or they left it. They reconnect with whatever access they have left.
+   */
+  disconnectTeamspace(teamspaceId: string, userIds?: string[]): Promise<void>;
 }
 
 const KEY = "__esionageCollab";

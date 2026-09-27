@@ -62,6 +62,7 @@ export function ImportDialog({
   tree,
   topLevel,
   activeId,
+  teamspaceId,
 }: {
   workspaceId: string;
   open: boolean;
@@ -71,6 +72,8 @@ export function ImportDialog({
   topLevel: boolean;
   /** The page open now: the default destination, or the database to add rows to. */
   activeId: string | null;
+  /** Where top-level imports go: a teamspace, null for private, undefined for the workspace default. */
+  teamspaceId?: string | null;
 }) {
   const router = useRouter();
   const t = useTranslations("import");
@@ -188,6 +191,7 @@ export function ImportDialog({
     setError(null);
     const form = new FormData();
     form.append("workspaceId", workspaceId);
+    if (teamspaceId !== undefined) form.append("teamspaceId", teamspaceId ?? "private");
     if (tab === "pages") {
       if (totalSize > IMPORT_LIMITS.uploadBytes) return setError(t("errors.tooLarge", { limit: formatBytes(IMPORT_LIMITS.uploadBytes) }));
       form.append("mode", "pages");

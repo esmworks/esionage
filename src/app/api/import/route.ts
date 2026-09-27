@@ -8,6 +8,7 @@ import { PropertyValueError } from "@/lib/properties";
 import { AccessError } from "@/server/access";
 import { importCsvAsDatabase, importCsvIntoDatabase, type ColumnTarget } from "@/server/import/csv";
 import { importPages } from "@/server/import/markdown";
+import { TeamspaceError } from "@/server/teamspaces";
 
 /**
  * Imports files: `POST /api/import` with a multipart form, answered with an ImportResult (see
@@ -62,6 +63,9 @@ export async function POST(request: Request) {
   const actor = { userId: session.user.id };
   const workspaceId = field("workspaceId") ?? "";
   const parentId = field("parentId") || null;
+  // Top level: a teamspace id, "private" for the private pages, nothing for the default teamspace.
+  const space = field("teamspaceId");
+  const teamspaceId = space === "private" ? null : space || undefined;
   const mode = field("mode");
   try {
     let result: ImportResult;
@@ -69,7 +73,7 @@ export async function POST(request: Request) {
       const files = await Promise.all(
         uploads.map(async (f, i) => ({ path: paths[i] || f.name, data: new Uint8Array(await f.arrayBuffer()) })),
       );
-      result = await importPages(actor, { workspaceId, parentId, files, seedNames: await seedNames() });
+      result = await importPages(actor, { workspaceId, parentId, teamspaceId, files, seedNames: await seedNames() });
     } else if (mode === "csv-new" || mode === "csv-merge") {
       if (uploads.length !== 1) return fail(400, "badRequest", "Send one CSV file");
       const table = csvTable(decodeText(new Uint8Array(await uploads[0].arrayBuffer())));
@@ -82,6 +86,7 @@ export async function POST(request: Request) {
           {
             workspaceId,
             parentId,
+            teamspaceId,
             title: (field("title")?.trim() || cleanTitle(uploads[0].name)).slice(0, 200),
             table,
             titleColumn: titleColumn && /^\d+$/.test(titleColumn) ? Number(titleColumn) : null,
@@ -123,7 +128,7 @@ export async function POST(request: Request) {
     return Response.json(result, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof ImportError) return fail(error.code === "tooLarge" ? 413 : 400, error.code, error.message, error.params);
-    if (error instanceof AccessError) return fail(404, "noAccess", error.message);
+    if (error instanceof AccessError || error instanceof TeamspaceError) return fail(404, "noAccess", error.message);
     // Guards of the pages and databases written to (a locked database, a parent in the trash).
     if (error instanceof PropertyValueError || (error instanceof Error && error.constructor === Error)) {
       return fail(400, "badRequest", error.message);

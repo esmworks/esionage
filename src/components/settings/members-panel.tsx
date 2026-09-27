@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Download, MoreHorizontal, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Download, MoreHorizontal, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
@@ -30,6 +30,7 @@ export type Member = {
   lastEditedAt: Date | null;
 };
 export type Invitation = { id: string; email: string; role: WorkspaceRole; expiresAt: Date; link: string };
+export type MemberTeamspace = { id: string; name: string; icon: string | null };
 
 type SortKey = "name" | "role" | "joined" | "edited";
 type Sort = { key: SortKey; dir: "asc" | "desc" };
@@ -63,6 +64,7 @@ export function MembersPanel({
   members,
   invitations,
   joinLink,
+  teamspaces,
   now,
 }: {
   workspaceId: string;
@@ -75,6 +77,8 @@ export function MembersPanel({
   invitations: Invitation[];
   /** The join link, or null when off. Only owners get it. */
   joinLink: string | null;
+  /** By user id: the teamspaces (that the viewer can see) each person is in. Guests have none. */
+  teamspaces: Record<string, MemberTeamspace[]>;
 }) {
   const t = useTranslations("settings.members");
   const [tab, setTab] = useState<"members" | "invitations">("members");
@@ -151,6 +155,7 @@ export function MembersPanel({
                 currentUserId={currentUserId}
                 isOwner={isOwner}
                 members={shownMembers}
+                teamspaces={teamspaces}
                 sort={sort}
                 onSort={(key) =>
                   setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "edited" ? "desc" : "asc" }))
@@ -297,6 +302,7 @@ function MembersTable({
   currentUserId,
   isOwner,
   members,
+  teamspaces,
   sort,
   onSort,
   empty,
@@ -306,6 +312,7 @@ function MembersTable({
   currentUserId: string;
   isOwner: boolean;
   members: Member[];
+  teamspaces: Record<string, MemberTeamspace[]>;
   sort: Sort;
   onSort: (key: SortKey) => void;
   empty: string | null;
@@ -315,11 +322,14 @@ function MembersTable({
   return (
     // `relative` keeps the absolutely positioned sr-only header text inside the scroller.
     <div className="relative overflow-x-auto">
-      <table className="w-full min-w-[640px] text-sm">
+      <table className="w-full min-w-[780px] text-sm">
         <thead className="border-b border-border bg-bg-subtle text-xs text-fg-muted">
           <tr>
             <SortHeader label={t("columns.user")} column="name" sort={sort} onSort={onSort} />
             <SortHeader label={t("columns.role")} column="role" sort={sort} onSort={onSort} className="w-36" />
+            <th scope="col" className="w-36 px-4 py-2.5 text-left font-normal">
+              {t("columns.teamspaces")}
+            </th>
             <SortHeader label={t("columns.joined")} column="joined" sort={sort} onSort={onSort} className="w-32" />
             <SortHeader label={t("columns.lastEdited")} column="edited" sort={sort} onSort={onSort} className="w-40" />
             <th scope="col" className="w-10">
@@ -334,6 +344,7 @@ function MembersTable({
               now={now}
               workspaceId={workspaceId}
               member={m}
+              teamspaces={teamspaces[m.userId] ?? []}
               isSelf={m.userId === currentUserId}
               isOwner={isOwner}
             />
@@ -362,12 +373,14 @@ function MemberRow({
   now,
   workspaceId,
   member,
+  teamspaces,
   isSelf,
   isOwner,
 }: {
   now: Date;
   workspaceId: string;
   member: Member;
+  teamspaces: MemberTeamspace[];
   isSelf: boolean;
   isOwner: boolean;
 }) {
@@ -413,6 +426,9 @@ function MemberRow({
         ) : (
           <span className="text-fg-muted">{t(`roles.${member.role}`)}</span>
         )}
+      </td>
+      <td className="px-4 py-3">
+        <TeamspacesCell name={member.name || member.email} teamspaces={member.role === "guest" ? [] : teamspaces} />
       </td>
       <td className="px-4 py-3 whitespace-nowrap text-fg-muted">{format.dateTime(member.joinedAt, { dateStyle: "medium" })}</td>
       <td className="px-4 py-3 whitespace-nowrap text-fg-muted">
@@ -503,6 +519,41 @@ function MemberRow({
         </Dialog>
       </td>
     </tr>
+  );
+}
+
+/** "2 teamspaces", opening the list of them; a dash for guests and people in none. */
+function TeamspacesCell({ name, teamspaces }: { name: string; teamspaces: MemberTeamspace[] }) {
+  const t = useTranslations("settings.members");
+  const list = useFloating<HTMLButtonElement>();
+  if (!teamspaces.length) return <span className="text-fg-faint">—</span>;
+  return (
+    <>
+      <button
+        ref={list.ref}
+        type="button"
+        aria-label={t("teamspacesOf", { name })}
+        aria-expanded={list.open}
+        onClick={list.toggle}
+        className="-mx-1.5 inline-flex h-7 items-center gap-1 rounded-md px-1.5 whitespace-nowrap text-fg-muted hover:bg-bg-hover hover:text-fg"
+      >
+        {t("teamspaceCount", { count: teamspaces.length })}
+        <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      {/* Portaled so the table's scroll container doesn't clip it. */}
+      <Floating anchor={list.el} open={list.open} onClose={list.close} className="text-left">
+        <ul aria-label={t("teamspacesOf", { name })} className="max-h-64 max-w-64 overflow-y-auto">
+          {teamspaces.map((ts) => (
+            <li key={ts.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm">
+              <span aria-hidden className="flex h-4 w-4 shrink-0 items-center justify-center leading-none text-fg-muted">
+                {ts.icon ?? (ts.name.trim()[0] ?? "?").toLocaleUpperCase()}
+              </span>
+              <span className="truncate">{ts.name}</span>
+            </li>
+          ))}
+        </ul>
+      </Floating>
+    </>
   );
 }
 

@@ -63,6 +63,7 @@ import * as notifications from "@/server/notifications";
 import * as pages from "@/server/pages";
 import * as templates from "@/server/templates";
 import { builtinTemplates, isBuiltinTemplateKey } from "@/lib/builtin-templates";
+import * as teamspaces from "@/server/teamspaces";
 import * as workspaces from "@/server/workspaces";
 import { MAX_MARKDOWN_CHARS, pageUrl, runTool, sliceText, ToolInputError } from "./format";
 import { env } from "@/lib/env";
@@ -85,6 +86,7 @@ import {
 const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
 Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, status, date, checkbox, url, email, phone, checklist, files, relation, person, created_by, created_time, last_edited_by, last_edited_time, formula, rollup). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A status is a select whose options belong to the groups todo, in_progress and done. A checklist holds items that can be ticked off. A files property holds files uploaded to the workspace (images show as thumbnails); its values read as [{name, url}]. created_by, created_time, last_edited_by and last_edited_time show who created or last edited each row and when; they are filled in automatically and can't be written. A formula property computes its value from the row's other properties, and a rollup calculates over the rows a relation links to (see add_database_property); neither can be written.
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
+Teamspaces group a workspace's pages and people (list_teamspaces). A teamspace is default (everyone is in it), open (anyone can join; others can read), closed (only its members open its pages) or private (only its members know it). A top-level page belongs to a teamspace, or is private to the user who made it; pages under it follow it. create_page, create_database and move_page take a teamspace_id for top-level pages ("private" for the user's private pages); without one, new top-level pages are private.
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / diff_page_version / restore_page_version).
 Beyond plain Markdown, page bodies know a few block forms: a callout is a GitHub alert (\`> [!NOTE]\`, TIP, IMPORTANT, WARNING or CAUTION on its own line, then the \`> \` text; a leading emoji becomes its icon), \`$…$\` is an inline equation and a \`$$\` line pair wraps a block equation (LaTeX), a \`\`\`mermaid fence is a diagram, and the lines \`<!-- esionage:toc -->\` and \`<!-- esionage:breadcrumb -->\` are a table of contents and the page's breadcrumb. A web bookmark (a link card) reads as a link on a line of its own, \`[Title](url)\`, and stays a bookmark when you write the body back; to add a new one write \`[Title](url) <!-- esionage:bookmark -->\`. An embed (YouTube, Vimeo, Loom, Figma, published Google Docs/Sheets/Slides, CodePen, Spotify, Google Maps) is \`[url](url) <!-- esionage:embed -->\`. A dollar sign of the text itself is written \`\\$\`.
 Mentions: a link to a page of this app (\`[Roadmap](/w/<workspace_id>/p/<page_id>)\`) is a page mention, which shows the page's live title (the link text you write is ignored; get_page shows the current title, or "No access" / "Deleted page"); that link alone on its line followed by \`<!-- esionage:page-link -->\` is a "Link to page" block. \`@Name\` with a person's name as list_users shows it mentions them (they are notified if they can open the page), and \`@YYYY-MM-DD\` is a date. Keep mentions as they are when you rewrite a page: people aren't notified twice and reminders set on dates stay. get_page lists the pages linking to a page under linked_from.
@@ -739,23 +741,44 @@ export function createMcpServer(principal: McpPrincipal) {
     };
   };
 
-  const resolveLocation = async (workspaceId?: string, parentId?: string) => {
+  /**
+   * Where a new page goes: under `parentId`, or at the top of `workspaceId`, in the teamspace
+   * `teamspaceId` names (see spaceOf; private when missing).
+   */
+  const resolveLocation = async (workspaceId?: string, parentId?: string, teamspaceId?: string) => {
     if (parentId) {
       const parent = await pages.getPage(userId, parentId);
       if (parent.archivedAt) throw new ToolInputError("The parent page is in the trash. Choose another parent.");
-      return { workspaceId: parent.workspaceId, parentId, parentKind: parent.kind };
+      return { workspaceId: parent.workspaceId, parentId, parentKind: parent.kind, teamspaceId: undefined };
+    }
+    const space = spaceOf(teamspaceId);
+    if (!workspaceId && space) {
+      const teamspace = await teamspaces.getTeamspace(userId, space).catch(() => null);
+      if (!teamspace) throw new ToolInputError("Unknown teamspace_id. Call list_teamspaces for the ids.");
+      workspaceId = teamspace.workspaceId;
     }
     if (!workspaceId) {
       throw new ToolInputError("Provide workspace_id (to create at the top level) or parent_id (to nest under a page).");
     }
-    return { workspaceId, parentId: null, parentKind: null };
+    return { workspaceId, parentId: null, parentKind: null, teamspaceId: space ?? null };
+  };
+
+  /** A teamspace_id argument: an id, or "private" (null) for the user's private pages. */
+  const spaceOf = (value?: string | null) => (value === undefined || value === null ? undefined : value === "private" ? null : value);
+
+  /** The teamspace a page is in, as tools show it: its id and name, or null for a private page. */
+  const teamspaceOf = async (teamspaceId: string | null) => {
+    if (!teamspaceId) return { teamspace_id: null, teamspace: "Private" };
+    const label = await teamspaces.teamspaceLabel(userId, teamspaceId);
+    return { teamspace_id: teamspaceId, teamspace: label?.name ?? null };
   };
 
   server.registerTool(
     "list_workspaces",
     {
       title: "List workspaces",
-      description: "List the workspaces the user belongs to, with their ids. Use a workspace id with list_pages, search or create_page.",
+      description:
+        "List the workspaces the user belongs to, with their ids. Use a workspace id with list_teamspaces, list_pages, search or create_page.",
       inputSchema: z.object({}),
       annotations: READ,
     },
@@ -763,6 +786,40 @@ export function createMcpServer(principal: McpPrincipal) {
       runTool(async () => {
         const workspaces = await pages.listWorkspaces(userId);
         return { workspaces: workspaces.map((w) => ({ id: w.id, name: w.name, role: w.role })) };
+      }),
+  );
+
+  server.registerTool(
+    "list_teamspaces",
+    {
+      title: "List teamspaces",
+      description:
+        'List the teamspaces of a workspace the user can see: all but private ones they aren\'t in. access is "default" (everyone is in it), "open" (anyone can join; others can read and comment), "closed" (only its members open its pages) or "private" (only its members know it). Pass an id as teamspace_id to create_page, create_database, move_page or list_pages; can_add_pages says whether the user may add top-level pages to it.',
+      inputSchema: z.object({
+        workspace_id: id("workspace"),
+        include_archived: z.boolean().default(false).describe("Also list archived teamspaces."),
+      }),
+      annotations: READ,
+    },
+    ({ workspace_id, include_archived }) =>
+      runTool(async () => {
+        const list = await teamspaces.listTeamspaces(userId, workspace_id, { archived: include_archived ? "all" : "active" });
+        return {
+          teamspaces: list.map((t) => ({
+            id: t.id,
+            name: t.name,
+            icon: t.icon,
+            description: t.description || undefined,
+            access: t.access,
+            archived: Boolean(t.archivedAt),
+            member_count: t.memberCount,
+            owners: t.owners.map((o) => o.name),
+            joined: t.joined,
+            role: t.role,
+            can_add_pages: t.joined && !t.archivedAt,
+          })),
+          note: 'Pages outside every teamspace are private: create_page / move_page with teamspace_id "private".',
+        };
       }),
   );
 
@@ -843,6 +900,7 @@ export function createMcpServer(principal: McpPrincipal) {
             title: pageLabel(h.title),
             kind: h.kind,
             workspace_id: h.workspaceId,
+            teamspace_id: h.teamspaceId,
             parent_id: h.parentId,
             snippet: h.snippet,
             updated_at: h.updatedAt.toISOString(),
@@ -857,22 +915,27 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "List pages",
       description:
-        "List the pages directly under a parent page, or the top-level pages of a workspace when parent_id is omitted. Trashed pages are excluded. For database rows prefer query_database.",
+        "List the pages directly under a parent page, or the top-level pages of a workspace when parent_id is omitted (of every teamspace the user can read, their private pages and pages shared with them; teamspace_id narrows it to one). Trashed pages are excluded. For database rows prefer query_database.",
       inputSchema: z.object({
         workspace_id: id("workspace"),
         parent_id: z.string().optional().describe("Parent page id. Omit for the workspace's top-level pages."),
+        teamspace_id: z
+          .string()
+          .optional()
+          .describe('Top level only: just this teamspace\'s pages (from list_teamspaces), or "private" for the user\'s private pages.'),
       }),
       annotations: READ,
     },
-    ({ workspace_id, parent_id }) =>
+    ({ workspace_id, parent_id, teamspace_id }) =>
       runTool(async () => {
-        const children = await pages.listChildren(userId, workspace_id, parent_id ?? null);
+        const children = await pages.listChildren(userId, workspace_id, parent_id ?? null, { teamspaceId: spaceOf(teamspace_id) });
         return {
           pages: children.map((c) => ({
             id: c.id,
             title: pageLabel(c.title),
             kind: c.kind,
             icon: c.icon,
+            teamspace_id: c.teamspaceId,
             updated_at: c.updatedAt.toISOString(),
             url: pageUrl(workspace_id, c.id),
           })),
@@ -908,6 +971,7 @@ export function createMcpServer(principal: McpPrincipal) {
           kind: page.kind,
           icon: page.icon,
           workspace_id: page.workspaceId,
+          ...(await teamspaceOf(page.teamspaceId)),
           // A parent they can't see stays unnamed, id included.
           parent_id: parent?.id ?? null,
           path: [workspace?.name ?? "Workspace", ...crumbs.map((c) => pageLabel(c.title))].join(" / "),
@@ -1010,10 +1074,16 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a page",
       description:
-        "Create a new page at the top level of a workspace (workspace_id) or nested under another page (parent_id), with an optional Markdown body, or copy a template (template_id from list_templates) with its sub-pages. To add a row to a database use create_database_row instead.",
+        "Create a new page at the top level of a workspace (workspace_id, in a teamspace given by teamspace_id, else private to the user) or nested under another page (parent_id; it then belongs to the parent's teamspace), with an optional Markdown body, or copy a template (template_id from list_templates) with its sub-pages. To add a row to a database use create_database_row instead.",
       inputSchema: z.object({
         workspace_id: z.string().optional().describe("Workspace for a top-level page. Ignored when parent_id is set."),
         parent_id: z.string().optional().describe("Page to nest the new page under."),
+        teamspace_id: z
+          .string()
+          .optional()
+          .describe(
+            'Top-level pages: the teamspace to add it to (from list_teamspaces; the user must be in it), or "private" (the default) for a page only the user sees. Ignored when parent_id is set.',
+          ),
         title: z.string().min(1).max(500).optional().describe("Page title. Required unless template_id is given (the template's title is used then)."),
         markdown: z.string().optional().describe("Initial page body in Markdown. With template_id it replaces the template's body."),
         icon: z.string().max(16).optional().describe("A single emoji used as the page icon."),
@@ -1025,10 +1095,10 @@ export function createMcpServer(principal: McpPrincipal) {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ workspace_id, parent_id, title, markdown, icon, template_id }) =>
+    ({ workspace_id, parent_id, teamspace_id, title, markdown, icon, template_id }) =>
       runTool(async () => {
         assertWrite();
-        const location = await resolveLocation(workspace_id, parent_id);
+        const location = await resolveLocation(workspace_id, parent_id, teamspace_id);
         if (location.parentKind === "database") {
           throw new ToolInputError("parent_id is a database. Use create_database_row to add rows to it.");
         }
@@ -1037,13 +1107,20 @@ export function createMcpServer(principal: McpPrincipal) {
           if (template_id.startsWith("builtin:")) {
             const key = template_id.slice("builtin:".length);
             if (!isBuiltinTemplateKey(key)) throw new ToolInputError(`Unknown built-in template "${key}". Call list_templates for the keys.`);
-            createdId = (await templates.createFromBuiltin(actor, location.workspaceId, key, { parentId: location.parentId })).id;
+            createdId = (
+              await templates.createFromBuiltin(actor, location.workspaceId, key, {
+                parentId: location.parentId,
+                teamspaceId: location.teamspaceId,
+              })
+            ).id;
           } else {
             const template = await pages.getPage(userId, template_id);
             if (!template.isTemplate || template.parentId) {
               throw new ToolInputError("template_id is not a page template. Call list_templates; row templates go to create_database_row.");
             }
-            createdId = (await templates.createFromTemplate(actor, template_id, { parentId: location.parentId })).id;
+            createdId = (
+              await templates.createFromTemplate(actor, template_id, { parentId: location.parentId, teamspaceId: location.teamspaceId })
+            ).id;
           }
           if (title !== undefined) await pages.renamePage(actor, createdId, title);
           if (icon !== undefined) await pages.setPageIcon(userId, createdId, icon);
@@ -1053,6 +1130,7 @@ export function createMcpServer(principal: McpPrincipal) {
             id: created.id,
             title: pageLabel(created.title),
             workspace_id: created.workspaceId,
+            ...(await teamspaceOf(created.teamspaceId)),
             parent_id: created.parentId,
             from_template: template_id,
             url: pageUrl(created.workspaceId, created.id),
@@ -1062,6 +1140,7 @@ export function createMcpServer(principal: McpPrincipal) {
         const created = await pages.createPage(actor, {
           workspaceId: location.workspaceId,
           parentId: location.parentId,
+          teamspaceId: location.teamspaceId,
           title,
           icon: icon ?? null,
           markdown,
@@ -1070,6 +1149,7 @@ export function createMcpServer(principal: McpPrincipal) {
           id: created.id,
           title: pageLabel(created.title),
           workspace_id: created.workspaceId,
+          ...(await teamspaceOf(created.teamspaceId)),
           parent_id: created.parentId,
           url: pageUrl(created.workspaceId, created.id),
         };
@@ -1503,24 +1583,29 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a database",
       description:
-        'Create a new database (a table of rows) at the top level of a workspace or under a page. It starts with a "Status" status property (Not started, In progress, Done) and a "Tags" multi-select; add more with add_database_property.',
+        'Create a new database (a table of rows) at the top level of a workspace (in a teamspace given by teamspace_id, else private to the user) or under a page. It starts with a "Status" status property (Not started, In progress, Done) and a "Tags" multi-select; add more with add_database_property.',
       inputSchema: z.object({
         workspace_id: z.string().optional().describe("Workspace for a top-level database. Ignored when parent_id is set."),
         parent_id: z.string().optional().describe("Page to create the database under."),
+        teamspace_id: z
+          .string()
+          .optional()
+          .describe('Top level: the teamspace (from list_teamspaces), or "private" (the default). Ignored when parent_id is set.'),
         title: z.string().min(1).max(500).describe("Database title."),
         icon: z.string().max(16).optional().describe("A single emoji used as the icon."),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ workspace_id, parent_id, title, icon }) =>
+    ({ workspace_id, parent_id, teamspace_id, title, icon }) =>
       runTool(async () => {
         assertWrite();
-        const location = await resolveLocation(workspace_id, parent_id);
+        const location = await resolveLocation(workspace_id, parent_id, teamspace_id);
         if (location.parentKind === "database") throw new ToolInputError("A database cannot be created inside another database.");
         const created = await pages.createPage(actor, {
           workspaceId: location.workspaceId,
           parentId: location.parentId,
+          teamspaceId: location.teamspaceId,
           kind: "database",
           title,
           icon: icon ?? null,
@@ -1860,15 +1945,19 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Move a page",
       description:
-        "Move a page (with its sub-pages) under another page, or to the top level of its workspace with parent_id null. Moving a page into a database makes it a row; moving a row out of its database turns it into a regular page. Pages cannot move between workspaces.",
+        "Move a page (with its sub-pages) under another page, or to the top level with parent_id null: of the teamspace teamspace_id names, of the user's private pages (\"private\"), or of the teamspace it is in now when teamspace_id is omitted. A page that lands in another teamspace (or among the private pages) takes the access of its new place; people it was shared with by name keep their access. Moving a page into a database makes it a row; moving a row out of its database turns it into a regular page. Pages cannot move between workspaces.",
       inputSchema: z.object({
         page_id: id("page"),
-        parent_id: z.string().min(1).nullable().describe("New parent page id, or null for the workspace's top level."),
+        parent_id: z.string().min(1).nullable().describe("New parent page id, or null for the top level."),
+        teamspace_id: z
+          .string()
+          .optional()
+          .describe('With parent_id null: the teamspace to move it to (from list_teamspaces), or "private". Ignored under a parent.'),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ page_id, parent_id }) =>
+    ({ page_id, parent_id, teamspace_id }) =>
       runTool(async () => {
         assertWrite();
         const { page, parentDatabase } = await loadPage(page_id);
@@ -1885,7 +1974,11 @@ export function createMcpServer(principal: McpPrincipal) {
             throw new ToolInputError("A page cannot be moved inside itself or one of its sub-pages.");
           }
         }
-        if ((parent?.id ?? null) !== page.parentId) await pages.movePage(userId, page_id, parent?.id ?? null);
+        const space = parent ? undefined : spaceOf(teamspace_id);
+        if ((parent?.id ?? null) !== page.parentId || (space !== undefined && space !== page.teamspaceId)) {
+          await pages.movePage(userId, page_id, parent?.id ?? null, undefined, space);
+        }
+        const moved = await pages.getPage(userId, page_id).catch(() => null);
         const note =
           parent?.kind === "database" && parentDatabase?.id !== parent.id
             ? "The page is now a row of this database; set its properties with update_database_row."
@@ -1896,6 +1989,7 @@ export function createMcpServer(principal: McpPrincipal) {
           id: page.id,
           title: pageLabel(page.title),
           parent_id: parent?.id ?? null,
+          ...(moved ? await teamspaceOf(moved.teamspaceId) : {}),
           ...(note ? { note } : {}),
           url: pageUrl(page.workspaceId, page.id),
         };

@@ -22,6 +22,7 @@ import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
 import { AccessError, findMembership, FULL_RANK, getMembership, isGuest, requireMember, requireMembership } from "@/server/access";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
+import { dropFromTeamspaces, setUpGeneralTeamspace } from "@/server/teamspaces";
 
 /** "Erhan's workspace" / "Erhan'ın çalışma alanı", in the language of the sign-up request. */
 async function personalWorkspaceName(userName: string) {
@@ -35,14 +36,24 @@ async function personalWorkspaceName(userName: string) {
   }
 }
 
+/** "General" / "Genel": the teamspace every new workspace starts with, in the creator's language. */
+async function generalTeamspaceName() {
+  try {
+    return (await getTranslations("home"))("generalTeamspace");
+  } catch {
+    return "General";
+  }
+}
+
 export async function createPersonalWorkspace(userId: string, userName: string) {
-  const name = await personalWorkspaceName(userName);
+  const [name, general] = await Promise.all([personalWorkspaceName(userName), generalTeamspaceName()]);
   await db.transaction(async (tx) => {
     const [ws] = await tx
       .insert(workspace)
       .values({ name })
       .returning({ id: workspace.id });
     await tx.insert(workspaceMember).values({ workspaceId: ws.id, userId, role: "owner" });
+    await setUpGeneralTeamspace(tx, ws.id, userId, general);
   });
 }
 
@@ -80,9 +91,11 @@ export class WorkspaceError extends Error {
 export async function createWorkspace(userId: string, name: string) {
   const clean = name.trim().slice(0, 80);
   if (!clean) throw new WorkspaceError("nameRequired", "Give the workspace a name.");
+  const general = await generalTeamspaceName();
   return db.transaction(async (tx) => {
     const [ws] = await tx.insert(workspace).values({ name: clean }).returning({ id: workspace.id });
     await tx.insert(workspaceMember).values({ workspaceId: ws.id, userId, role: "owner" });
+    await setUpGeneralTeamspace(tx, ws.id, userId, general);
     return ws;
   });
 }
@@ -535,7 +548,8 @@ export async function setMemberRole(actorId: string, workspaceId: string, target
       .set({ role })
       .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)));
     // Becoming a guest strands no page: what they had as a member through the defaults or
-    // "everyone", owners have too, and their own entries keep applying.
+    // "everyone", owners have too, and their own entries keep applying. Guests aren't in teamspaces.
+    if (isGuest(role) && !isGuest(current.role)) await dropFromTeamspaces(tx, workspaceId, targetId, actorId);
     return current.role;
   });
   // Open editors keep the access checked when they connected. Owners and members see pages alike,
@@ -597,6 +611,7 @@ export async function removeMember(actorId: string, workspaceId: string, targetI
       .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)));
     // An owner removing someone takes over what only they managed; someone leaving hands it to an owner.
     const heir = actorId !== targetId ? actorId : await oldestOwner(tx, workspaceId);
+    await dropFromTeamspaces(tx, workspaceId, targetId, heir);
     if (heir) await handOverOrphanedPages(tx, workspaceId, heir);
   });
   await getCollab().disconnectUser(targetId, workspaceId);
@@ -679,6 +694,7 @@ const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettin
   guestPrivatePages: [false, true],
   publishing: ["owners", "members"],
   requireTwoFactor: [false, true],
+  teamspaceCreation: ["owners", "members"],
 };
 
 /**

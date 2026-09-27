@@ -1,0 +1,62 @@
+{
+  "access": {
+    "default": "Default",
+    "open": "Open",
+    "closed": "Closed",
+    "private": "Private"
+  },
+  "accessHint": {
+    "default": "Everyone in the workspace is in it and can't leave.",
+    "open": "Anyone in the workspace can see it and join. Until they join, they can read and comment on its pages.",
+    "closed": "Anyone in the workspace can see that it exists. Only its members open its pages; its owners add them.",
+    "private": "Only its members can see it."
+  },
+  "roles": {
+    "owner": "Owner",
+    "member": "Member"
+  },
+  "errors": {
+    "nameRequired": "Give the teamspace a name.",
+    "creationRestricted": "Only workspace owners can create teamspaces here.",
+    "ownersOnly": "Only workspace owners can change which teamspaces everyone is in.",
+    "cannotLeaveDefault": "Everyone is in this teamspace; it can't be left.",
+    "lastOwner": "Make someone else an owner of the teamspace first.",
+    "notJoinable": "Ask an owner of this teamspace to add you.",
+    "archived": "This teamspace is archived.",
+    "notMember": "Only owners and members of the workspace can be in its teamspaces.",
+    "invalidAccess": "Choose who can see the teamspace.",
+    "accessDenied": "You can't do that in this teamspace."
+  },
+  "dialog": {
+    "createTitle": "New teamspace",
+    "editTitle": "Edit teamspace",
+    "name": "Name",
+    "namePlaceholder": "Marketing, Engineering…",
+    "icon": "Choose an icon",
+    "description": "Description",
+    "descriptionPlaceholder": "What is this teamspace for?",
+    "access": "Who can see it",
+    "defaultLocked": "Only workspace owners can change the access of a default teamspace.",
+    "becomesDefault": "Everyone in the workspace joins it and can't leave it.",
+    "leavesDefault": "Everyone stays in it for now but can leave it, and new workspace members aren't added.",
+    "create": "Create teamspace",
+    "creating": "Creating…"
+  },
+  "members": {
+    "title": "Members of {name}",
+    "everyone": "Everyone in the workspace is in this teamspace. Its owners can edit it and manage it.",
+    "readOnly": "Only the owners of this teamspace can change who is in it.",
+    "add": "Add people",
+    "search": "Search people",
+    "addSelected": "{count, plural, =0 {Add people} other {Add #}}",
+    "addAs": "Add as",
+    "noOneToAdd": "Everyone in the workspace is already in this teamspace.",
+    "noMatches": "No one matches your search.",
+    "empty": "No one is in this teamspace.",
+    "list": "People in this teamspace",
+    "roleOf": "Role of {name}",
+    "remove": "Remove {name}",
+    "you": "(you)",
+    "select": "Select {name}"
+  }
+}
