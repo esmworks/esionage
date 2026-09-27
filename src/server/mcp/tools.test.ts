@@ -330,6 +330,46 @@ describe("relations and calendars", () => {
     expect(r.data.property).toMatchObject({ related_database_id: "db-2", two_way: true });
   });
 
+  it("creates timelines with start, end, swimlanes and zoom, and checks each setting's view type", async () => {
+    const due = { id: "prop-due", name: "Due", type: "date", options: {} };
+    const starts = { id: "prop-start", name: "Starts", type: "date", options: {} };
+    databases.getDatabase.mockResolvedValue({ ...database, properties: [status, notes, due, starts] });
+    const onGallery = await callTool(writer, "create_database_view", { database_id: "db-1", name: "G", type: "gallery", zoom: "day" });
+    expect(onGallery.text).toMatch(/zoom only applies to timeline/);
+    const badEnd = await callTool(writer, "create_database_view", { database_id: "db-1", name: "T", type: "timeline", end_date_by: "Notes" });
+    expect(badEnd.text).toMatch(/end at a date property/);
+    expect(databases.addView).not.toHaveBeenCalled();
+    databases.addView.mockResolvedValue({ id: "view-4", name: "Plan", type: "timeline", config: { dateBy: "prop-due" } });
+    const r = await callTool(writer, "create_database_view", {
+      database_id: "db-1",
+      name: "Plan",
+      type: "timeline",
+      date_by: "Starts",
+      end_date_by: "Due",
+      group_by: "Status",
+      zoom: "month",
+    });
+    expect(databases.updateView).toHaveBeenCalledWith("user-1", "view-4", {
+      config: { dateBy: "prop-start", endDateBy: "prop-due", groupBy: "prop-status", zoom: "month" },
+    });
+    expect(r.data).toMatchObject({ type: "timeline", date_by: "Starts", end_date_by: "Due", group_by: "Status", zoom: "month" });
+  });
+
+  it("removes timeline swimlanes with a null group_by and sets gallery cards", async () => {
+    const views = [
+      { id: "view-t", name: "Plan", type: "timeline", config: { dateBy: "prop-due", groupBy: "prop-status" } },
+      { id: "view-g", name: "Cards", type: "gallery", config: {} },
+    ];
+    databases.getDatabase.mockResolvedValue({ ...database, views });
+    await callTool(writer, "update_database_view", { database_id: "db-1", view_id: "view-t", group_by: null });
+    expect(databases.updateView).toHaveBeenLastCalledWith("user-1", "view-t", { config: { dateBy: "prop-due", groupBy: undefined } });
+    const r = await callTool(writer, "update_database_view", { database_id: "db-1", view_id: "view-g", card_size: "large", cover: "none" });
+    expect(databases.updateView).toHaveBeenLastCalledWith("user-1", "view-g", {
+      config: { cardSize: "large", cover: { source: "none" } },
+    });
+    expect(r.data).toMatchObject({ card_size: "large", cover: "none" });
+  });
+
   it("creates calendar views on a date property only", async () => {
     const due = { id: "prop-due", name: "Due", type: "date", options: {} };
     databases.getDatabase.mockResolvedValue({ ...database, properties: [status, notes, due] });
@@ -429,7 +469,7 @@ describe("database views", () => {
     const due = { id: "prop-due", name: "Due", type: "date", options: {} };
     databases.getDatabase.mockResolvedValue({ ...database, properties: [status, notes, due] });
     const onCalendar = await callTool(writer, "create_database_view", { database_id: "db-1", name: "C", type: "calendar", group_by: "Due" });
-    expect(onCalendar.text).toMatch(/only applies to board and table/);
+    expect(onCalendar.text).toMatch(/only applies to board, table and timeline/);
     const wrongProp = await callTool(writer, "create_database_view", {
       database_id: "db-1",
       name: "T",

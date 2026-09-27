@@ -22,7 +22,10 @@
   "views": {
     "table": "Tablo",
     "board": "Pano",
-    "calendar": "Takvim"
+    "calendar": "Takvim",
+    "gallery": "Galeri",
+    "list": "Liste",
+    "timeline": "Zaman çizelgesi"
   },
   "colors": {
     "gray": "Gri",
@@ -358,6 +361,55 @@
     "noDate": "{property} olmayan {count, plural, other {# satır}}",
     "noDateTitle": "{property} olmayan satırlar"
   },
+  "layout": {
+    "label": "Düzen",
+    "cardSize": "Kart boyutu",
+    "cardSizes": {
+      "small": "Küçük",
+      "medium": "Orta",
+      "large": "Büyük"
+    },
+    "cover": "Kart kapağı",
+    "covers": {
+      "first_image": "Sayfadaki ilk görsel",
+      "none": "Yok"
+    },
+    "start": "Başlangıç tarihi",
+    "end": "Bitiş tarihi",
+    "noEnd": "Yok (bir günlük çubuklar)",
+    "needsDate": "Zaman çizelgeleri satırları bir tarih özelliğine göre yerleştirir.",
+    "newDateProperty": "Yeni tarih özelliği",
+    "groupBy": "Grupla",
+    "noGrouping": "Yok",
+    "showTable": "Tabloyu göster"
+  },
+  "gallery": {
+    "new": "Yeni",
+    "empty": "Gösterilecek satır yok.",
+    "rowActions": "Satır işlemleri"
+  },
+  "list": {
+    "new": "Yeni",
+    "empty": "Gösterilecek satır yok."
+  },
+  "timeline": {
+    "needsDateTitle": "Zaman çizelgeleri satırları bir tarih özelliğine göre yerleştirir",
+    "needsDateBody": "Bu veritabanında henüz tarih özelliği yok.",
+    "zoom": "Yakınlaştırma",
+    "zooms": {
+      "day": "Gün",
+      "week": "Hafta",
+      "month": "Ay"
+    },
+    "showTable": "Tabloyu göster",
+    "hideTable": "Tabloyu gizle",
+    "new": "Yeni",
+    "barLabel": "{title}, {dates}",
+    "resizeStart": "Başlangıcı değiştirmek için sürükleyin",
+    "resizeEnd": "Bitişi değiştirmek için sürükleyin",
+    "empty": "Henüz {property} değeri olan satır yok.",
+    "dragHint": "Tarih vermek için bir satırı zaman çizelgesine sürükleyin."
+  },
   "errors": {
     "invalidUrl": "“{property}” bir http(s) veya mailto URL’si olmalıdır.",
     "invalidEmail": "“{property}” bir e-posta adresi olmalıdır.",
@@ -383,7 +435,9 @@
     "invalidPerson": "“{property}” yalnızca bu çalışma alanındaki kişileri içerebilir.",
     "readOnlyProperty": "“{property}” otomatik doldurulur, değiştirilemez.",
     "invalidFilter": "Bu filtre kaydedilemedi. Sayfayı yenileyip tekrar deneyin.",
-    "tooManyRows": "Tek seferde en fazla {max} satır değiştirilebilir."
+    "tooManyRows": "Tek seferde en fazla {max} satır değiştirilebilir.",
+    "invalidViewConfig": "Bu görünüm ayarları kaydedilemedi. Sayfayı yenileyip tekrar deneyin.",
+    "unsupportedViewType": "Desteklenmeyen görünüm türü: “{type}”."
   },
   "group": {
     "checked": "İşaretli",
