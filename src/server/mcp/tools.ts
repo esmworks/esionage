@@ -28,6 +28,8 @@ Start with list_workspaces or search to find ids, then get_page / list_pages / q
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / restore_page_version).
 Always share the returned url with the user when you create or change something.`;
 
+const MAX_BULK_ROWS = 100;
+
 const id = (what: string) => z.string().min(1).describe(`The ${what} id (a UUID from another tool's output).`);
 
 const rowValue = z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]);
@@ -526,6 +528,48 @@ export function createMcpServer(principal: McpPrincipal) {
           markdown,
         });
         return rowOutput(database.id, created.id);
+      }),
+  );
+
+  server.registerTool(
+    "create_database_rows",
+    {
+      title: "Add many database rows",
+      description: `Add up to ${MAX_BULK_ROWS} rows to a database in one call, in the given order, each with a title, property values and an optional Markdown body (same format as create_database_row). All rows are checked first: if any value is invalid nothing is created and the error names the row. Use this to import or migrate data; split larger imports into batches.`,
+      inputSchema: z.object({
+        database_id: id("database"),
+        rows: z
+          .array(
+            z.object({
+              title: z.string().min(1).max(500).describe("Row title."),
+              properties: rowProperties.optional(),
+              markdown: z.string().optional().describe("Optional Markdown body for the row's page."),
+            }),
+          )
+          .min(1)
+          .max(MAX_BULK_ROWS)
+          .describe(`The rows to add (1-${MAX_BULK_ROWS}).`),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      scopeChallenge: requireWrite,
+    },
+    ({ database_id, rows }) =>
+      runTool(async () => {
+        assertWrite();
+        const { database } = await databases.getDatabase(userId, database_id);
+        if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
+        const created = await databases.createRows(userId, database.id, rows);
+        const collab = getCollab();
+        for (const [i, row] of created.entries()) {
+          const markdown = rows[i].markdown;
+          if (markdown?.trim()) await collab.replaceContent(row.id, markdown, actor);
+        }
+        return {
+          database_id: database.id,
+          created: created.length,
+          rows: created.map((r) => ({ id: r.id, title: pageLabel(r.title), url: pageUrl(database.workspaceId, r.id) })),
+          url: pageUrl(database.workspaceId, database.id),
+        };
       }),
   );
 

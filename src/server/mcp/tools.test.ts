@@ -40,6 +40,7 @@ const databases = vi.hoisted(() => ({
   getDatabase: vi.fn(),
   listRows: vi.fn(),
   updateRowProperties: vi.fn(),
+  createRows: vi.fn(),
   addProperty: vi.fn(),
   updateProperty: vi.fn(),
   deleteProperty: vi.fn(),
@@ -302,6 +303,42 @@ describe("relations and calendars", () => {
     const r = await callTool(writer, "create_database_view", { database_id: "db-1", name: "Cal", type: "calendar" });
     expect(databases.addView).toHaveBeenCalledWith("user-1", "db-1", { name: "Cal", type: "calendar" });
     expect(r.data).toMatchObject({ type: "calendar", date_by: "Due" });
+  });
+});
+
+describe("create_database_rows", () => {
+  it("adds the rows in one call and writes their bodies", async () => {
+    databases.createRows.mockResolvedValue([
+      { id: "row-1", title: "Acme" },
+      { id: "row-2", title: "Globex" },
+    ]);
+    const rows = [
+      { title: "Acme", properties: { Status: "Todo" }, markdown: "# Notes" },
+      { title: "Globex", properties: { Status: "Done" } },
+    ];
+    const r = await callTool(writer, "create_database_rows", { database_id: "db-1", rows });
+    expect(r.isError).toBe(false);
+    expect(databases.createRows).toHaveBeenCalledWith("user-1", "db-1", rows);
+    expect(collab.replaceContent).toHaveBeenCalledTimes(1);
+    expect(collab.replaceContent).toHaveBeenCalledWith("row-1", "# Notes", { userId: "user-1", oauthClientId: "client-1" });
+    expect(r.data).toMatchObject({
+      created: 2,
+      rows: [
+        { id: "row-1", title: "Acme", url: "http://localhost:3000/w/ws-1/p/row-1" },
+        { id: "row-2", title: "Globex" },
+      ],
+    });
+  });
+
+  it("refuses read-only tokens, empty and oversized batches", async () => {
+    const readOnly = await callTool(reader, "create_database_rows", { database_id: "db-1", rows: [{ title: "A" }] });
+    expect(readOnly.text).toMatch(/read-only/);
+    const empty = await callTool(writer, "create_database_rows", { database_id: "db-1", rows: [] });
+    expect(empty.isError).toBe(true);
+    const rows = Array.from({ length: 101 }, (_, i) => ({ title: `Row ${i}` }));
+    const tooMany = await callTool(writer, "create_database_rows", { database_id: "db-1", rows });
+    expect(tooMany.isError).toBe(true);
+    expect(databases.createRows).not.toHaveBeenCalled();
   });
 });
 

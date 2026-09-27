@@ -345,7 +345,7 @@ async function main() {
   const toolNames: string[] = list.message?.result?.tools?.map((t: { name: string }) => t.name) ?? [];
   const expected = [
     "list_workspaces", "search", "list_pages", "get_page", "create_page", "update_page", "archive_page",
-    "get_database", "query_database", "create_database_row", "update_database_row", "create_database", "add_database_property",
+    "get_database", "query_database", "create_database_row", "create_database_rows", "update_database_row", "create_database", "add_database_property",
     "update_database_property", "delete_database_property", "create_database_view", "update_database_view", "move_page",
     "list_recent_pages", "list_users", "list_trash", "restore_page", "list_page_history", "get_page_version", "restore_page_version",
   ];
@@ -514,6 +514,36 @@ async function main() {
     filters: [{ property: "Customer", op: "contains", value: "Globex" }],
   });
   check(byCustomer.total === 1 && byCustomer.rows[0].id === job.id, "query_database filters by related row title", byCustomer);
+  const rowsBefore = (await mcp.ok("get_database", { database_id: dbPage.id })).row_count;
+  const badBatch = await mcp.call("create_database_rows", {
+    database_id: dbPage.id,
+    rows: [{ title: "Survey" }, { title: "Repair", properties: { Customer: ["Nobody"] } }],
+  });
+  const rowsAfterBad = (await mcp.ok("get_database", { database_id: dbPage.id })).row_count;
+  check(
+    badBatch.isError && badBatch.text.includes("Row 2") && rowsAfterBad === rowsBefore,
+    "create_database_rows names the bad row and creates nothing",
+    { text: badBatch.text, rowsBefore, rowsAfterBad },
+  );
+  const batch = await mcp.ok("create_database_rows", {
+    database_id: dbPage.id,
+    rows: [
+      { title: "Survey", properties: { Customer: ["Acme"], Status: "Done" } },
+      { title: "Repair", properties: { Customer: [globex.id] }, markdown: "Compressor noise" },
+    ],
+  });
+  check(batch.created === 2 && batch.rows.map((r: { title: string }) => r.title).join() === "Survey,Repair", "create_database_rows adds rows in order", batch);
+  const [survey, repair] = batch.rows as { id: string }[];
+  acmePage = await mcp.ok("get_page", { page_id: acme.id });
+  const globexAfterBatch = await mcp.ok("get_page", { page_id: globex.id });
+  check(
+    acmePage.properties.Jobs?.[0]?.id === survey.id &&
+      globexAfterBatch.properties.Jobs?.map((j: { id: string }) => j.id).sort().join() === [job.id, repair.id].sort().join(),
+    "create_database_rows mirrors two-way relations",
+    { acme: acmePage.properties, globex: globexAfterBatch.properties },
+  );
+  const repairPage = await mcp.ok("get_page", { page_id: repair.id });
+  check(repairPage.markdown.includes("Compressor noise"), "create_database_rows writes row bodies", repairPage.markdown);
   const badLink = await mcp.call("update_database_row", { row_id: job.id, properties: { Customer: ["Nobody"] } });
   check(badLink.isError && badLink.text.includes("not a row"), "relations reject rows outside the related database", badLink.text);
   await mcp.ok("delete_database_property", { database_id: dbPage.id, property: "Customer" });

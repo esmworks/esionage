@@ -245,6 +245,52 @@ export async function updateRowProperties(userId: string, rowId: string, patch: 
   return next;
 }
 
+export type NewRow = { title: string; properties?: Record<string, unknown> };
+
+/**
+ * Adds several rows to a database at once, in the given order after the existing rows. Every
+ * row's values are checked before anything is written and the rows go in with one insert, so a
+ * bad value leaves the database unchanged and a retried import doesn't leave duplicates behind.
+ */
+export async function createRows(userId: string, databaseId: string, rows: NewRow[]) {
+  const database = await requireDatabase(userId, databaseId, "edit");
+  if (database.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
+  if (!rows.length) return [];
+
+  const values: Record<string, unknown>[] = [];
+  for (const [i, row] of rows.entries()) {
+    try {
+      values.push(await normalizeRowProperties(userId, databaseId, row.properties ?? {}));
+    } catch (error) {
+      if (error instanceof PropertyValueError) error.message = `Row ${i + 1} ("${row.title.trim()}"): ${error.message}`;
+      throw error;
+    }
+  }
+
+  const [{ max }] = await db
+    .select({ max: sql<number | null>`max(${page.position})` })
+    .from(page)
+    .where(eq(page.parentId, databaseId));
+  const start = (Number(max) || 0) + 1;
+  const created = rows.map((row, i) => ({
+    id: crypto.randomUUID(),
+    workspaceId: database.workspaceId,
+    parentId: databaseId,
+    kind: "page" as const,
+    title: row.title.trim(),
+    properties: values[i],
+    position: start + i,
+    createdBy: userId,
+    updatedBy: userId,
+  }));
+  await db.insert(page).values(created);
+
+  for (const row of created) await syncPairedRelations(row.id, databaseId, {}, row.properties);
+  notifyTree(database.workspaceId);
+  notifyRows(databaseId);
+  return created.map(({ id, title }) => ({ id, title }));
+}
+
 export type RelationInput = {
   /** The database whose rows this property links to (same workspace; may be this database). */
   databaseId: string;
