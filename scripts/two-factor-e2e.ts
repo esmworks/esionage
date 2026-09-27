@@ -3,29 +3,37 @@
  * app (codes computed here, playing the app), the sign-in challenge, recovery codes (one use
  * each), trusted devices, an MCP app's authorization continuing only after the code, turning it
  * off, and a workspace's "require two-step verification"
- * policy (the owner can't turn it on unverified, members without it land on the set-up page,
- * outsiders learn nothing), and `pnpm auth:reset-2fa`. Creates its own @example.test users and
- * deletes them afterwards.
+ * policy (the owner can't turn it on unverified, members without it land on the set-up page and
+ * are refused by server actions, API routes and the collab websocket, whose open connections the
+ * policy closes; outsiders learn nothing), and `pnpm auth:reset-2fa`. Creates its own
+ * @example.test users and deletes them afterwards.
  *
  * Passkeys need a real authenticator (WebAuthn), so they are covered by the unit tests of the
  * server wiring (src/lib/auth-security.test.ts), not here.
+ *
+ * Server actions are called the way the browser calls them, by id; the ids come from the running
+ * app's build output (`.next`, or NEXT_DIR), so run this from the checkout the app runs from.
  *
  *   APP_URL=http://localhost:4100 pnpm tsx scripts/two-factor-e2e.ts
  *
  * Env: APP_URL (default http://localhost:3000), DATABASE_URL (read from .env when present).
  */
 import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 try {
   process.loadEnvFile();
 } catch {}
 
 // Imported after .env is loaded: the database client reads DATABASE_URL when it is created.
-const { eq, inArray } = await import("drizzle-orm");
+const { and, eq, inArray } = await import("drizzle-orm");
 const { db } = await import("@/db");
 const { oauthClient, user, workspace, workspaceMember } = await import("@/db/schema");
 const { updateWorkspaceSettings, WorkspaceError } = await import("@/server/workspaces");
 const { totpCode, totpKeyFromUri } = await import("@/lib/totp");
+const Y = await import("yjs");
+const { HocuspocusProvider } = await import("@hocuspocus/provider");
 
 const BASE = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const RUN = Date.now().toString(36);
@@ -91,6 +99,85 @@ async function codeFor(key: Uint8Array) {
   return totpCode(key);
 }
 const wrongCode = (key: Uint8Array) => (totpCode(key) === "000000" ? "111111" : "000000");
+
+/** The id of a server action, from the running app's server reference manifests. */
+function actionId(file: string, name: string) {
+  const root = process.env.NEXT_DIR ?? ".next";
+  const manifests: string[] = [];
+  const walk = (dir: string) => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (entry.name === "server-reference-manifest.json") manifests.push(path);
+    }
+  };
+  walk(join(root, "dev", "server"));
+  walk(join(root, "server"));
+  for (const manifest of manifests) {
+    const { node = {} } = JSON.parse(readFileSync(manifest, "utf8")) as {
+      node?: Record<string, { exportedName?: string; filename?: string }>;
+    };
+    for (const [id, entry] of Object.entries(node)) if (entry.filename === file && entry.exportedName === name) return id;
+  }
+  throw new Error(`No id for ${file}#${name} under ${root}: open a page that uses it first`);
+}
+
+/**
+ * Calls a server action as the browser does, posting to `path` (a page whose bundle has the
+ * action). Actions answer 200 with their result, or 500 when they throw.
+ */
+async function callAction(jar: Jar, path: string, file: string, name: string, args: unknown[]) {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: {
+      accept: "text/x-component",
+      "content-type": "text/plain;charset=UTF-8",
+      "next-action": actionId(file, name),
+      origin: BASE,
+      cookie: jar.header(),
+    },
+    body: JSON.stringify(args),
+    redirect: "manual",
+  });
+  return { status: res.status, text: await res.text() };
+}
+
+type Connection = { provider: InstanceType<typeof HocuspocusProvider>; closes: number[]; failed: () => boolean };
+/**
+ * A browser's collab connection to a document, with a token from /api/collab-token. Resolves once
+ * it synced or was refused.
+ */
+async function connect(jar: Jar, name: string): Promise<Connection & { outcome: "synced" | "refused" | "timeout" }> {
+  const tokenRes = await fetch(`${BASE}/api/collab-token`, { headers: { cookie: jar.header() } });
+  const { token } = (await tokenRes.json()) as { token: string };
+  const closes: number[] = [];
+  let refusals = 0;
+  let settle: (outcome: "synced" | "refused") => void = () => {};
+  const settled = new Promise<"synced" | "refused">((resolve) => (settle = resolve));
+  const provider = new HocuspocusProvider({
+    url: `${BASE.replace(/^http/, "ws")}/collab`,
+    name,
+    document: new Y.Doc(),
+    token,
+    onSynced: () => settle("synced"),
+    onAuthenticationFailed: () => {
+      refusals++;
+      settle("refused");
+    },
+    onClose: ({ event }) => void closes.push(event.code),
+  });
+  connections.push(provider);
+  const outcome = await Promise.race([settled, new Promise<"timeout">((r) => setTimeout(() => r("timeout"), 10_000))]);
+  return { provider, closes, failed: () => refusals > 0, outcome };
+}
+const connections: InstanceType<typeof HocuspocusProvider>[] = [];
+
+async function eventually(fn: () => boolean, ms = 5000) {
+  const until = Date.now() + ms;
+  while (Date.now() < until && !fn()) await new Promise((r) => setTimeout(r, 50));
+  return fn();
+}
 
 const userIds: string[] = [];
 const workspaceIds: string[] = [];
@@ -238,6 +325,26 @@ async function main() {
   const member = await signUp("member");
   const outsider = await signUp("outsider");
   await db.insert(workspaceMember).values({ workspaceId, userId: member.id, role: "member" });
+  const PAGES_ACTIONS = "src/app/actions/pages.ts";
+  const settingsPath = `/w/${workspaceId}/settings`;
+
+  // Before the policy: the member edits along, and the owner has a page with a file in it.
+  const ownerSettings = await open(`${settingsPath}?tab=security`, first.jar);
+  check(ownerSettings.status === 200, "the owner opens the workspace settings", ownerSettings.status);
+  const created = await callAction(first.jar, settingsPath, PAGES_ACTIONS, "createPageAction", [{ workspaceId, title: "Plan" }]);
+  const pageId = /"id":"([\w-]+)"/.exec(created.text)?.[1];
+  check(created.status === 200 && pageId, "the owner creates a page with a server action", created);
+  const upload = await fetch(`${BASE}/api/files?pageId=${pageId}`, {
+    method: "POST",
+    headers: { cookie: first.jar.header(), origin: BASE, "content-type": "text/plain", "x-file-name": "notes.txt" },
+    body: "hello",
+  });
+  const uploaded = (await upload.json()) as { id?: string };
+  check(upload.status === 201 && uploaded.id, "…and uploads a file to it", uploaded);
+  const early = await connect(member.jar, `page:${pageId}`);
+  check(early.outcome === "synced", "the member has the page open live", early.outcome);
+  const ownerEarly = await connect(first.jar, `page:${pageId}`);
+  check(ownerEarly.outcome === "synced", "…and so does the owner", ownerEarly.outcome);
 
   try {
     await updateWorkspaceSettings(owner.id, workspaceId, { requireTwoFactor: true }, { strongSession: false });
@@ -251,7 +358,13 @@ async function main() {
   } catch (error) {
     check(!(error instanceof WorkspaceError), "members can't change the policy", String(error));
   }
-  await updateWorkspaceSettings(owner.id, workspaceId, { requireTwoFactor: true }, { strongSession: true });
+  const turnedOn = await callAction(first.jar, settingsPath, "src/app/actions/workspaces.ts", "updateWorkspaceSettingsAction", [
+    workspaceId,
+    { requireTwoFactor: true },
+  ]);
+  check(turnedOn.status === 200 && turnedOn.text.includes('"ok":true'), "the owner, signed in with a code, requires it", turnedOn);
+  check(await eventually(() => early.closes.length > 0), "…which closes the member's open connection", early.closes);
+  check(ownerEarly.closes.length === 0, "…but not the owner's, whose session passes", ownerEarly.closes);
 
   const ownerHome = await open(`/w/${workspaceId}`, first.jar);
   check(ownerHome.status === 200, "the owner, signed in with a code, opens the workspace", ownerHome);
@@ -262,6 +375,28 @@ async function main() {
   check(gatedSettings.status === 307 && gatedSettings.location?.endsWith(`/two-step/${workspaceId}`), "…from every page of the workspace", gatedSettings);
   const csv = await fetch(`${BASE}/w/${workspaceId}/settings/members.csv`, { headers: { cookie: member.jar.header() } });
   check(csv.status === 403, "…and its exports", csv.status);
+
+  // Server actions, API routes and the collab websocket hold the member back too.
+  const tree = await callAction(member.jar, settingsPath, PAGES_ACTIONS, "getTreeAction", [workspaceId]);
+  check(tree.status === 500 && !tree.text.includes("Plan"), "a server action refuses the member", tree);
+  const search = await callAction(member.jar, settingsPath, PAGES_ACTIONS, "searchAction", [workspaceId, "Plan"]);
+  check(search.status === 500 && !search.text.includes("Plan"), "…search too", search);
+  const ownerTree = await callAction(first.jar, settingsPath, PAGES_ACTIONS, "getTreeAction", [workspaceId]);
+  check(ownerTree.status === 200 && ownerTree.text.includes("Plan"), "…while the owner's calls work", ownerTree.status);
+  const heldFile = await fetch(`${BASE}/api/files/${uploaded.id}`, { headers: { cookie: member.jar.header() } });
+  check(heldFile.status === 404, "the file route doesn't serve the member", heldFile.status);
+  const heldUpload = await fetch(`${BASE}/api/files?pageId=${pageId}`, {
+    method: "POST",
+    headers: { cookie: member.jar.header(), origin: BASE, "content-type": "text/plain", "x-file-name": "x.txt" },
+    body: "x",
+  });
+  check(heldUpload.status >= 400 && heldUpload.status < 500, "…nor takes their uploads", heldUpload.status);
+  const heldPage = await connect(member.jar, `page:${pageId}`);
+  check(heldPage.outcome === "refused", "the collab websocket refuses the member's page", heldPage.outcome);
+  const heldSignals = await connect(member.jar, `ws:${workspaceId}`);
+  check(heldSignals.outcome === "refused", "…and the workspace's live updates", heldSignals.outcome);
+  const ownerLive = await connect(first.jar, `page:${pageId}`);
+  check(ownerLive.outcome === "synced", "…while the owner's session connects", ownerLive.outcome);
   const gate = await open(`/two-step/${workspaceId}`, member.jar);
   check(gate.status === 200 && gate.text.includes("requires two-step verification"), "the set-up page explains why", gate.status);
 
@@ -272,9 +407,29 @@ async function main() {
   const ownOther = await open(`/w/${outsider.workspaceId}`, outsider.jar);
   check(ownOther.status === 200, "other workspaces are unaffected", ownOther);
 
+  // Someone held back can still leave: nobody should have to set up two-step verification to get out.
+  await db.insert(workspaceMember).values({ workspaceId, userId: outsider.id, role: "member" });
+  const heldTree = await callAction(outsider.jar, settingsPath, PAGES_ACTIONS, "getTreeAction", [workspaceId]);
+  check(heldTree.status === 500, "a member without it is held back", heldTree.status);
+  const left = await callAction(outsider.jar, settingsPath, "src/app/actions/workspaces.ts", "removeMemberAction", [
+    workspaceId,
+    outsider.id,
+  ]);
+  const stillIn = await db
+    .select({ id: workspaceMember.userId })
+    .from(workspaceMember)
+    .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, outsider.id)));
+  check(left.status === 200 && stillIn.length === 0, "…but can leave the workspace", left);
+
   await enableTwoFactor(member.jar);
   const inside = await open(`/w/${workspaceId}`, member.jar);
   check(inside.status === 200, "once set up, the member gets in", inside);
+  const treeAfter = await callAction(member.jar, settingsPath, PAGES_ACTIONS, "getTreeAction", [workspaceId]);
+  check(treeAfter.status === 200 && treeAfter.text.includes("Plan"), "…server actions answer them", treeAfter.status);
+  const fileAfter = await fetch(`${BASE}/api/files/${uploaded.id}`, { headers: { cookie: member.jar.header() } });
+  check(fileAfter.status === 200 && (await fileAfter.text()) === "hello", "…the file route serves them", fileAfter.status);
+  const liveAfter = await connect(member.jar, `page:${pageId}`);
+  check(liveAfter.outcome === "synced", "…and the collab websocket lets them in", liveAfter.outcome);
   const gateAfter = await open(`/two-step/${workspaceId}`, member.jar);
   check(gateAfter.status === 307 && gateAfter.location?.endsWith(`/w/${workspaceId}`), "…and the set-up page sends them on", gateAfter);
 
@@ -311,6 +466,7 @@ async function main() {
 try {
   await main();
 } finally {
+  for (const provider of connections) provider.destroy();
   if (workspaceIds.length) await db.delete(workspace).where(inArray(workspace.id, workspaceIds));
   if (userIds.length) await db.delete(user).where(inArray(user.id, userIds));
   if (clientIds.length) await db.delete(oauthClient).where(inArray(oauthClient.clientId, clientIds));

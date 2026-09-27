@@ -9,6 +9,7 @@ import { PropertyTypeIcon, ViewIcon } from "@/components/database/property-icons
 import { PageIcon } from "@/components/ui";
 import type { CardSize } from "@/db/schema";
 import { pageLabel } from "@/lib/labels";
+import { publishedHref, type PublishedLinks } from "@/lib/site";
 import type { PublishedDatabase, PublishedRow } from "@/server/publication";
 
 const cn = (...classes: (string | false | null | undefined)[]) => classes.filter(Boolean).join(" ");
@@ -21,10 +22,10 @@ const STRETCH = "before:absolute before:inset-0 before:content-['']";
 type Props = {
   table: PublishedDatabase;
   /**
-   * The publication's root path (`/s/<token>`) and page: rows link to their pages under it. Null
-   * in the print view, where rows are named, not linked.
+   * Where the page links to (the publication's link or its site): rows link to their pages there.
+   * Null in the print view, where rows are named, not linked.
    */
-  site: { base: string; rootId: string } | null;
+  links: PublishedLinks | null;
   /** The page showing the database, to switch views on; without it, no view tabs (database blocks in a body). */
   viewPath?: string;
   className?: string;
@@ -35,8 +36,9 @@ type Props = {
 type Href = ((id: string) => string) | null;
 
 /** A published database drawn like its view: a table, board, list or gallery, read-only. */
-export function PublishedDatabaseView({ table, site, viewPath, className, print = false }: Props) {
-  const href: Href = site ? (id: string) => (id === site.rootId ? site.base : `${site.base}/${id}`) : null;
+export function PublishedDatabaseView({ table, links, viewPath, className, print = false }: Props) {
+  const titles = new Map(table.rows.map((r) => [r.id, r.title]));
+  const href: Href = links ? (id: string) => publishedHref(links, id, titles.get(id) ?? "") : null;
   const viewHref = (viewId: string) => `${viewPath}?view=${encodeURIComponent(viewId)}`;
   const tabs = viewPath && table.views.length > 1 ? table.views : [];
   return (

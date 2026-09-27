@@ -30,6 +30,7 @@
     "@mantine/core": "^9.6.2",
     "@mantine/hooks": "^9.6.2",
     "@modelcontextprotocol/server": "^2.1.0",
+    "@tiptap/core": "^3.31.3",
     "aws4fetch": "^1.0.20",
     "better-auth": "^1.7.6",
     "crossws": "^0.4.12",

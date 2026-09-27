@@ -1,5 +1,5 @@
 import type { BetterAuthPlugin } from "better-auth";
-import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
+import { addOAuthServerContext, APIError, createAuthMiddleware, getOAuthState, getSessionFromCtx } from "better-auth/api";
 import { symmetricDecrypt } from "better-auth/crypto";
 import { twoFactor } from "better-auth/plugins";
 import { passkey } from "@better-auth/passkey";
@@ -76,12 +76,22 @@ export function sameOriginPath(target: string | null | undefined, appUrl: string
   }
 }
 
-/** Where a social sign-in that still needs a code continues: the sign-in page's code step. */
-export function twoFactorStepUrl(next: string | null) {
-  const params = new URLSearchParams({ step: "two-factor" });
+/**
+ * Where a social sign-in that still needs a code continues: the sign-in page's code step. With
+ * `oauthQuery` (the signed query of an app's authorization request, see socialTwoFactorRedirect)
+ * the page carries it on, so entering the code resumes the authorization like any sign-in there.
+ */
+export function twoFactorStepUrl(next: string | null, oauthQuery?: string | null) {
+  const params = new URLSearchParams(oauthQuery ?? undefined);
+  params.delete("step");
+  params.delete("next");
+  params.set("step", "two-factor");
   if (next && next !== "/") params.set("next", next);
   return `/sign-in?${params}`;
 }
+
+/** Key of the signed authorization query in the social sign-in's OAuth state (server-trusted). */
+const OAUTH_QUERY_KEY = "esionageOAuthQuery";
 
 type AfterHook = NonNullable<NonNullable<BetterAuthPlugin["hooks"]>["after"]>[number];
 
@@ -118,11 +128,25 @@ export function twoFactorPlugin() {
  * Runs after the two-factor plugin: a provider callback it held back answers JSON meant for
  * fetch calls, which would leave the browser on a page of JSON. Send it to the code step instead,
  * keeping where the sign-in was headed.
+ *
+ * Signing in to authorize an app (MCP) puts the app's signed authorization query on the sign-in
+ * page; the OAuth provider resumes from it once a session cookie is set. The code step comes
+ * after the provider round trip, so the query rides along in the social sign-in's state (checked
+ * by the OAuth provider's own before-hook on the same request) and comes back on the code step's
+ * address, where the client sends it with the code.
  */
 export function socialTwoFactorRedirect(appUrl: string) {
   return {
     id: "esionage-social-two-factor",
     hooks: {
+      before: [
+        {
+          matcher: (ctx) => ctx.path === "/sign-in/social" && typeof ctx.body?.oauth_query === "string",
+          handler: createAuthMiddleware(async (ctx) => {
+            await addOAuthServerContext({ [OAUTH_QUERY_KEY]: (ctx.body as { oauth_query: string }).oauth_query });
+          }),
+        },
+      ],
       after: [
         {
           matcher: (ctx) => ctx.path === "/callback/:id",
@@ -130,7 +154,8 @@ export function socialTwoFactorRedirect(appUrl: string) {
             const returned = ctx.context.returned as { twoFactorRedirect?: boolean } | undefined;
             if (!returned || typeof returned !== "object" || returned.twoFactorRedirect !== true) return;
             const next = sameOriginPath(ctx.context.responseHeaders?.get("location"), appUrl);
-            throw ctx.redirect(twoFactorStepUrl(next));
+            const oauthQuery = (await getOAuthState())?.serverContext?.[OAUTH_QUERY_KEY];
+            throw ctx.redirect(twoFactorStepUrl(next, typeof oauthQuery === "string" ? oauthQuery : null));
           }),
         },
       ],

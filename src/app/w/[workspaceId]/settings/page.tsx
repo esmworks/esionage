@@ -1,4 +1,4 @@
-import { KeyRound, Plug, Settings, Shield, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
+import { Globe, KeyRound, Plug, Settings, Shield, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -21,6 +21,7 @@ import {
   RequireTwoFactorSetting,
 } from "@/components/settings/security-settings";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
+import { SitePages, SiteSettings } from "@/components/settings/site-settings";
 import { WorkspaceExport } from "@/components/settings/workspace-export";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
@@ -32,6 +33,7 @@ import { mailStatus } from "@/server/mail";
 import { getNotificationPreferences } from "@/server/notification-preferences";
 import { listWorkspacePublications } from "@/server/publication";
 import { getSession, requireWorkspaceSession } from "@/server/session";
+import { getSite } from "@/server/site";
 import {
   countMembersWithoutTwoFactor,
   getJoinLink,
@@ -47,11 +49,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("metaTitle") };
 }
 
-const TABS = ["general", "members", "security", "preferences", "accountSecurity", "apps"] as const;
+const TABS = ["general", "members", "security", "site", "preferences", "accountSecurity", "apps"] as const;
 type Tab = (typeof TABS)[number];
 const NAV: { group: "account" | "workspace"; tabs: Tab[] }[] = [
   { group: "account", tabs: ["preferences", "accountSecurity", "apps"] },
-  { group: "workspace", tabs: ["general", "members", "security"] },
+  { group: "workspace", tabs: ["general", "members", "security", "site"] },
 ];
 const ICONS: Record<Tab, LucideIcon> = {
   preferences: SlidersHorizontal,
@@ -60,6 +62,7 @@ const ICONS: Record<Tab, LucideIcon> = {
   general: Settings,
   members: Users,
   security: Shield,
+  site: Globe,
 };
 
 export default async function SettingsPage({
@@ -138,6 +141,9 @@ export default async function SettingsPage({
           )}
           {tab === "members" && <MembersTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "security" && <SecurityTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
+          {tab === "site" && (
+            <SiteTab workspaceId={workspaceId} workspaceName={workspace.name} userId={user.id} isOwner={isOwner} />
+          )}
           {tab === "preferences" && (
             <PreferencesTab workspaceId={workspaceId} userId={user.id} guest={isGuest(workspace.role)} />
           )}
@@ -215,6 +221,47 @@ async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: stri
       {forms && (
         <SettingsGroup title={t("security.forms.title")} description={t("security.forms.description")}>
           <PublicForms workspaceId={workspaceId} forms={forms} />
+        </SettingsGroup>
+      )}
+    </div>
+  );
+}
+
+async function SiteTab({
+  workspaceId,
+  workspaceName,
+  userId,
+  isOwner,
+}: {
+  workspaceId: string;
+  workspaceName: string;
+  userId: string;
+  isOwner: boolean;
+}) {
+  const [site, publications, t] = await Promise.all([
+    getSite(userId, workspaceId),
+    isOwner ? listWorkspacePublications(userId, workspaceId) : null,
+    getTranslations("settings"),
+  ]);
+  return (
+    <div className="space-y-10">
+      <div>
+        <SettingsHeader title={t("nav.site")} description={t("site.description")} />
+        <SettingsGroup title={t("site.heading")}>
+          <SiteSettings
+            // A new form once the site is saved or taken down, starting from what is stored.
+            key={site ? `${site.slug}:${site.homePageId}` : "none"}
+            workspaceId={workspaceId}
+            workspaceName={workspaceName}
+            site={site}
+            publications={publications}
+            canEdit={isOwner}
+          />
+        </SettingsGroup>
+      </div>
+      {publications && (
+        <SettingsGroup title={t("site.pagesHeading")} description={t("site.pagesDescription")}>
+          <SitePages workspaceId={workspaceId} publications={publications} homePageId={site?.homePageId ?? null} />
         </SettingsGroup>
       )}
     </div>

@@ -10,13 +10,14 @@ import { arrangeGroups, boardGroupProperty, groupRowsBy, isGroupable, type Group
 import { applyView, computedValues, isHiddenInView } from "@/lib/properties";
 import { coverProperty, galleryCover } from "@/lib/views";
 import { firstImageFile } from "@/lib/files";
-import { holdsPeople } from "@/lib/property-types";
+import { holdsPeople, UNPUBLISHED_PROPERTY_TYPES } from "@/lib/property-types";
+import { publishedHref, type PublishedLinks } from "@/lib/site";
 import { AccessError, accessRank, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
 import { rowCovers, type DatabaseProperty } from "@/server/databases";
 import { computeDerived } from "@/server/derived";
 import { publishedPageRefs } from "@/server/mentions";
 import { canPublish } from "@/server/workspaces";
-import type { BodyHeading, PublishedBookmark } from "@/server/published-body";
+import type { BodyHeading, BodySegment, PublishedBookmark, PublishedColumn } from "@/server/published-body";
 import type { EmbedTarget } from "@/lib/web-blocks";
 
 /**
@@ -45,7 +46,13 @@ export class PublishError extends Error {
 export async function getPublication(userId: string, pageId: string) {
   await requirePageAccess(userId, pageId, "view");
   const [row] = await db
-    .select({ token: pagePublication.token, indexable: pagePublication.indexable, createdAt: pagePublication.createdAt })
+    .select({
+      token: pagePublication.token,
+      indexable: pagePublication.indexable,
+      inSite: pagePublication.inSite,
+      allowDuplicate: pagePublication.allowDuplicate,
+      createdAt: pagePublication.createdAt,
+    })
     .from(pagePublication)
     .where(eq(pagePublication.pageId, pageId))
     .limit(1);
@@ -99,15 +106,35 @@ async function requirePublishRights(userId: string, pageId: string) {
   return p;
 }
 
-/** Lets search engines index a published page and its subpages, or keeps them out (the default). */
-export async function setPublicationIndexable(userId: string, pageId: string, indexable: boolean): Promise<void> {
+/**
+ * A publication's options:
+ * - `indexable`: search engines may index the page and its subpages (off by default);
+ * - `inSite`: the workspace's site lists it (see server/site.ts; off by default);
+ * - `allowDuplicate`: signed-in visitors may copy it into a workspace of theirs (off by default).
+ */
+export type PublicationOptions = { indexable: boolean; inSite: boolean; allowDuplicate: boolean };
+
+/** Changes some options of a page's publication; needs what publishing needs. */
+export async function updatePublication(userId: string, pageId: string, patch: Partial<PublicationOptions>): Promise<void> {
   await requirePublishRights(userId, pageId);
+  const clean: Partial<PublicationOptions> = {};
+  for (const key of ["indexable", "inSite", "allowDuplicate"] as const) {
+    if (patch[key] === undefined) continue;
+    if (typeof patch[key] !== "boolean") throw new PublishError(`${key} must be true or false`);
+    clean[key] = patch[key];
+  }
+  if (!Object.keys(clean).length) return;
   const updated = await db
     .update(pagePublication)
-    .set({ indexable })
+    .set(clean)
     .where(eq(pagePublication.pageId, pageId))
     .returning({ pageId: pagePublication.pageId });
   if (!updated.length) throw new PublishError("The page isn't published");
+}
+
+/** Lets search engines index a published page and its subpages, or keeps them out (the default). */
+export async function setPublicationIndexable(userId: string, pageId: string, indexable: boolean): Promise<void> {
+  await updatePublication(userId, pageId, { indexable });
 }
 
 export type WebView = { id: string; name: string; type: ViewType; published: boolean };
@@ -149,6 +176,10 @@ export type WorkspacePublication = {
   inTrash: boolean;
   /** Search engines may index it. */
   indexable: boolean;
+  /** The workspace's site lists it. */
+  inSite: boolean;
+  /** Visitors may duplicate it. */
+  allowDuplicate: boolean;
   publishedBy: string | null;
   createdAt: Date;
 };
@@ -164,6 +195,8 @@ export async function listWorkspacePublications(userId: string, workspaceId: str
       archivedAt: page.archivedAt,
       token: pagePublication.token,
       indexable: pagePublication.indexable,
+      inSite: pagePublication.inSite,
+      allowDuplicate: pagePublication.allowDuplicate,
       publishedBy: user.name,
       createdAt: pagePublication.createdAt,
       visible: sql<boolean>`${accessRank(userId, sql`${page.id}`)} > 0`,
@@ -180,6 +213,8 @@ export async function listWorkspacePublications(userId: string, workspaceId: str
     url: r.visible && !r.archivedAt ? `/s/${r.token}` : null,
     inTrash: r.archivedAt !== null,
     indexable: r.indexable,
+    inSite: r.inSite,
+    allowDuplicate: r.allowDuplicate,
     publishedBy: r.publishedBy,
     createdAt: r.createdAt,
   }));
@@ -229,7 +264,7 @@ export type PublishedDatabase = {
 };
 /**
  * A part of a published page's body: text, a database block, or a block the page draws itself (a
- * table of contents, a breadcrumb from `crumbs`, a Mermaid diagram).
+ * table of contents, a breadcrumb from `crumbs`, a Mermaid diagram), or columns of these.
  */
 export type PublishedBlock =
   | { kind: "html"; html: string }
@@ -239,6 +274,7 @@ export type PublishedBlock =
   | { kind: "bookmark"; bookmark: PublishedBookmark }
   | { kind: "webEmbed"; url: string; embed: EmbedTarget }
   | { kind: "pdf"; fileId: string; name: string; caption: string }
+  | { kind: "columns"; columns: PublishedColumn<PublishedBlock>[] }
   | {
       kind: "embed";
       type: EmbedBlockType;
@@ -252,6 +288,10 @@ export type PublishedPage = {
   token: string;
   /** Search engines may index it (the publication allows it). */
   indexable: boolean;
+  /** Signed-in visitors may copy it into a workspace of theirs (the publication allows it). */
+  allowDuplicate: boolean;
+  /** Where the page's links go: the publication's own link, or its workspace's site. */
+  links: PublishedLinks;
   rootId: string;
   id: string;
   title: string;
@@ -270,21 +310,41 @@ export type PublishedPage = {
   row: { properties: DatabaseProperty[]; values: Record<string, unknown> } | null;
 };
 
+export type PublishedPageOptions = {
+  /**
+   * Links of a site (server/site.ts), instead of the publication's own (`/s/<token>/<page id>`).
+   * Pages that other publications of the site serve (`elsewhere`) are linked to as well.
+   */
+  links?: PublishedLinks;
+  elsewhere?: (pageId: string) => Promise<boolean>;
+};
+
 /**
  * The published page for `token`, or — with `pageId` — that page if it is a live descendant of
  * the published page. Null when the token is unknown, the published page is in the trash, or
  * `pageId` is outside the published subtree.
  */
-export async function getPublishedPage(token: string, pageId?: string, viewId?: string): Promise<PublishedPage | null> {
+export async function getPublishedPage(
+  token: string,
+  pageId?: string,
+  viewId?: string,
+  options: PublishedPageOptions = {},
+): Promise<PublishedPage | null> {
   if (!token || token.length > 128) return null;
   const [root] = await db
-    .select({ id: page.id, publishedBy: pagePublication.publishedBy, indexable: pagePublication.indexable })
+    .select({
+      id: page.id,
+      publishedBy: pagePublication.publishedBy,
+      indexable: pagePublication.indexable,
+      allowDuplicate: pagePublication.allowDuplicate,
+    })
     .from(pagePublication)
     .innerJoin(page, eq(page.id, pagePublication.pageId))
     .where(and(eq(pagePublication.token, token), isNull(page.archivedAt)))
     .limit(1);
   if (!root?.publishedBy) return null;
   const publisher = root.publishedBy;
+  const links = options.links ?? { base: `/s/${token}`, homeId: root.id, site: false };
 
   const targetId = pageId ?? root.id;
   const crumbs = await chainTo(publisher, targetId, root.id);
@@ -318,7 +378,7 @@ export async function getPublishedPage(token: string, pageId?: string, viewId?: 
     : undefined;
 
   const [body, children, database, row] = await Promise.all([
-    target.kind === "page" ? publishedBody(publisher, root.id, token, target.ydoc) : Promise.resolve([]),
+    target.kind === "page" ? publishedBody(publisher, root.id, links, target.ydoc, options.elsewhere) : Promise.resolve([]),
     target.kind === "database" ? Promise.resolve([]) : liveChildren(publisher, target.id),
     target.kind === "database" ? publishedDatabase(publisher, target.id, { viewId }) : Promise.resolve(null),
     parent?.kind === "database" && target.parentId ? publishedRow(target, target.parentId) : Promise.resolve(null),
@@ -327,6 +387,8 @@ export async function getPublishedPage(token: string, pageId?: string, viewId?: 
   return {
     token,
     indexable: root.indexable,
+    allowDuplicate: root.allowDuplicate,
+    links,
     rootId: root.id,
     id: target.id,
     title: target.title,
@@ -366,7 +428,7 @@ export async function publishedRow(
  * publisher, and `pageId` lies within MAX_DEPTH levels under the root; null otherwise. Templates
  * (a database's row templates, say) count as not live: they are never published.
  */
-async function chainTo(publisher: string, pageId: string, rootId: string): Promise<PublishedCrumb[] | null> {
+export async function chainTo(publisher: string, pageId: string, rootId: string): Promise<PublishedCrumb[] | null> {
   const rows = await db.execute<{
     id: string;
     title: string;
@@ -432,23 +494,38 @@ export async function mentionLabels() {
   }
 }
 
-async function publishedBody(publisher: string, rootId: string, token: string, ydoc: Uint8Array | null): Promise<PublishedBlock[]> {
+async function publishedBody(
+  publisher: string,
+  rootId: string,
+  links: PublishedLinks,
+  ydoc: Uint8Array | null,
+  elsewhere?: (pageId: string) => Promise<boolean>,
+): Promise<PublishedBlock[]> {
   const { bodySegmentsFromYdoc } = await import("@/server/published-body");
   const segments = await bodySegmentsFromYdoc(ydoc, {
     // Mentioned pages published with this page (or on their own) are links; the rest plain text.
     resolvePages: async (pageIds) => {
       return publishedPageRefs(publisher, pageIds, {
-        inPublication: async (id) => ((await chainTo(publisher, id, rootId)) ? (id === rootId ? `/s/${token}` : `/s/${token}/${id}`) : null),
+        inPublication: async (id, title) =>
+          (await chainTo(publisher, id, rootId)) || (await elsewhere?.(id)) ? publishedHref(links, id, title) : null,
         labels: await mentionLabels(),
       });
     },
   });
-  return Promise.all(
-    segments.map(async (segment): Promise<PublishedBlock> => {
-      if (segment.kind !== "embed") return segment;
-      return { kind: "embed", type: segment.type, database: await publishedEmbed(publisher, rootId, segment.databaseId, segment.view) };
-    }),
-  );
+  const resolve = (list: BodySegment[]): Promise<PublishedBlock[]> =>
+    Promise.all(
+      list.map(async (segment): Promise<PublishedBlock> => {
+        if (segment.kind === "columns") {
+          return {
+            kind: "columns",
+            columns: await Promise.all(segment.columns.map(async (column) => ({ width: column.width, segments: await resolve(column.segments) }))),
+          };
+        }
+        if (segment.kind !== "embed") return segment;
+        return { kind: "embed", type: segment.type, database: await publishedEmbed(publisher, rootId, segment.databaseId, segment.view) };
+      }),
+    );
+  return resolve(segments);
 }
 
 async function publishedEmbed(publisher: string, rootId: string, databaseId: string, view: LinkedView | null) {
@@ -480,13 +557,9 @@ async function databaseProperties(databaseId: string) {
   return withFormulaTypes(properties);
 }
 
-const PRIVATE_TYPES = new Set<string>(["relation", "rollup", "person", "created_by", "last_edited_by"]);
+const PRIVATE_TYPES = UNPUBLISHED_PROPERTY_TYPES;
 
-/**
- * The properties a published page shows: all but relations, whose values point at pages that may
- * not be published (rollups, which calculate over them, go too), and people, who didn't agree to
- * have their names on a public page.
- */
+/** The properties a published page shows: all but relations and people (see UNPUBLISHED_PROPERTY_TYPES). */
 function publicProperties(properties: DatabaseProperty[]) {
   return properties.filter((p) => !PRIVATE_TYPES.has(p.type));
 }
@@ -512,7 +585,7 @@ async function sortNames(rows: { properties: Record<string, unknown> }[], props:
 type StoredView = typeof databaseView.$inferSelect;
 
 /** A database's views that show rows, in their order. */
-function readableViews(databaseId: string): Promise<StoredView[]> {
+export function readableViews(databaseId: string): Promise<StoredView[]> {
   return db
     .select()
     .from(databaseView)

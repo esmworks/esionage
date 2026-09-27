@@ -122,13 +122,25 @@ try {
       "```mermaid",
       "graph TD; Start-->Finish",
       "```",
+      "",
+      "<!-- esionage:columns -->",
+      "",
+      "<!-- esionage:column -->",
+      "",
+      "Left column text",
+      "",
+      "<!-- esionage:column width=1.5 -->",
+      "",
+      "Right column text",
+      "",
+      "<!-- esionage:/columns -->",
     ].join("\n"),
     owner,
   );
   // The HTTP server reads the stored document; wait for the store hook to write it.
   await eventually(async () => {
     const [row] = await db.select({ md: page.contentMarkdown }).from(page).where(eq(page.id, report.id));
-    return Boolean(row?.md.includes("Finish"));
+    return Boolean(row?.md.includes("Right column text"));
   }, "the report's body");
 
   // What the owner prints
@@ -141,6 +153,14 @@ try {
   check(ownHtml.includes(`/api/files/${photo.id}`), "uploaded images point at the file route", ownHtml);
   check(own.sections[0].body.some((b) => b.kind === "mermaid" && b.source.includes("Start-->Finish")), "Mermaid diagrams come as their source, drawn in the browser");
   check(ownHtml.includes("Child page") && ownHtml.includes("Secret plans"), "linked pages print as their titles", ownHtml);
+  const columns = own.sections[0].body.find((b) => b.kind === "columns");
+  check(
+    columns?.kind === "columns" &&
+      JSON.stringify(columns.columns.map((c) => [c.width, htmlOf(c.segments).includes(c.width === 1 ? "Left column text" : "Right column text")])) ===
+        JSON.stringify([[1, true], [1.5, true]]),
+    "columns print with their widths and blocks",
+    columns,
+  );
   check(!ownHtml.includes(`/p/${child.id}`) && !ownHtml.includes(`/p/${secret.id}`), "…not as links", ownHtml);
   check(
     JSON.stringify(own.sections[0].children.map((c) => c.title)) === JSON.stringify(["Child page", "Secret plans", "Tasks"]),
@@ -213,6 +233,7 @@ try {
       "HTTP: …with the heading, table, code and diagram source",
     );
     check(html.includes(`src="/api/files/${photo.id}"`), "HTTP: …and the image");
+    check(html.includes("Left column text") && html.includes("flex-grow:1.5"), "HTTP: …and the columns, side by side at their widths");
     check(!html.includes(`href="/w/${workspaceId}/p/${child.id}"`), "HTTP: linked pages aren't links");
     check(html.includes("@page"), "HTTP: …and page margins are set for print");
     const image = await get(`/api/files/${photo.id}`, ownerCookie);

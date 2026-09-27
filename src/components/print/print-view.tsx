@@ -96,10 +96,10 @@ async function Section({
       {section.row && section.row.properties.length > 0 && <PublishedRowProperties row={section.row} print />}
 
       {section.body.length > 0 && (
-        <PublishedBody blocks={section.body} crumbs={section.crumbs} site={null} unavailable={t("embedUnavailable")} print />
+        <PublishedBody blocks={section.body} crumbs={section.crumbs} links={null} unavailable={t("embedUnavailable")} print />
       )}
 
-      {section.database && <PublishedDatabaseView table={section.database} site={null} print className="mt-6" />}
+      {section.database && <PublishedDatabaseView table={section.database} links={null} print className="mt-6" />}
 
       {listChildren && section.children.length > 0 && (
         <section className={cn("mt-10", styles.keep)}>

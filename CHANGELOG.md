@@ -15,6 +15,23 @@
   order (at most 100), each on a new sheet. Same access as opening the page (404 otherwise) and
   the workspace's two-step policy; the body is read from the live document, so recent edits are
   in. No new dependencies, no migration.
+- **Workspace site and Duplicate for published pages:** owners set up a site in Settings → Site: a
+  slug (lowercase letters, digits and hyphens, 3–40 characters, unique, a few reserved), a title
+  and a home page picked among published pages. `/s/<slug>` opens the home page with a navigation
+  (sidebar, a menu on phones) of the publications listed in the site, each with its subpages;
+  pages live at `/s/<slug>/<title>-<id>` (old titles redirect), and mentions of other listed pages
+  link within the site. A publication is listed only when its publisher (Publish tab) or an owner
+  (Settings → Site) turns it on, so link-only pages never show up; the home page is listed when it
+  is picked, and the site falls back to its first listed page while the home page is offline.
+  Existing `/s/<token>` links keep working, and each page keeps its publication's search-engine
+  setting. New per-publication option **Allow duplicate** (off by default): a Duplicate button on
+  the published page lets a signed-in visitor (others sign in first and come back) copy the page
+  and its published subpages to the top of one of their workspaces, optionally as a template. Only
+  what the publication shows is copied (pages the publisher can see, public properties, web
+  views); bodies are rebuilt without comments, history, reminders or people's ids, pages that
+  weren't copied read as the published page showed them, and uploaded files are copied into the
+  new workspace within its quota. Five duplicates a minute and thirty an hour per person
+  (migration `0018_site_and_duplicate`).
 - **Export with subpages and whole-workspace export:** "Export with subpages" in the page menu
   ("Export with row pages" for databases) downloads a ZIP of the page and everything under it, and
   owners can download the whole workspace from Settings → General → Export. Pages are Markdown,
@@ -57,7 +74,8 @@
 - **Two-step verification and passkeys** (Settings → Account security): an authenticator app
   (TOTP, QR code or typed key) with ten one-time recovery codes shown once to copy or download,
   new codes on demand, and "don't ask again on this device" for 30 days. Signing in with a
-  password or with GitHub/Google then asks for a code or a recovery code. Turning it off asks for
+  password or with GitHub/Google then asks for a code or a recovery code; signing in to connect
+  an MCP app continues to its consent page after the code, either way. Turning it off asks for
   the password, or a code on accounts without one. Passkeys can be added, renamed and removed,
   and "Sign in with a passkey" is on the sign-in page. Built on Better Auth's `twoFactor` plugin
   and `@better-auth/passkey`; migration `0018_two_factor_passkeys` adds the `two_factor` and
@@ -65,7 +83,9 @@
   in). `pnpm auth:reset-2fa <email>` resets an account that lost both its app and its codes.
 - **Require two-step verification** (workspace Settings → Security, owners): people whose session
   has neither the authenticator app nor a passkey sign-in are sent to a page where they set one
-  up before they can open the workspace. An owner can turn it on only from a session that
+  up before they can open the workspace. The access checks enforce it for server actions and API
+  routes too, and the live collaboration connection checks it when it connects (turning the
+  policy on closes the ones that don't pass). An owner can turn it on only from a session that
   passes, and the settings show how many people haven't set anything up yet. Apps connected over
   MCP are not affected.
 
@@ -160,8 +180,19 @@
   All are in the slash menu and show on published pages. In Markdown (export, MCP) a callout is a
   GitHub alert (`> [!NOTE]`), equations are `$…$` and `$$…$$`, a diagram is a ```` ```mermaid ````
   fence, and the table of contents and breadcrumb are `<!-- esionage:toc -->` and
-  `<!-- esionage:breadcrumb -->` lines; all of them are read back into blocks. Columns are left out:
-  BlockNote's multi-column package is GPL-3.0.
+  `<!-- esionage:breadcrumb -->` lines; all of them are read back into blocks.
+- **Columns** (#16): "2 columns" and "3 columns" in the slash menu place blocks side by side;
+  inside a column the menu offers "Add column" instead (up to five). Blocks move into, out of and
+  between columns with the side menu's drag handle; a column whose last block is dragged away or
+  deleted goes, and a column list left with one column turns back into plain blocks.
+  Columns are equal by default and resized by dragging the line between them (stored as each
+  column's share, so it syncs, undoes and keeps its proportion at any width). On screens narrower
+  than 640px they stack, in the editor and on published pages, where tables of contents, diagrams,
+  embeds and databases inside columns show in place. In Markdown (export, MCP) columns are marker
+  lines around their blocks (`<!-- esionage:columns -->`, `<!-- esionage:column -->` before each
+  column, optionally `width=2`, and `<!-- esionage:/columns -->`), so plain Markdown readers see
+  the blocks in order and writing a body back keeps its columns. Built on BlockNote's own column
+  support in its core; its multi-column package (GPL-3.0 or commercial) is not used. No migration.
 - **"Can comment" access:** share a page so people can read and comment on it without editing it.
   Their comments mark the selected text on the server, so the page itself stays read-only for them.
 - **Comments on pages:** select text and choose Comment to start a thread; reply, react with emoji,

@@ -50,6 +50,11 @@ export interface CollabService {
   broadcast(channel: Channel, event: string): void;
   /** Drops a user's live connections to the workspace's documents (after removal from it). */
   disconnectUser(userId: string, workspaceId: string): Promise<void>;
+  /**
+   * Drops the connections to the workspace's documents whose session doesn't pass two-step
+   * verification (after the workspace started requiring it).
+   */
+  disconnectHeldBack(workspaceId: string): Promise<void>;
 }
 
 const KEY = "__esionageCollab";

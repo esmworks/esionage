@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { isStrongSession } from "@/lib/auth-security";
 import { getAccountSecurity } from "@/server/account-security";
-import { getMembership } from "@/server/access";
+import { findMembership } from "@/server/access";
 import { listWorkspaces } from "@/server/pages";
 import { requireSession } from "@/server/session";
 import { workspaceSettings } from "@/server/workspaces";
@@ -22,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function TwoStepPage({ params }: { params: Promise<{ workspaceId: string }> }) {
   const session = await requireSession();
   const { workspaceId } = await params;
-  if (!(await getMembership(session.user.id, workspaceId))) notFound();
+  if (!(await findMembership(session.user.id, workspaceId))) notFound();
   const [settings, workspaces, security, t] = await Promise.all([
     workspaceSettings(workspaceId),
     listWorkspaces(session.user.id),

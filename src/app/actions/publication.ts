@@ -2,34 +2,46 @@
 
 import * as publication from "@/server/publication";
 import { requireUserId } from "@/server/session";
+import { siteForPage } from "@/server/site";
 
 /** Site path of a published page; the client prefixes its own origin for copying. */
 const publicPath = (token: string) => `/s/${token}`;
 
 /**
- * The page's publication, if any, why the viewer can't publish it (null when they can), and for
- * databases the views published pages show.
+ * The page's publication, if any, why the viewer can't publish it (null when they can), for
+ * databases the views published pages show, and the workspace's site (with the page's address
+ * there, when it is listed).
  */
 export async function getPublicationAction(pageId: string) {
   const userId = await requireUserId();
-  const [found, blocker, views] = await Promise.all([
+  const [found, blocker, views, site] = await Promise.all([
     publication.getPublication(userId, pageId),
     publication.publishBlocker(userId, pageId),
     publication.getWebViews(userId, pageId),
+    siteForPage(userId, pageId),
   ]);
   return {
     publication: found
-      ? { token: found.token, url: publicPath(found.token), indexable: found.indexable, createdAt: found.createdAt }
+      ? {
+          token: found.token,
+          url: publicPath(found.token),
+          siteUrl: site && found.inSite ? site.pageUrl : null,
+          indexable: found.indexable,
+          inSite: found.inSite,
+          allowDuplicate: found.allowDuplicate,
+          createdAt: found.createdAt,
+        }
       : null,
     blocker,
     views,
+    site: site ? { url: site.url } : null,
   };
 }
 
 export async function publishPageAction(pageId: string) {
   const userId = await requireUserId();
-  const { token, indexable } = await publication.publishPage(userId, pageId);
-  return { token, url: publicPath(token), indexable };
+  await publication.publishPage(userId, pageId);
+  return (await getPublicationAction(pageId)).publication!;
 }
 
 export async function unpublishPageAction(pageId: string) {
@@ -40,6 +52,13 @@ export async function unpublishPageAction(pageId: string) {
 export async function setPublicationIndexableAction(pageId: string, indexable: boolean) {
   const userId = await requireUserId();
   await publication.setPublicationIndexable(userId, pageId, indexable);
+}
+
+/** Changes the publication's options (search engines, listing in the site, duplicating). */
+export async function updatePublicationAction(pageId: string, patch: Partial<publication.PublicationOptions>) {
+  const userId = await requireUserId();
+  await publication.updatePublication(userId, pageId, patch);
+  return (await getPublicationAction(pageId)).publication;
 }
 
 export async function setWebViewsAction(databaseId: string, viewIds: string[]) {

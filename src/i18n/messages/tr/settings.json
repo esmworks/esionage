@@ -9,7 +9,8 @@
     "preferences": "Tercihler",
     "accountSecurity": "Hesap güvenliği",
     "apps": "Bağlı uygulamalar",
-    "security": "Güvenlik"
+    "security": "Güvenlik",
+    "site": "Site"
   },
   "workspace": {
     "heading": "Çalışma alanı",
@@ -239,5 +240,38 @@
     "reminderDescription": "Bir sayfadaki tarihe kurduğunuz hatırlatmanın zamanı gelir.",
     "reminderChannel": "Hatırlatmalar: {channel}",
     "mailOff": "Bu sunucuda e-posta gönderimi kapalı olduğu için şu an e-posta gitmiyor."
+  },
+  "site": {
+    "description": "Bu çalışma alanının yayındaki sayfalarına okunabilir tek bir adres, bir ana sayfa ve aralarında gezinme menüsü verin.",
+    "heading": "Site",
+    "notSetUp": "Bu çalışma alanının henüz bir sitesi yok. Yayındaki sayfalarına yalnızca kendi bağlantılarıyla ulaşılır.",
+    "slugLabel": "Adres",
+    "slugHint": "Küçük harf, rakam ve kısa çizgi; 3 ile 40 karakter arası.",
+    "titleLabel": "Başlık",
+    "titleHint": "Sitenin her sayfasının üstünde görünür.",
+    "homeLabel": "Ana sayfa",
+    "homeHint": "Sitenin adresinin açtığı sayfa. Yalnızca yayındaki sayfalar seçilebilir.",
+    "homeNone": "Listelenen ilk sayfa",
+    "create": "Siteyi oluştur",
+    "save": "Kaydet",
+    "open": "Siteyi aç",
+    "remove": "Yayından kaldır",
+    "confirmRemove": "Site yayından kaldırılsın mı? Adresi çalışmayı bırakır; yayındaki her sayfa kendi bağlantısını korur.",
+    "membersOnly": "Siteyi yalnızca sahipler değiştirebilir.",
+    "pagesHeading": "Sitedeki sayfalar",
+    "pagesDescription": "Sitenin alt sayfalarıyla birlikte listelediği yayındaki sayfalar. Listelenmeyen sayfalar kendi bağlantılarıyla çalışmaya devam eder ama siteden ulaşılamaz.",
+    "pagesEmpty": "Henüz yayında sayfa yok. Önce bir sayfayı Paylaş menüsünden yayınlayın.",
+    "listed": "Sitede listelenir",
+    "privatePage": "Erişiminiz olmayan bir sayfa",
+    "home": "Ana sayfa",
+    "errors": {
+      "tooShort": "Adres en az 3 karakter olmalı.",
+      "tooLong": "Adres en fazla 40 karakter olabilir.",
+      "invalid": "Küçük harf, rakam ve tek kısa çizgi kullanın; harf ya da rakamla başlayıp bitirin.",
+      "reserved": "Bu adres ayrılmış. Başka bir adres seçin.",
+      "slugTaken": "Bu adresi başka bir çalışma alanı kullanıyor.",
+      "homeNotPublished": "Bu çalışma alanının görebildiğiniz, yayındaki bir sayfasını seçin.",
+      "ownersOnly": "Bunu yalnızca çalışma alanı sahipleri yapabilir."
+    }
   }
 }

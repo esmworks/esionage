@@ -409,6 +409,65 @@
   width: 100%;
 }
 
+/*
+ * Columns (see components/page/columns.tsx): blocks side by side, each column taking its share of
+ * the row. The gap leaves room for a block's side menu and the resize handle in its middle. On
+ * phones the columns stack.
+ */
+.esionage-columns {
+  display: flex;
+  gap: 40px;
+  width: 100%;
+}
+.esionage-column {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.esionage-column-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -25px;
+  width: 10px;
+  cursor: col-resize;
+  z-index: 1;
+}
+.esionage-column-resize::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 120ms;
+}
+.esionage-column-resize:hover::after,
+.esionage-column-resizing > .esionage-column-resize::after {
+  background: var(--fg-faint);
+}
+.esionage-column:last-child > .esionage-column-resize,
+.bn-editor[contenteditable="false"] .esionage-column-resize {
+  display: none;
+}
+.esionage-column-resizing {
+  user-select: none;
+}
+@media (max-width: 639px) {
+  .esionage-columns {
+    flex-direction: column;
+    gap: 0;
+  }
+  .esionage-column {
+    flex: none !important;
+  }
+  .esionage-column-resize {
+    display: none;
+  }
+}
+
 /* A table of contents jumps to a heading below the sticky page header. */
 .esionage-editor .bn-block-outer {
   scroll-margin-top: 4rem;

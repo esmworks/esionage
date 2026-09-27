@@ -71,6 +71,10 @@ describe("redirect helpers", () => {
     expect(twoFactorStepUrl("/w/abc")).toBe("/sign-in?step=two-factor&next=%2Fw%2Fabc");
     expect(twoFactorStepUrl("/")).toBe("/sign-in?step=two-factor");
     expect(twoFactorStepUrl(null)).toBe("/sign-in?step=two-factor");
+    // An app's signed authorization query rides along (and can't bring its own step or next).
+    expect(twoFactorStepUrl("/w/abc", "client_id=c1&step=x&sig=s")).toBe(
+      "/sign-in?client_id=c1&sig=s&step=two-factor&next=%2Fw%2Fabc",
+    );
   });
 
   it("uses the public origin as the passkey relying party", () => {
@@ -209,8 +213,8 @@ describe("Better Auth with our two-step setup", () => {
   }
 
   /** Sign in with the fake Google account; returns the callback's response. */
-  async function googleSignIn(jar: Jar) {
-    const start = await call(jar, "/sign-in/social", { body: { provider: "google", callbackURL: "/w/abc" } });
+  async function googleSignIn(jar: Jar, extra: Record<string, unknown> = {}) {
+    const start = await call(jar, "/sign-in/social", { body: { provider: "google", callbackURL: "/w/abc", ...extra } });
     const { url } = (await start.json()) as { url: string };
     const state = new URL(url).searchParams.get("state");
     return call(jar, `/callback/google?code=test-code&state=${state}`);
@@ -243,6 +247,12 @@ describe("Better Auth with our two-step setup", () => {
     expect(callback.status).toBe(302);
     expect(callback.headers.get("location")).toBe("/sign-in?step=two-factor&next=%2Fw%2Fabc");
     expect(await session(second)).toBeNull();
+
+    // Signing in to authorize an app: its signed query comes back on the code step, where the
+    // client sends it with the code and the OAuth provider resumes (scripts/two-factor-e2e.ts).
+    const oauthQuery = "client_id=app-1&response_type=code&exp=9999999999&ba_param=client_id&sig=abc";
+    const viaApp = await googleSignIn(new Jar(), { oauth_query: oauthQuery });
+    expect(viaApp.headers.get("location")).toBe(`/sign-in?${oauthQuery}&step=two-factor&next=%2Fw%2Fabc`);
     const wrong = await call(second, "/two-factor/verify-totp", { body: { code: "000000" === totpCode(key) ? "111111" : "000000" } });
     expect(wrong.status).toBe(401);
     expect((await call(second, "/two-factor/verify-backup-code", { body: { code: backupCodes[0] } })).status).toBe(200);

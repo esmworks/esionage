@@ -259,6 +259,23 @@
       "aliases": "breadcrumb path parents location",
       "label": "Breadcrumb"
     },
+    "columns": {
+      "two": {
+        "title": "2 columns",
+        "subtext": "Two columns of blocks side by side",
+        "aliases": "columns column layout side 2 two"
+      },
+      "three": {
+        "title": "3 columns",
+        "subtext": "Three columns of blocks side by side",
+        "aliases": "columns column layout side 3 three"
+      },
+      "add": {
+        "title": "Add column",
+        "subtext": "A new column to the right of this one (up to 5)",
+        "aliases": "column columns add new layout"
+      }
+    },
     "pageLink": {
       "title": "Link to page",
       "subtext": "A link to another page, with its live title",

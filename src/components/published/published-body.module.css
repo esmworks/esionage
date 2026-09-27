@@ -433,3 +433,30 @@
 .printView th {
   overflow-wrap: break-word;
 }
+
+/* Columns side by side (see lib/columns): each takes its share of the row, stacked on phones. */
+.columns {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.column {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.column > * + * {
+  margin-top: 0.35em;
+}
+
+@media (max-width: 639px) {
+  .columns {
+    flex-direction: column;
+    gap: 0.35em;
+  }
+
+  .column {
+    flex-grow: 0 !important;
+    flex-basis: auto;
+  }
+}

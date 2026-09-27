@@ -18,9 +18,10 @@ export default async function WorkspaceLayout({
 }) {
   const { user } = await requireSession();
   const { workspaceId } = await params;
-  if (!(await getMembership(user.id, workspaceId))) notFound();
-  // After the membership check, so the redirect doesn't tell outsiders the workspace exists.
+  // Before anything that reads the workspace (those throw for a held-back session). It only
+  // redirects members, so outsiders don't learn the workspace exists.
   await requireWorkspaceSession(workspaceId);
+  if (!(await getMembership(user.id, workspaceId))) notFound();
   const [workspaces, tree, favorites, topLevel, cookieStore] = await Promise.all([
     listWorkspaces(user.id),
     getTree(user.id, workspaceId),

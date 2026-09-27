@@ -17,7 +17,7 @@ import {
   type PublishedDatabase,
   type PublishedPage,
 } from "@/server/publication";
-import { bodySegmentsFromBlocks, type PublishedPageRef } from "@/server/published-body";
+import { bodySegmentsFromBlocks, type BodySegment, type PublishedPageRef } from "@/server/published-body";
 
 /**
  * The print view (`/print/<pageId>`, the page menu's "Export as PDF"): a page, and with `subpages`
@@ -141,16 +141,33 @@ async function printSection(userId: string, pageId: string, depth: number, index
         anchorPrefix: index === 0 ? "" : `p${index + 1}-`,
       })
     : [];
-  const body = await Promise.all(
-    segments.map(async (segment): Promise<PublishedBlock> => {
-      if (segment.kind !== "embed") return segment;
-      return {
-        kind: "embed",
-        type: segment.type,
-        database: await printedEmbed(userId, segment.databaseId, segment.type === "linkedView" ? { linked: segment.view } : {}),
-      };
-    }),
-  );
+  // Database blocks, in columns too, as the databases the reader can open.
+  const resolve = (list: BodySegment[]): Promise<PublishedBlock[]> =>
+    Promise.all(
+      list.map(async (segment): Promise<PublishedBlock> => {
+        if (segment.kind === "columns") {
+          return {
+            kind: "columns",
+            columns: await Promise.all(segment.columns.map(async (column) => ({ width: column.width, segments: await resolve(column.segments) }))),
+          };
+        }
+        if (segment.kind !== "embed") return segment;
+        return {
+          kind: "embed",
+          type: segment.type,
+          database: await printedEmbed(userId, segment.databaseId, segment.type === "linkedView" ? { linked: segment.view } : {}),
+        };
+      }),
+    );
+  const body = await resolve(segments);
+  const shown = new Set<string>();
+  const collect = (list: PublishedBlock[]) => {
+    for (const b of list) {
+      if (b.kind === "columns") b.columns.forEach((c) => collect(c.segments));
+      else if (b.kind === "embed" && b.type === "database" && b.database) shown.add(b.database.id);
+    }
+  };
+  collect(body);
   return {
     id: target.id,
     title: content?.title || target.title,
@@ -161,7 +178,7 @@ async function printSection(userId: string, pageId: string, depth: number, index
     body,
     crumbs,
     // An inline database shown in the body isn't listed again below it.
-    children: children.filter((child) => !body.some((b) => b.kind === "embed" && b.type === "database" && b.database?.id === child.id)),
+    children: children.filter((child) => !shown.has(child.id)),
     database,
     row,
   };

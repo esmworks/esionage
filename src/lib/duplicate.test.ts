@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planDuplicate, remapViewConfig, type DuplicateInput, type SourcePage } from "./duplicate";
+import { dropPropertyReferences, planDuplicate, remapViewConfig, type DuplicateInput, type SourcePage } from "./duplicate";
 
 const pageOf = (id: string, parentId: string | null, extra: Partial<SourcePage> = {}): SourcePage => ({
   id,
@@ -9,6 +9,38 @@ const pageOf = (id: string, parentId: string | null, extra: Partial<SourcePage> 
   position: 1,
   properties: {},
   ...extra,
+});
+
+describe("dropPropertyReferences", () => {
+  it("removes every reference to the properties that go, keeping the rest", () => {
+    const gone = (id: string) => id === "person";
+    const out = dropPropertyReferences(
+      {
+        groupBy: "person",
+        dateBy: "due",
+        sorts: [
+          { propertyId: "person", direction: "asc" },
+          { propertyId: "due", direction: "desc" },
+        ],
+        filters: [
+          { propertyId: "person", op: "is_empty" },
+          { type: "group", combinator: "or", rules: [{ propertyId: "person", op: "is_not_empty" }] },
+          { propertyId: "due", op: "is_not_empty" },
+        ],
+        hidden: ["person", "due"],
+        calculations: { person: "count_all", due: "count_all" },
+        cover: { source: "property", propertyId: "person" },
+      } as never,
+      gone,
+    );
+    expect(out.groupBy).toBeUndefined();
+    expect(out.dateBy).toBe("due");
+    expect(out.sorts).toEqual([{ propertyId: "due", direction: "desc" }]);
+    expect(out.filters).toEqual([{ propertyId: "due", op: "is_not_empty" }]);
+    expect(out.hidden).toEqual(["due"]);
+    expect(out.calculations).toEqual({ due: "count_all" });
+    expect(out.cover).toBeUndefined();
+  });
 });
 
 /** Sequential ids so assertions can name them. */

@@ -9,6 +9,7 @@ import { PdfViewer } from "@/components/page/pdf-viewer";
 import { BookmarkCard, EmbedFrame } from "@/components/page/web-card";
 import { PageIcon } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
+import { publishedHref, type PublishedLinks } from "@/lib/site";
 import { displayHost } from "@/lib/web-blocks";
 import type { PublishedBlock, PublishedCrumb, PublishedPage } from "@/server/publication";
 import { PublishedDatabaseView } from "./published-database";
@@ -38,22 +39,24 @@ export function PublishedRowProperties({ row, print = false }: { row: NonNullabl
   );
 }
 
+
 /**
  * A page body as published pages draw it (see server/published-body.ts), shared by the published
- * view and the print view. `site` is where a publication's pages are; without it (print) pages
- * and rows are named, not linked, and blocks that only work on screen (a PDF viewer, an embedded
- * site) print as a card naming what they hold.
+ * view and the print view. `links` is where the publication (or its site) serves pages; without
+ * it (print) pages and rows are named, not linked, and blocks that only work on screen (a PDF
+ * viewer, an embedded site) print as a card naming what they hold. Columns sit side by side and
+ * stack below 640px, on paper too (a printed page is wider than that).
  */
 export async function PublishedBody({
   blocks,
   crumbs,
-  site,
+  links,
   unavailable,
   print = false,
 }: {
   blocks: PublishedBlock[];
   crumbs: PublishedCrumb[];
-  site: { base: string; rootId: string } | null;
+  links: PublishedLinks | null;
   /** What a database block the reader can't see says. */
   unavailable: string;
   print?: boolean;
@@ -65,22 +68,40 @@ export async function PublishedBody({
     getTranslations("page.pdf"),
   ]);
   const untitled = tc("untitled");
-  const href = site ? (id: string) => (id === site.rootId ? site.base : `${site.base}/${id}`) : null;
-  // In print the printed page's margins are the gutter.
-  const gutter = print ? "" : GUTTER;
+  const titles = new Map(crumbs.map((c) => [c.id, c.title]));
+  const href = links ? (id: string, title?: string) => publishedHref(links, id, title ?? titles.get(id) ?? "") : null;
 
-  return (
-    <div className="mt-6">
-      {blocks.map((block, i) =>
-        block.kind === "html" ? (
+  /**
+   * A part of the body. At the top level each part has the page's side padding (in print the
+   * printed page's margins are the padding); inside a column the columns' row has it instead.
+   */
+  const segment = (block: PublishedBlock, i: number, inColumn: boolean): React.ReactNode => {
+    const pad = inColumn || print ? "" : GUTTER;
+    switch (block.kind) {
+      case "html":
+        return (
           <div
             key={i}
-            className={cn(styles.body, print && styles.print, gutter)}
+            className={cn(styles.body, print && styles.print, pad)}
             // Serialized by BlockNote from our own document with unsafe URLs removed; see published-body.ts.
             dangerouslySetInnerHTML={{ __html: block.html }}
           />
-        ) : block.kind === "toc" ? (
-          <div key={i} className={cn("my-2", gutter)}>
+        );
+      case "columns":
+        return (
+          <div key={i} className={cn("my-2", pad)}>
+            <div className={styles.columns}>
+              {block.columns.map((column, c) => (
+                <div key={c} className={styles.column} style={{ flexGrow: column.width }}>
+                  {column.segments.map((inner, j) => segment(inner, j, true))}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case "toc":
+        return (
+          <div key={i} className={cn("my-2", pad)}>
             <HeadingList
               headings={block.headings.map((h) => ({ key: h.anchor, level: h.level, text: h.text }))}
               label={tb("toc.label")}
@@ -89,20 +110,28 @@ export async function PublishedBody({
               link={(anchor) => ({ href: `#${anchor}` })}
             />
           </div>
-        ) : block.kind === "breadcrumb" ? (
-          <div key={i} className={cn("my-2", gutter)}>
-            <Trail crumbs={crumbs} href={href ?? undefined} label={tb("breadcrumb.label")} untitled={untitled} />
+        );
+      case "breadcrumb":
+        return (
+          <div key={i} className={cn("my-2", pad)}>
+            <Trail crumbs={crumbs} href={href ? (id) => href(id) : undefined} label={tb("breadcrumb.label")} untitled={untitled} />
           </div>
-        ) : block.kind === "mermaid" ? (
-          <div key={i} className={cn(styles.body, "my-2", gutter)}>
+        );
+      case "mermaid":
+        return (
+          <div key={i} className={cn(styles.body, "my-2", pad)}>
             <PublishedMermaid source={block.source} label={tb("mermaid.label")} light={print} />
           </div>
-        ) : block.kind === "bookmark" ? (
-          <div key={i} className={cn("my-2", gutter, styles.keep)}>
+        );
+      case "bookmark":
+        return (
+          <div key={i} className={cn("my-2", pad, styles.keep)}>
             <BookmarkCard bookmark={block.bookmark} />
           </div>
-        ) : block.kind === "pdf" ? (
-          <div key={i} className={cn("my-2", gutter, styles.keep)}>
+        );
+      case "pdf":
+        return (
+          <div key={i} className={cn("my-2", pad, styles.keep)}>
             {print ? (
               <div className="rounded-md border border-border px-3.5 py-3">
                 <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
@@ -115,37 +144,48 @@ export async function PublishedBody({
               <PdfViewer fileId={block.fileId} name={block.name} caption={block.caption} />
             )}
           </div>
-        ) : block.kind === "webEmbed" ? (
-          <div key={i} className={cn("my-2", gutter, styles.keep)}>
+        );
+      case "webEmbed":
+        return (
+          <div key={i} className={cn("my-2", pad, styles.keep)}>
             {print ? (
               <BookmarkCard bookmark={{ url: block.url, title: "", description: "", image: "", favicon: "" }} />
             ) : (
               <EmbedFrame url={block.url} embed={block.embed} title={tw("embed.frameTitle", { host: displayHost(block.url) })} />
             )}
           </div>
-        ) : block.database ? (
+        );
+      case "embed": {
+        if (!block.database) {
+          return (
+            <p key={i} className={cn("my-4 rounded-md border border-border px-3 py-2 text-sm text-fg-faint", !inColumn && !print && "mx-4 sm:mx-[54px]")}>
+              {unavailable}
+            </p>
+          );
+        }
+        const label = (
+          <>
+            <PageIcon icon={block.database.icon} kind="database" className="text-base" />
+            {pageLabel(block.database.title, untitled)}
+          </>
+        );
+        return (
           <section key={i} className="my-4">
-            <h2 className={cn("text-base font-semibold", gutter, styles.heading)}>
+            <h2 className={cn("text-base font-semibold", pad, styles.heading)}>
               {href ? (
-                <Link href={href(block.database.id)} className="inline-flex items-center gap-1.5 hover:underline">
-                  <PageIcon icon={block.database.icon} kind="database" className="text-base" />
-                  {pageLabel(block.database.title, untitled)}
+                <Link href={href(block.database.id, block.database.title)} className="inline-flex items-center gap-1.5 hover:underline">
+                  {label}
                 </Link>
               ) : (
-                <span className="inline-flex items-center gap-1.5">
-                  <PageIcon icon={block.database.icon} kind="database" className="text-base" />
-                  {pageLabel(block.database.title, untitled)}
-                </span>
+                <span className="inline-flex items-center gap-1.5">{label}</span>
               )}
             </h2>
-            <PublishedDatabaseView table={block.database.table} site={site} print={print} className={cn("mt-2", gutter)} />
+            <PublishedDatabaseView table={block.database.table} links={links} print={print} className={cn("mt-2", pad)} />
           </section>
-        ) : (
-          <p key={i} className={cn("my-4 rounded-md border border-border px-3 py-2 text-sm text-fg-faint", !print && "mx-4 sm:mx-[54px]")}>
-            {unavailable}
-          </p>
-        ),
-      )}
-    </div>
-  );
+        );
+      }
+    }
+  };
+
+  return <div className="mt-6">{blocks.map((block, i) => segment(block, i, false))}</div>;
 }

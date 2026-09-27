@@ -2,7 +2,7 @@ import { and, asc, desc, eq, ilike, inArray, isNull, lte, ne, notInArray, sql } 
 import { db } from "@/db";
 import { page, pageLink, pageMention, pagePublication, pageReminder, user, type PageKind } from "@/db/schema";
 import { bodyReferences } from "@/lib/mentions";
-import { accessRank, getMembership, isGuest, levelFromRank, pageVisibleTo, requirePageAccess } from "@/server/access";
+import { accessRank, getMembership, isGuest, levelFromRank, pageVisibleTo, requirePageAccess, workspacesHeldBack } from "@/server/access";
 import { recordMentions, recordReminder, withdrawMentions } from "@/server/notifications";
 import { workspacePeople } from "@/server/workspaces";
 
@@ -197,7 +197,16 @@ export type PageRef =
 
 const MAX_REFS = 200;
 
-export async function resolvePageRefs(userId: string, pageIds: string[]): Promise<PageRef[]> {
+/**
+ * `standing`: what the user's access allows, whoever is looking (a publisher's, for published
+ * pages); otherwise pages of a workspace whose two-step policy holds back this request's session
+ * read as no access too.
+ */
+export async function resolvePageRefs(
+  userId: string,
+  pageIds: string[],
+  { standing = false }: { standing?: boolean } = {},
+): Promise<PageRef[]> {
   const ids = [...new Set(pageIds.filter((id) => typeof id === "string" && id && id.length <= 128))].slice(0, MAX_REFS);
   if (!ids.length) return [];
   const rows = await db
@@ -213,10 +222,16 @@ export async function resolvePageRefs(userId: string, pageIds: string[]): Promis
     .from(page)
     .where(inArray(page.id, ids));
   const byId = new Map(rows.map((r) => [r.id, r]));
+  const heldBack = standing
+    ? new Set<string>()
+    : await workspacesHeldBack(
+        userId,
+        rows.filter((r) => levelFromRank(r.level) !== "none").map((r) => r.workspaceId),
+      );
   return ids.map((id): PageRef => {
     const row = byId.get(id);
     // A page the user can't see reads the same whether it exists or not.
-    if (row && levelFromRank(row.level) === "none") return { id, status: "noAccess" };
+    if (row && (levelFromRank(row.level) === "none" || heldBack.has(row.workspaceId))) return { id, status: "noAccess" };
     if (!row || row.archived) return { id, status: "deleted" };
     return { id, status: "ok", workspaceId: row.workspaceId, title: row.title, icon: row.icon, kind: row.kind };
   });
@@ -350,11 +365,11 @@ export async function publishedPageRefs(
     labels,
   }: {
     /** The page's address when it is published with this publication, else null. */
-    inPublication: (pageId: string) => Promise<string | null>;
+    inPublication: (pageId: string, title: string) => Promise<string | null>;
     labels: { untitled: string; private: string; deleted: string };
   },
 ) {
-  const refs = await resolvePageRefs(publisher, pageIds);
+  const refs = await resolvePageRefs(publisher, pageIds, { standing: true });
   const own = new Map(
     refs.length
       ? (
@@ -371,7 +386,7 @@ export async function publishedPageRefs(
       out.set(ref.id, { text: ref.status === "deleted" ? labels.deleted : labels.private, href: null });
       continue;
     }
-    const href = (await inPublication(ref.id)) ?? own.get(ref.id) ?? null;
+    const href = (await inPublication(ref.id, ref.title)) ?? own.get(ref.id) ?? null;
     out.set(ref.id, { text: ref.title.trim() || labels.untitled, href });
   }
   return out;

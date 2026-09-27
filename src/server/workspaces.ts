@@ -19,7 +19,7 @@ import { isLocale, type Locale } from "@/i18n/config";
 import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
 import { env } from "@/lib/env";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
-import { AccessError, FULL_RANK, getMembership, isGuest, requireMember, requireMembership } from "@/server/access";
+import { AccessError, findMembership, FULL_RANK, getMembership, isGuest, requireMember, requireMembership } from "@/server/access";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
 
@@ -579,8 +579,9 @@ export async function transferOwnership(actorId: string, workspaceId: string, ta
 
 /** Owners can remove anyone; members can only remove themselves (leave). */
 export async function removeMember(actorId: string, workspaceId: string, targetId: string) {
-  const actor = await requireMembership(actorId, workspaceId);
-  if (actorId !== targetId && actor.role !== "owner") throw new AccessError();
+  // Leaving works without meeting the two-step policy: nobody should have to set it up to get out.
+  const actor = actorId === targetId ? await findMembership(actorId, workspaceId) : await requireMembership(actorId, workspaceId);
+  if (!actor || (actorId !== targetId && actor.role !== "owner")) throw new AccessError();
   await db.transaction(async (tx) => {
     const [current] = await tx
       .select({ role: workspaceMember.role })
@@ -707,6 +708,8 @@ export async function updateWorkspaceSettings(
     .update(workspace)
     .set({ settings: sql`${workspace.settings} || ${JSON.stringify(clean)}::jsonb` })
     .where(eq(workspace.id, workspaceId));
+  // Open editors were let in before; the ones the policy now holds back reconnect and are refused.
+  if (clean.requireTwoFactor === true) await getCollab().disconnectHeldBack(workspaceId);
 }
 
 /**
