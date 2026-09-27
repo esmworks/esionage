@@ -30,5 +30,36 @@
   "indexableHint": "Search engines may list this page and its subpages. Off by default: people then find it only through the link.",
   "views": "Views on the web",
   "viewsHint": "Visitors can switch between the views you pick, wherever this database is published.",
-  "asTable": "shown as a table"
+  "asTable": "shown as a table",
+  "inSite": "Show in the workspace's site",
+  "inSiteHint": "The site's navigation lists this page and its subpages.",
+  "siteLinkLabel": "Address in the site",
+  "allowDuplicate": "Allow duplicate",
+  "allowDuplicateHint": "Signed-in visitors can copy this page and its published subpages into a workspace of their own. Only what is published is copied.",
+  "duplicate": {
+    "button": "Duplicate",
+    "metaTitle": "Duplicate page",
+    "title": "Duplicate “{title}”",
+    "description": "Copy this page and its published subpages into one of your workspaces. Only what the published page shows is copied: no comments, history or people.",
+    "workspace": "Workspace",
+    "asTemplate": "Add it to the workspace's templates",
+    "asTemplateHint": "New pages can then start from it.",
+    "submit": "Duplicate",
+    "working": "Duplicating…",
+    "back": "Back to the page",
+    "noWorkspaces": "You don't have a workspace where you can add pages.",
+    "notAllowed": "The publisher doesn't allow duplicating this page.",
+    "errors": {
+      "notFound": "This page isn't published anymore.",
+      "notAllowed": "The publisher doesn't allow duplicating this page.",
+      "noAccess": "You can't add pages to that workspace.",
+      "rateLimited": "You've duplicated a lot of pages just now. Try again in a little while.",
+      "tooLarge": "This page has too many subpages or files to duplicate at once.",
+      "quotaExceeded": "That workspace doesn't have room for this page's files."
+    }
+  },
+  "site": {
+    "menu": "Pages",
+    "navigation": "Site pages"
+  }
 }

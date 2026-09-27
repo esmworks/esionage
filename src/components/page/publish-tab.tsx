@@ -6,15 +6,24 @@ import { useEffect, useState } from "react";
 import {
   getPublicationAction,
   publishPageAction,
-  setPublicationIndexableAction,
   setWebViewsAction,
   unpublishPageAction,
+  updatePublicationAction,
 } from "@/app/actions/publication";
 import { ViewIcon } from "@/components/database/property-icons";
 import { Button, cn, Switch } from "@/components/ui";
 import type { ViewType } from "@/db/schema";
 
-type Publication = { token: string; url: string; indexable: boolean } | null;
+type Publication = {
+  token: string;
+  url: string;
+  /** The page's address in the workspace's site, while it is listed there. */
+  siteUrl: string | null;
+  indexable: boolean;
+  inSite: boolean;
+  allowDuplicate: boolean;
+} | null;
+type Option = "indexable" | "inSite" | "allowDuplicate";
 type WebView = { id: string; name: string; type: ViewType; published: boolean };
 
 /** Published pages draw these views as they are; the rest show as tables. */
@@ -30,6 +39,8 @@ export function PublishTab({ pageId }: { pageId: string }) {
   const [blocker, setBlocker] = useState<Blocker>(null);
   // Databases: the views published pages show, wherever the database is published.
   const [views, setViews] = useState<WebView[] | null>(null);
+  // The workspace's site, when it has one: pages can be listed in it.
+  const [site, setSite] = useState<{ url: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -39,6 +50,7 @@ export function PublishTab({ pageId }: { pageId: string }) {
       setPublication(r.publication);
       setBlocker(r.blocker);
       setViews(r.views);
+      setSite(r.site);
       return r;
     });
 
@@ -68,6 +80,9 @@ export function PublishTab({ pageId }: { pageId: string }) {
 
   // Only full access matters for taking a page offline.
   const hint = publication ? (blocker === "needsFullAccess" ? blocker : null) : blocker;
+  // A page listed in the site shows its site address; its own link keeps working.
+  const shownUrl = publication ? (publication.siteUrl ?? publication.url) : "";
+  const options: Option[] = site ? ["indexable", "inSite", "allowDuplicate"] : ["indexable", "allowDuplicate"];
 
   return (
     <div className="p-3">
@@ -88,11 +103,11 @@ export function PublishTab({ pageId }: { pageId: string }) {
 
       {publication && (
         <div className="mt-3 flex items-center gap-1 rounded-md border border-border bg-bg-subtle p-1 pl-2">
-          <span className="min-w-0 flex-1 truncate text-sm text-fg-muted">{absolute(publication.url)}</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-fg-muted">{absolute(shownUrl)}</span>
           <button
             type="button"
             onClick={() => {
-              void navigator.clipboard.writeText(absolute(publication.url));
+              void navigator.clipboard.writeText(absolute(shownUrl));
               setCopied(true);
               setTimeout(() => setCopied(false), 1500);
             }}
@@ -102,7 +117,7 @@ export function PublishTab({ pageId }: { pageId: string }) {
             {copied ? t("copied") : t("copyLink")}
           </button>
           <a
-            href={publication.url}
+            href={shownUrl}
             target="_blank"
             rel="noreferrer"
             aria-label={t("open")}
@@ -114,25 +129,25 @@ export function PublishTab({ pageId }: { pageId: string }) {
         </div>
       )}
 
-      {publication && (
-        <div className="mt-3 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm">{t("indexable")}</p>
-            <p className="mt-0.5 text-xs text-fg-muted">{t("indexableHint")}</p>
+      {publication &&
+        options.map((option) => (
+          <div key={option} className="mt-3 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm">{t(option)}</p>
+              <p className="mt-0.5 text-xs text-fg-muted">{t(`${option}Hint`)}</p>
+            </div>
+            <Switch
+              label={t(option)}
+              checked={publication[option]}
+              disabled={busy || blocker !== null}
+              onChange={(value) =>
+                void change(async () => {
+                  setPublication((await updatePublicationAction(pageId, { [option]: value })) ?? null);
+                })
+              }
+            />
           </div>
-          <Switch
-            label={t("indexable")}
-            checked={publication.indexable}
-            disabled={busy || blocker !== null}
-            onChange={(indexable) =>
-              void change(async () => {
-                await setPublicationIndexableAction(pageId, indexable);
-                setPublication({ ...publication, indexable });
-              })
-            }
-          />
-        </div>
-      )}
+        ))}
 
       {views && views.length > 0 && (
         <div className="mt-4">

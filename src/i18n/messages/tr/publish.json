@@ -30,5 +30,36 @@
   "indexableHint": "Arama motorları bu sayfayı ve alt sayfalarını listeleyebilir. Varsayılan olarak kapalıdır; o zaman sayfaya yalnızca bağlantıyla ulaşılır.",
   "views": "Web'deki görünümler",
   "viewsHint": "Ziyaretçiler, bu veritabanı nerede yayınlanırsa yayınlansın, seçtiğiniz görünümler arasında geçiş yapabilir.",
-  "asTable": "tablo olarak gösterilir"
+  "asTable": "tablo olarak gösterilir",
+  "inSite": "Çalışma alanının sitesinde göster",
+  "inSiteHint": "Sitenin gezinme menüsü bu sayfayı ve alt sayfalarını listeler.",
+  "siteLinkLabel": "Sitedeki adresi",
+  "allowDuplicate": "Çoğaltmaya izin ver",
+  "allowDuplicateHint": "Oturum açmış ziyaretçiler bu sayfayı ve yayındaki alt sayfalarını kendi çalışma alanlarına kopyalayabilir. Yalnızca yayında olanlar kopyalanır.",
+  "duplicate": {
+    "button": "Çoğalt",
+    "metaTitle": "Sayfayı çoğalt",
+    "title": "“{title}” sayfasını çoğalt",
+    "description": "Bu sayfayı ve yayındaki alt sayfalarını çalışma alanlarınızdan birine kopyalayın. Yalnızca yayındaki sayfanın gösterdikleri kopyalanır: yorumlar, geçmiş ve kişiler kopyalanmaz.",
+    "workspace": "Çalışma alanı",
+    "asTemplate": "Çalışma alanının şablonlarına ekle",
+    "asTemplateHint": "Yeni sayfalar bundan başlayabilir.",
+    "submit": "Çoğalt",
+    "working": "Çoğaltılıyor…",
+    "back": "Sayfaya dön",
+    "noWorkspaces": "Sayfa ekleyebileceğiniz bir çalışma alanınız yok.",
+    "notAllowed": "Yayınlayan kişi bu sayfanın çoğaltılmasına izin vermiyor.",
+    "errors": {
+      "notFound": "Bu sayfa artık yayında değil.",
+      "notAllowed": "Yayınlayan kişi bu sayfanın çoğaltılmasına izin vermiyor.",
+      "noAccess": "Bu çalışma alanına sayfa ekleyemezsiniz.",
+      "rateLimited": "Az önce çok sayıda sayfa çoğalttınız. Biraz sonra tekrar deneyin.",
+      "tooLarge": "Bu sayfanın bir kerede çoğaltılamayacak kadar çok alt sayfası ya da dosyası var.",
+      "quotaExceeded": "Bu çalışma alanında sayfanın dosyaları için yer yok."
+    }
+  },
+  "site": {
+    "menu": "Sayfalar",
+    "navigation": "Site sayfaları"
+  }
 }

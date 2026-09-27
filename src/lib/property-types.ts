@@ -71,3 +71,10 @@ export function holdsOptions(type: string) {
  */
 export const STATUS_GROUPS = ["todo", "in_progress", "done"] as const;
 export type StatusGroup = (typeof STATUS_GROUPS)[number];
+
+/**
+ * Property types published pages leave out: relations, whose values point at pages that may not be
+ * published (rollups, which calculate over them, go too), and people, who didn't agree to have
+ * their names on a public page. Copies of published pages leave them out as well.
+ */
+export const UNPUBLISHED_PROPERTY_TYPES: ReadonlySet<string> = new Set(["relation", "rollup", "person", "created_by", "last_edited_by"]);
