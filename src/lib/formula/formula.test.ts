@@ -123,6 +123,10 @@ describe("evaluation", () => {
     expect(value("0.1 + 0.2")).toBeCloseTo(0.3);
     expect(value('prop("Price") + prop("Empty")', fields)).toBe(12.5);
     expect(value('prop("Empty") * prop("Empty")', fields)).toBeNull();
+    // An empty divisor is a row not filled in yet, not a division by zero.
+    expect(value('10 / prop("Empty")', fields)).toBeNull();
+    expect(value('10 % prop("Empty")', fields)).toBeNull();
+    expect(value('prop("Empty") / 4', fields)).toBe(0);
     expect(value('prop("Empty") > 1', fields)).toBe(false);
     expect(value('prop("Empty") == prop("Empty")', fields)).toBe(true);
   });

@@ -485,7 +485,11 @@ export function evaluate(node: Node, env: EvalEnv): Value {
           const n = operands(l, r);
           if (!n) return null;
           const [x, y] = n;
-          if ((node.op === "/" || node.op === "%") && y === 0) fail("divisionByZero", "Division by zero");
+          if (node.op === "/" || node.op === "%") {
+            // An empty divisor leaves the result empty: a row that isn't filled in yet isn't an error.
+            if (asNum(r) === null) return null;
+            if (y === 0) fail("divisionByZero", "Division by zero");
+          }
           return node.op === "-" ? x - y : node.op === "*" ? x * y : node.op === "/" ? x / y : node.op === "%" ? x % y : x ** y;
         }
         case "==":
