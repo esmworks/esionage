@@ -7,12 +7,15 @@ import { AccessError } from "@/server/access";
 import { getSession, requireUserId } from "@/server/session";
 import {
   acceptInvitation,
-  addMember,
+  addMembers,
   createWorkspace,
+  joinWithLink,
   removeMember,
   renameWorkspace,
   revokeInvitation,
+  setJoinLink,
   setMemberRole,
+  transferOwnership,
   WorkspaceError,
   type WorkspaceErrorCode,
 } from "@/server/workspaces";
@@ -51,10 +54,29 @@ export async function renameWorkspaceAction(workspaceId: string, name: string) {
   return result;
 }
 
-export async function addMemberAction(workspaceId: string, email: string, role: WorkspaceRole) {
+export async function addMembersAction(workspaceId: string, emails: string[], role: WorkspaceRole) {
   const userId = await requireUserId();
   if (!ROLES.includes(role)) return fail("unknownRole");
-  const result = await run(() => addMember(userId, workspaceId, email, role));
+  if (!Array.isArray(emails) || !emails.every((e) => typeof e === "string")) return fail("invalidEmail");
+  const result = await run(() => addMembers(userId, workspaceId, emails, role));
+  refresh(workspaceId);
+  return result;
+}
+
+export async function transferOwnershipAction(workspaceId: string, targetId: string) {
+  const userId = await requireUserId();
+  const result = await run(() => transferOwnership(userId, workspaceId, targetId));
+  refresh(workspaceId);
+  return result;
+}
+
+const JOIN_LINK_MODES = ["enable", "disable", "regenerate"] as const;
+
+/** Returns the join link, or null when it was turned off. */
+export async function setJoinLinkAction(workspaceId: string, mode: (typeof JOIN_LINK_MODES)[number]) {
+  const userId = await requireUserId();
+  if (!JOIN_LINK_MODES.includes(mode)) throw new Error("Unknown mode");
+  const result = await run(() => setJoinLink(userId, workspaceId, mode));
   refresh(workspaceId);
   return result;
 }
@@ -86,6 +108,15 @@ export async function acceptInvitationAction(token: string) {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
   const result = await run(() => acceptInvitation(token, session.user.id, session.user.email));
+  if (result.ok) refresh(result.data);
+  return result;
+}
+
+/** Joins the workspace of a join link as the signed-in account. Returns the workspace id. */
+export async function joinWithLinkAction(token: string) {
+  const session = await getSession();
+  if (!session) throw new Error("Unauthorized");
+  const result = await run(() => joinWithLink(token, session.user.id, session.user.email));
   if (result.ok) refresh(result.data);
   return result;
 }

@@ -1,0 +1,33 @@
+import { toCsv } from "@/lib/csv";
+import { AccessError, requireMembership } from "@/server/access";
+import { getSession } from "@/server/session";
+import { lastEdits, listMembers } from "@/server/workspaces";
+
+/** Members as CSV, for owners. Anyone else gets 404 so the workspace's existence doesn't leak. */
+export async function GET(_request: Request, { params }: { params: Promise<{ workspaceId: string }> }) {
+  const session = await getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  const { workspaceId } = await params;
+  try {
+    await requireMembership(session.user.id, workspaceId, "owner");
+    const [members, edits] = await Promise.all([
+      listMembers(session.user.id, workspaceId),
+      lastEdits(session.user.id, workspaceId),
+    ]);
+    const csv = toCsv([
+      ["name", "email", "role", "joined_at", "last_edited_at"],
+      ...members.map((m) => [m.name, m.email, m.role, m.joinedAt, edits.get(m.userId) ?? null]),
+    ]);
+    const date = new Date().toISOString().slice(0, 10);
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="members-${date}.csv"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (error) {
+    if (error instanceof AccessError) return new Response("Not found", { status: 404 });
+    throw error;
+  }
+}

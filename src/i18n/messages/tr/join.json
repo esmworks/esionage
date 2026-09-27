@@ -1,0 +1,14 @@
+{
+  "metaTitle": "Çalışma alanına katıl",
+  "title": "“{workspace}” çalışma alanına katılın",
+  "invalidTitle": "Bağlantı bulunamadı",
+  "invalidBody": "Bu katılma bağlantısı geçersiz veya kapatılmış. Bir çalışma alanı sahibinden yenisini isteyin.",
+  "home": "Esionage'a git",
+  "body": "Üye olarak katılacak, sayfalarını okuyup düzenleyebileceksiniz.",
+  "join": "Çalışma alanına katıl",
+  "joining": "Katılınıyor…",
+  "alreadyMember": "Bu çalışma alanının zaten üyesisiniz.",
+  "open": "Çalışma alanını aç",
+  "signInBody": "Katılmak için hesabınızla giriş yapın. Bu sunucuda yeni hesap açılamıyor.",
+  "signIn": "Giriş yap"
+}

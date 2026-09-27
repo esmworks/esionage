@@ -29,6 +29,7 @@ export function AuthForm({
   mode,
   signUpEnabled = true,
   invite,
+  join,
   next = "/",
   title,
 }: {
@@ -36,6 +37,8 @@ export function AuthForm({
   signUpEnabled?: boolean;
   /** Sign-up from an invitation link: the email is fixed and the link token admits it. */
   invite?: { token: string; email: string };
+  /** Sign-up from a workspace's join link: the new account joins that workspace. */
+  join?: string;
   /** Same-origin path to open afterwards. */
   next?: string;
   title?: string;
@@ -44,9 +47,8 @@ export function AuthForm({
   const t = useTranslations("auth");
   const tc = useTranslations("common");
   const text = mode === "sign-in" ? "signIn" : "signUp";
-  const switchHref = invite
-    ? `/sign-in?next=${encodeURIComponent(`/invite/${invite.token}`)}`
-    : null;
+  const linkPath = invite ? `/invite/${invite.token}` : join ? `/join/${join}` : null;
+  const switchHref = linkPath ? `/sign-in?next=${encodeURIComponent(linkPath)}` : null;
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [search, setSearch] = useState("");
@@ -66,7 +68,11 @@ export function AuthForm({
             email,
             password,
             name: String(form.get("name")),
-            fetchOptions: invite ? { query: { invite: invite.token } } : undefined,
+            fetchOptions: invite
+              ? { query: { invite: invite.token } }
+              : join
+                ? { query: { join } }
+                : undefined,
           });
     setPending(false);
     if (result.error) {

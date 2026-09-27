@@ -15,8 +15,9 @@ approve them over OAuth.
   and grouping. Every row is also a page.
 - **Page history**: versions are saved automatically while you edit and before every AI edit.
   You can preview and restore any version.
-- **Workspaces and members**: add people by email as owners or members, or send an invitation
-  link to people who don't have an account yet.
+- **Workspaces and members**: add people by email (several at once) as owners or members, send
+  an invitation link to people who don't have an account yet, or turn on a join link anyone can
+  use. Owners can export the member list as CSV and hand ownership to someone else.
 - **MCP server with OAuth 2.1**: remote MCP endpoint at `/mcp`.
   - Supports Client ID Metadata Documents and Dynamic Client Registration, with PKCE and a
     consent screen.
@@ -47,7 +48,9 @@ container starts.
 To stop new sign-ups after creating your own account, set `DISABLE_SIGNUP=true` and restart.
 You can still bring people in: in Settings → Members, add their email. If they have no account
 yet, you get an invitation link to send them. The link works for 7 days and lets only that email
-sign up, even while sign-up is closed.
+sign up, even while sign-up is closed. The workspace join link (Settings → Members → Add members
+with a link) is different: anyone holding it can join as a member, so it never opens closed
+sign-up. People without an account can use it only while sign-up is open.
 
 If the app is reachable under another URL (a domain behind a reverse proxy, another port), set
 `APP_URL` to that public origin. It is the OAuth issuer and the MCP resource identifier, so it

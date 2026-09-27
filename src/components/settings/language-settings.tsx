@@ -18,7 +18,7 @@ export function LanguageSettings({ current }: { current: Locale | null }) {
 
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-semibold">{t("heading")}</h2>
+      <h2 className="text-lg font-semibold">{t("heading")}</h2>
       <div className="space-y-1.5">
         <label htmlFor="interface-language" className="text-sm text-fg-muted">
           {t("label")}

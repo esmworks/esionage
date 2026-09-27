@@ -22,13 +22,20 @@ function isNativeRedirect(uri: unknown) {
   }
 }
 
-/** The `?invite=` token of an auth request (sign-up from an invitation link). */
-export function inviteTokenOf(ctx: { query?: unknown; request?: Request } | null | undefined) {
-  const fromQuery = (ctx?.query as { invite?: unknown } | undefined)?.invite;
+type AuthContextLike = { query?: unknown; request?: Request } | null | undefined;
+
+function queryParam(ctx: AuthContextLike, name: string) {
+  const fromQuery = (ctx?.query as Record<string, unknown> | undefined)?.[name];
   if (typeof fromQuery === "string") return fromQuery;
   if (!ctx?.request) return null;
-  return new URL(ctx.request.url).searchParams.get("invite");
+  return new URL(ctx.request.url).searchParams.get(name);
 }
+
+/** The `?invite=` token of an auth request (sign-up from an invitation link). */
+export const inviteTokenOf = (ctx: AuthContextLike) => queryParam(ctx, "invite");
+
+/** The `?join=` token of an auth request (sign-up from a workspace's join link). */
+export const joinTokenOf = (ctx: AuthContextLike) => queryParam(ctx, "join");
 
 /** Checks an invitation link against the email signing up; injected so this file needs no database. */
 export type InvitationCheck = (token: string, email: string) => Promise<boolean>;

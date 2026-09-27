@@ -189,6 +189,41 @@ export function Dialog({
   );
 }
 
+/** On/off control. `label` is for screen readers when there is no visible label next to it. */
+export function Switch({
+  checked,
+  onChange,
+  disabled,
+  label,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-md border transition-colors disabled:opacity-50",
+        checked ? "border-accent bg-accent" : "border-border bg-bg-active",
+      )}
+    >
+      <span
+        className={cn(
+          "h-3.5 w-3.5 rounded-[3px] bg-white shadow-sm transition-transform",
+          checked ? "translate-x-[18px]" : "translate-x-[2px]",
+        )}
+      />
+    </button>
+  );
+}
+
 export function PageIcon({ icon, kind, className }: { icon: string | null; kind?: string; className?: string }) {
   if (icon) return <span className={cn("leading-none", className)}>{icon}</span>;
   return (

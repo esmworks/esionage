@@ -1,6 +1,14 @@
 {
   "metaTitle": "Ayarlar",
   "title": "Ayarlar",
+  "nav": {
+    "account": "Hesap",
+    "workspace": "Çalışma alanı",
+    "general": "Genel",
+    "members": "Üyeler",
+    "preferences": "Tercihler",
+    "apps": "Bağlı uygulamalar"
+  },
   "workspace": {
     "heading": "Çalışma alanı",
     "nameLabel": "Ad",
@@ -9,6 +17,35 @@
   "members": {
     "heading": "Üyeler",
     "description": "Buradaki herkes bu çalışma alanındaki tüm sayfaları okuyup düzenleyebilir. Sahipler ayrıca üyeleri yönetebilir.",
+    "tabs": {
+      "members": "Üyeler",
+      "invitations": "Bekleyen davetler"
+    },
+    "search": "Ara",
+    "exportCsv": "Üyeleri CSV olarak indir",
+    "addButton": "Üye ekle",
+    "noMatches": "Aramanızla eşleşen kimse yok.",
+    "noInvitations": "Bekleyen davet yok.",
+    "joinLink": {
+      "heading": "Bağlantıyla üye ekle",
+      "descriptionOn": "Bu bağlantıyı açıp giriş yapan herkes üye olarak katılır. Bağlantıyı yalnızca sahipler görür.",
+      "descriptionOff": "Herkesin bu çalışma alanına üye olarak katılabileceği bir bağlantı açın.",
+      "regenerate": "Yeni bağlantı oluştur",
+      "copy": "Bağlantıyı kopyala",
+      "toggle": "Katılma bağlantısı",
+      "regenerateTitle": "Yeni bağlantı oluşturulsun mu?",
+      "regenerateBody": "Mevcut bağlantı hemen geçersiz olur. Daha önce katılanlar üye olarak kalır.",
+      "regenerateConfirm": "Yeni bağlantı oluştur"
+    },
+    "columns": {
+      "user": "Kullanıcı",
+      "role": "Rol",
+      "joined": "Katılma",
+      "lastEdited": "Son düzenleme",
+      "actions": "İşlemler",
+      "email": "E-posta",
+      "status": "Durum"
+    },
     "you": "(siz)",
     "roleOf": "{name} adlı üyenin rolü",
     "roleLabel": "Rol",
@@ -16,20 +53,38 @@
       "owner": "Sahip",
       "member": "Üye"
     },
+    "neverEdited": "Henüz düzenleme yok",
+    "actionsFor": "{name} için işlemler",
+    "transfer": "Sahip yap ve sahiplikten çekil",
+    "transferTitle": "{name} sahip yapılsın mı?",
+    "transferBody": "{name} sahip olur, siz üye olursunuz. Sizi yeniden yalnızca bir sahip, sahip yapabilir.",
+    "transferConfirm": "Devret",
     "leave": "Ayrıl",
-    "addLabel": "E-posta adresiyle üye ekleyin. Hesabı olmayanlar için davet bağlantısı oluşturulur.",
-    "emailPlaceholder": "ad@ornek.com",
-    "addButton": "Ekle",
-    "adding": "Ekleniyor…",
-    "pendingHeading": "Bekleyen davetler",
+    "leaveTitle": "Bu çalışma alanından ayrılınsın mı?",
+    "leaveBody": "Sayfalarına erişiminizi kaybedersiniz. Bir sahip sizi yeniden ekleyebilir.",
+    "removeTitle": "{name} çıkarılsın mı?",
+    "removeBody": "{name}, açık sayfalar ve bağlı uygulamalar dahil bu çalışma alanına erişimini hemen kaybeder.",
     "expires": "Bağlantı {date} tarihinde geçersiz olur",
     "expired": "Bağlantının süresi doldu. Yenisi için tekrar davet edin.",
     "copyLink": "Bağlantıyı kopyala",
     "cancelInvitation": "Daveti iptal et",
-    "invited": "{email} için henüz hesap yok. Katılması için bu bağlantıyı gönderin; 7 gün geçerlidir.",
     "inviteLink": "Davet bağlantısı",
-    "invitedEmailed": "{email} adresine davet e-postası gönderildi. Bu bağlantıyı siz de paylaşabilirsiniz; 7 gün geçerlidir.",
-    "invitedEmailFailed": "{email} için henüz hesap yok ve davet e-postası gönderilemedi. Bu bağlantıyı kendiniz gönderin; 7 gün geçerlidir."
+    "add": {
+      "title": "Üye ekle",
+      "description": "Hesabı olanlar hemen eklenir. Diğerleri için davet bağlantısı oluşturulur.",
+      "emailsLabel": "E-posta adresleri",
+      "emailsPlaceholder": "ad@ornek.com, diger@ornek.com",
+      "count": "{count, plural, =0 {Adresleri virgül, boşluk veya satır başıyla ayırın. Tek seferde en fazla 50.} one {# adres} other {# adres}}",
+      "submit": "Ekle",
+      "submitting": "Ekleniyor…",
+      "resultsTitle": "Sonuçlar",
+      "added": "Eklendi",
+      "emailed": "Davet e-postası gönderildi",
+      "emailFailed": "E-posta gönderilemedi, bağlantıyı paylaşın",
+      "linkOnly": "Bu davet bağlantısını paylaşın",
+      "linkValidity": "Davet bağlantıları 7 gün ve yalnızca davet edilen e-posta adresi için geçerlidir.",
+      "addMore": "Başka ekle"
+    }
   },
   "language": {
     "heading": "Dil",
@@ -74,6 +129,11 @@
     "ownersOnly": "Bunu yalnızca çalışma alanı sahipleri yapabilir.",
     "unknownRole": "Bilinmeyen rol.",
     "invitationInvalid": "Bu davet geçersiz ya da süresi dolmuş.",
-    "invitationEmailMismatch": "Bu davet başka bir e-posta adresi için."
+    "invitationEmailMismatch": "Bu davet başka bir e-posta adresi için.",
+    "emailRequired": "En az bir e-posta adresi girin.",
+    "invalidEmail": "Geçerli bir e-posta adresi değil.",
+    "tooManyEmails": "Tek seferde en fazla 50 kişi ekleyin.",
+    "joinLinkInvalid": "Bu katılma bağlantısı geçersiz veya kapatılmış.",
+    "transferToSelf": "Sahip yapmak için başka birini seçin."
   }
 }

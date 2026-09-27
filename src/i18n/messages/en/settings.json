@@ -1,6 +1,14 @@
 {
   "metaTitle": "Settings",
   "title": "Settings",
+  "nav": {
+    "account": "Account",
+    "workspace": "Workspace",
+    "general": "General",
+    "members": "Members",
+    "preferences": "Preferences",
+    "apps": "Connected apps"
+  },
   "workspace": {
     "heading": "Workspace",
     "nameLabel": "Name",
@@ -9,6 +17,35 @@
   "members": {
     "heading": "Members",
     "description": "Everyone here can read and edit every page in this workspace. Owners can also manage members.",
+    "tabs": {
+      "members": "Members",
+      "invitations": "Pending invitations"
+    },
+    "search": "Search",
+    "exportCsv": "Download members as CSV",
+    "addButton": "Add members",
+    "noMatches": "No one matches your search.",
+    "noInvitations": "No pending invitations.",
+    "joinLink": {
+      "heading": "Add members with a link",
+      "descriptionOn": "Anyone who opens this link and signs in joins as a member. Only owners can see it.",
+      "descriptionOff": "Turn on a link that anyone can use to join this workspace as a member.",
+      "regenerate": "Create a new link",
+      "copy": "Copy link",
+      "toggle": "Join link",
+      "regenerateTitle": "Create a new link?",
+      "regenerateBody": "The current link stops working right away. People who already joined stay members.",
+      "regenerateConfirm": "Create new link"
+    },
+    "columns": {
+      "user": "User",
+      "role": "Role",
+      "joined": "Joined",
+      "lastEdited": "Last edit",
+      "actions": "Actions",
+      "email": "Email",
+      "status": "Status"
+    },
     "you": "(you)",
     "roleOf": "Role of {name}",
     "roleLabel": "Role",
@@ -16,20 +53,38 @@
       "owner": "Owner",
       "member": "Member"
     },
+    "neverEdited": "No edits yet",
+    "actionsFor": "Actions for {name}",
+    "transfer": "Make owner and step down",
+    "transferTitle": "Make {name} the owner?",
+    "transferBody": "{name} becomes an owner and you become a member. Only an owner can make you an owner again.",
+    "transferConfirm": "Hand over",
     "leave": "Leave",
-    "addLabel": "Add a member by email. People without an account get an invitation link.",
-    "emailPlaceholder": "name@example.com",
-    "addButton": "Add",
-    "adding": "Adding…",
-    "pendingHeading": "Pending invitations",
+    "leaveTitle": "Leave this workspace?",
+    "leaveBody": "You lose access to its pages. An owner can add you again.",
+    "removeTitle": "Remove {name}?",
+    "removeBody": "{name} loses access to this workspace right away, including in open pages and connected apps.",
     "expires": "Link expires {date}",
     "expired": "Link expired. Invite again for a new one.",
     "copyLink": "Copy link",
     "cancelInvitation": "Cancel invitation",
-    "invited": "{email} has no account yet. Send them this link to join; it works for 7 days.",
     "inviteLink": "Invitation link",
-    "invitedEmailed": "We emailed an invitation to {email}. You can also share this link; it works for 7 days.",
-    "invitedEmailFailed": "{email} has no account yet and the invitation email could not be sent. Send them this link yourself; it works for 7 days."
+    "add": {
+      "title": "Add members",
+      "description": "People with an account are added right away. Everyone else gets an invitation link.",
+      "emailsLabel": "Email addresses",
+      "emailsPlaceholder": "name@example.com, another@example.com",
+      "count": "{count, plural, =0 {Separate addresses with commas, spaces or new lines. Up to 50 at a time.} one {# address} other {# addresses}}",
+      "submit": "Add",
+      "submitting": "Adding…",
+      "resultsTitle": "Results",
+      "added": "Added",
+      "emailed": "Invitation emailed",
+      "emailFailed": "Email failed, share the link",
+      "linkOnly": "Share this invitation link",
+      "linkValidity": "Invitation links work for 7 days and only for the invited email address.",
+      "addMore": "Add more"
+    }
   },
   "language": {
     "heading": "Language",
@@ -74,6 +129,11 @@
     "ownersOnly": "Only workspace owners can do this.",
     "unknownRole": "Unknown role.",
     "invitationInvalid": "This invitation is invalid or has expired.",
-    "invitationEmailMismatch": "This invitation is for a different email address."
+    "invitationEmailMismatch": "This invitation is for a different email address.",
+    "emailRequired": "Enter at least one email address.",
+    "invalidEmail": "Not a valid email address.",
+    "tooManyEmails": "Add at most 50 people at a time.",
+    "joinLinkInvalid": "This join link is invalid or was turned off.",
+    "transferToSelf": "Choose someone else to make owner."
   }
 }

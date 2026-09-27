@@ -1,0 +1,14 @@
+{
+  "metaTitle": "Join workspace",
+  "title": "Join “{workspace}”",
+  "invalidTitle": "Link not found",
+  "invalidBody": "This join link is invalid or was turned off. Ask a workspace owner for a new one.",
+  "home": "Go to Esionage",
+  "body": "You'll join as a member and can read and edit its pages.",
+  "join": "Join workspace",
+  "joining": "Joining…",
+  "alreadyMember": "You're already a member of this workspace.",
+  "open": "Open workspace",
+  "signInBody": "Sign in with your account to join. This server doesn't allow new accounts.",
+  "signIn": "Sign in"
+}

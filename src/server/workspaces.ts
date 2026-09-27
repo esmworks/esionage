@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull, max, sql } from "drizzle-orm";
 import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/db";
-import { user, workspace, workspaceInvitation, workspaceMember, type WorkspaceRole } from "@/db/schema";
+import { page, user, workspace, workspaceInvitation, workspaceMember, type WorkspaceRole } from "@/db/schema";
 import { isLocale, type Locale } from "@/i18n/config";
+import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
 import { env } from "@/lib/env";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
 import { AccessError, requireMembership } from "@/server/access";
@@ -40,7 +41,12 @@ export type WorkspaceErrorCode =
   | "lastOwner"
   | "lastOwnerRemove"
   | "invitationInvalid"
-  | "invitationEmailMismatch";
+  | "invitationEmailMismatch"
+  | "emailRequired"
+  | "invalidEmail"
+  | "tooManyEmails"
+  | "joinLinkInvalid"
+  | "transferToSelf";
 
 /**
  * An expected failure the user can act on. `code` is stable and translated by the UI; the
@@ -99,10 +105,22 @@ export async function listMembers(userId: string, workspaceId: string) {
     .orderBy(asc(workspaceMember.createdAt));
 }
 
+/** When each member last changed a page in this workspace (content, title, properties, trash). */
+export async function lastEdits(userId: string, workspaceId: string): Promise<Map<string, Date>> {
+  await requireMembership(userId, workspaceId);
+  const rows = await db
+    .select({ userId: page.updatedBy, at: max(page.updatedAt) })
+    .from(page)
+    .where(and(eq(page.workspaceId, workspaceId), isNotNull(page.updatedBy)))
+    .groupBy(page.updatedBy);
+  return new Map(rows.flatMap((r) => (r.userId && r.at ? [[r.userId, r.at] as const] : [])));
+}
+
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const normalizeEmail = (email: string) => email.trim().toLowerCase();
+const newToken = () => randomBytes(32).toString("base64url");
 export const invitationLink = (token: string) => `${env.appUrl}/invite/${token}`;
+export const joinLink = (token: string) => `${env.appUrl}/join/${token}`;
 
 /**
  * - `sent`: the invitation email went out (or, in development without SMTP, to the log).
@@ -168,7 +186,7 @@ export async function addMember(
     .where(eq(sql`lower(${user.email})`, clean))
     .limit(1);
   if (!target) {
-    const token = randomBytes(32).toString("base64url");
+    const token = newToken();
     const expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
     await db
       .insert(workspaceInvitation)
@@ -191,6 +209,42 @@ export async function addMember(
     .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.email, clean)));
   if (!inserted.length) throw new WorkspaceError("alreadyMember", "This person is already a member.");
   return { kind: "added" };
+}
+
+export type BulkAddResult =
+  | ({ email: string } & AddMemberResult)
+  | { email: string; kind: "error"; code: WorkspaceErrorCode };
+
+/**
+ * Adds several people at once, reporting each address separately so one bad address doesn't
+ * stop the rest. Owners only.
+ */
+export async function addMembers(
+  actorId: string,
+  workspaceId: string,
+  emails: string[],
+  role: WorkspaceRole,
+): Promise<BulkAddResult[]> {
+  await requireMembership(actorId, workspaceId, "owner");
+  const unique = [...new Set(emails.map(normalizeEmail).filter(Boolean))];
+  if (!unique.length) throw new WorkspaceError("emailRequired", "Enter at least one email address.");
+  if (unique.length > MAX_BULK_EMAILS) {
+    throw new WorkspaceError("tooManyEmails", `Add at most ${MAX_BULK_EMAILS} people at a time.`);
+  }
+  const results: BulkAddResult[] = [];
+  for (const email of unique) {
+    if (!isEmail(email)) {
+      results.push({ email, kind: "error", code: "invalidEmail" });
+      continue;
+    }
+    try {
+      results.push({ email, ...(await addMember(actorId, workspaceId, email, role)) });
+    } catch (error) {
+      if (!(error instanceof WorkspaceError)) throw error;
+      results.push({ email, kind: "error", code: error.code });
+    }
+  }
+  return results;
 }
 
 /** Pending invitations, including expired ones so owners can renew them. Owners only. */
@@ -278,6 +332,65 @@ export async function acceptInvitation(token: string, userId: string, userEmail:
   });
 }
 
+/** The workspace's join link, or null while it is turned off. Owners only. */
+export async function getJoinLink(actorId: string, workspaceId: string) {
+  await requireMembership(actorId, workspaceId, "owner");
+  const [row] = await db
+    .select({ token: workspace.inviteLinkToken })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1);
+  return row?.token ? joinLink(row.token) : null;
+}
+
+/**
+ * Turns the join link on (keeping an existing token), off, or replaces it so the old link stops
+ * working. Returns the link, or null when off. Owners only.
+ */
+export async function setJoinLink(actorId: string, workspaceId: string, mode: "enable" | "disable" | "regenerate") {
+  await requireMembership(actorId, workspaceId, "owner");
+  const token =
+    mode === "disable" ? null : mode === "regenerate" ? newToken() : sql`coalesce(${workspace.inviteLinkToken}, ${newToken()})`;
+  const [row] = await db
+    .update(workspace)
+    .set({ inviteLinkToken: token })
+    .where(eq(workspace.id, workspaceId))
+    .returning({ token: workspace.inviteLinkToken });
+  return row?.token ? joinLink(row.token) : null;
+}
+
+/** The workspace behind a join link, or null. */
+export async function findJoinLink(token: string) {
+  if (!token) return null;
+  const [row] = await db
+    .select({ workspaceId: workspace.id, workspaceName: workspace.name })
+    .from(workspace)
+    .where(eq(workspace.inviteLinkToken, token))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Joins the workspace of a join link. People join as members, unless an unexpired invitation for
+ * their email gives them another role; that invitation is used up. Returns the workspace id.
+ */
+export async function joinWithLink(token: string, userId: string, userEmail: string) {
+  return db.transaction(async (tx) => {
+    const [ws] = token
+      ? await tx.select({ id: workspace.id }).from(workspace).where(eq(workspace.inviteLinkToken, token)).limit(1)
+      : [];
+    if (!ws) throw new WorkspaceError("joinLinkInvalid", "This join link is invalid or was turned off.");
+    const email = normalizeEmail(userEmail);
+    const [invitation] = await tx
+      .delete(workspaceInvitation)
+      .where(and(eq(workspaceInvitation.workspaceId, ws.id), eq(workspaceInvitation.email, email)))
+      .returning({ role: workspaceInvitation.role, expiresAt: workspaceInvitation.expiresAt });
+    const role = invitation && invitation.expiresAt > new Date() ? invitation.role : "member";
+    await tx.insert(workspaceMember).values({ workspaceId: ws.id, userId, role }).onConflictDoNothing();
+    return ws.id;
+  });
+}
+
 /** Locks the owner rows so concurrent demotions/removals can't leave a workspace ownerless. */
 async function countOwners(workspaceId: string, tx: Pick<typeof db, "select">) {
   const owners = await tx
@@ -304,6 +417,38 @@ export async function setMemberRole(actorId: string, workspaceId: string, target
       .update(workspaceMember)
       .set({ role })
       .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)));
+  });
+}
+
+/** Makes another member an owner and the acting owner a member, in one step. */
+export async function transferOwnership(actorId: string, workspaceId: string, targetId: string) {
+  await requireMembership(actorId, workspaceId, "owner");
+  if (targetId === actorId) throw new WorkspaceError("transferToSelf", "Choose someone else to make owner.");
+  await db.transaction(async (tx) => {
+    const [target] = await tx
+      .select({ role: workspaceMember.role })
+      .from(workspaceMember)
+      .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)))
+      .for("update");
+    if (!target) throw new WorkspaceError("notMember", "This person is not a member.");
+    // The actor stays an owner until the target is one, so the workspace is never ownerless.
+    await tx
+      .update(workspaceMember)
+      .set({ role: "owner" })
+      .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)));
+    const demoted = await tx
+      .update(workspaceMember)
+      .set({ role: "member" })
+      .where(
+        and(
+          eq(workspaceMember.workspaceId, workspaceId),
+          eq(workspaceMember.userId, actorId),
+          eq(workspaceMember.role, "owner"),
+        ),
+      )
+      .returning({ userId: workspaceMember.userId });
+    // Another owner demoted the actor meanwhile: nothing to hand over.
+    if (!demoted.length) throw new AccessError();
   });
 }
 

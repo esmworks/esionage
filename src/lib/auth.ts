@@ -4,9 +4,9 @@ import { nextCookies } from "better-auth/next-js";
 import { db, schema } from "@/db";
 import { requestLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
-import { baseAuthOptions, inviteTokenOf } from "@/lib/auth-options";
+import { baseAuthOptions, inviteTokenOf, joinTokenOf } from "@/lib/auth-options";
 import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetEmail, sendMail } from "@/server/mail";
-import { acceptInvitation, createPersonalWorkspace, invitationAllowsSignUp } from "@/server/workspaces";
+import { acceptInvitation, createPersonalWorkspace, invitationAllowsSignUp, joinWithLink } from "@/server/workspaces";
 
 export { MCP_SCOPES } from "@/lib/auth-options";
 
@@ -53,6 +53,16 @@ export const auth = betterAuth({
               return;
             } catch (error) {
               console.error("could not accept invitation on sign-up", error);
+            }
+          }
+          // Same for a workspace's join link (it never opens closed sign-up, see baseAuthOptions).
+          const joinToken = joinTokenOf(ctx);
+          if (joinToken) {
+            try {
+              await joinWithLink(joinToken, user.id, user.email);
+              return;
+            } catch (error) {
+              console.error("could not join with link on sign-up", error);
             }
           }
           await createPersonalWorkspace(user.id, user.name);

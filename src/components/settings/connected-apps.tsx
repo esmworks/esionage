@@ -23,7 +23,7 @@ export async function ConnectedApps() {
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-sm font-semibold">{t("heading")}</h2>
+        <h2 className="text-lg font-semibold">{t("heading")}</h2>
         <p className="mt-1 text-sm text-fg-muted">{t("description")}</p>
       </div>
       {apps.length === 0 ? (

@@ -37,6 +37,8 @@ export const workspace = pgTable("workspace", {
   id: id(),
   name: text("name").notNull(),
   icon: text("icon"),
+  /** Token of the shareable join link (joins as member); null while the link is turned off. */
+  inviteLinkToken: text("invite_link_token").unique(),
   ...timestamps,
 });
 
@@ -153,6 +155,10 @@ export type ViewConfig = {
   sorts?: SortRule[];
   filters?: FilterRule[];
   hidden?: string[];
+  /** Properties shown although their type starts hidden in this kind of view (see `isHiddenInView`). */
+  shown?: string[];
+  /** Board views: column order by option id, "" for the no-value column. Unlisted options follow in option order. */
+  groupOrder?: string[];
 };
 
 export const databaseView = pgTable(
