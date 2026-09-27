@@ -14,9 +14,10 @@ import { requestSession } from "@/server/request-session";
  * A workspace that requires two-step verification also holds back the browser sessions that don't
  * pass it: `getMembership` and `resolvePageAccess` (and everything built on them, so server actions
  * and API routes alike) throw TwoFactorRequiredError for the signed-in user of such a request. The
- * collab server checks its connections itself (collab/authorize.ts); MCP's OAuth tokens are outside
- * the policy. Lists filtered only in SQL (`pageVisibleTo`) run after one of those checks, or ask
- * `sessionHeldBack` themselves.
+ * collab server checks its connections itself (collab/authorize.ts); MCP's OAuth tokens and the REST
+ * API's personal access tokens (/api/v1) are outside the policy: they are credentials the user
+ * handed to a program, revoked in Settings, not sign-ins. Lists filtered only in SQL
+ * (`pageVisibleTo`) run after one of those checks, or ask `sessionHeldBack` themselves.
  */
 
 export class AccessError extends Error {

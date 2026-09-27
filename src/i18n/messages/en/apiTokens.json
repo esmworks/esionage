@@ -1,0 +1,72 @@
+{
+  "heading": "Personal access tokens",
+  "description": "Tokens let scripts and other programs use the Esionage REST API as you, with your access to pages. Keep them secret, like a password.",
+  "docs": "API documentation",
+  "empty": "You have no tokens yet.",
+  "create": "New token",
+  "form": {
+    "title": "New personal access token",
+    "name": "Name",
+    "namePlaceholder": "e.g. Weekly report script",
+    "access": "Access",
+    "read": "Read only",
+    "readHint": "Read pages, databases, rows and comments.",
+    "write": "Read and write",
+    "writeHint": "Also create and change pages, rows and comments, and move pages to the trash.",
+    "workspace": "Workspace",
+    "allWorkspaces": "All my workspaces",
+    "expiry": "Expires after",
+    "days": "{count, plural, one {# day} other {# days}}",
+    "never": "Never",
+    "submit": "Create token",
+    "creating": "Creating…"
+  },
+  "created": {
+    "title": "Copy your new token",
+    "body": "This is the only time the token is shown. Store it somewhere safe; if you lose it, revoke it and create another.",
+    "done": "Done"
+  },
+  "row": {
+    "readOnly": "Read only",
+    "readWrite": "Read and write",
+    "allWorkspaces": "All workspaces",
+    "createdAt": "Created {date}",
+    "lastUsed": "last used {date}",
+    "neverUsed": "never used",
+    "expires": "expires {date}",
+    "expired": "expired {date}",
+    "noExpiry": "does not expire"
+  },
+  "revoke": "Revoke",
+  "revoking": "Revoking…",
+  "confirmRevoke": "Revoke {name}",
+  "revokeError": "Could not revoke the token. Try again.",
+  "errors": {
+    "name": "Give the token a name of at most 100 characters.",
+    "scopes": "Choose what the token may do.",
+    "workspace": "You are not a member of that workspace.",
+    "expiry": "Choose when the token expires.",
+    "limit": "You have the most tokens allowed. Revoke one first.",
+    "generic": "Could not create the token. Try again."
+  },
+  "docsPage": {
+    "metaTitle": "REST API",
+    "openapi": "OpenAPI document (JSON)",
+    "tokensWhere": "Create a token under Settings → Connected apps.",
+    "quickStart": "Quick start",
+    "baseUrl": "Base URL",
+    "errors": "Errors",
+    "code": "Code",
+    "status": "Status",
+    "endpoints": "Endpoints",
+    "parameters": "Parameters",
+    "inPath": "path",
+    "inQuery": "query",
+    "body": "Request body (JSON)",
+    "response": "Response {status}",
+    "name": "Name",
+    "type": "Type",
+    "description": "Description",
+    "required": "required"
+  }
+}

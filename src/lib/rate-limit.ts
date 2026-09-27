@@ -32,6 +32,11 @@ export class SlidingWindowLimiter {
     return times[times.length - this.limit] + this.windowMs - now;
   }
 
+  /** Hits of `key` within the window ending now. */
+  count(key: string, now = Date.now()): number {
+    return this.recent(key, now).length;
+  }
+
   hit(key: string, now = Date.now()) {
     const times = this.recent(key, now);
     times.push(now);
