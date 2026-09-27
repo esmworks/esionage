@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/db";
 import { databaseProperty, databaseView, page, pagePublication, user, type CardSize, type PageKind, type ViewConfig, type ViewType } from "@/db/schema";
 import { PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
@@ -12,6 +13,7 @@ import { holdsPeople } from "@/lib/property-types";
 import { AccessError, accessRank, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
 import { rowCovers, type DatabaseProperty } from "@/server/databases";
 import { computeDerived } from "@/server/derived";
+import { publishedPageRefs } from "@/server/mentions";
 import { canPublish } from "@/server/workspaces";
 import type { BodyHeading } from "@/server/published-body";
 
@@ -311,7 +313,7 @@ export async function getPublishedPage(token: string, pageId?: string, viewId?: 
     : undefined;
 
   const [body, children, database, rowProperties] = await Promise.all([
-    target.kind === "page" ? publishedBody(publisher, root.id, target.ydoc) : Promise.resolve([]),
+    target.kind === "page" ? publishedBody(publisher, root.id, token, target.ydoc) : Promise.resolve([]),
     target.kind === "database" ? Promise.resolve([]) : liveChildren(publisher, target.id),
     target.kind === "database" ? publishedDatabase(publisher, target.id, { viewId }) : Promise.resolve(null),
     parent?.kind === "database" && target.parentId ? databaseProperties(target.parentId) : Promise.resolve(null),
@@ -377,9 +379,27 @@ async function chainTo(publisher: string, pageId: string, rootId: string): Promi
  * published with this page, i.e. reachable from the published page like any of its subpages: an
  * inline database under the page is, a linked view of a database elsewhere is not.
  */
-async function publishedBody(publisher: string, rootId: string, ydoc: Uint8Array | null): Promise<PublishedBlock[]> {
+/** How a published page names pages it can't show, in the visitor's language (English outside a request). */
+async function mentionLabels() {
+  try {
+    const [t, tc] = await Promise.all([getTranslations("page.mention"), getTranslations("common")]);
+    return { untitled: tc("untitled"), private: t("noAccess"), deleted: t("deleted") };
+  } catch {
+    return { untitled: "Untitled", private: "No access", deleted: "Deleted page" };
+  }
+}
+
+async function publishedBody(publisher: string, rootId: string, token: string, ydoc: Uint8Array | null): Promise<PublishedBlock[]> {
   const { bodySegmentsFromYdoc } = await import("@/server/published-body");
-  const segments = await bodySegmentsFromYdoc(ydoc);
+  const segments = await bodySegmentsFromYdoc(ydoc, {
+    // Mentioned pages published with this page (or on their own) are links; the rest plain text.
+    resolvePages: async (pageIds) => {
+      return publishedPageRefs(publisher, pageIds, {
+        inPublication: async (id) => ((await chainTo(publisher, id, rootId)) ? (id === rootId ? `/s/${token}` : `/s/${token}/${id}`) : null),
+        labels: await mentionLabels(),
+      });
+    },
+  });
   return Promise.all(
     segments.map(async (segment): Promise<PublishedBlock> => {
       if (segment.kind !== "embed") return segment;

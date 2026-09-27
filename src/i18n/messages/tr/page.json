@@ -254,6 +254,44 @@
       "subtext": "Bu sayfanın üstündeki sayfalar, bağlantı olarak",
       "aliases": "breadcrumb sayfa yolu üst sayfalar konum",
       "label": "Sayfa yolu"
+    },
+    "pageLink": {
+      "title": "Sayfa bağlantısı",
+      "subtext": "Başka bir sayfaya, güncel başlığıyla bağlantı",
+      "aliases": "bağlantı sayfa bahset link page mention"
     }
+  },
+  "mention": {
+    "people": "Kişiler",
+    "pages": "Sayfalar",
+    "dates": "Tarihler",
+    "today": "Bugün",
+    "tomorrow": "Yarın",
+    "yesterday": "Dün",
+    "nextWeek": "Gelecek hafta",
+    "noAccess": "Erişim yok",
+    "deleted": "Silinmiş sayfa",
+    "loading": "Yükleniyor…",
+    "personLeft": "{name} (artık çalışma alanında değil)",
+    "date": "Tarih",
+    "reminder": "Hatırlatma",
+    "remindNone": "Hatırlatma yok",
+    "remindSameDay": "O gün, 9:00",
+    "remindDayBefore": "Bir gün önce, 9:00",
+    "remindWeekBefore": "Bir hafta önce, 9:00",
+    "reminderSet": "Hatırlatma: {when}",
+    "reminderHint": "Gelen kutunuza ve e-postanıza gelir.",
+    "reminderPast": "Bu zaman geçti; daha ileri bir tarih ya da hatırlatma seçin.",
+    "done": "Tamam"
+  },
+  "pageLinkPicker": {
+    "title": "Sayfa bağlantısı",
+    "search": "Sayfa ara…",
+    "empty": "Sayfa bulunamadı",
+    "failed": "Sayfalar yüklenemedi."
+  },
+  "backlinks": {
+    "title": "Bu sayfaya bağlananlar",
+    "count": "{count, plural, one {# sayfa buraya bağlanıyor} other {# sayfa buraya bağlanıyor}}"
   }
 }

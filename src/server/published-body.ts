@@ -4,6 +4,7 @@ import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { BREADCRUMB_BLOCK, MERMAID_BLOCK, TOC_BLOCK } from "@/lib/content-blocks";
 import { plainText } from "@/lib/content-markdown";
 import { isEmbedBlockType, parseLinkedView, type EmbedBlockType, type LinkedView } from "@/lib/embed-blocks";
+import { bodyReferences, MENTION, mentionPlainText, mentionProps, PAGE_LINK_BLOCK } from "@/lib/mentions";
 import { serverEditor as editor, type PageBlock } from "@/server/blocknote";
 
 /**
@@ -79,6 +80,60 @@ export function sanitizeBlocks<T>(blocks: T[]): T[] {
 }
 
 /**
+ * How a published page shows a page it mentions or links to: `text` (its title, or a note that
+ * names nothing) and, when that page is published too, where it is. The publication decides (see
+ * server/publication.ts); without a decision a page is left out.
+ */
+export type PublishedPageRef = { text: string; href: string | null };
+
+const textNode = (text: string) => ({ type: "text", text, styles: {} });
+
+function pageRefInline(ref: PublishedPageRef | undefined): Json[] {
+  if (!ref) return [];
+  return ref.href ? [{ type: "link", href: ref.href, content: [textNode(ref.text)] }] : [textNode(ref.text)];
+}
+
+function resolveInline(content: Json, refs: Map<string, PublishedPageRef>): Json {
+  if (Array.isArray(content)) {
+    return content.flatMap((item): Json[] => {
+      const node = item as Record<string, Json> | null;
+      if (node?.type !== MENTION) return [item];
+      const props = mentionProps(node.props);
+      if (props.kind === "page") return pageRefInline(refs.get(props.pageId));
+      return [textNode(mentionPlainText(props))];
+    });
+  }
+  const table = content as { type?: string; rows?: { cells?: Json[] }[] } | null;
+  if (table?.type === "tableContent" && Array.isArray(table.rows)) {
+    return {
+      ...table,
+      rows: table.rows.map((row) => ({
+        ...row,
+        cells: (row.cells ?? []).map((cell) =>
+          Array.isArray(cell) ? resolveInline(cell, refs) : cell && typeof cell === "object" ? { ...cell, content: resolveInline((cell as { content?: Json }).content, refs) } : cell,
+        ),
+      })),
+    };
+  }
+  return content;
+}
+
+/**
+ * Mentions as plain text or links, and "Link to page" blocks as a line holding one, as `refs`
+ * allows (runs after sanitizeBlocks: these links are the publication's own).
+ */
+function resolveMentions(blocks: PageBlock[], refs: Map<string, PublishedPageRef>): PageBlock[] {
+  return blocks.map((block) => {
+    const children = block.children?.length ? resolveMentions(block.children, refs) : block.children;
+    if (block.type === PAGE_LINK_BLOCK) {
+      const pageId = String((block.props as { pageId?: unknown }).pageId ?? "");
+      return { id: block.id, type: "paragraph", props: {}, content: pageRefInline(refs.get(pageId)), children } as unknown as PageBlock;
+    }
+    return { ...block, content: resolveInline(block.content as Json, refs), children } as PageBlock;
+  });
+}
+
+/**
  * BlockNote's HTML export fills a block without text (an empty line, an empty heading) with an
  * object replacement character, which browsers draw as a box. A line break keeps the empty line.
  */
@@ -124,12 +179,18 @@ function runHeadings(blocks: PageBlock[], out: PageBlock[] = []): PageBlock[] {
   return out;
 }
 
-export async function bodySegmentsFromYdoc(state: Uint8Array | null): Promise<BodySegment[]> {
+export async function bodySegmentsFromYdoc(
+  state: Uint8Array | null,
+  /** How to show the pages the body mentions or links to; without it they are left out. */
+  { resolvePages }: { resolvePages?: (pageIds: string[]) => Promise<Map<string, PublishedPageRef>> } = {},
+): Promise<BodySegment[]> {
   if (!state || state.byteLength === 0) return [];
   const doc = new Y.Doc();
   try {
     Y.applyUpdate(doc, state);
     const blocks = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
+    const { pageIds } = bodyReferences(blocks);
+    const refs = pageIds.length && resolvePages ? await resolvePages(pageIds) : new Map<string, PublishedPageRef>();
     const segments: BodySegment[] = [];
     // Every heading of the page, filled in as the runs are written; tables of contents share it.
     const headings: BodyHeading[] = [];
@@ -145,7 +206,7 @@ export async function bodySegmentsFromYdoc(state: Uint8Array | null): Promise<Bo
         headings.push(heading);
         return heading;
       });
-      let html = emptyLinesAsBreaks(await editor.blocksToHTMLLossy(sanitizeBlocks(run)));
+      let html = emptyLinesAsBreaks(await editor.blocksToHTMLLossy(resolveMentions(sanitizeBlocks(run), refs)));
       run = [];
       // The serializer escapes text, so "<h2" only ever starts a heading: the n-th one is the
       // run's n-th heading block. The anchors are ours ("heading-3"), nothing from the document.

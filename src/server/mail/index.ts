@@ -5,6 +5,8 @@ export { MailConfigError } from "./config";
 export {
   assignmentEmail,
   commentEmail,
+  mentionEmail,
+  reminderEmail,
   type EmailContent,
   type RenderedEmail,
   invitationEmail,

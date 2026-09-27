@@ -5,10 +5,12 @@ import { databaseProperty, databaseView, page, pagePermission, type PageKind, ty
 import { planDuplicate, type DuplicatePlan, type PlannedPage, type SourcePage } from "@/lib/duplicate";
 import { DATABASE_BLOCK, mapReferenceLines, referenceLine, remapInlineDatabases } from "@/lib/embed-blocks";
 import { positionBetween } from "@/lib/properties";
+import { stripReminders } from "@/lib/mentions";
 import { stripComments } from "@/lib/strip-comments";
 import { AccessError, pageVisibleTo, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { bulkRowIds, rowsWithAccess, syncPairedRelations, withCode, type BulkResult } from "@/server/databases";
+import { copyReferences } from "@/server/mentions";
 import { makePagePrivate } from "@/server/permissions";
 import { requireTopLevel } from "@/server/workspaces";
 
@@ -186,6 +188,8 @@ export async function copyPageTree(
     if (target.private) await makePagePrivate(tx, source.workspaceId, plan.rootId, userId);
     await pointAtCopiedDatabases(tx, plan);
     if (target.stripComments) await stripCopiedComments(tx, plan);
+    await copyReferences(tx, rows);
+    await stripCopiedReminders(tx, plan);
 
     if (plan.properties.length) {
       await tx.insert(databaseProperty).values(
@@ -287,6 +291,29 @@ async function stripCopiedComments(tx: Tx, plan: DuplicatePlan) {
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Copied page documents without the reminders of their dates: a reminder belongs to the person who
+ * set it on the source page (see lib/mentions). Only bodies that mention a date can hold one.
+ */
+async function stripCopiedReminders(tx: Tx, plan: DuplicatePlan) {
+  const copies = plan.pages.filter((p) => p.kind === "page").map((p) => p.id);
+  if (!copies.length) return;
+  const bodies = await tx
+    .select({ id: page.id, ydoc: page.ydoc })
+    .from(page)
+    .where(and(inArray(page.id, copies), isNotNull(page.ydoc), sql`${page.contentMarkdown} ~ '@[0-9]{4}-[0-9]{2}-[0-9]{2}'`));
+  for (const body of bodies) {
+    if (!body.ydoc?.byteLength) continue;
+    const doc = new Y.Doc();
+    try {
+      Y.applyUpdate(doc, body.ydoc);
+      if (stripReminders(doc)) await tx.update(page).set({ ydoc: Y.encodeStateAsUpdate(doc) }).where(eq(page.id, body.id));
+    } finally {
+      doc.destroy();
+    }
+  }
+}
 
 /**
  * Copied pages showing an inline database that was copied with them show the copy instead (in

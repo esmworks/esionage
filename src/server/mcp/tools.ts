@@ -53,6 +53,7 @@ import * as comments from "@/server/comments";
 import * as databases from "@/server/databases";
 import { resolveEmbeds } from "@/server/embeds";
 import * as forms from "@/server/forms";
+import { labelPageLinks, listBacklinks } from "@/server/mentions";
 import * as notifications from "@/server/notifications";
 import * as pages from "@/server/pages";
 import * as templates from "@/server/templates";
@@ -81,8 +82,9 @@ Pages form a tree inside a workspace. A database is a special page whose childre
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / diff_page_version / restore_page_version).
 Beyond plain Markdown, page bodies know a few block forms: a callout is a GitHub alert (\`> [!NOTE]\`, TIP, IMPORTANT, WARNING or CAUTION on its own line, then the \`> \` text; a leading emoji becomes its icon), \`$…$\` is an inline equation and a \`$$\` line pair wraps a block equation (LaTeX), a \`\`\`mermaid fence is a diagram, and the lines \`<!-- esionage:toc -->\` and \`<!-- esionage:breadcrumb -->\` are a table of contents and the page's breadcrumb. A dollar sign of the text itself is written \`\\$\`.
+Mentions: a link to a page of this app (\`[Roadmap](/w/<workspace_id>/p/<page_id>)\`) is a page mention, which shows the page's live title (the link text you write is ignored; get_page shows the current title, or "No access" / "Deleted page"); that link alone on its line followed by \`<!-- esionage:page-link -->\` is a "Link to page" block. \`@Name\` with a person's name as list_users shows it mentions them (they are notified if they can open the page), and \`@YYYY-MM-DD\` is a date. Keep mentions as they are when you rewrite a page: people aren't notified twice and reminders set on dates stay. get_page lists the pages linking to a page under linked_from.
 People discuss pages in comment threads anchored to text of the page: list_comments reads them, add_comment starts a thread on quoted text or replies to one.
-list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them and new comments in their threads.
+list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them, new comments in their threads, mentions of them and reminders they set on dates.
 Templates are starting points for new pages and rows: list_templates lists a workspace's page templates (and the built-in gallery) or a database's row templates; create_page and create_database_row take a template_id. A database's default row template is used by create_database_row when no properties or body are given. Templates don't show up in search or list_pages.
 Always share the returned url with the user when you create or change something.`;
 
@@ -756,11 +758,16 @@ export function createMcpServer(principal: McpPrincipal) {
                   ? `${who} assigned the user to "${n.propertyName ?? ""}" on "${title}" in ${pageLabel(n.databaseTitle)}`
                   : n.kind === "comment"
                     ? `${who} commented on "${title}" in a thread the user is in (see list_comments)`
-                    : `${who} shared "${title}" with the user`,
+                    : n.kind === "mention"
+                      ? `${who} mentioned the user on "${title}"`
+                      : n.kind === "reminder"
+                        ? `Reminder the user set for ${n.reminderDate ?? "a date"} on "${title}"`
+                        : `${who} shared "${title}" with the user`,
               actor: n.actorName,
               page_id: n.pageId,
               title,
               ...(n.kind === "assignment" ? { database: pageLabel(n.databaseTitle), property: n.propertyName } : {}),
+              ...(n.kind === "reminder" ? { date: n.reminderDate } : {}),
               workspace_id: n.workspaceId,
               workspace_name: n.workspaceName,
               url: pageUrl(n.workspaceId, n.pageId),
@@ -849,7 +856,8 @@ export function createMcpServer(principal: McpPrincipal) {
           pages.listWorkspaces(userId),
         ]);
         const workspace = workspaces.find((w) => w.id === page.workspaceId);
-        const body = sliceText(content.markdown, offset);
+        // Mentioned pages read as their current title, as far as the user can see them.
+        const body = sliceText(await labelPageLinks(userId, content.markdown), offset);
         const out: Record<string, unknown> = {
           id: page.id,
           title: pageLabel(content.title || page.title),
@@ -901,6 +909,10 @@ export function createMcpServer(principal: McpPrincipal) {
           const children = await pages.listChildren(userId, page.workspaceId, page.id);
           out.child_pages = children.slice(0, 100).map((c) => ({ id: c.id, title: pageLabel(c.title), kind: c.kind }));
           if (children.length > 100) out.child_pages_truncated = children.length;
+          const backlinks = await listBacklinks(userId, page.id);
+          if (backlinks.length) {
+            out.linked_from = backlinks.map((b) => ({ id: b.id, title: pageLabel(b.title), url: pageUrl(b.workspaceId, b.id) }));
+          }
         }
         return out;
       }),
@@ -1879,7 +1891,7 @@ export function createMcpServer(principal: McpPrincipal) {
     ({ version_id, offset }) =>
       runTool(async () => {
         const snap = await pages.getSnapshot(userId, version_id);
-        const body = sliceText(snap.contentMarkdown, offset);
+        const body = sliceText(await labelPageLinks(userId, snap.contentMarkdown), offset);
         return {
           id: snap.id,
           page_id: snap.pageId,

@@ -1,7 +1,7 @@
 import { and, count, desc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { databaseProperty, notification, page, user, workspace, type NotificationKind } from "@/db/schema";
+import { databaseProperty, notification, page, pageReminder, user, workspace, type NotificationKind } from "@/db/schema";
 import { newAssignees } from "@/lib/properties";
 import { pageVisibleTo, requireMembership } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
@@ -165,6 +165,110 @@ export async function withdrawComments(workspaceId: string, pageId: string, thre
   }
 }
 
+/** How long a mention waits before its email goes out, so taking it back right away sends nothing. */
+export const MENTION_EMAIL_DELAY_MS = 60_000;
+
+/**
+ * Tells people they were mentioned on a page (see server/mentions.ts, which calls this once per new
+ * mention). Only people who can open the page hear about it; an unread mention notification about
+ * the same page is moved up to the latest mention, so a page mentioning someone often stays one
+ * line in their inbox. Never throws: the page was saved.
+ */
+export async function recordMentions(
+  actorId: string | null,
+  workspaceId: string,
+  pageId: string,
+  mentions: { userId: string; mentionId: string }[],
+  locale: string | null = null,
+) {
+  const first = new Map<string, string>();
+  for (const m of mentions) if (m.userId !== actorId && !first.has(m.userId)) first.set(m.userId, m.mentionId);
+  if (!first.size) return;
+  try {
+    const visible = await db
+      .select({ id: user.id })
+      .from(user)
+      .innerJoin(page, eq(page.id, pageId))
+      .where(and(inArray(user.id, [...first.keys()]), isNull(page.archivedAt), sql`page_access_level(${user.id}, ${page.id}) > 0`));
+    if (!visible.length) return;
+    const emailDueAt = mailStatus() === "disabled" ? null : new Date(Date.now() + MENTION_EMAIL_DELAY_MS);
+    await db.transaction(async (tx) => {
+      await tx.delete(notification).where(
+        and(
+          eq(notification.kind, "mention"),
+          eq(notification.pageId, pageId),
+          inArray(notification.userId, visible.map((v) => v.id)),
+          isNull(notification.readAt),
+        ),
+      );
+      await tx.insert(notification).values(
+        visible.map((v) => ({
+          userId: v.id,
+          workspaceId,
+          kind: "mention" as const,
+          actorId,
+          pageId,
+          mentionId: first.get(v.id)!,
+          emailDueAt,
+          emailLocale: locale,
+        })),
+      );
+    });
+    signal(workspaceId);
+  } catch (error) {
+    console.error("could not record mention notifications", error);
+  }
+}
+
+/**
+ * Takes back unread notifications about mentions that were removed from the page; returns the
+ * mentions whose notification it took back. Never throws.
+ */
+export async function withdrawMentions(workspaceId: string, pageId: string, mentionIds: string[]): Promise<string[]> {
+  if (!mentionIds.length) return [];
+  try {
+    const dropped = await db
+      .delete(notification)
+      .where(
+        and(
+          eq(notification.kind, "mention"),
+          eq(notification.pageId, pageId),
+          inArray(notification.mentionId, mentionIds),
+          isNull(notification.readAt),
+        ),
+      )
+      .returning({ mentionId: notification.mentionId });
+    if (dropped.length) signal(workspaceId);
+    return dropped.flatMap((d) => (d.mentionId ? [d.mentionId] : []));
+  } catch (error) {
+    console.error("could not withdraw mention notifications", error);
+    return [];
+  }
+}
+
+/**
+ * A reminder the user set fell due (see server/mentions.ts): tells them in the inbox and, right
+ * away, by email, if they can still open the page.
+ */
+export async function recordReminder(userId: string, pageId: string, mentionId: string) {
+  const [target] = await db
+    .select({ workspaceId: page.workspaceId })
+    .from(page)
+    .where(and(eq(page.id, pageId), isNull(page.archivedAt), sql`page_access_level(${userId}, ${page.id}) > 0`))
+    .limit(1);
+  if (!target) return;
+  await db.insert(notification).values({
+    userId,
+    workspaceId: target.workspaceId,
+    kind: "reminder",
+    actorId: null,
+    pageId,
+    mentionId,
+    emailDueAt: mailStatus() === "disabled" ? null : new Date(),
+  });
+  signal(target.workspaceId);
+}
+
 const unreadShare = (userId: string, pageId: string) =>
   and(
     eq(notification.kind, "page_shared"),
@@ -186,6 +290,8 @@ export type InboxItem = {
   pageIcon: string | null;
   databaseTitle: string | null;
   propertyName: string | null;
+  /** Reminders: the date they were set on (YYYY-MM-DD). */
+  reminderDate: string | null;
 };
 
 const databasePage = alias(page, "database_page");
@@ -232,6 +338,7 @@ export async function listNotifications(
       pageIcon: page.icon,
       databaseTitle: databasePage.title,
       propertyName: databaseProperty.name,
+      reminderDate: pageReminder.date,
     })
     .from(notification)
     .innerJoin(page, eq(page.id, notification.pageId))
@@ -239,6 +346,10 @@ export async function listNotifications(
     .leftJoin(databasePage, and(eq(databasePage.id, page.parentId), eq(databasePage.kind, "database")))
     .leftJoin(actor, eq(actor.id, notification.actorId))
     .leftJoin(databaseProperty, eq(databaseProperty.id, notification.propertyId))
+    .leftJoin(
+      pageReminder,
+      and(eq(notification.kind, "reminder"), eq(pageReminder.pageId, notification.pageId), eq(pageReminder.mentionId, notification.mentionId)),
+    )
     .where(and(filter, unreadOnly ? isNull(notification.readAt) : undefined))
     .orderBy(desc(notification.createdAt))
     .limit(limit);

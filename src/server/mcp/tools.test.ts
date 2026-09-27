@@ -61,6 +61,12 @@ vi.mock("@/server/workspaces", () => workspaces);
 const notifications = vi.hoisted(() => ({ listNotifications: vi.fn() }));
 vi.mock("@/server/notifications", () => notifications);
 
+const mentions = vi.hoisted(() => ({
+  labelPageLinks: vi.fn(async (_userId: string, markdown: string) => markdown),
+  listBacklinks: vi.fn(async () => []),
+}));
+vi.mock("@/server/mentions", () => mentions);
+
 const page = {
   id: "page-1",
   workspaceId: "ws-1",

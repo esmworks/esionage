@@ -9,6 +9,7 @@ import { AccessError } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 import { getDatabaseSnapshot, MAX_BULK_ROWS } from "@/server/databases";
 import { resolveEmbeds } from "@/server/embeds";
+import { labelPageLinks } from "@/server/mentions";
 import { getPage } from "@/server/pages";
 import { getSession } from "@/server/session";
 
@@ -89,7 +90,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
     }
     const content = await getCollab().readPage(pageId);
     const title = content.title || target.title;
-    const body = await linkEmbeds(session.user.id, content.markdown.trim());
+    const body = await linkEmbeds(session.user.id, await labelLinks(session.user.id, content.markdown.trim()));
     const markdown = `${title ? `# ${title}\n\n` : ""}${body}\n`;
     return download(markdown, "text/markdown", fileName(title, "md"));
   } catch (error) {
@@ -112,6 +113,12 @@ async function linkEmbeds(userId: string, markdown: string) {
     if (!database) return `*${t("unavailable")}*`;
     return `[${pageLabel(database.title, tc("untitled")).replace(/[[\]]/g, "\\$&")}](/w/${database.workspaceId}/p/${database.id})`;
   });
+}
+
+/** Mentioned and linked pages under their current title, as far as the reader can see them. */
+async function labelLinks(userId: string, markdown: string) {
+  const [t, tc] = await Promise.all([getTranslations("page.mention"), getTranslations("common")]);
+  return labelPageLinks(userId, markdown, { untitled: tc("untitled"), noAccess: t("noAccess"), deleted: t("deleted") });
 }
 
 /** Exports the selected rows of a database: a POST, since a large selection would not fit in a URL. */

@@ -1,20 +1,21 @@
 import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { notification, user, workspace } from "@/db/schema";
+import { notification, pageReminder, user, workspace } from "@/db/schema";
 import { DEFAULT_LOCALE, isLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
 import { commentText } from "@/lib/comments";
 import { pageLabel } from "@/lib/labels";
 import { resolvePageAccess } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
-import { commentEmail, sendMail, shareEmail, type OutgoingMail } from "@/server/mail";
+import { commentEmail, mentionEmail, reminderEmail, sendMail, shareEmail, type OutgoingMail } from "@/server/mail";
 import { emailTranslator } from "@/server/mail/templates";
 import { wantsEmail } from "@/server/notification-preferences";
 
 /**
- * Emails people about pages shared with them and comments in their threads. The queue is the
- * notification itself: `recordShare` and `recordComment` set `email_due_at` a little ahead, undoing
- * the share deletes the notification, and the sweep sends what is still there once it falls due.
+ * Emails people about pages shared with them, comments in their threads, mentions of them and their
+ * reminders. The queue is the notification itself: `recordShare`, `recordComment`, `recordMentions`
+ * and `recordReminder` set `email_due_at` (a little ahead, or now for reminders), undoing the share
+ * or the mention deletes the notification, and the sweep sends what is still there once it falls due.
  * A restart delays these emails instead of losing them.
  */
 
@@ -23,7 +24,7 @@ const SWEEP_INTERVAL_MS = 5_000;
 
 type Due = Pick<
   typeof notification.$inferSelect,
-  "kind" | "userId" | "actorId" | "pageId" | "threadId" | "workspaceId" | "emailLocale" | "readAt"
+  "kind" | "userId" | "actorId" | "pageId" | "threadId" | "mentionId" | "workspaceId" | "emailLocale" | "readAt"
 >;
 
 let mailer: (mail: OutgoingMail) => Promise<void> = sendMail;
@@ -36,7 +37,7 @@ async function deliverDue(everything = false) {
     .set({ emailDueAt: null })
     .where(
       and(
-        inArray(notification.kind, ["page_shared", "comment"]),
+        inArray(notification.kind, ["page_shared", "comment", "mention", "reminder"]),
         everything ? isNotNull(notification.emailDueAt) : lte(notification.emailDueAt, new Date()),
       ),
     )
@@ -46,6 +47,7 @@ async function deliverDue(everything = false) {
       actorId: notification.actorId,
       pageId: notification.pageId,
       threadId: notification.threadId,
+      mentionId: notification.mentionId,
       workspaceId: notification.workspaceId,
       emailLocale: notification.emailLocale,
       readAt: notification.readAt,
@@ -60,8 +62,8 @@ async function deliverDue(everything = false) {
 }
 
 /** Sends one email if the person hasn't seen the notification yet, still can open the page and wants it. */
-async function send({ kind, userId, actorId, pageId, threadId, workspaceId, emailLocale, readAt }: Due) {
-  if (readAt || (kind !== "page_shared" && kind !== "comment")) return;
+async function send({ kind, userId, actorId, pageId, threadId, mentionId, workspaceId, emailLocale, readAt }: Due) {
+  if (readAt || kind === "assignment") return;
   const locale = isLocale(emailLocale) ? emailLocale : DEFAULT_LOCALE;
   const { page: target, level } = await resolvePageAccess(userId, pageId);
   if (!target || target.archivedAt || level === "none") return;
@@ -82,6 +84,21 @@ async function send({ kind, userId, actorId, pageId, threadId, workspaceId, emai
   if (!recipient?.email) return;
   const pageTitle = pageLabel(target.title, emailTranslator(locale)("share.untitled"));
   const link = `${env.appUrl}/w/${workspaceId}/p/${pageId}`;
+  if (kind === "mention") {
+    await mailer({ to: recipient.email, ...mentionEmail(locale, { actorName: actor?.name ?? "", pageTitle, workspaceName: space?.name ?? "", link }) });
+    return;
+  }
+  if (kind === "reminder") {
+    const [reminder] = mentionId
+      ? await db
+          .select({ date: pageReminder.date })
+          .from(pageReminder)
+          .where(and(eq(pageReminder.pageId, pageId), eq(pageReminder.mentionId, mentionId)))
+      : [];
+    if (!reminder) return;
+    await mailer({ to: recipient.email, ...reminderEmail(locale, { date: reminder.date, pageTitle, workspaceName: space?.name ?? "", link }) });
+    return;
+  }
   if (kind === "comment") {
     const content = commentEmail(locale, { actorName: actor?.name ?? "", pageTitle, workspaceName: space?.name ?? "", text, link });
     await mailer({ to: recipient.email, ...content });
@@ -99,7 +116,7 @@ async function send({ kind, userId, actorId, pageId, threadId, workspaceId, emai
 
 let sweeping = false;
 
-/** Server only: sends share and comment emails as they fall due, including any left from before a restart. */
+/** Server only: sends notification emails as they fall due, including any left from before a restart. */
 export function startShareEmails() {
   const sweep = async () => {
     if (sweeping) return;
