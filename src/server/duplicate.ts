@@ -3,9 +3,11 @@ import { db } from "@/db";
 import { databaseProperty, databaseView, page, pagePermission, type PageKind, type RowProperties } from "@/db/schema";
 import { planDuplicate, type SourcePage } from "@/lib/duplicate";
 import { positionBetween } from "@/lib/properties";
-import { AccessError, pageVisibleTo, requireMember, requirePageAccess } from "@/server/access";
+import { AccessError, pageVisibleTo, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { syncPairedRelations, withCode } from "@/server/databases";
+import { makePagePrivate } from "@/server/permissions";
+import { requireTopLevel } from "@/server/workspaces";
 
 /** Larger subtrees are refused rather than copied in one long transaction. */
 export const MAX_DUPLICATE_PAGES = 2000;
@@ -14,7 +16,8 @@ export const MAX_DUPLICATE_PAGES = 2000;
  * Copies a page and everything live under it (subpages, databases with their properties, views
  * and rows, pages inside rows) next to the original. Only what the user can see is copied.
  * Each page's own permission entries are copied too, so a copy is never visible to more people
- * than its source. Favorites, publication, history and locks stay with the original.
+ * than its source; a guest's top-level copy is theirs alone, like any top-level page they add.
+ * Favorites, publication, history and locks stay with the original.
  */
 export async function duplicatePage(
   actor: WriteActor,
@@ -26,12 +29,13 @@ export async function duplicatePage(
   if (source.archivedAt) throw new Error("Restore the page from the trash before duplicating it");
   // The copy lands beside the original, so the user needs to be allowed to add pages there.
   let parentKind: PageKind | null = null;
+  let topLevel: "shared" | "private" | null = null;
   if (source.parentId) {
     const parent = await requirePageAccess(userId, source.parentId, "edit");
     if (parent.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
     parentKind = parent.kind;
   } else {
-    await requireMember(userId, source.workspaceId);
+    topLevel = await requireTopLevel(userId, source.workspaceId);
   }
   const title = `${source.title}${copySuffix}`.trim();
 
@@ -129,6 +133,7 @@ export async function duplicatePage(
       from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) as m(id text, source_id text)
       join ${pagePermission} pp on pp.page_id = m.source_id
     `);
+    if (topLevel === "private") await makePagePrivate(tx, source.workspaceId, plan.rootId, userId);
 
     if (plan.properties.length) {
       await tx.insert(databaseProperty).values(

@@ -152,13 +152,17 @@
     "transferToSelf": "Choose someone else to make owner."
   },
   "security": {
-    "description": "Decide who can bring people into this workspace. Only owners can change these settings.",
+    "description": "Decide who can bring people into this workspace and what guests can do. Only owners can change these settings.",
     "guestsHeading": "Guests",
     "guestInvites": {
       "title": "Who can invite guests",
       "description": "People outside the workspace join as guests when someone shares a page with them by email. They see only the pages shared with them.",
       "owners": "Owners only",
       "members": "Owners and members"
+    },
+    "guestPrivatePages": {
+      "title": "Guests can create private pages",
+      "description": "Guests can add pages at the top of the sidebar that only they can see, and share them like any page. Off: they only work in pages shared with them."
     },
     "ownersOnly": "Only owners can change this."
   }

@@ -23,6 +23,7 @@ const { page, pageInvitation, pagePublication, user, workspace, workspaceInvitat
 );
 const { registerCollab } = await import("@/server/collab/bridge");
 const { listRows } = await import("@/server/databases");
+const { duplicatePage } = await import("@/server/duplicate");
 const { getPublishedPage } = await import("@/server/publication");
 const { AccessError, getMembership, requirePageAccess, resolvePageAccess } = await import("@/server/access");
 const { createPage, getBreadcrumbs, getTree, listChildren, movePage, recentPages, searchPages } = await import(
@@ -43,7 +44,7 @@ const {
 const RUN = `access-e2e-${Date.now().toString(36)}`;
 
 // Writes notify open editors through the collab service, which only runs inside the app server.
-registerCollab({ broadcast() {} } as unknown as Parameters<typeof registerCollab>[0]);
+registerCollab({ broadcast() {}, async setTitle() {} } as unknown as Parameters<typeof registerCollab>[0]);
 
 let passed = 0;
 function check(condition: unknown, label: string, detail?: unknown): asserts condition {
@@ -261,6 +262,40 @@ try {
   await setPagePermission(owner, Pg, guest, "edit");
   await updateWorkspaceSettings(owner, workspaceId, { guestInvites: "owners" });
   check(!(await canInviteGuests(alice, workspaceId)), "switching back takes it away again");
+  await rejects(
+    () => updateWorkspaceSettings(owner, workspaceId, { toString: true } as never),
+    (error) => error instanceof WorkspaceError && error.code === "invalidSetting",
+    "a setting that doesn't exist is refused",
+  );
+
+  // Guests' private pages (Settings > Security)
+  await updateWorkspaceSettings(owner, workspaceId, { guestPrivatePages: true });
+  const own = await createPage({ userId: guest }, { workspaceId, title: "guest's own" });
+  check(
+    (await levels(own.id, guest, owner, alice, bob)).join() === "full,none,none,none",
+    "a guest's top-level page is theirs alone",
+  );
+  check(
+    (await getTree(guest, workspaceId)).some((p) => p.id === own.id) &&
+      !(await getTree(owner, workspaceId)).some((p) => p.id === own.id),
+    "it shows in their sidebar, not in the owner's",
+  );
+  const ownDb = await createPage({ userId: guest }, { workspaceId, kind: "database", title: "guest db" });
+  check((await levels(ownDb.id, guest, alice)).join() === "full,none", "so does a top-level database");
+  const ownCopy = await duplicatePage({ userId: guest }, own.id, " copy");
+  check((await levels(ownCopy.id, guest, owner)).join() === "full,none", "a copy of it is private too");
+  await setPagePermission(guest, own.id, bob, "view");
+  check((await levels(own.id, bob, alice)).join() === "view,none", "they can share it with a member");
+  const memberPage = await createPage({ userId: alice }, { workspaceId, title: "member's own" });
+  check((await levels(memberPage.id, bob, guest)).join() === "full,none", "a member's top-level page stays open to members");
+  await updateWorkspaceSettings(owner, workspaceId, { guestPrivatePages: false });
+  await rejects(
+    () => createPage({ userId: guest }, { workspaceId, title: "another" }),
+    isAccessError,
+    "turning it off stops new ones",
+  );
+  await rejects(() => duplicatePage({ userId: guest }, own.id, " copy"), isAccessError, "…copies included");
+  check((await levels(own.id, guest))[0] === "full", "…and leaves the existing ones as they are");
   check((await sharePageByEmail(owner, Pg, emailOf(outsider), "edit")).kind === "added", "an existing account joins as a guest");
   check(
     (await getMembership(outsider, workspaceId))?.role === "guest" && (await levels(Pg, outsider))[0] === "edit",

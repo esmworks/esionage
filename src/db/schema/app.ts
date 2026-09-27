@@ -37,9 +37,11 @@ const timestamps = {
 export type WorkspaceSettings = {
   /** Who may share pages with people outside the workspace, bringing them in as guests. */
   guestInvites: "owners" | "members";
+  /** Whether guests may add top-level pages, which only they can see. */
+  guestPrivatePages: boolean;
 };
 
-export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = { guestInvites: "owners" };
+export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = { guestInvites: "owners", guestPrivatePages: false };
 
 export const workspace = pgTable("workspace", {
   id: id(),

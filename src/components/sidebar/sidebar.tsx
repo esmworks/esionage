@@ -54,12 +54,15 @@ export function Sidebar({
   workspaces,
   initialTree,
   initialFavorites,
+  topLevel,
   user,
 }: {
   workspaceId: string;
   workspaces: Workspace[];
   initialTree: TreeNode[];
   initialFavorites: FavoritePage[];
+  /** Whether they may add top-level pages; a guest's are private to them. */
+  topLevel: "shared" | "private" | null;
   user: { id: string; name: string; email: string };
 }) {
   const router = useRouter();
@@ -81,7 +84,7 @@ export function Sidebar({
   const [actionError, setActionError] = useState(false);
   const [dragging, setDragging] = useState<string | null>(null);
   const workspace = workspaces.find((w) => w.id === workspaceId);
-  // Guests only see pages shared with them and can't add top-level pages.
+  // Guests only see pages shared with them (and their own private pages) and can't move pages to the top.
   const guest = workspace?.role === "guest";
 
   useEffect(() => setExpanded(loadExpanded()), []);
@@ -363,7 +366,7 @@ export function Sidebar({
 
         <div className="flex items-center justify-between px-4 pb-1 pt-2">
           <span className="text-xs font-medium text-fg-muted">{t("pages.heading")}</span>
-          {!guest && (
+          {topLevel && (
             <Popover
               align="end"
               trigger={({ toggle }) => (
@@ -409,8 +412,8 @@ export function Sidebar({
           </p>
         )}
         <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label={t("pages.heading")}>
-          {roots.length === 0 && guest && <p className="px-2 py-1.5 text-fg-muted">{t("pages.nothingShared")}</p>}
-          {roots.length === 0 && !guest && (
+          {roots.length === 0 && !topLevel && <p className="px-2 py-1.5 text-fg-muted">{t("pages.nothingShared")}</p>}
+          {roots.length === 0 && topLevel && (
             <button
               type="button"
               onClick={() => create(null)}

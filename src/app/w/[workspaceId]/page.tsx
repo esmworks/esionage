@@ -6,13 +6,15 @@ import { pageLabel } from "@/lib/labels";
 import { getMembership, isGuest } from "@/server/access";
 import { recentPages } from "@/server/pages";
 import { requireUser } from "@/server/session";
+import { topLevelAccess } from "@/server/workspaces";
 
 export default async function WorkspaceHome({ params }: { params: Promise<{ workspaceId: string }> }) {
   const user = await requireUser();
   const { workspaceId } = await params;
-  const [pages, membership] = await Promise.all([
+  const [pages, membership, topLevel] = await Promise.all([
     recentPages(user.id, workspaceId, 12),
     getMembership(user.id, workspaceId),
+    topLevelAccess(user.id, workspaceId),
   ]);
   const [t, tc, format] = await Promise.all([getTranslations("home"), getTranslations("common"), getFormatter()]);
   const now = new Date();
@@ -22,7 +24,7 @@ export default async function WorkspaceHome({ params }: { params: Promise<{ work
     <div className="mx-auto max-w-2xl space-y-8 px-6 py-12">
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold">{t("welcome", { name: user.name.split(/\s+/)[0] })}</h1>
-        {!guest && <QuickCreate workspaceId={workspaceId} />}
+        {topLevel && <QuickCreate workspaceId={workspaceId} />}
       </div>
 
       <section className="space-y-2">

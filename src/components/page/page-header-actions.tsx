@@ -272,7 +272,8 @@ function PageMenu({
             >
               {t("copyLink")}
             </MenuItem>
-            {!page.archived && canEdit && (
+            {/* The copy lands beside the original; at the top level that isn't open to every guest. */}
+            {!page.archived && canEdit && (page.parentId !== null || info.topLevel) && (
               <MenuItem icon={<Copy className="h-4 w-4" />} onClick={() => duplicate(close)}>
                 {t("duplicate")}
               </MenuItem>

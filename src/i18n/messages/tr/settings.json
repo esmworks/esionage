@@ -152,13 +152,17 @@
     "transferToSelf": "Sahip yapmak için başka birini seçin."
   },
   "security": {
-    "description": "Bu çalışma alanına kimlerin kişi getirebileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
+    "description": "Bu çalışma alanına kimlerin kişi getirebileceğini ve misafirlerin neler yapabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
     "guestsHeading": "Misafirler",
     "guestInvites": {
       "title": "Kimler misafir davet edebilir",
       "description": "Biri bir sayfayı e-postayla çalışma alanı dışındaki bir kişiyle paylaşınca o kişi misafir olarak katılır ve yalnızca kendisiyle paylaşılan sayfaları görür.",
       "owners": "Yalnızca sahipler",
       "members": "Sahipler ve üyeler"
+    },
+    "guestPrivatePages": {
+      "title": "Misafirler özel sayfa oluşturabilir",
+      "description": "Misafirler kenar çubuğunun en üstüne yalnızca kendilerinin görebildiği sayfalar ekleyebilir ve bunları her sayfa gibi paylaşabilir. Kapalıyken yalnızca kendileriyle paylaşılan sayfalarda çalışırlar."
     },
     "ownersOnly": "Bunu yalnızca sahipler değiştirebilir."
   }

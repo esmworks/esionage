@@ -7,6 +7,7 @@ import { getMembership } from "@/server/access";
 import { listFavorites } from "@/server/page-meta";
 import { getTree, listWorkspaces } from "@/server/pages";
 import { requireUser } from "@/server/session";
+import { topLevelAccess } from "@/server/workspaces";
 
 export default async function WorkspaceLayout({
   children,
@@ -18,10 +19,11 @@ export default async function WorkspaceLayout({
   const user = await requireUser();
   const { workspaceId } = await params;
   if (!(await getMembership(user.id, workspaceId))) notFound();
-  const [workspaces, tree, favorites, cookieStore] = await Promise.all([
+  const [workspaces, tree, favorites, topLevel, cookieStore] = await Promise.all([
     listWorkspaces(user.id),
     getTree(user.id, workspaceId),
     listFavorites(user.id, workspaceId),
+    topLevelAccess(user.id, workspaceId),
     cookies(),
   ]);
 
@@ -33,6 +35,7 @@ export default async function WorkspaceLayout({
           workspaces={workspaces}
           initialTree={tree}
           initialFavorites={favorites}
+          topLevel={topLevel}
           user={{ id: user.id, name: user.name, email: user.email }}
         />
         <main className="min-w-0 flex-1 overflow-y-auto">

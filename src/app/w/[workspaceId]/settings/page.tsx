@@ -9,7 +9,7 @@ import { LanguageSettings } from "@/components/settings/language-settings";
 import { LeaveWorkspaceRow } from "@/components/settings/leave-workspace";
 import { McpInstructions } from "@/components/settings/mcp-instructions";
 import { MembersPanel } from "@/components/settings/members-panel";
-import { GuestInviteSetting } from "@/components/settings/security-settings";
+import { GuestInviteSetting, GuestPrivatePagesSetting } from "@/components/settings/security-settings";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
@@ -138,6 +138,7 @@ async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: stri
       <SettingsHeader title={t("nav.security")} description={t("security.description")} />
       <SettingsGroup title={t("security.guestsHeading")}>
         <GuestInviteSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
+        <GuestPrivatePagesSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
       </SettingsGroup>
     </>
   );

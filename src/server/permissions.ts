@@ -201,6 +201,19 @@ export async function removePagePermission(actorId: string, pageId: string, prin
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
+ * Makes a page only `userId` can see: nobody else by default, them with full access. For a
+ * guest's top-level page; run it in the transaction that creates the page, so it is never
+ * visible to the workspace in between.
+ */
+export async function makePagePrivate(tx: Tx, workspaceId: string, pageId: string, userId: string) {
+  await tx.delete(pagePermission).where(eq(pagePermission.pageId, pageId));
+  await tx.insert(pagePermission).values([
+    { pageId, workspaceId, userId: null, level: "none", createdBy: userId },
+    { pageId, workspaceId, userId, level: "full", createdBy: userId },
+  ]);
+}
+
+/**
  * Applies a change and rolls it back if it leaves the page, or a subpage with entries of its own,
  * without any member who has full access: nobody could share or delete it any more. Changes in one
  * workspace are serialized so two of them can't each pass the check and together fail it.

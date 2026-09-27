@@ -595,6 +595,7 @@ export async function getWorkspaceSettings(userId: string, workspaceId: string) 
 
 const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettings[K][] } = {
   guestInvites: ["owners", "members"],
+  guestPrivatePages: [false, true],
 };
 
 /** Changes some policies, leaving the rest as they are. Owners only. */
@@ -602,8 +603,10 @@ export async function updateWorkspaceSettings(actorId: string, workspaceId: stri
   await requireMembership(actorId, workspaceId, "owner");
   const clean: Partial<WorkspaceSettings> = {};
   for (const [key, value] of Object.entries(patch)) {
-    const allowed = SETTING_VALUES[key as keyof WorkspaceSettings] as readonly unknown[] | undefined;
-    if (!allowed?.includes(value)) throw new WorkspaceError("invalidSetting", `Unknown setting ${key}=${String(value)}`);
+    const allowed = Object.hasOwn(SETTING_VALUES, key)
+      ? (SETTING_VALUES[key as keyof WorkspaceSettings] as readonly unknown[])
+      : [];
+    if (!allowed.includes(value)) throw new WorkspaceError("invalidSetting", `Unknown setting ${key}=${String(value)}`);
     Object.assign(clean, { [key]: value });
   }
   await db
@@ -620,4 +623,21 @@ export async function canInviteGuests(userId: string, workspaceId: string) {
   const [membership, settings] = await Promise.all([getMembership(userId, workspaceId), workspaceSettings(workspaceId)]);
   if (!membership) return false;
   return membership.role === "owner" || (membership.role === "member" && settings.guestInvites === "members");
+}
+
+/**
+ * Whether the user may add pages at the top of the workspace: owners and members add pages
+ * everyone sees ("shared"), guests pages only they see ("private") when the workspace allows it.
+ */
+export async function topLevelAccess(userId: string, workspaceId: string): Promise<"shared" | "private" | null> {
+  const [membership, settings] = await Promise.all([getMembership(userId, workspaceId), workspaceSettings(workspaceId)]);
+  if (!membership) return null;
+  if (!isGuest(membership.role)) return "shared";
+  return settings.guestPrivatePages ? "private" : null;
+}
+
+export async function requireTopLevel(userId: string, workspaceId: string) {
+  const access = await topLevelAccess(userId, workspaceId);
+  if (!access) throw new AccessError();
+  return access;
 }

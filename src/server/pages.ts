@@ -24,6 +24,8 @@ import {
 } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { normalizeRowProperties, syncPairedRelations, withCode } from "@/server/databases";
+import { makePagePrivate } from "@/server/permissions";
+import { requireTopLevel } from "@/server/workspaces";
 
 export type TreeNode = {
   id: string;
@@ -158,6 +160,8 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
   const kind = input.kind ?? "page";
   let workspaceId = input.workspaceId;
   let parentKind: PageKind | null = null;
+  // A top-level page from a guest is theirs alone.
+  let topLevel: "shared" | "private" | null = null;
   if (input.parentId) {
     const parent = await requirePageAccess(userId, input.parentId, "edit");
     workspaceId = parent.workspaceId;
@@ -167,7 +171,7 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
       throw withCode(new Error("A database can't contain another database"), "nestedDatabase");
     }
   } else {
-    await requireMember(userId, workspaceId);
+    topLevel = await requireTopLevel(userId, workspaceId);
   }
 
   const properties =
@@ -175,20 +179,25 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
       ? await normalizeRowProperties(userId, input.parentId!, input.properties)
       : {};
 
-  const [created] = await db
-    .insert(page)
-    .values({
-      workspaceId,
-      parentId: input.parentId ?? null,
-      kind,
-      title: input.title?.trim() ?? "",
-      icon: input.icon ?? null,
-      properties,
-      position: await nextPosition(workspaceId, input.parentId ?? null),
-      createdBy: userId,
-      updatedBy: userId,
-    })
-    .returning();
+  const position = await nextPosition(workspaceId, input.parentId ?? null);
+  const created = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(page)
+      .values({
+        workspaceId,
+        parentId: input.parentId ?? null,
+        kind,
+        title: input.title?.trim() ?? "",
+        icon: input.icon ?? null,
+        properties,
+        position,
+        createdBy: userId,
+        updatedBy: userId,
+      })
+      .returning();
+    if (topLevel === "private") await makePagePrivate(tx, workspaceId, row.id, userId);
+    return row;
+  });
 
   if (kind === "database") {
     const names = input.seedNames ?? ENGLISH_SEED_NAMES;
@@ -317,7 +326,7 @@ export async function listTrash(userId: string, workspaceId: string) {
 /**
  * Reordering among the same siblings needs edit access. Moving under another parent changes who
  * inherits access to the page, so it needs full access, like sharing; the top level also needs a
- * member, since guests can't have top-level pages.
+ * member: a guest's top-level pages are private to them, which a move wouldn't make them.
  */
 export async function movePage(userId: string, pageId: string, newParentId: string | null, position?: number) {
   const current = await requirePageAccess(userId, pageId, "edit");
