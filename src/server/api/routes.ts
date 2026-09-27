@@ -176,6 +176,21 @@ export const API_ROUTES: ApiRoute[] = [
   }),
   defineRoute({
     method: "GET",
+    path: "/workspaces/{workspace_id}/groups",
+    operationId: "listGroups",
+    tag: "Workspaces",
+    summary: "List groups",
+    description:
+      "The member groups of a workspace, by name: named sets of its owners and members that pages are shared with and teamspaces joined by, with who is in each and the teamspaces each joined (among those the user can see). Guests can't list them.",
+    scope: "pages:read",
+    response: "GroupList",
+    handler: async ({ principal, ctx, params }) => {
+      requireWorkspace(principal, params.workspace_id);
+      return ops.listGroups(ctx, { workspace_id: params.workspace_id });
+    },
+  }),
+  defineRoute({
+    method: "GET",
     path: "/search",
     operationId: "search",
     tag: "Pages",

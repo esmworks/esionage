@@ -66,6 +66,12 @@ export interface CollabService {
    * after its access narrowed or they left it. They reconnect with whatever access they have left.
    */
   disconnectTeamspace(teamspaceId: string, userIds?: string[]): Promise<void>;
+  /**
+   * Checks the open page and database connections of these users in the workspace again and drops
+   * those they may no longer open, or no longer edit through a connection that can (after a group
+   * lost a grant, a member, or a teamspace). They reconnect with whatever access they have left.
+   */
+  disconnectLostAccess(workspaceId: string, userIds: string[]): Promise<void>;
 }
 
 const KEY = "__esionageCollab";

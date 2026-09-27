@@ -1,8 +1,9 @@
-import { Boxes, Globe, Settings, Shield, UserRound, Users, type LucideIcon } from "lucide-react";
+import { Boxes, Globe, Settings, Shield, UserRound, Users, UsersRound, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { GroupsPanel } from "@/components/settings/groups-panel";
 import { LeaveWorkspaceRow } from "@/components/settings/leave-workspace";
 import { MembersPanel } from "@/components/settings/members-panel";
 import { PublicForms } from "@/components/settings/public-forms";
@@ -21,6 +22,7 @@ import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isStrongSession } from "@/lib/auth-security";
 import { AccessError, isGuest } from "@/server/access";
 import { listWorkspaceFormPublications } from "@/server/forms";
+import { groupsByMember, listGroups } from "@/server/groups";
 import { listWorkspacePublications } from "@/server/publication";
 import { getSession, requireWorkspaceSession } from "@/server/session";
 import { getSite } from "@/server/site";
@@ -40,7 +42,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("metaTitle") };
 }
 
-const TABS = ["general", "members", "teamspaces", "security", "site"] as const;
+const TABS = ["general", "members", "teamspaces", "groups", "security", "site"] as const;
 type Tab = (typeof TABS)[number];
 /** Tabs that were here before the account page existed, and where they are now. */
 const ACCOUNT_TABS: Record<string, string> = { preferences: "preferences", accountSecurity: "security", apps: "apps" };
@@ -48,6 +50,7 @@ const ICONS: Record<Tab, LucideIcon> = {
   general: Settings,
   members: Users,
   teamspaces: Boxes,
+  groups: UsersRound,
   security: Shield,
   site: Globe,
 };
@@ -138,6 +141,7 @@ export default async function SettingsPage({
           )}
           {tab === "members" && <MembersTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "teamspaces" && <TeamspacesTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
+          {tab === "groups" && <GroupsTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "security" && <SecurityTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "site" && (
             <SiteTab workspaceId={workspaceId} workspaceName={workspace.name} userId={user.id} isOwner={isOwner} />
@@ -236,12 +240,13 @@ async function SiteTab({
 }
 
 async function MembersTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
-  const [members, edits, invitations, joinLink, teamspaces] = await Promise.all([
+  const [members, edits, invitations, joinLink, teamspaces, groups] = await Promise.all([
     listMembers(userId, workspaceId),
     lastEdits(userId, workspaceId),
     isOwner ? listInvitations(userId, workspaceId) : [],
     isOwner ? getJoinLink(userId, workspaceId) : null,
     teamspacesByMember(userId, workspaceId),
+    groupsByMember(userId, workspaceId),
   ]);
   return (
     <MembersPanel
@@ -253,7 +258,20 @@ async function MembersTab({ workspaceId, userId, isOwner }: { workspaceId: strin
       joinLink={joinLink}
       // A plain object: a Map doesn't cross to the client component.
       teamspaces={Object.fromEntries(teamspaces)}
+      groups={Object.fromEntries(groups)}
       now={new Date()}
+    />
+  );
+}
+
+async function GroupsTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
+  const [groups, members] = await Promise.all([listGroups(userId, workspaceId), listMembers(userId, workspaceId)]);
+  return (
+    <GroupsPanel
+      workspaceId={workspaceId}
+      isOwner={isOwner}
+      groups={groups}
+      members={members.map(({ userId: id, name, email, image, role }) => ({ userId: id, name, email, image, role }))}
     />
   );
 }

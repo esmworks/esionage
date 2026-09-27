@@ -1,7 +1,7 @@
 import { and, asc, eq, gt, inArray, isNotNull, isNull, like, sql } from "drizzle-orm";
 import * as Y from "yjs";
 import { db } from "@/db";
-import { databaseProperty, databaseView, page, pagePermission, type PageKind, type RowProperties } from "@/db/schema";
+import { databaseProperty, databaseView, page, pageGroupPermission, pagePermission, type PageKind, type RowProperties } from "@/db/schema";
 import { planDuplicate, type DuplicatePlan, type PlannedPage, type SourcePage } from "@/lib/duplicate";
 import { DATABASE_BLOCK, mapReferenceLines, referenceLine, remapInlineDatabases } from "@/lib/embed-blocks";
 import { positionBetween } from "@/lib/properties";
@@ -195,6 +195,13 @@ export async function copyPageTree(
       select gen_random_uuid()::text, m.id, pp.workspace_id, pp.user_id, pp.level, ${userId}
       from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) as m(id text, source_id text)
       join ${pagePermission} pp on pp.page_id = m.source_id
+      ${target.rootPermissions ? sql`` : sql`where m.id <> ${plan.rootId}`}
+    `);
+    await tx.execute(sql`
+      insert into ${pageGroupPermission} (id, page_id, workspace_id, group_id, level, created_by)
+      select gen_random_uuid()::text, m.id, gp.workspace_id, gp.group_id, gp.level, ${userId}
+      from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) as m(id text, source_id text)
+      join ${pageGroupPermission} gp on gp.page_id = m.source_id
       ${target.rootPermissions ? sql`` : sql`where m.id <> ${plan.rootId}`}
     `);
     if (target.private) await makePagePrivate(tx, source.workspaceId, plan.rootId, userId);

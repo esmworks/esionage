@@ -3,7 +3,7 @@ import type { PageLevel } from "@/db/schema/permissions";
 
 const ORDER: readonly PageLevel[] = ["none", "view", "comment", "edit", "full"];
 
-/** A teamspace's access and who is in it by row (a default one has everyone in it anyway). */
+/** A teamspace's access and who is in it by row or group (a default one has everyone in it anyway). */
 export type TeamspaceReach = { access: TeamspaceAccess; members: ReadonlySet<string> };
 
 /**

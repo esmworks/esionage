@@ -1,17 +1,31 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { PAGE_LEVELS, pageInvitation, pagePermission, type PageLevel, user, workspaceInvitation, workspaceMember } from "@/db/schema";
+import {
+  memberGroup,
+  memberGroupMember,
+  PAGE_LEVELS,
+  pageGroupPermission,
+  pageInvitation,
+  pagePermission,
+  type PageLevel,
+  user,
+  workspaceInvitation,
+  workspaceMember,
+} from "@/db/schema";
 import { teamspaceLabel, teamspaceReach } from "@/server/teamspaces";
 import { everyoneFloor } from "@/lib/teamspace-reach";
 import { isEmail, normalizeEmail } from "@/lib/emails";
 import { AccessError, FULL_RANK, getMembership, hasLevel, requirePageAccess, resolvePageAccess } from "@/server/access";
+import { afterAccessLoss, groupMemberIds, requireGroupIn } from "@/server/groups";
 import { recordShare, withdrawShare } from "@/server/notifications";
 import { addGuest, canInviteGuests, type InvitationDelivery, inviteGuest } from "@/server/workspaces";
 
 /**
  * Who a page is shared with. An entry gives one member (`userId`) or everyone with a member role
  * (`userId` null) a level on the page and its subpages, until a subpage has its own entry for the
- * same principal. The rule that reads these entries is `page_access_level` in the database.
+ * same principal. Groups have entries of their own (`page_group_permission`) that work the same
+ * way for everyone in the group. The rule that reads these entries is `page_access_level` in the
+ * database; someone gets the highest level any of them gives.
  */
 
 export type PermissionErrorCode = "notMember" | "lastFullAccess" | "invalidEmail" | "invitesRestricted";
@@ -33,6 +47,17 @@ export type PermissionEntry = {
   image: string | null;
   level: PageLevel;
   /** The page the entry is set on: this page, or the ancestor it is inherited from. */
+  sourcePageId: string;
+  sourceTitle: string;
+  inherited: boolean;
+};
+
+/** A group's entry on the page or the ancestor it is inherited from, like a person's. */
+export type GroupPermissionEntry = {
+  groupId: string;
+  name: string;
+  memberCount: number;
+  level: PageLevel;
   sourcePageId: string;
   sourceTitle: string;
   inherited: boolean;
@@ -82,6 +107,38 @@ export async function listPagePermissions(userId: string, pageId: string) {
     sourceTitle: r.title,
     inherited: r.page_id !== pageId,
   }));
+  const groupRows = await db.execute<{
+    group_id: string;
+    level: PageLevel;
+    page_id: string;
+    title: string;
+    name: string;
+    member_count: number;
+  }>(sql`
+    with recursive chain as (
+      select id, parent_id, 0 as depth from page where id = ${pageId}
+      union all
+      select p.id, p.parent_id, c.depth + 1 from page p join chain c on p.id = c.parent_id where c.depth < 64
+    )
+    select distinct on (gp.group_id) gp.group_id, gp.level, gp.page_id, src.title, g.name,
+      (select count(*) from ${memberGroupMember} gm where gm.group_id = gp.group_id)::int as member_count
+    from chain c
+    join ${pageGroupPermission} gp on gp.page_id = c.id
+    join ${memberGroup} g on g.id = gp.group_id
+    join page src on src.id = c.id
+    order by gp.group_id, c.depth
+  `);
+  const groups: GroupPermissionEntry[] = groupRows
+    .map((r) => ({
+      groupId: r.group_id,
+      name: r.name,
+      memberCount: Number(r.member_count),
+      level: r.level,
+      sourcePageId: r.page_id,
+      sourceTitle: r.title,
+      inherited: r.page_id !== pageId,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
   // "Everyone" means the teamspace's members for a teamspace's page (full unless restricted), and
   // the whole workspace for a private page (nobody unless shared).
   const space = target.teamspaceId ? await teamspaceLabel(userId, target.teamspaceId) : null;
@@ -115,6 +172,7 @@ export async function listPagePermissions(userId: string, pageId: string) {
     /** Private pages are in no teamspace; a teamspace's name shows only to those who can see the teamspace. */
     space: target.teamspaceId ? { kind: "teamspace" as const, name: space?.name ?? null } : { kind: "private" as const },
     entries: entries.filter((e) => e.userId !== null),
+    groups,
     floors,
     invitations,
   };
@@ -243,6 +301,45 @@ export async function removePagePermission(actorId: string, pageId: string, prin
   if (principal) await withdrawShare(target.workspaceId, principal, pageId);
 }
 
+const rankOf = (level: PageLevel) => PAGE_LEVELS.indexOf(level);
+
+/**
+ * Sets what a group of the page's workspace gets on the page, like a person's own entry, for
+ * everyone in the group. Needs full access. Lowering it drops the open editors of the group's
+ * members that lost access. Members aren't notified one by one: a group can be large.
+ */
+export async function setPageGroupPermission(actorId: string, pageId: string, groupId: string, level: PageLevel) {
+  const target = await requirePageAccess(actorId, pageId, "full");
+  await requireGroupIn(target.workspaceId, groupId);
+  const [previous] = await db
+    .select({ level: pageGroupPermission.level })
+    .from(pageGroupPermission)
+    .where(and(eq(pageGroupPermission.pageId, pageId), eq(pageGroupPermission.groupId, groupId)));
+  await changePermissions(target.workspaceId, pageId, async (tx) => {
+    await tx
+      .insert(pageGroupPermission)
+      .values({ pageId, workspaceId: target.workspaceId, groupId, level, createdBy: actorId })
+      .onConflictDoUpdate({
+        target: [pageGroupPermission.pageId, pageGroupPermission.groupId],
+        set: { level, createdBy: actorId, createdAt: new Date() },
+      });
+  });
+  if (previous && rankOf(level) < rankOf(previous.level)) {
+    await afterAccessLoss(target.workspaceId, await groupMemberIds(groupId));
+  }
+}
+
+/** Removes the page's own entry for a group, so it inherits again. Needs full access. */
+export async function removePageGroupPermission(actorId: string, pageId: string, groupId: string) {
+  const target = await requirePageAccess(actorId, pageId, "full");
+  await changePermissions(target.workspaceId, pageId, async (tx) => {
+    await tx
+      .delete(pageGroupPermission)
+      .where(and(eq(pageGroupPermission.pageId, pageId), eq(pageGroupPermission.groupId, groupId)));
+  });
+  await afterAccessLoss(target.workspaceId, await groupMemberIds(groupId));
+}
+
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
@@ -252,6 +349,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  */
 export async function makePagePrivate(tx: Tx, workspaceId: string, pageId: string, userId: string) {
   await tx.delete(pagePermission).where(eq(pagePermission.pageId, pageId));
+  await tx.delete(pageGroupPermission).where(eq(pageGroupPermission.pageId, pageId));
   await tx.insert(pagePermission).values([
     { pageId, workspaceId, userId: null, level: "none", createdBy: userId },
     { pageId, workspaceId, userId, level: "full", createdBy: userId },
@@ -309,7 +407,7 @@ export async function followNewSpace(
 
 /**
  * Gives `pageId` entries of its own for what it inherits from its ancestors now, for each
- * principal that has no entry on the page itself. Run before it loses those ancestors (restored
+ * principal (person, group or everyone) that has no entry on the page itself. Run before it loses those ancestors (restored
  * out of a deleted parent), so it keeps the access it had.
  */
 export async function freezeInheritedEntries(tx: Tx, workspaceId: string, pageId: string) {
@@ -329,6 +427,21 @@ export async function freezeInheritedEntries(tx: Tx, workspaceId: string, pageId
     ) inherited
     on conflict (page_id, user_id) do nothing
   `);
+  await tx.execute(sql`
+    insert into ${pageGroupPermission} (id, page_id, workspace_id, group_id, level, created_by)
+    select gen_random_uuid()::text, ${pageId}, inherited.workspace_id, inherited.group_id, inherited.level, inherited.created_by
+    from (
+      with recursive chain as (
+        select p.id, p.parent_id, 1 as depth from page p where p.id = (select parent_id from page where id = ${pageId})
+        union all
+        select p.id, p.parent_id, c.depth + 1 from page p join chain c on p.id = c.parent_id where c.depth < 64
+      )
+      select distinct on (gp.group_id) gp.workspace_id, gp.group_id, gp.level, gp.created_by
+      from chain c join ${pageGroupPermission} gp on gp.page_id = c.id
+      order by gp.group_id, c.depth
+    ) inherited
+    on conflict (page_id, group_id) do nothing
+  `);
 }
 
 /**
@@ -347,7 +460,9 @@ async function changePermissions(workspaceId: string, pageId: string, change: (t
         select p.id from page p join sub on p.parent_id = sub.id
       )
       select s.id from sub s
-      where (s.id = ${pageId} or exists (select 1 from ${pagePermission} pp where pp.page_id = s.id))
+      where (s.id = ${pageId}
+          or exists (select 1 from ${pagePermission} pp where pp.page_id = s.id)
+          or exists (select 1 from ${pageGroupPermission} gp where gp.page_id = s.id))
         and not exists (
           select 1 from ${workspaceMember} wm
           where wm.workspace_id = ${workspaceId} and page_access_level(wm.user_id, s.id) = ${FULL_RANK}

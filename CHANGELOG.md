@@ -4,6 +4,22 @@
 
 ### Added
 
+- **Member groups** (#37): workspace owners create groups in Settings → Groups (rename, add and
+  remove members, delete); everyone sees the list and who is in each group. A page can be shared
+  with a group from the share panel like a person (`page_group_permission`, inherited by subpages
+  and overridable, "no access" included), and a group can be added to a non-default teamspace,
+  whose pages its members then reach as members (they can't leave or be removed one by one while
+  in the group). `page_access_level` counts group entries and teamspace groups, and the highest
+  level from the person, the page's teamspace and their groups wins; guests get nothing from
+  groups. Only members and owners can be in a group: leaving the workspace removes people from
+  their groups (a composite foreign key) and so does becoming a guest. Removing someone from a
+  group, removing a group's entry or teamspace, or deleting the group closes their live editing
+  sessions on pages they no longer reach, and hands pages nobody could manage any more to the
+  person who made the change. Duplicating a page copies its group entries. The member list has a
+  Groups column (also in the CSV export). MCP `list_groups` and REST
+  `GET /workspaces/{id}/groups` list groups with their members and teamspaces. New checks:
+  `scripts/groups-e2e.ts` (79), `src/lib/groups.test.ts`, `src/lib/search-fold.test.ts`.
+
 - **Offline editing** (#10): each page opened in the browser is kept in IndexedDB (its Yjs
   document, via y-indexeddb 9.0.12, MIT), loaded before the page connects. Without a connection the
   page stays editable, and the edits merge with the server's state when it returns (the sync
@@ -394,6 +410,8 @@
 
 ### Fixed
 
+- Search in the share panel and the groups pickers no longer misses names with "I" in a
+  Turkish-locale browser (typed "I" could fold to "ı" while the names folded to "i").
 - Empty lines on published pages no longer show as a box.
 - Typing right after pressing New in a database keeps the first letters, including accented
   letters, other keyboards and pasted text, and Enter no longer adds a second empty row.
