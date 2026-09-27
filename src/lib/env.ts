@@ -1,3 +1,5 @@
+import { socialProvidersFrom, type SocialProvider } from "@/lib/social-providers";
+
 function required(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required environment variable ${name}`);
@@ -17,6 +19,13 @@ export const env = {
   /** DISABLE_SIGNUP=true closes email/password sign-up; existing accounts can still sign in. */
   get signUpDisabled() {
     return ["1", "true", "yes"].includes((process.env.DISABLE_SIGNUP ?? "").trim().toLowerCase());
+  },
+  /** GITHUB_CLIENT_ID/SECRET and GOOGLE_CLIENT_ID/SECRET each turn on sign-in with that provider. */
+  get socialProviders() {
+    return socialProvidersFrom(process.env);
+  },
+  get enabledSocialProviders(): SocialProvider[] {
+    return Object.keys(this.socialProviders) as SocialProvider[];
   },
 };
 

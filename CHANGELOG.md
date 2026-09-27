@@ -4,6 +4,11 @@
 
 ### Added
 
+- **Social login:** sign in with GitHub or Google, each turned on by setting its
+  `*_CLIENT_ID` and `*_CLIENT_SECRET`. A provider account opens the existing account with the same
+  verified email, and closed sign-up admits only existing or invited people (see README). If that
+  account's email was unverified, its password, other sessions and connected apps are removed, so
+  someone who registered another person's email can't keep access.
 - **Inbox:** pages shared with you now show in the inbox next to assignments, and you get an email
   about them a little later. A share undone right away sends nothing.
 - **Notification preferences:** Settings > Preferences chooses, for assignments and shared pages

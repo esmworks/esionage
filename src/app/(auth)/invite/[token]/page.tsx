@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
+import { env } from "@/lib/env";
 import { getSession } from "@/server/session";
 import { emailHasAccount, findInvitation } from "@/server/workspaces";
 import { AuthForm } from "../../auth-form";
@@ -69,5 +70,12 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     );
   }
 
-  return <AuthForm mode="sign-up" invite={{ token, email: invitation.email }} title={title} />;
+  return (
+    <AuthForm
+      mode="sign-up"
+      invite={{ token, email: invitation.email }}
+      title={title}
+      socialProviders={env.enabledSocialProviders}
+    />
+  );
 }

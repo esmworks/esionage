@@ -51,5 +51,5 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       />
     );
   }
-  return <AuthForm mode="sign-up" join={token} title={title} />;
+  return <AuthForm mode="sign-up" join={token} title={title} socialProviders={env.enabledSocialProviders} />;
 }

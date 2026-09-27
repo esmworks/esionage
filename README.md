@@ -42,6 +42,7 @@ approve them over OAuth.
   use. Owners can export the member list as CSV, hand ownership to someone else, and decide who
   may invite guests.
 - **Email**: invitations, password reset, assignment and share notifications over SMTP (see [Email](#email)).
+- **Sign in with GitHub or Google**, optional (see [Social login](#social-login)).
 - **English and Turkish** interface.
 - **MCP server with OAuth 2.1**: remote MCP endpoint at `/mcp`.
   - Supports Client ID Metadata Documents and Dynamic Client Registration, with PKCE and a
@@ -110,6 +111,29 @@ its mail setup at startup.
 
 Without SMTP, development prints emails to the server log. In production, features that need
 email say that it is not configured.
+
+## Social login
+
+People can also sign in with GitHub or Google. Each provider is off until you set both of its
+variables in `.env` and restart:
+
+| Provider | Variables | Callback URL to register |
+| --- | --- | --- |
+| GitHub ([new OAuth app](https://github.com/settings/applications/new)) | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | `${APP_URL}/api/auth/callback/github` |
+| Google ([OAuth client](https://console.cloud.google.com/apis/credentials), type "Web application") | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | `${APP_URL}/api/auth/callback/google` |
+
+For example, with `APP_URL=https://notes.example.com` the GitHub callback URL is
+`https://notes.example.com/api/auth/callback/github`. The sign-in and sign-up pages show a
+"Continue with …" button for each configured provider.
+
+- **Existing accounts:** signing in with a provider opens the account that has the same email,
+  as long as the provider says the address is verified. Otherwise the person is asked to sign in
+  with their password. If that account's email was never verified, signing in this way also
+  removes its password and signs out its other sessions and connected apps: anyone could have
+  registered the address before its owner did. The owner can get a password back with "Forgot
+  password", which proves the address by email.
+- **Closed sign-up:** with `DISABLE_SIGNUP=true`, a provider signs in only people who already
+  have an account, or who were invited with that email. It never creates other accounts.
 
 ## Deploy on Dokploy
 

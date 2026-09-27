@@ -83,6 +83,22 @@ export async function revokeConnectedApp(userId: string, clientId: string) {
   });
 }
 
+/** Like revokeConnectedApp for every app the user has connected, including tokens without consent. */
+export async function revokeAllConnectedApps(userId: string) {
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx.delete(oauthConsent).where(eq(oauthConsent.userId, userId));
+    await tx
+      .update(oauthRefreshToken)
+      .set({ revoked: now })
+      .where(and(eq(oauthRefreshToken.userId, userId), isNull(oauthRefreshToken.revoked)));
+    await tx
+      .update(oauthAccessToken)
+      .set({ revoked: now })
+      .where(and(eq(oauthAccessToken.userId, userId), isNull(oauthAccessToken.revoked)));
+  });
+}
+
 /** A readable name for a client: its registered name, else the host of a URL client id (CIMD). */
 export function clientDisplayName(name: string | null | undefined, clientId: string) {
   if (name?.trim()) return name.trim();
