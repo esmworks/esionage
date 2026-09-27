@@ -66,9 +66,6 @@ export function baseAuthOptions({ invitationAllowsSignUp }: { invitationAllowsSi
       enabled: true,
       minPasswordLength: 8,
     },
-    session: {
-      cookieCache: { enabled: true, maxAge: 60 },
-    },
     hooks: { before },
     plugins: [
       jwt(),

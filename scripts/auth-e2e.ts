@@ -60,9 +60,8 @@ async function authPost(path: string, body: unknown, { jar, headers }: { jar?: J
   };
 }
 
-/** Asks the database, not the signed cookie cache (which may keep a revoked session up to 60 s). */
 async function sessionOf(jar: Jar) {
-  const res = await fetch(`${BASE}/api/auth/get-session?disableCookieCache=true`, { headers: { cookie: jar.header() } });
+  const res = await fetch(`${BASE}/api/auth/get-session`, { headers: { cookie: jar.header() } });
   return (await res.json().catch(() => null)) as { user?: { email: string } } | null;
 }
 
@@ -145,7 +144,7 @@ async function main() {
   const again = await authPost("/reset-password", { token, newPassword: "another-password-789" });
   check(again.status === 400 && again.body?.code === "INVALID_TOKEN", "the token works only once", again.body);
 
-  check(!(await sessionOf(first.jar))?.user, "existing sessions are revoked");
+  check(!(await sessionOf(first.jar))?.user, "existing sessions are signed out right away");
   const oldSignIn = await signIn(OLD_PASSWORD);
   check(oldSignIn.status === 401, "the old password no longer works", { status: oldSignIn.status, body: oldSignIn.body });
   const newSignIn = await signIn(NEW_PASSWORD);
