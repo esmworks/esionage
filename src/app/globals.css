@@ -18,6 +18,13 @@
   --ring: rgba(47, 111, 237, 0.35);
   --scrollbar: rgba(31, 32, 35, 0.16);
   --scrollbar-hover: rgba(31, 32, 35, 0.32);
+  /* Page history changes, in the green and red of the option palette below. */
+  --added-bg: #dbeddb;
+  --added-fg: #1c3829;
+  --added-bar: #4dab6f;
+  --removed-bg: #ffe2dd;
+  --removed-fg: #5d1715;
+  --removed-bar: #e05050;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -36,6 +43,12 @@
     --ring: rgba(91, 143, 245, 0.4);
     --scrollbar: rgba(232, 232, 234, 0.16);
     --scrollbar-hover: rgba(232, 232, 234, 0.3);
+    --added-bg: #2d5a41;
+    --added-fg: #dff1e5;
+    --added-bar: #3f9c62;
+    --removed-bg: #713731;
+    --removed-fg: #fbe3df;
+    --removed-bar: #e06262;
   }
 }
 
@@ -51,6 +64,12 @@
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
   --color-danger: var(--danger);
+  --color-added-bg: var(--added-bg);
+  --color-added-fg: var(--added-fg);
+  --color-added-bar: var(--added-bar);
+  --color-removed-bg: var(--removed-bg);
+  --color-removed-fg: var(--removed-fg);
+  --color-removed-bar: var(--removed-bar);
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 

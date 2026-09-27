@@ -28,7 +28,8 @@ approve them over OAuth.
 - **Inbox**: a notification when someone assigns you to a row or shares a page with you, with an
   email a little later. Choose per kind whether it shows in the inbox and whether it comes by email.
 - **Page history**: versions are saved automatically while you edit and before every AI edit.
-  You can preview and restore any version.
+  You can preview and restore any version, and see what changed since it or since the version
+  before, and who (or which AI app) changed it.
 - **Sharing and permissions**: give members or everyone full, edit, view or no access to a page.
   Subpages inherit it unless you change them. Share a page with someone outside the workspace by
   email and they join as a guest who sees only the pages shared with them.
@@ -140,7 +141,7 @@ The client opens a browser window where you sign in and approve access. The tool
 - **Finding things:** `list_workspaces`, `search`, `list_pages`, `list_recent_pages`, `list_users`.
 - **Pages:** `get_page`, `create_page`, `update_page`, `move_page`, `archive_page`, `list_trash`,
   `restore_page`.
-- **Page history:** `list_page_history`, `get_page_version`, `restore_page_version`.
+- **Page history:** `list_page_history`, `get_page_version`, `diff_page_version`, `restore_page_version`.
 - **Inbox:** `list_notifications`, when the user also grants the `notifications:read` permission.
 - **Databases:** `get_database`, `query_database`, `create_database`, `create_database_row`,
   `create_database_rows`, `update_database_row`, `update_database_rows`, `add_database_property`

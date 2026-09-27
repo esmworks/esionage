@@ -43,6 +43,7 @@ import {
 } from "@/lib/forms";
 import { GROUP_DATE_BY } from "@/lib/grouping";
 import { pageLabel } from "@/lib/labels";
+import { diffToText, wordsToText } from "@/lib/page-diff";
 import { isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
 import { holdsOptions, holdsTimestamp, STATUS_GROUPS } from "@/lib/property-types";
 import { CARD_SIZES, COVER_SOURCES, TIMELINE_ZOOMS, VIEW_TYPES } from "@/lib/views";
@@ -74,7 +75,7 @@ import {
 const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
 Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, status, date, checkbox, url, email, phone, checklist, relation, person, created_by, created_time, last_edited_by, last_edited_time, formula, rollup). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A status is a select whose options belong to the groups todo, in_progress and done. A checklist holds items that can be ticked off. created_by, created_time, last_edited_by and last_edited_time show who created or last edited each row and when; they are filled in automatically and can't be written. A formula property computes its value from the row's other properties, and a rollup calculates over the rows a relation links to (see add_database_property); neither can be written.
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
-Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / restore_page_version).
+Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / diff_page_version / restore_page_version).
 list_notifications shows the user's inbox: rows someone assigned them to and pages shared with them.
 Always share the returned url with the user when you create or change something.`;
 
@@ -1739,7 +1740,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "List a page's history",
       description:
-        "List saved versions of a page's body, newest first, with who made the change (a user, or a user through an MCP client). Read one with get_page_version and bring it back with restore_page_version.",
+        "List saved versions of a page's body, newest first, with who made the change (a user, or a user through an MCP client). Read one with get_page_version, see what changed with diff_page_version and bring it back with restore_page_version.",
       inputSchema: z.object({ page_id: id("page") }),
       annotations: READ,
     },
@@ -1782,6 +1783,43 @@ export function createMcpServer(principal: McpPrincipal) {
           markdown: body.text,
           ...(body.truncated
             ? { markdown_truncated: true, markdown_total_chars: body.totalChars, ...("note" in body ? { note: body.note } : {}) }
+            : {}),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "diff_page_version",
+    {
+      title: "Compare a saved page version",
+      description:
+        'Show what changed between a saved version from list_page_history and the current page (against "current"), or between the version saved before it and this one (against "previous"). One line per block: "+" added, "-" removed, "~" changed with [-removed-] and {+added+} words inside; unchanged stretches are folded. changed_by names who made the changes, as far as the history records it.',
+      inputSchema: z.object({
+        version_id: id("version"),
+        against: z
+          .enum(["current", "previous"])
+          .default("current")
+          .describe('"current": this version → the page now. "previous": the version before → this version.'),
+        offset: z.number().int().min(0).default(0).describe("Character offset into the diff text."),
+      }),
+      annotations: READ,
+    },
+    ({ version_id, against, offset }) =>
+      runTool(async () => {
+        const { diffSnapshot } = await import("@/server/page-history");
+        const diff = await diffSnapshot(userId, version_id, against);
+        if (!diff) return { version_id, against, note: "This is the oldest saved version; there is nothing earlier to compare it with." };
+        const changed = diff.title !== null || diff.changes.some((c) => c.op !== "same");
+        const body = sliceText(changed ? diffToText(diff.changes) : "", offset);
+        return {
+          from: diff.fromId,
+          to: diff.toId ?? "current",
+          changed,
+          ...(diff.title ? { title: wordsToText(diff.title) } : {}),
+          changed_by: diff.actors.map((a) => (a.client ? `${a.name ?? "Unknown"} via ${a.client}` : a.name)),
+          diff: body.text,
+          ...(body.truncated
+            ? { diff_truncated: true, diff_total_chars: body.totalChars, ...("note" in body ? { note: body.note } : {}) }
             : {}),
         };
       }),

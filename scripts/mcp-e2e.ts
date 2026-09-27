@@ -347,7 +347,7 @@ async function main() {
     "list_workspaces", "search", "list_pages", "get_page", "create_page", "update_page", "archive_page",
     "get_database", "query_database", "create_database_row", "create_database_rows", "update_database_row", "create_database", "add_database_property",
     "update_database_property", "delete_database_property", "create_database_view", "update_database_view", "move_page",
-    "list_recent_pages", "list_users", "list_trash", "restore_page", "list_page_history", "get_page_version", "restore_page_version",
+    "list_recent_pages", "list_users", "list_trash", "restore_page", "list_page_history", "get_page_version", "diff_page_version", "restore_page_version",
     "list_notifications",
   ];
   check(expected.every((t) => toolNames.includes(t)), "tools/list returns every tool", toolNames);

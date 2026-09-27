@@ -230,6 +230,28 @@ export function createCollab() {
       return row ?? { title: "", markdown: "", text: "" };
     },
 
+    async readBlocks(pageId) {
+      const live = hocuspocus.documents.get(pageDocName(pageId));
+      if (live) {
+        const [row] = await db.select({ title: page.title }).from(page).where(eq(page.id, pageId)).limit(1);
+        return { title: readTitle(live) ?? row?.title ?? "", blocks: editor.yXmlFragmentToBlocks(live.getXmlFragment(COLLAB_FRAGMENT)) };
+      }
+      const [row] = await db
+        .select({ title: page.title, ydoc: page.ydoc, markdown: page.contentMarkdown })
+        .from(page)
+        .where(eq(page.id, pageId))
+        .limit(1);
+      if (!row) return { title: "", blocks: [] };
+      if (!row.ydoc) return { title: row.title, blocks: row.markdown ? await markdownToBlocks(row.markdown) : [] };
+      const doc = new Y.Doc();
+      try {
+        Y.applyUpdate(doc, row.ydoc);
+        return { title: readTitle(doc) ?? row.title, blocks: editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT)) };
+      } finally {
+        doc.destroy();
+      }
+    },
+
     async replaceContent(pageId, markdown, actor, snapshot = false) {
       // Database blocks the Markdown names keep their settings; inline databases it leaves out stay.
       await writeBlocks(pageId, actor, async (existing) => markdownToBlocks(markdown, existing), snapshot);

@@ -55,6 +55,10 @@
 - **Inline databases and linked views:** the slash menu adds a database inside a page, or a view
   of an existing database whose layout, filters and sorts are kept in the page. What a block shows
   follows the reader's access to the database. Published pages show them as tables.
+- **Changes in page history:** compare a version with the current page or with the version before
+  it. Changed blocks are shown with added words in green and removed words struck through in red;
+  unchanged stretches are folded. Each comparison names who made the changes, and changes an AI
+  app made through MCP name the app. MCP `diff_page_version` returns the same comparison as text.
 
 - **Publishing options:** pick which views of a database published pages show; visitors switch
   between them, and boards, lists and galleries look like they do in the app (calendars,
