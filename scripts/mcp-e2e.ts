@@ -305,6 +305,12 @@ async function main() {
     "WWW-Authenticate points at the protected resource metadata",
     challenge,
   );
+  // Clients request exactly the challenged scopes; a pages:read-only challenge left them read-only.
+  check(
+    /scope="[^"]*pages:write[^"]*"/.test(challenge) && /scope="[^"]*offline_access[^"]*"/.test(challenge),
+    "401 challenge asks for pages:write and offline_access",
+    challenge,
+  );
   const bogus = await rpc("not-a-token", { jsonrpc: "2.0", id: 1, method: "tools/list" });
   check(bogus.status === 401, "invalid bearer token → 401", bogus.status);
 
@@ -631,6 +637,7 @@ async function main() {
   const roWrite = await roMcp.request("tools/call", { name: "create_page", arguments: { workspace_id: ws, title: "Should not exist" } });
   const stepUp = roWrite.headers.get("www-authenticate") ?? "";
   check(roWrite.status === 403 && stepUp.includes('error="insufficient_scope"') && stepUp.includes("pages:write"), "write with read-only token → 403 insufficient_scope", { status: roWrite.status, stepUp });
+  check(stepUp.includes("offline_access"), "write step-up also asks for offline_access", stepUp);
   const roModern = await rpc(
     roTokens.access_token,
     { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "archive_page", arguments: { page_id: root.id }, _meta: modernMeta } },

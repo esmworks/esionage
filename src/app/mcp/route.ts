@@ -6,6 +6,7 @@ import { hasActiveGrant } from "@/server/mcp/grants";
 import {
   authInfoFromClaims,
   bearerToken,
+  CONNECT_SCOPES,
   principalFromAuthInfo,
   protectedResourceMetadataUrl,
   READ_SCOPE,
@@ -57,7 +58,12 @@ const protectedHandler = requireMcpAuth(
     return mcp.fetch(request, { authInfo });
   },
   // Signing keys are fetched over HTTP; use loopback so it works behind proxies and port mappings.
-  { resource: mcpResource(), requiredScopes: [READ_SCOPE], jwksUrl: `${internalUrl()}/api/auth/jwks` },
+  {
+    resource: mcpResource(),
+    requiredScopes: [READ_SCOPE],
+    challengeScopes: CONNECT_SCOPES,
+    jwksUrl: `${internalUrl()}/api/auth/jwks`,
+  },
 );
 
 async function handle(request: Request) {

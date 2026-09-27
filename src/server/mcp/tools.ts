@@ -58,7 +58,7 @@ import * as pages from "@/server/pages";
 import * as workspaces from "@/server/workspaces";
 import { MAX_MARKDOWN_CHARS, pageUrl, runTool, sliceText, ToolInputError } from "./format";
 import { env } from "@/lib/env";
-import { NOTIFICATIONS_SCOPE, READ_SCOPE, WRITE_SCOPE, type McpPrincipal } from "./principal";
+import { CONNECT_SCOPES, NOTIFICATIONS_SCOPE, WRITE_SCOPE, type McpPrincipal } from "./principal";
 import {
   describeProperty,
   describeChartSeries,
@@ -631,17 +631,21 @@ function viewOutput(
   };
 }
 
-/** Write tools advertise a step-up challenge so clients can re-authorize with pages:write. */
+/**
+ * Write tools advertise a step-up challenge so clients can re-authorize with pages:write. It asks
+ * for the full connect set, so one reconnect also brings offline_access and the token refreshes
+ * instead of falling back to a fresh read-only authorization.
+ */
 const requireWrite: ScopeChallengeHandler = ({ authInfo }) => {
   if (!authInfo || authInfo.scopes.includes(WRITE_SCOPE)) return undefined;
-  const scopes = [...new Set([...authInfo.scopes, READ_SCOPE, WRITE_SCOPE])] as [string, ...string[]];
+  const scopes = [...new Set([...authInfo.scopes, ...CONNECT_SCOPES])] as [string, ...string[]];
   return { scopes, errorDescription: "This tool needs the pages:write scope" };
 };
 
 /** The inbox tool advertises a step-up challenge for notifications:read the same way. */
 const requireNotifications: ScopeChallengeHandler = ({ authInfo }) => {
   if (!authInfo || authInfo.scopes.includes(NOTIFICATIONS_SCOPE)) return undefined;
-  const scopes = [...new Set([...authInfo.scopes, READ_SCOPE, NOTIFICATIONS_SCOPE])] as [string, ...string[]];
+  const scopes = [...new Set([...authInfo.scopes, ...CONNECT_SCOPES])] as [string, ...string[]];
   return { scopes, errorDescription: "This tool needs the notifications:read scope" };
 };
 
