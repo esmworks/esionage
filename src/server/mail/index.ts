@@ -4,6 +4,7 @@ import { type MailConfig, MailConfigError, readMailConfig } from "./config";
 export { MailConfigError } from "./config";
 export {
   assignmentEmail,
+  commentEmail,
   type EmailContent,
   type RenderedEmail,
   invitationEmail,

@@ -25,8 +25,11 @@ approve them over OAuth.
     anonymous.
   - Put a database inside any page, or show a view of an existing one there.
   - Lock a database to freeze its properties and views, and export its rows as CSV.
-- **Inbox**: a notification when someone assigns you to a row or shares a page with you, with an
-  email a little later. Choose per kind whether it shows in the inbox and whether it comes by email.
+- **Comments**: select text and comment on it; reply, react, resolve and reopen threads, live for
+  everyone on the page. People who can edit a page comment on it and viewers read along; full
+  access also deletes other people's comments.
+- **Inbox**: a notification when someone assigns you to a row, shares a page with you or replies in
+  a comment thread you're in, with an email a little later. Choose per kind whether it shows in the inbox and whether it comes by email.
 - **Page history**: versions are saved automatically while you edit and before every AI edit.
   You can preview and restore any version, and see what changed since it or since the version
   before, and who (or which AI app) changed it.
@@ -166,6 +169,7 @@ The client opens a browser window where you sign in and approve access. The tool
 - **Pages:** `get_page`, `create_page`, `update_page`, `move_page`, `archive_page`, `list_trash`,
   `restore_page`.
 - **Page history:** `list_page_history`, `get_page_version`, `diff_page_version`, `restore_page_version`.
+- **Comments:** `list_comments`, `add_comment` (start a thread on quoted text, or reply).
 - **Inbox:** `list_notifications`, when the user also grants the `notifications:read` permission.
 - **Databases:** `get_database`, `query_database`, `create_database`, `create_database_row`,
   `create_database_rows`, `update_database_row`, `update_database_rows`, `add_database_property`

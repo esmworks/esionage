@@ -53,6 +53,7 @@ export function PageView({
   const title = useDocTitle(pageDoc?.doc, page.title);
   const [icon, setIcon] = useState(page.icon);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const canEdit = hasLevel(info.level, "edit");
@@ -178,6 +179,8 @@ export function PageView({
             info={info}
             doc={synced ? pageDoc?.doc : undefined}
             onHistory={() => setHistoryOpen(true)}
+            commentsOpen={commentsOpen}
+            onComments={showBody ? () => setCommentsOpen((open) => !open) : undefined}
             onMoveToTrash={moveToTrash}
           />
         </div>
@@ -228,7 +231,16 @@ export function PageView({
         {showBody && (
           <div className="mt-4 min-h-[40vh]">
             {pageDoc && synced ? (
-              <CollabEditor pageDoc={pageDoc} user={user} editable={editable} workspaceId={workspaceId} pageId={page.id} />
+              <CollabEditor
+                pageDoc={pageDoc}
+                user={user}
+                editable={editable}
+                level={info.level === "none" ? "view" : info.level}
+                workspaceId={workspaceId}
+                pageId={page.id}
+                commentsOpen={commentsOpen}
+                onCloseComments={() => setCommentsOpen(false)}
+              />
             ) : (
               // Without a connection the error above explains why nothing loads.
               !error && <div className="px-4 text-sm text-fg-faint md:px-[54px]">{tc("loading")}</div>

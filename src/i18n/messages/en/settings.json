@@ -213,6 +213,9 @@
     "shareTitle": "Pages shared with you",
     "shareDescription": "Someone gives you access to a page.",
     "shareChannel": "Pages shared with you: {channel}",
+    "commentTitle": "Comments",
+    "commentDescription": "Someone comments on a page you started a comment thread in or replied to.",
+    "commentChannel": "Comments: {channel}",
     "mailOff": "This server can't send email right now, so none go out."
   }
 }

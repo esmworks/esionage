@@ -9,6 +9,7 @@ import {
   History,
   Link2,
   Lock,
+  MessageSquare,
   MoreHorizontal,
   Search,
   Star,
@@ -55,6 +56,8 @@ export function PageHeaderActions({
   info: initialInfo,
   doc,
   onHistory,
+  onComments,
+  commentsOpen = false,
   onMoveToTrash,
 }: {
   workspaceId: string;
@@ -64,6 +67,9 @@ export function PageHeaderActions({
   /** The page's shared doc once synced; its edits trigger a refetch of the header info. */
   doc?: Y.Doc;
   onHistory: () => void;
+  /** Opens or closes the comments beside the page; pages without a body have none. */
+  onComments?: () => void;
+  commentsOpen?: boolean;
   onMoveToTrash: () => void;
 }) {
   const t = useTranslations("page.header");
@@ -128,6 +134,17 @@ export function PageHeaderActions({
         >
           <SharePanel pageId={page.id} currentUser={currentUser} />
         </Popover>
+      )}
+      {onComments && (
+        <IconButton
+          label={t("comments")}
+          title={t("comments")}
+          aria-pressed={commentsOpen}
+          className={cn("h-7 w-7", commentsOpen && "bg-bg-hover")}
+          onClick={onComments}
+        >
+          <MessageSquare className="h-4 w-4" />
+        </IconButton>
       )}
       {!page.archived && (
         <IconButton

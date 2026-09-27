@@ -9,7 +9,7 @@ import { INBOX_PREFERENCES_EVENT } from "@/lib/inbox-event";
 import type { NotificationChannel, NotificationPreferences } from "@/server/notification-preferences";
 import { SettingsRow } from "./section";
 
-const KIND_KEYS = { assignment: "assignment", page_shared: "share" } as const satisfies Record<NotificationKind, string>;
+const KIND_KEYS = { assignment: "assignment", page_shared: "share", comment: "comment" } as const satisfies Record<NotificationKind, string>;
 const CHANNELS: NotificationChannel[] = ["inbox", "email"];
 
 /** Settings > Preferences: for each kind of notification, whether it shows in the inbox and comes by email. */

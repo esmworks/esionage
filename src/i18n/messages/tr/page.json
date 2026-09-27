@@ -10,6 +10,7 @@
     "editedBy": "{name} düzenledi",
     "createdBy": "{name} oluşturdu",
     "someone": "Biri",
+    "comments": "Yorumlar",
     "share": "Paylaş",
     "addFavorite": "Favorilere ekle",
     "removeFavorite": "Favorilerden çıkar",
@@ -27,6 +28,20 @@
     "versionHistory": "Sürüm geçmişi",
     "lastEdited": "Son düzenleyen: {name}",
     "actionFailed": "İşlem tamamlanamadı."
+  },
+  "comments": {
+    "title": "Yorumlar",
+    "close": "Yorumları kapat",
+    "filters": {
+      "open": "Açık",
+      "resolved": "Çözülen",
+      "all": "Tümü"
+    },
+    "empty": {
+      "open": "Açık yorum yok. Yorum başlatmak için sayfada bir metin seçip Yorum'u seçin.",
+      "resolved": "Çözülen yorum yok.",
+      "all": "Henüz yorum yok. Yorum başlatmak için sayfada bir metin seçip Yorum'u seçin."
+    }
   },
   "archived": {
     "banner": "Bu sayfa çöp kutusunda.",

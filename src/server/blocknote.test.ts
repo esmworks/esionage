@@ -4,6 +4,7 @@ import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { LINKED_VIEW_TYPES, parseLinkedView, remapInlineDatabases, serializeLinkedView } from "@/lib/embed-blocks";
 import { blocksToMarkdown, markdownToBlocks, serverEditor, type PageBlock } from "./blocknote";
+import { anchorThread, reanchor, threadQuotes } from "./collab/comment-marks";
 import { bodySegmentsFromYdoc } from "./published-body";
 
 const DB = "11111111-1111-4111-8111-111111111111";
@@ -112,6 +113,36 @@ describe("database blocks in page bodies", () => {
     expect(blocks[1].children[0].props).toEqual({ databaseId: "copy" });
     expect(blocks[2].props).toMatchObject({ databaseId: DB });
     expect(blocks[3].props).toEqual({ databaseId: OTHER });
+  });
+});
+
+describe("comment marks", () => {
+  const paragraph = (text: string) => ({ type: "paragraph", content: text });
+
+  it("keep the text they mark readable, and out of published HTML", async () => {
+    const doc = docFrom([paragraph("Ship the comments feature.")]);
+    const fragment = doc.getXmlFragment(COLLAB_FRAGMENT);
+    expect(anchorThread(fragment, "t1", "comments feature")).toBe(true);
+    expect(blocksToPlainText(read(doc))).toBe("Ship the comments feature.");
+    const [segment] = await bodySegmentsFromYdoc(Y.encodeStateAsUpdate(doc));
+    expect("html" in segment && segment.html).not.toMatch(/thread|comment--/);
+  });
+
+  it("anchor quotes within one paragraph only", () => {
+    const fragment = docFrom([paragraph("First part."), paragraph("Second part.")]).getXmlFragment(COLLAB_FRAGMENT);
+    expect(anchorThread(fragment, "t1", "part.Second")).toBe(false);
+    expect(anchorThread(fragment, "t1", "Second")).toBe(true);
+    expect(Object.fromEntries(threadQuotes(fragment))).toEqual({ t1: "Second" });
+  });
+
+  it("come back after a rewrite keeps their text", () => {
+    const doc = docFrom([paragraph("Keep this sentence.")]);
+    const fragment = doc.getXmlFragment(COLLAB_FRAGMENT);
+    anchorThread(fragment, "t1", "this sentence");
+    const quotes = threadQuotes(fragment);
+    serverEditor.blocksToYXmlFragment([paragraph("New intro."), paragraph("Keep this sentence!")] as never, fragment);
+    reanchor(fragment, quotes, new Set(["t1"]));
+    expect(Object.fromEntries(threadQuotes(fragment))).toEqual({ t1: "this sentence" });
   });
 });
 

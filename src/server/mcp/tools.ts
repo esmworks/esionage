@@ -15,6 +15,7 @@ import {
   type ViewType,
 } from "@/db/schema/app";
 import { AGGREGATE_FNS, ROLLUP_DISPLAYS, type AggregateFn } from "@/lib/aggregate";
+import { commentText, MAX_COMMENT_LENGTH } from "@/lib/comments";
 import { markdownReferences } from "@/lib/embed-blocks";
 import { FILTER_COMBINATORS, MAX_FILTER_DEPTH, MAX_RELATIVE_DAYS, RELATIVE_DATE_RANGES } from "@/lib/filters";
 import {
@@ -48,6 +49,7 @@ import { isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
 import { holdsOptions, holdsTimestamp, STATUS_GROUPS } from "@/lib/property-types";
 import { CARD_SIZES, COVER_SOURCES, TIMELINE_ZOOMS, VIEW_TYPES } from "@/lib/views";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
+import * as comments from "@/server/comments";
 import * as databases from "@/server/databases";
 import { resolveEmbeds } from "@/server/embeds";
 import * as forms from "@/server/forms";
@@ -76,7 +78,8 @@ const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to 
 Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, status, date, checkbox, url, email, phone, checklist, relation, person, created_by, created_time, last_edited_by, last_edited_time, formula, rollup). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A status is a select whose options belong to the groups todo, in_progress and done. A checklist holds items that can be ticked off. created_by, created_time, last_edited_by and last_edited_time show who created or last edited each row and when; they are filled in automatically and can't be written. A formula property computes its value from the row's other properties, and a rollup calculates over the rows a relation links to (see add_database_property); neither can be written.
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / diff_page_version / restore_page_version).
-list_notifications shows the user's inbox: rows someone assigned them to and pages shared with them.
+People discuss pages in comment threads anchored to text of the page: list_comments reads them, add_comment starts a thread on quoted text or replies to one.
+list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them and new comments in their threads.
 Always share the returned url with the user when you create or change something.`;
 
 const MAX_BULK_ROWS = 100;
@@ -714,7 +717,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "List notifications",
       description:
-        "List the user's inbox, newest first: database rows someone assigned them to and pages someone shared with them, with who did it and a link. Only the kinds the user keeps in their inbox are listed. Reading does not mark them read.",
+        "List the user's inbox, newest first: database rows someone assigned them to, pages someone shared with them and new comments in comment threads the user is in, with who did it and a link. Only the kinds the user keeps in their inbox are listed. Reading does not mark them read.",
       inputSchema: z.object({
         workspace_id: z.string().optional().describe("Only this workspace; all of the user's workspaces when omitted."),
         unread_only: z.boolean().default(false).describe("Only notifications the user hasn't read yet."),
@@ -743,7 +746,9 @@ export function createMcpServer(principal: McpPrincipal) {
               summary:
                 n.kind === "assignment"
                   ? `${who} assigned the user to "${n.propertyName ?? ""}" on "${title}" in ${pageLabel(n.databaseTitle)}`
-                  : `${who} shared "${title}" with the user`,
+                  : n.kind === "comment"
+                    ? `${who} commented on "${title}" in a thread the user is in (see list_comments)`
+                    : `${who} shared "${title}" with the user`,
               actor: n.actorName,
               page_id: n.pageId,
               title,
@@ -1821,6 +1826,88 @@ export function createMcpServer(principal: McpPrincipal) {
           ...(body.truncated
             ? { diff_truncated: true, diff_total_chars: body.totalChars, ...("note" in body ? { note: body.note } : {}) }
             : {}),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "list_comments",
+    {
+      title: "List comments on a page",
+      description:
+        "List a page's comment threads, oldest first: the text each thread is about (quote; null when that text was deleted), whether it's resolved, and its comments with author, time and text. Resolved threads are left out unless include_resolved is true.",
+      inputSchema: z.object({
+        page_id: id("page"),
+        include_resolved: z.boolean().default(false).describe("Also list resolved threads."),
+      }),
+      annotations: READ,
+    },
+    ({ page_id, include_resolved }) =>
+      runTool(async () => {
+        const page = await pages.getPage(userId, page_id);
+        const threads = (await comments.listComments(userId, page_id)).filter((t) => include_resolved || !t.resolved);
+        const people = await comments.commentUsers(
+          userId,
+          page_id,
+          threads.flatMap((t) => t.comments.map((c) => c.userId)),
+        );
+        const names = new Map(people.map((p) => [p.id, p.username]));
+        return {
+          page_id: page.id,
+          title: pageLabel(page.title),
+          threads: threads.map((t) => ({
+            id: t.id,
+            quote: t.quote ?? null,
+            resolved: t.resolved,
+            comments: t.comments.map((c) => ({
+              id: c.id,
+              author: names.get(c.userId) ?? "Unknown",
+              author_id: c.userId,
+              created_at: c.createdAt,
+              ...(c.updatedAt !== c.createdAt ? { edited_at: c.updatedAt } : {}),
+              text: commentText(c.body),
+              ...(c.reactions.length ? { reactions: c.reactions.map((r) => ({ emoji: r.emoji, count: r.userIds.length })) } : {}),
+            })),
+          })),
+          url: pageUrl(page.workspaceId, page.id),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "add_comment",
+    {
+      title: "Comment on a page",
+      description:
+        "Comment on a page as the user. To start a thread, pass quote: text copied exactly from the page body (get_page), within one paragraph; the comment is anchored to its first occurrence. To reply, pass thread_id from list_comments instead. People in the thread are notified. Comments are plain text; each line becomes a paragraph.",
+      inputSchema: z.object({
+        page_id: id("page"),
+        text: z.string().min(1).max(MAX_COMMENT_LENGTH).describe("The comment."),
+        quote: z.string().min(1).max(1000).optional().describe("Start a new thread on this exact text of the page."),
+        thread_id: z.string().min(1).optional().describe("Reply in this thread instead."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      scopeChallenge: requireWrite,
+    },
+    ({ page_id, text, quote, thread_id }) =>
+      runTool(async () => {
+        assertWrite();
+        if (!quote === !thread_id) throw new ToolInputError("Pass either quote (to start a thread) or thread_id (to reply), not both.");
+        const page = await pages.getPage(userId, page_id);
+        const result = thread_id
+          ? await comments.changeComments(userId, page_id, { type: "addComment", threadId: thread_id, body: text })
+          : await comments.changeComments(userId, page_id, { type: "createThread", body: text }, quote).catch((error) => {
+              if (error instanceof Error && error.message.includes("quoted text")) {
+                throw new ToolInputError(
+                  "The page doesn't have that exact text within one paragraph. Copy a short passage from get_page's markdown, without formatting characters.",
+                );
+              }
+              throw error;
+            });
+        return {
+          thread_id: result.thread?.id,
+          comment_id: result.comment?.id,
+          url: pageUrl(page.workspaceId, page.id),
         };
       }),
   );

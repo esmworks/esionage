@@ -1,16 +1,22 @@
+import { createHash } from "node:crypto";
 import { Hocuspocus, type Document, type Extension } from "@hocuspocus/server";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { DefaultThreadStoreAuth } from "@blocknote/core/comments";
+import { YjsThreadStore } from "@blocknote/core/yjs";
 import * as Y from "yjs";
 import { db } from "@/db";
 import { databaseProperty, page, pageSnapshot, type SnapshotReason } from "@/db/schema";
 import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { CommentError, plainComment, plainThread, THREADS_MAP, type CommentOp, type PlainThread } from "@/lib/comments";
 import { markdownImageHint, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { migrateDocTitle, readDocTitle, writeDocTitle } from "@/lib/collab-title";
 import { AccessError } from "@/server/access";
 import { blocksToMarkdown, markdownToBlocks, serverEditor as editor } from "@/server/blocknote";
 import { authorizeCollab, parseDocName as parseName } from "./authorize";
-import type { Channel, CollabService, PageContent, WriteActor } from "./bridge";
+import type { Channel, CollabService, CommentActor, CommentOpResult, PageContent, WriteActor } from "./bridge";
+import { anchorThread, reanchor, threadQuotes } from "./comment-marks";
+import { touchesThreads } from "./thread-guard";
 import { verifyCollabToken } from "./token";
 
 type Context = { userId?: string; userName?: string; oauthClientId?: string | null };
@@ -21,6 +27,38 @@ const debug = process.env.COLLAB_DEBUG ? (...args: unknown[]) => console.log("[c
 const pageDocName = (pageId: string) => `page:${pageId}`;
 
 const readTitle = readDocTitle;
+
+const threadsOf = (doc: Y.Doc) => doc.getMap(THREADS_MAP);
+
+function readThreadsOf(doc: Y.Doc): PlainThread[] {
+  const threads = threadsOf(doc);
+  if (!threads.size) return [];
+  const store = new YjsThreadStore("", threads, new DefaultThreadStoreAuth("", "comment"));
+  const quotes = threadQuotes(doc.getXmlFragment(COLLAB_FRAGMENT));
+  return [...store.getThreads().values()]
+    .map((t) => ({ ...plainThread(t), quote: quotes.get(t.id) ?? null }))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/**
+ * Runs a write that may replace text carrying comment marks, then puts those marks back where the
+ * same text still is, so threads stay anchored.
+ */
+function keepingComments(doc: Y.Doc, write: () => void) {
+  const fragment = doc.getXmlFragment(COLLAB_FRAGMENT);
+  const threads = threadsOf(doc);
+  const quotes = threads.size ? threadQuotes(fragment) : new Map<string, string>();
+  write();
+  reanchor(fragment, quotes, new Set(threads.keys()));
+}
+
+/** BlockNote's thread store throws plain errors; comment callers get CommentErrors instead. */
+function commentError(error: unknown): unknown {
+  if (!(error instanceof Error) || error instanceof CommentError) return error;
+  if (error.message === "Not authorized") return new CommentError("You can't do that with this comment", "notAllowed");
+  if (/not found|already deleted/i.test(error.message)) return new CommentError("That comment doesn't exist anymore", "notFound");
+  return error;
+}
 
 async function deriveContent(doc: Y.Doc) {
   const blocks = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
@@ -75,6 +113,33 @@ async function showsLastEdited(databaseId: string) {
   return Boolean(found);
 }
 
+/** Applies one comment change through BlockNote's thread store, which checks what the actor may do. */
+function runOp(store: YjsThreadStore, threads: Y.Map<unknown>, op: CommentOp): Promise<unknown> {
+  const body = (value: unknown) => value as Parameters<YjsThreadStore["addComment"]>[0]["comment"]["body"];
+  switch (op.type) {
+    case "createThread":
+      return store.createThread({ initialComment: { body: body(op.body) } });
+    case "addComment":
+      return store.addComment({ threadId: op.threadId, comment: { body: body(op.body) } });
+    case "updateComment":
+      return store.updateComment({ threadId: op.threadId, commentId: op.commentId, comment: { body: body(op.body) } });
+    case "deleteComment":
+      return store.deleteComment({ threadId: op.threadId, commentId: op.commentId });
+    case "deleteThread":
+      // The store reads the thread before checking it exists.
+      if (!threads.has(op.threadId)) return Promise.reject(new CommentError("That thread doesn't exist anymore", "notFound"));
+      return store.deleteThread({ threadId: op.threadId });
+    case "resolveThread":
+      return store.resolveThread({ threadId: op.threadId });
+    case "unresolveThread":
+      return store.unresolveThread({ threadId: op.threadId });
+    case "addReaction":
+      return store.addReaction({ threadId: op.threadId, commentId: op.commentId, emoji: op.emoji });
+    case "deleteReaction":
+      return store.deleteReaction({ threadId: op.threadId, commentId: op.commentId, emoji: op.emoji });
+  }
+}
+
 export function createCollab() {
   let hocuspocus: Hocuspocus<Context>;
 
@@ -90,6 +155,7 @@ export function createCollab() {
         parentId: page.parentId,
         // Same match as markdownImageHint, without reading the whole old body.
         imageHint: sql<string | null>`substring(${page.contentMarkdown} from ${PG_MARKDOWN_IMAGE_PATTERN})`,
+        markdownHash: sql<string | null>`md5(${page.contentMarkdown})`,
       })
       .from(page)
       .where(eq(page.id, pageId))
@@ -97,6 +163,8 @@ export function createCollab() {
     if (!row) return; // deleted while open
     const { markdown, text } = await deriveContent(doc);
     const title = readTitle(doc) ?? row.title;
+    // Comments and their marks change the document but not the page: they don't count as edits.
+    const edited = title !== row.title || row.markdownHash !== createHash("md5").update(markdown).digest("hex");
     await db
       .update(page)
       .set({
@@ -104,9 +172,10 @@ export function createCollab() {
         contentMarkdown: markdown,
         contentText: text,
         title,
-        ...(userId ? { updatedBy: userId } : {}),
+        ...(!edited ? { updatedAt: sql`${page.updatedAt}` } : userId ? { updatedBy: userId } : {}),
       })
       .where(eq(page.id, pageId));
+    if (!edited) return;
     if (title !== row.title) {
       broadcast(`ws:${row.workspaceId}`, "tree");
       if (row.parentId) broadcast(`db:${row.parentId}`, "rows");
@@ -149,6 +218,14 @@ export function createCollab() {
       return document;
     },
 
+    async beforeSync({ documentName, document, type, payload }) {
+      // Sync step 2 (1) and updates (2) carry changes. Comment threads are the server's to write.
+      if ((type === 1 || type === 2) && parseName(documentName)?.kind === "page" && touchesThreads(document, payload)) {
+        console.warn(`[collab] refused a browser's change to the comments of ${documentName}`);
+        throw Object.assign(new Error("Comment threads are written by the server"), { code: 4403, reason: "Forbidden" });
+      }
+    },
+
     async onChange({ documentName, update }) {
       debug("change", documentName, update.byteLength);
     },
@@ -176,14 +253,14 @@ export function createCollab() {
   });
 
   /** Runs a transaction against the page's shared doc (loading it if needed) and persists it. */
-  const transactPage = async (pageId: string, actor: WriteActor, fn: (doc: Document) => void | Promise<void>) => {
+  const transactPage = async <T>(pageId: string, actor: WriteActor, fn: (doc: Document) => T | Promise<T>): Promise<T> => {
     const conn = await hocuspocus.openDirectConnection(pageDocName(pageId), {
       userId: actor.userId,
       oauthClientId: actor.oauthClientId,
     });
     try {
       // Async prep (markdown parsing) happens inside fn before its synchronous transact call.
-      await fn(conn.document!);
+      return await fn(conn.document!);
     } finally {
       await conn.disconnect();
     }
@@ -205,10 +282,11 @@ export function createCollab() {
       const existing = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
       const next = await build(existing);
       doc.transact(
-        () => {
-          // Diff-based: unchanged blocks keep their Yjs identity, so open editors keep cursors.
-          editor.blocksToYXmlFragment(next, doc.getXmlFragment(COLLAB_FRAGMENT));
-        },
+        () =>
+          keepingComments(doc, () => {
+            // Diff-based: unchanged blocks keep their Yjs identity, so open editors keep cursors.
+            editor.blocksToYXmlFragment(next, doc.getXmlFragment(COLLAB_FRAGMENT));
+          }),
         { source: "local", context: actor },
       );
     });
@@ -252,6 +330,56 @@ export function createCollab() {
       }
     },
 
+    async readThreads(pageId) {
+      const live = hocuspocus.documents.get(pageDocName(pageId));
+      if (live) return readThreadsOf(live);
+      const [row] = await db.select({ ydoc: page.ydoc }).from(page).where(eq(page.id, pageId)).limit(1);
+      if (!row?.ydoc) return [];
+      const doc = new Y.Doc();
+      try {
+        Y.applyUpdate(doc, row.ydoc);
+        return readThreadsOf(doc);
+      } finally {
+        doc.destroy();
+      }
+    },
+
+    async commentOp(pageId, actor, op, quote) {
+      return transactPage(pageId, { userId: actor.userId }, async (doc) => {
+        const threads = threadsOf(doc);
+        const store = new YjsThreadStore(actor.userId, threads, new DefaultThreadStoreAuth(actor.userId, actor.role));
+        const origin = { source: "local", context: { userId: actor.userId } };
+        // The store's writes are synchronous transactions; running them inside ours tags their origin
+        // and makes anchoring a new thread part of the same change: a quote the page doesn't have
+        // leaves nothing behind.
+        let pending: Promise<unknown> = Promise.resolve();
+        let anchored: boolean | undefined;
+        doc.transact(() => {
+          const before = new Set(threads.keys());
+          pending = runOp(store, threads, op);
+          if (op.type !== "createThread" || quote === undefined) return;
+          const created = [...threads.keys()].find((id) => !before.has(id));
+          if (!created) return;
+          anchored = anchorThread(doc.getXmlFragment(COLLAB_FRAGMENT), created, quote);
+          if (!anchored) threads.delete(created);
+        }, origin);
+        let done: unknown;
+        try {
+          done = await pending;
+        } catch (error) {
+          throw commentError(error);
+        }
+        if (anchored === false) throw new CommentError("The page doesn't have the quoted text", "notFound");
+        const threadId = op.type === "createThread" ? (done as { id: string }).id : op.threadId;
+        const thread = threads.get(threadId);
+        const result: CommentOpResult = { anchored };
+        if (thread) result.thread = plainThread(store.getThread(threadId));
+        if (op.type === "createThread") result.comment = result.thread?.comments[0];
+        if (op.type === "addComment") result.comment = plainComment(done as Parameters<typeof plainComment>[0]);
+        return result;
+      });
+    },
+
     async replaceContent(pageId, markdown, actor, snapshot = false) {
       // Database blocks the Markdown names keep their settings; inline databases it leaves out stay.
       await writeBlocks(pageId, actor, async (existing) => markdownToBlocks(markdown, existing), snapshot);
@@ -290,7 +418,7 @@ export function createCollab() {
         migrateDocTitle(doc, { source: "local", context: actor });
         doc.transact(
           () => {
-            editor.blocksToYXmlFragment(blocks, doc.getXmlFragment(COLLAB_FRAGMENT));
+            keepingComments(doc, () => editor.blocksToYXmlFragment(blocks, doc.getXmlFragment(COLLAB_FRAGMENT)));
             writeDocTitle(doc, snap.title, { source: "local", context: actor });
           },
           { source: "local", context: actor },

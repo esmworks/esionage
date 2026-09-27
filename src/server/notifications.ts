@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNull, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { databaseProperty, notification, page, user, workspace, type NotificationKind } from "@/db/schema";
@@ -101,6 +101,67 @@ export async function withdrawShare(workspaceId: string, userId: string, pageId:
     if (dropped.length) signal(workspaceId);
   } catch (error) {
     console.error("could not withdraw share notification", error);
+  }
+}
+
+/** How long a comment waits before its email goes out: replies in a lively thread add up to one email. */
+export const COMMENT_EMAIL_DELAY_MS = 2 * 60_000;
+
+/**
+ * Tells people about a new comment in a thread. A thread someone hasn't read yet stays one
+ * notification, moved up to the latest comment. Never throws: the comment went through.
+ */
+export async function recordComment(actorId: string, workspaceId: string, pageId: string, threadId: string, userIds: string[]) {
+  const recipients = [...new Set(userIds)].filter((id) => id !== actorId);
+  if (!recipients.length) return;
+  try {
+    // Only people who can still open the page hear about it.
+    const visible = await db
+      .select({ id: user.id })
+      .from(user)
+      .innerJoin(page, eq(page.id, pageId))
+      .where(and(inArray(user.id, recipients), isNull(page.archivedAt), sql`page_access_level(${user.id}, ${page.id}) > 0`));
+    if (!visible.length) return;
+    const emailDueAt = mailStatus() === "disabled" ? null : new Date(Date.now() + COMMENT_EMAIL_DELAY_MS);
+    const emailLocale = await requestLocale();
+    await db.transaction(async (tx) => {
+      await tx.delete(notification).where(
+        and(
+          eq(notification.kind, "comment"),
+          // Copies of a page carry its threads, ids included.
+          eq(notification.pageId, pageId),
+          eq(notification.threadId, threadId),
+          inArray(notification.userId, visible.map((v) => v.id)),
+          isNull(notification.readAt),
+        ),
+      );
+      await tx.insert(notification).values(
+        visible.map((v) => ({ userId: v.id, workspaceId, kind: "comment" as const, actorId, pageId, threadId, emailDueAt, emailLocale })),
+      );
+    });
+    signal(workspaceId);
+  } catch (error) {
+    console.error("could not record comment notifications", error);
+  }
+}
+
+/** Takes back unread notifications about a thread that was deleted; never throws. */
+export async function withdrawComments(workspaceId: string, pageId: string, threadId: string) {
+  try {
+    const dropped = await db
+      .delete(notification)
+      .where(
+        and(
+          eq(notification.kind, "comment"),
+          eq(notification.pageId, pageId),
+          eq(notification.threadId, threadId),
+          isNull(notification.readAt),
+        ),
+      )
+      .returning({ id: notification.id });
+    if (dropped.length) signal(workspaceId);
+  } catch (error) {
+    console.error("could not withdraw comment notifications", error);
   }
 }
 

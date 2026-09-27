@@ -57,6 +57,7 @@
     "markAllRead": "Tümünü okundu işaretle",
     "assignment": "{actor}, sizi “{property}” alanına atadı",
     "pageShared": "{actor} bu sayfayı sizinle paylaştı",
+    "comment": "{actor}, katıldığınız bir yorum konusuna yazdı",
     "someone": "Biri",
     "unread": "Okunmadı",
     "unreadCount": "{count, plural, one {# okunmamış bildirim} other {# okunmamış bildirim}}"

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { BlockNoteSchema, createBlockSpec, defaultBlockSpecs, type PartialBlock } from "@blocknote/core";
+import { BlockNoteSchema, createBlockSpec, createExtension, defaultBlockSpecs, type PartialBlock } from "@blocknote/core";
+import { CommentMark } from "@blocknote/core/comments";
 import { ServerBlockNoteEditor } from "@blocknote/server-util";
 import {
   databaseBlockConfig,
@@ -34,7 +35,13 @@ export const pageSchema = BlockNoteSchema.create({
   },
 });
 
-export const serverEditor = ServerBlockNoteEditor.create({ schema: pageSchema });
+/**
+ * Comments mark the text they're about. Without the mark in the schema, text carrying it would read
+ * as empty (and writes would drop it), so the server knows it even though it never shows comments.
+ */
+const commentMarks = createExtension({ key: "commentMarks", tiptapExtensions: [CommentMark] });
+
+export const serverEditor = ServerBlockNoteEditor.create({ schema: pageSchema, extensions: [commentMarks] });
 
 export type PageBlock = ReturnType<typeof serverEditor.yXmlFragmentToBlocks>[number];
 type PartialPageBlock = PartialBlock<typeof pageSchema.blockSchema, typeof pageSchema.inlineContentSchema, typeof pageSchema.styleSchema>;

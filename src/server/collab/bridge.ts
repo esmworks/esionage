@@ -5,11 +5,25 @@
  * module instance in the process.
  */
 
+import type { CommentOp, PlainComment, PlainThread } from "@/lib/comments";
+
+export type CommentOpResult = {
+  /** The thread after the change; missing when it was deleted. */
+  thread?: PlainThread;
+  /** A comment the change added. */
+  comment?: PlainComment;
+  /** New threads with a quote: whether the quoted text was found and marked. */
+  anchored?: boolean;
+};
+
 export type WriteActor = { userId: string; oauthClientId?: string | null };
 
 export type PageContent = { title: string; markdown: string; text: string };
 
 export type Channel = `ws:${string}` | `db:${string}`;
+
+/** Who writes a comment change: "editor" may also delete other people's comments and threads. */
+export type CommentActor = { userId: string; role: "comment" | "editor" };
 
 export interface CollabService {
   /** Current content, read from the live document when it is open. */
@@ -21,6 +35,14 @@ export interface CollabService {
   appendContent(pageId: string, markdown: string, actor: WriteActor, snapshot?: boolean): Promise<void>;
   setTitle(pageId: string, title: string, actor: WriteActor): Promise<void>;
   restoreSnapshot(snapshotId: string, actor: WriteActor): Promise<void>;
+  /** The page's comment threads, from the live document when it is open. */
+  readThreads(pageId: string): Promise<PlainThread[]>;
+  /**
+   * Applies a comment change to the page's live document (see server/comments.ts, which checks
+   * access first). `quote` on a new thread anchors it to the first place the page has that text.
+   * Throws CommentError when the thread or comment is missing or the actor may not do it.
+   */
+  commentOp(pageId: string, actor: CommentActor, op: CommentOp, quote?: string): Promise<CommentOpResult>;
   /** Tells subscribed clients to refetch (sidebar tree, database rows). */
   broadcast(channel: Channel, event: string): void;
   /** Drops a user's live connections to the workspace's documents (after removal from it). */

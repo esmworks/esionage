@@ -13,6 +13,7 @@ export type NotificationPreferences = Record<NotificationKind, Record<Notificati
 const COLUMNS = {
   assignment: { inbox: "assignmentInbox", email: "assignmentEmails" },
   page_shared: { inbox: "shareInbox", email: "shareEmails" },
+  comment: { inbox: "commentInbox", email: "commentEmails" },
 } as const satisfies Record<NotificationKind, Record<NotificationChannel, keyof typeof userPreference.$inferSelect>>;
 
 const KINDS = Object.keys(COLUMNS) as NotificationKind[];

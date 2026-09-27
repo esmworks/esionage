@@ -312,3 +312,18 @@
 .database-embed .page-gutter-table {
   padding-inline: 0;
 }
+
+/* The comments panel says so when BlockNote's thread list is empty. */
+.comments-panel .bn-threads-sidebar:not(:empty) + .comments-empty {
+  display: none;
+}
+.comments-panel .bn-threads-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+/* BlockNote sizes threads for its floating card; in the panel they fill its width. */
+.comments-panel .bn-threads-sidebar .bn-thread {
+  width: 100%;
+  min-width: 0;
+}

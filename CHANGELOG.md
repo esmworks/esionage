@@ -4,6 +4,15 @@
 
 ### Added
 
+- **Comments on pages:** select text and choose Comment to start a thread; reply, react with emoji,
+  edit or delete your own comments, and resolve or reopen threads. Threads update live for everyone
+  on the page and are listed in a Comments panel from the page header. People who can edit a page
+  comment on it, people who can view it read the comments, and full access also deletes other
+  people's comments and threads. Replies notify everyone in the thread (a new thread notifies the
+  page's author) in the inbox and, a couple of minutes later, by email; Settings > Preferences turns
+  either off.
+- **MCP:** `list_comments` reads a page's comment threads and `add_comment` starts a thread on quoted
+  text or replies to one.
 - **Social login:** sign in with GitHub or Google, each turned on by setting its
   `*_CLIENT_ID` and `*_CLIENT_SECRET`. A provider account opens the existing account with the same
   verified email, and closed sign-up admits only existing or invited people (see README). If that

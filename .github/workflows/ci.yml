@@ -106,6 +106,9 @@ jobs:
       - name: Publishing options end-to-end
         run: pnpm tsx scripts/publish-e2e.ts
 
+      - name: Comments end-to-end
+        run: pnpm tsx scripts/comments-e2e.ts
+
       - name: Start the server
         run: |
           pnpm start > "$RUNNER_TEMP/server.log" 2>&1 &

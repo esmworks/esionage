@@ -96,7 +96,9 @@ export function InboxDialog({
                 <span className="mt-0.5 block text-xs text-fg-muted">
                   {item.kind === "page_shared"
                     ? t("pageShared", { actor: item.actorName || t("someone") })
-                    : t("assignment", { actor: item.actorName || t("someone"), property: item.propertyName ?? "" })}
+                    : item.kind === "comment"
+                      ? t("comment", { actor: item.actorName || t("someone") })
+                      : t("assignment", { actor: item.actorName || t("someone"), property: item.propertyName ?? "" })}
                   {item.databaseTitle !== null && <> · {pageLabel(item.databaseTitle, tc("untitled"))}</>}
                 </span>
               </span>

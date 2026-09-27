@@ -213,6 +213,9 @@
     "shareTitle": "Sizinle paylaşılan sayfalar",
     "shareDescription": "Biri size bir sayfaya erişim verir.",
     "shareChannel": "Sizinle paylaşılan sayfalar: {channel}",
+    "commentTitle": "Yorumlar",
+    "commentDescription": "Yorum başlattığınız ya da yanıt verdiğiniz bir konuya biri yeni yorum yazar.",
+    "commentChannel": "Yorumlar: {channel}",
     "mailOff": "Bu sunucuda e-posta gönderimi kapalı olduğu için şu an e-posta gitmiyor."
   }
 }

@@ -46,5 +46,13 @@
     "action": "Open page",
     "untitled": "Untitled",
     "optOut": "You can turn these emails off in Settings > Preferences."
+  },
+  "comment": {
+    "subject": "{actor} commented on “{page}”",
+    "heading": "{actor} commented on “{page}”",
+    "quote": "“{text}”",
+    "body": "The comment is on “{page}” in {workspace}. Reply or resolve it from the page.",
+    "action": "Open page",
+    "optOut": "You get these because you took part in this comment thread. You can turn them off in Settings > Preferences."
   }
 }

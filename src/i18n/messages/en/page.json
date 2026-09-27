@@ -10,6 +10,7 @@
     "editedBy": "Edited by {name}",
     "createdBy": "Created by {name}",
     "someone": "Someone",
+    "comments": "Comments",
     "share": "Share",
     "addFavorite": "Add to favorites",
     "removeFavorite": "Remove from favorites",
@@ -27,6 +28,20 @@
     "versionHistory": "Version history",
     "lastEdited": "Last edited by {name}",
     "actionFailed": "Couldn't finish that."
+  },
+  "comments": {
+    "title": "Comments",
+    "close": "Close comments",
+    "filters": {
+      "open": "Open",
+      "resolved": "Resolved",
+      "all": "All"
+    },
+    "empty": {
+      "open": "No open comments. Select text in the page and choose Comment to start one.",
+      "resolved": "No resolved comments.",
+      "all": "No comments yet. Select text in the page and choose Comment to start one."
+    }
   },
   "archived": {
     "banner": "This page is in the trash.",

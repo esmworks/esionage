@@ -15,6 +15,10 @@ export const userPreference = pgTable("user_preference", {
   shareEmails: boolean("share_emails").notNull().default(true),
   /** Show pages shared with me in my inbox. */
   shareInbox: boolean("share_inbox").notNull().default(true),
+  /** Email me when someone replies in a comment thread I'm part of. */
+  commentEmails: boolean("comment_emails").notNull().default(true),
+  /** Show replies to my comment threads in my inbox. */
+  commentInbox: boolean("comment_inbox").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -42,14 +46,15 @@ export const pendingAssignmentEmail = pgTable(
   (t) => [primaryKey({ columns: [t.rowId, t.propertyId, t.userId] }), index("assignment_email_due_idx").on(t.dueAt)],
 );
 
-export const NOTIFICATION_KINDS = ["assignment", "page_shared"] as const;
+export const NOTIFICATION_KINDS = ["assignment", "page_shared", "comment"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /**
  * A user's inbox, per workspace. "assignment": `actorId` added the user to the person property
  * `propertyId` of row `pageId`. "page_shared": `actorId` gave the user their own access to page
- * `pageId`. Unread ones are dropped when the change is undone. Rows are recorded whatever the
- * user's preferences; the inbox leaves out the kinds they turned off.
+ * `pageId`. "comment": `actorId` replied in comment thread `threadId` on page `pageId`, where the
+ * user had commented before. Unread ones are dropped when the change is undone. Rows are recorded
+ * whatever the user's preferences; the inbox leaves out the kinds they turned off.
  */
 export const notification = pgTable(
   "notification",
@@ -69,9 +74,11 @@ export const notification = pgTable(
       .notNull()
       .references(() => page.id, { onDelete: "cascade" }),
     propertyId: text("property_id").references(() => databaseProperty.id, { onDelete: "cascade" }),
+    /** Comment notifications: the thread (in the page's document) they are about. */
+    threadId: text("thread_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     readAt: timestamp("read_at", { withTimezone: true }),
-    /** When to email the user about it (page_shared only); cleared once the email is handled. */
+    /** When to email the user about it (page_shared and comment); cleared once the email is handled. */
     emailDueAt: timestamp("email_due_at", { withTimezone: true }),
     /** The actor's interface language, for that email. */
     emailLocale: text("email_locale"),

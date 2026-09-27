@@ -1,4 +1,5 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
+import { CommentError } from "@/lib/comments";
 import { env } from "@/lib/env";
 import { PropertyValueError } from "@/lib/properties";
 import { AccessError } from "@/server/access";
@@ -33,6 +34,7 @@ export function toolErrorFor(error: unknown): CallToolResult {
         "Use search, list_workspaces or list_pages to find valid ids.",
     );
   }
+  if (error instanceof CommentError) return errorResult(`${error.message}.`);
   if (error instanceof PropertyValueError) {
     return errorResult(`${error.message}. Call get_database to see property names, types and select options.`);
   }

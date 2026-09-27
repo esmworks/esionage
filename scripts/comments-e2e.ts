@@ -1,0 +1,338 @@
+/**
+ * End-to-end check of comments on pages: who may read and write them, anchoring threads to quoted
+ * text, keeping anchors through server writes, cleaning comment bodies, notifications and emails to
+ * the people in a thread, and the MCP tools.
+ * Creates its own users and workspace and deletes them afterwards.
+ *
+ *   pnpm tsx scripts/comments-e2e.ts
+ *
+ * Env: DATABASE_URL (read from .env when present). Migrations must be applied.
+ */
+export {};
+
+try {
+  process.loadEnvFile();
+} catch {}
+
+// Imported after .env is loaded: the database client reads DATABASE_URL when it is created.
+const { and, eq, inArray } = await import("drizzle-orm");
+const Y = await import("yjs");
+const { db } = await import("@/db");
+const { notification, page, user, workspace, workspaceMember } = await import("@/db/schema");
+const { COLLAB_FRAGMENT } = await import("@/lib/collab-constants");
+const { CommentError, THREADS_MAP } = await import("@/lib/comments");
+const { changeComments, commentUsers, listComments } = await import("@/server/comments");
+const { getCollab, registerCollab } = await import("@/server/collab/bridge");
+const { createCollab } = await import("@/server/collab/service");
+const { threadQuotes } = await import("@/server/collab/comment-marks");
+const { archivePage, createPage } = await import("@/server/pages");
+const { setPagePermission } = await import("@/server/permissions");
+const { flushShareEmails, setShareMailer } = await import("@/server/share-emails");
+const { setNotificationPreference } = await import("@/server/notification-preferences");
+const { AccessError } = await import("@/server/access");
+const { InMemoryTransport } = await import("@modelcontextprotocol/server");
+const { createServer } = await import("node:http");
+const crossws = (await import("crossws/adapters/node")).default;
+const { HocuspocusProvider } = await import("@hocuspocus/provider");
+const { issueCollabToken } = await import("@/server/collab/token");
+const { createMcpServer } = await import("@/server/mcp/tools");
+const { READ_SCOPE, WRITE_SCOPE } = await import("@/server/mcp/principal");
+
+const RUN = `comments-e2e-${Date.now().toString(36)}`;
+
+const { hocuspocus, service } = createCollab();
+registerCollab(service);
+
+let passed = 0;
+function check(condition: unknown, label: string, detail?: unknown): asserts condition {
+  if (!condition) {
+    console.error(`FAIL  ${label}`);
+    if (detail !== undefined) console.error(JSON.stringify(detail, null, 2));
+    throw new Error(`Check failed: ${label}`);
+  }
+  passed++;
+  console.log(`ok    ${label}`);
+}
+
+async function failure(fn: () => Promise<unknown>): Promise<string | null> {
+  try {
+    await fn();
+    return null;
+  } catch (error) {
+    if (error instanceof AccessError) return "access";
+    if (error instanceof CommentError) return error.code;
+    throw error;
+  }
+}
+
+/** The page's document as stored or, while open, live. */
+async function withDoc<T>(pageId: string, fn: (doc: InstanceType<typeof Y.Doc>) => T): Promise<T> {
+  const live = hocuspocus.documents.get(`page:${pageId}`);
+  if (live) return fn(live);
+  const [row] = await db.select({ ydoc: page.ydoc }).from(page).where(eq(page.id, pageId));
+  const doc = new Y.Doc();
+  if (row?.ydoc) Y.applyUpdate(doc, row.ydoc);
+  try {
+    return fn(doc);
+  } finally {
+    doc.destroy();
+  }
+}
+const quotes = (pageId: string) => withDoc(pageId, (doc) => threadQuotes(doc.getXmlFragment(COLLAB_FRAGMENT)));
+const threadCount = (pageId: string) => withDoc(pageId, (doc) => doc.getMap(THREADS_MAP).size);
+
+/** Calls an MCP tool as `userId`, the way a connected AI app would. */
+async function callTool(userId: string, name: string, args: Record<string, unknown>, scopes = [READ_SCOPE, WRITE_SCOPE]) {
+  const server = createMcpServer({ userId, clientId: `${RUN}-client`, scopes });
+  const [client, serverSide] = InMemoryTransport.createLinkedPair();
+  const inbox: { id?: unknown; result?: { isError?: boolean; content: { text: string }[] } }[] = [];
+  client.onmessage = (m) => void inbox.push(m as (typeof inbox)[number]);
+  await server.connect(serverSide);
+  await client.start();
+  const waitFor = async (id: number) => {
+    for (let i = 0; i < 400; i++) {
+      const hit = inbox.find((m) => m.id === id);
+      if (hit) return hit;
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    throw new Error(`no MCP response for ${name}`);
+  };
+  await client.send({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "comments-e2e", version: "1" } },
+  });
+  await waitFor(1);
+  await client.send({ jsonrpc: "2.0", method: "notifications/initialized" });
+  await client.send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name, arguments: args } });
+  const result = (await waitFor(2)).result!;
+  await server.close();
+  const text = result.content[0].text;
+  return { isError: Boolean(result.isError), text, data: result.isError ? null : JSON.parse(text) };
+}
+
+const unread = (userId: string, threadId: string) =>
+  db
+    .select()
+    .from(notification)
+    .where(and(eq(notification.userId, userId), eq(notification.kind, "comment"), eq(notification.threadId, threadId)));
+
+const ids = { owner: `${RUN}-owner`, editor: `${RUN}-editor`, viewer: `${RUN}-viewer`, outsider: `${RUN}-outsider` };
+const userIds = Object.values(ids);
+const workspaceId = `${RUN}-ws`;
+const otherWorkspace = `${RUN}-ws2`;
+const mails: { to: string; subject: string; text: string }[] = [];
+setShareMailer(async (mail) => void mails.push(mail));
+
+try {
+  await db.insert(user).values(userIds.map((id) => ({ id, name: id, email: `${id}@example.test` })));
+  await db.insert(workspace).values([
+    { id: workspaceId, name: RUN },
+    { id: otherWorkspace, name: `${RUN}-2` },
+  ]);
+  await db.insert(workspaceMember).values([
+    { workspaceId, userId: ids.owner, role: "owner" },
+    { workspaceId, userId: ids.editor, role: "member" },
+    { workspaceId, userId: ids.viewer, role: "member" },
+    { workspaceId: otherWorkspace, userId: ids.outsider, role: "owner" },
+  ]);
+  const doc = await createPage({ userId: ids.owner }, { workspaceId, title: "Plan" });
+  await getCollab().replaceContent(doc.id, "Ship the comments feature this week.\n\nSecond paragraph stays.", { userId: ids.owner });
+  // Members only view; the owner keeps full access and one member may edit.
+  await setPagePermission(ids.owner, doc.id, ids.owner, "full");
+  await setPagePermission(ids.owner, doc.id, null, "view");
+  await setPagePermission(ids.owner, doc.id, ids.editor, "edit");
+
+  const [before] = await db.select({ updatedAt: page.updatedAt, updatedBy: page.updatedBy }).from(page).where(eq(page.id, doc.id));
+
+  // Who may comment
+  check((await listComments(ids.viewer, doc.id)).length === 0, "people who can view a page read its comments");
+  check((await failure(() => listComments(ids.outsider, doc.id))) === "access", "people outside the workspace can't read them");
+  check(
+    (await failure(() => changeComments(ids.viewer, doc.id, { type: "createThread", body: "hi" }, "comments"))) === "access",
+    "viewing a page isn't enough to comment on it",
+  );
+
+  // Anchoring to quoted text
+  check(
+    (await failure(() => changeComments(ids.editor, doc.id, { type: "createThread", body: "hi" }, "not on the page"))) === "notFound",
+    "a quote the page doesn't have is refused",
+  );
+  check((await threadCount(doc.id)) === 0, "…and leaves no thread behind");
+  const created = await changeComments(
+    ids.editor,
+    doc.id,
+    {
+      type: "createThread",
+      body: [{ type: "paragraph", content: [{ type: "link", href: "javascript:alert(1)", content: "Is this" }, " realistic?"] }],
+    },
+    "comments feature",
+  );
+  const thread = created.thread!;
+  check(created.anchored === true && thread.comments.length === 1 && thread.comments[0].userId === ids.editor, "an editor starts a thread on quoted text", created);
+  check(
+    JSON.stringify(thread.comments[0].body) === JSON.stringify([{ type: "paragraph", content: [{ type: "text", text: "Is this", styles: {} }, { type: "text", text: " realistic?", styles: {} }] }]),
+    "script links in comments are dropped to their text",
+    thread.comments[0].body,
+  );
+  check((await quotes(doc.id)).get(thread.id) === "comments feature", "the thread marks the quoted text", Object.fromEntries(await quotes(doc.id)));
+  const content = await getCollab().readPage(doc.id);
+  check(content.markdown.includes("Ship the comments feature this week."), "text under a comment still reads as page content", content.markdown);
+  const [after] = await db.select({ updatedAt: page.updatedAt, updatedBy: page.updatedBy }).from(page).where(eq(page.id, doc.id));
+  check(
+    after.updatedBy === ids.owner && after.updatedAt.getTime() === before.updatedAt.getTime(),
+    "commenting doesn't count as editing the page",
+    { before, after },
+  );
+  check((await unread(ids.owner, thread.id)).length === 1, "a new thread tells the page's author");
+  check((await unread(ids.editor, thread.id)).length === 0, "…but not the person who wrote it");
+
+  // Replies and notifications
+  const reply = await changeComments(ids.owner, doc.id, { type: "addComment", threadId: thread.id, body: "Yes, by Friday." });
+  check(reply.thread?.comments.length === 2 && reply.comment?.userId === ids.owner, "the owner replies", reply);
+  check((await unread(ids.editor, thread.id)).length === 1, "a reply tells the others in the thread");
+  await changeComments(ids.owner, doc.id, { type: "addComment", threadId: thread.id, body: "Actually Thursday." });
+  const pending = await unread(ids.editor, thread.id);
+  check(pending.length === 1 && pending[0].actorId === ids.owner && pending[0].emailDueAt !== null, "more replies stay one unread notification with its email queued", pending);
+  await flushShareEmails();
+  const commentMails = mails.filter((m) => m.to === `${ids.editor}@example.test` && m.subject.includes("commented"));
+  check(
+    commentMails.length === 1 && commentMails[0].subject.includes(ids.owner) && commentMails[0].text.includes("Actually Thursday."),
+    "one email quotes the latest reply",
+    commentMails,
+  );
+  await setNotificationPreference(ids.editor, "comment", "email", false);
+  await changeComments(ids.owner, doc.id, { type: "addComment", threadId: thread.id, body: "Quiet one." });
+  mails.length = 0;
+  await flushShareEmails();
+  check(!mails.some((m) => m.to === `${ids.editor}@example.test`), "people who turned comment emails off get none", mails);
+
+  // Who may change what
+  const ownerComment = reply.comment!.id;
+  const editorComment = thread.comments[0].id;
+  check(
+    (await failure(() =>
+      changeComments(ids.editor, doc.id, { type: "updateComment", threadId: thread.id, commentId: ownerComment, body: "edited" }),
+    )) === "notAllowed",
+    "people edit only their own comments",
+  );
+  check((await failure(() => changeComments(ids.editor, doc.id, { type: "deleteThread", threadId: thread.id }))) === "notAllowed", "editing isn't enough to delete a thread");
+  await changeComments(ids.editor, doc.id, { type: "updateComment", threadId: thread.id, commentId: editorComment, body: "Is this realistic now?" });
+  await changeComments(ids.editor, doc.id, { type: "resolveThread", threadId: thread.id });
+  let threads = await listComments(ids.viewer, doc.id);
+  check(
+    threads[0].resolved && threads[0].resolvedBy === ids.editor && threads[0].comments[0].body?.[0].content[0].type === "text",
+    "people edit their comments and resolve threads",
+    threads[0],
+  );
+  await changeComments(ids.editor, doc.id, { type: "unresolveThread", threadId: thread.id });
+  check(
+    (await failure(() => changeComments(ids.editor, doc.id, { type: "addReaction", threadId: thread.id, commentId: ownerComment, emoji: "<b>" }))) ===
+      "invalidBody",
+    "reactions are emoji",
+  );
+  await changeComments(ids.editor, doc.id, { type: "addReaction", threadId: thread.id, commentId: ownerComment, emoji: "👍" });
+  threads = await listComments(ids.viewer, doc.id);
+  check(threads[0].comments[1].reactions[0]?.userIds.join() === ids.editor, "people react to comments", threads[0].comments[1]);
+  check((await failure(() => changeComments(ids.editor, doc.id, { type: "createThread", body: "x".repeat(10_001) }, "Second"))) === "tooLong", "overlong comments are refused");
+  check((await failure(() => changeComments(ids.editor, doc.id, { type: "addComment", threadId: "nope", body: "hi" }))) === "notFound", "replies need a thread");
+
+  // Server writes keep anchors
+  await getCollab().replaceContent(doc.id, "New intro.\n\nShip the comments feature this week.\n\nSecond paragraph stays.", { userId: ids.owner });
+  check((await quotes(doc.id)).get(thread.id) === "comments feature", "rewriting the page keeps comments on text that is still there", Object.fromEntries(await quotes(doc.id)));
+
+  // People in comments
+  const people = await commentUsers(ids.viewer, doc.id, [ids.owner, ids.editor, ids.outsider]);
+  check(people.map((p) => p.id).sort().join() === [ids.editor, ids.owner].sort().join(), "comment UIs learn names of workspace people only", people);
+
+  // MCP
+  let r = await callTool(ids.owner, "add_comment", { page_id: doc.id, text: "From the assistant.\nTwo lines.", quote: "Second paragraph" });
+  check(!r.isError && r.data.thread_id && r.data.url, "add_comment starts a thread on quoted text", r.text);
+  const aiThread = r.data.thread_id as string;
+  r = await callTool(ids.owner, "add_comment", { page_id: doc.id, text: "x", quote: "nowhere to be found" });
+  check(r.isError && r.text.includes("exact text"), "add_comment explains quotes it can't find", r.text);
+  r = await callTool(ids.owner, "add_comment", { page_id: doc.id, text: "x" });
+  check(r.isError && r.text.includes("either quote"), "add_comment needs a quote or a thread", r.text);
+  r = await callTool(ids.owner, "add_comment", { page_id: doc.id, text: "x", thread_id: aiThread }, [READ_SCOPE]);
+  check(r.isError && r.text.includes("read-only"), "add_comment needs pages:write", r.text);
+  r = await callTool(ids.editor, "add_comment", { page_id: doc.id, text: "Agreed.", thread_id: aiThread });
+  check(!r.isError, "add_comment replies in a thread", r.text);
+  r = await callTool(ids.viewer, "list_comments", { page_id: doc.id }, [READ_SCOPE]);
+  const listed = r.data?.threads.find((t: { id: string }) => t.id === aiThread);
+  check(
+    listed?.quote === "Second paragraph" &&
+      listed.comments.map((c: { author: string; text: string }) => `${c.author}: ${c.text}`).join(" | ") ===
+        `${ids.owner}: From the assistant.\nTwo lines. | ${ids.editor}: Agreed.`,
+    "list_comments shows quotes, authors and text",
+    r.data,
+  );
+  check(r.data.threads.length === 2, "…of every open thread", r.data.threads);
+  r = await callTool(ids.outsider, "list_comments", { page_id: doc.id }, [READ_SCOPE]);
+  check(r.isError, "list_comments needs access to the page");
+
+  // Browsers get comments live but can't write them
+  const ws = crossws({
+    hooks: {
+      open(peer) {
+        (peer as unknown as { hp: ReturnType<typeof hocuspocus.handleConnection> }).hp = hocuspocus.handleConnection(
+          peer.websocket as never,
+          peer.request as Request,
+        );
+      },
+      message(peer, message) {
+        (peer as unknown as { hp?: { handleMessage(m: Uint8Array): void } }).hp?.handleMessage(message.uint8Array());
+      },
+      close(peer, event) {
+        (peer as unknown as { hp?: { handleClose(e: unknown): void } }).hp?.handleClose({ code: event.code, reason: event.reason });
+      },
+    },
+  });
+  const server = createServer();
+  server.on("upgrade", (req, socket, head) => ws.handleUpgrade(req, socket, head));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = (server.address() as { port: number }).port;
+  const browserDoc = new Y.Doc();
+  const closes: number[] = [];
+  const provider = new HocuspocusProvider({
+    url: `ws://127.0.0.1:${port}`,
+    name: `page:${doc.id}`,
+    document: browserDoc,
+    token: issueCollabToken(ids.editor, ids.editor),
+    onClose: ({ event }) => void closes.push(event.code),
+  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("the browser never synced")), 5000);
+      provider.on("synced", () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+    check(browserDoc.getMap(THREADS_MAP).has(aiThread), "browsers receive the page's comments with the document");
+    const forged = new Y.Map();
+    browserDoc.getMap(THREADS_MAP).set("forged", forged);
+    for (let i = 0; i < 100 && !closes.length; i++) await new Promise((r) => setTimeout(r, 20));
+    check(closes.length > 0, "a browser writing comments into the document is disconnected", closes);
+    check(!(await listComments(ids.owner, doc.id)).some((t) => t.id === "forged"), "…and its forged thread never reaches the page");
+  } finally {
+    provider.destroy();
+    await new Promise((resolve) => server.close(resolve));
+  }
+
+  // Deleting
+  await changeComments(ids.owner, doc.id, { type: "addComment", threadId: thread.id, body: "Unread one." });
+  await changeComments(ids.owner, doc.id, { type: "deleteThread", threadId: thread.id });
+  check(!(await listComments(ids.owner, doc.id)).some((t) => t.id === thread.id), "full access deletes whole threads");
+  check((await unread(ids.editor, thread.id)).filter((n) => !n.readAt).length === 0, "…taking back their unread notifications");
+  await archivePage(ids.owner, doc.id);
+  check((await failure(() => changeComments(ids.owner, doc.id, { type: "createThread", body: "hi" }, "Second"))) === "notAllowed", "pages in the trash take no comments");
+
+  console.log(`\n${passed} checks passed`);
+} finally {
+  setShareMailer(null);
+  await db.delete(workspace).where(inArray(workspace.id, [workspaceId, otherWorkspace]));
+  await db.delete(user).where(inArray(user.id, userIds));
+  hocuspocus.closeConnections();
+  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+}
