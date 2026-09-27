@@ -18,6 +18,7 @@ import {
 } from "@/lib/embed-blocks";
 import { contentBlockSpecs, contentInlineSpecs } from "./content-blocks";
 import { DatabaseEmbed, useEmbedHost } from "./database-embed";
+import { FileBlock } from "./file-block";
 import { webBlockSpecs } from "./web-blocks";
 
 /**
@@ -68,6 +69,8 @@ export const pageEditorSchema = BlockNoteSchema.create({
     linkedView: LinkedViewBlock(),
     ...contentBlockSpecs,
     ...webBlockSpecs,
+    // Uploaded PDFs show in place (see file-block.tsx).
+    file: FileBlock(),
   },
   inlineContentSpecs: { ...defaultInlineContentSpecs, ...contentInlineSpecs },
 });

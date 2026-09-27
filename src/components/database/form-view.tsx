@@ -15,6 +15,7 @@ import type { FormConfig, FormQuestion } from "@/db/schema/app";
 import {
   FORM_TITLE,
   formQuestions,
+  canDefault,
   isAskable,
   isPublicAskable,
   MAX_CONFIRMATION,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/forms";
 import type { FormSharing } from "@/server/forms";
 import { Floating, useFloating } from "./floating";
+import { postFile } from "./files-cell";
 import { FormFill } from "./form-fill";
 import { PropertyCell } from "./property-cell";
 import { PropertyTypeIcon, usePropertyTypeLabel } from "./property-icons";
@@ -88,6 +90,7 @@ export function FormView({
             if (result.ok) void api.refetch();
             return result.ok ? { ok: true } : result;
           }}
+          upload={(file) => postFile(`/api/files?form=${encodeURIComponent(view.id)}`, file)}
           renderPicker={(question, value, onChange) =>
             question.prop && (
               <PropertyCell
@@ -441,9 +444,9 @@ function FormBuilder({
   const defaults = form.defaults ?? {};
   // Properties just added to the list: shown empty until a value is picked (empty values aren't saved).
   const [adding, setAdding] = useState<string[]>([]);
-  const listed = (p: Property) => (p.id in defaults || adding.includes(p.id)) && isAskable(p.type) && !asked.has(p.id);
+  const listed = (p: Property) => (p.id in defaults || adding.includes(p.id)) && canDefault(p.type) && !asked.has(p.id);
   const defaulted = properties.filter(listed);
-  const defaultable = properties.filter((p) => isAskable(p.type) && !asked.has(p.id) && !listed(p));
+  const defaultable = properties.filter((p) => canDefault(p.type) && !asked.has(p.id) && !listed(p));
   const setDefault = (id: string, value: unknown) => {
     const next = { ...defaults };
     if (value === null || value === undefined || (Array.isArray(value) && !value.length)) delete next[id];

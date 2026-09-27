@@ -12,6 +12,7 @@
     "email": "E-posta",
     "phone": "Telefon",
     "checklist": "Kontrol listesi",
+    "files": "Dosyalar ve medya",
     "relation": "İlişki",
     "person": "Kişi",
     "createdBy": "Oluşturan",
@@ -298,6 +299,16 @@
     "progress": "{total} maddenin {done} tanesi tamam",
     "empty": "Henüz madde yok"
   },
+  "files": {
+    "count": "{count, plural, one {# dosya} other {# dosya}}",
+    "empty": "Dosya yok",
+    "emptyUpload": "Henüz dosya yok. Bir dosya yükleyin veya buraya bırakın.",
+    "open": "{name} dosyasını aç",
+    "remove": "{name} dosyasını kaldır",
+    "uploading": "{name} yükleniyor…",
+    "upload": "Dosya yükle",
+    "rateLimited": "Buradan çok fazla dosya yüklendi. Birkaç dakika sonra tekrar deneyin."
+  },
   "statusGroups": {
     "todo": "Yapılacak",
     "in_progress": "Devam ediyor",
@@ -393,6 +404,7 @@
     "cover": "Kart kapağı",
     "covers": {
       "first_image": "Sayfadaki ilk görsel",
+      "property": "{name} içindeki ilk görsel",
       "none": "Yok"
     },
     "start": "Başlangıç tarihi",
@@ -477,6 +489,7 @@
     "invalidEmail": "“{property}” bir e-posta adresi olmalıdır.",
     "invalidPhone": "“{property}” bir telefon numarası olmalıdır.",
     "invalidChecklist": "“{property}” bir madde listesi olmalıdır.",
+    "invalidFile": "“{property}” yalnızca bu çalışma alanına yüklenmiş ve açabildiğiniz dosyaları içerebilir.",
     "invalidNumber": "“{property}” bir sayı olmalıdır.",
     "invalidCheckbox": "“{property}” doğru ya da yanlış olmalıdır.",
     "invalidDate": "“{property}” bir tarih (YYYY-AA-GG) olmalıdır.",

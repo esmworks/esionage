@@ -435,3 +435,29 @@ describe("filter groups and relative dates", () => {
     });
   });
 });
+
+describe("files properties", () => {
+  const id = "AbCdEfGhIjKlMnOpQrStUv_-";
+  const all: PropertyDef[] = [...props, { id: "p_files", name: "Attachments", type: "files", options: {} }];
+
+  it("shows values as {name, url}, absolute with the app's address", () => {
+    const value = [{ url: `/api/files/${id}`, name: "photo.png", type: "image/png" }];
+    expect(displayProperties(all, { p_files: value }, undefined, "https://app.example")).toEqual({
+      Attachments: [{ name: "photo.png", url: `https://app.example/api/files/${id}` }],
+    });
+    expect(displayProperties(all, { p_files: [] })).toEqual({});
+  });
+
+  it("filters on empty only and sorts by count", () => {
+    expect(toFilterRule(all, { property: "Attachments", op: "is_not_empty" })).toEqual({ propertyId: "p_files", op: "is_not_empty" });
+    expect(() => toFilterRule(all, { property: "Attachments", op: "contains", value: "photo" })).toThrowError(
+      /supports is_empty and is_not_empty/,
+    );
+    expect(toSortRule(all, { property: "Attachments", direction: "desc" })).toEqual({ propertyId: "p_files", direction: "desc" });
+  });
+
+  it("names a gallery's cover property", () => {
+    expect(describeViewConfig(all, { cover: { source: "property", propertyId: "p_files" } })).toEqual({ cover: "Attachments" });
+    expect(describeViewConfig(all, { cover: { source: "none" } })).toEqual({ cover: "none" });
+  });
+});

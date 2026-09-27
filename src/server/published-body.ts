@@ -4,6 +4,7 @@ import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { BREADCRUMB_BLOCK, MERMAID_BLOCK, TOC_BLOCK } from "@/lib/content-blocks";
 import { plainText } from "@/lib/content-markdown";
 import { isEmbedBlockType, parseLinkedView, type EmbedBlockType, type LinkedView } from "@/lib/embed-blocks";
+import { pdfFileId } from "@/lib/files";
 import { BOOKMARK_BLOCK, embedFor, isWebBlockType, parseWebUrl, type EmbedTarget } from "@/lib/web-blocks";
 import { serverEditor as editor, type PageBlock } from "@/server/blocknote";
 
@@ -19,7 +20,7 @@ import { serverEditor as editor, type PageBlock } from "@/server/blocknote";
  * between them, and the publication decides for each whether its database may be shown. Tables of
  * contents, breadcrumbs and Mermaid diagrams come back between the parts too, for the page to
  * draw, and so do bookmarks and embeds (an iframe only for an allowlisted provider, see
- * lib/web-blocks). Equations are serialized: KaTeX builds them on the server (see server/blocknote.ts).
+ * lib/web-blocks), and uploaded PDFs, which the page shows in place. Equations are serialized: KaTeX builds them on the server (see server/blocknote.ts).
  */
 
 type Json = unknown;
@@ -104,13 +105,27 @@ export type BodySegment =
   | { kind: "mermaid"; source: string }
   | { kind: "bookmark"; bookmark: PublishedBookmark }
   /** An embed of an allowlisted provider; any other URL comes back as a bookmark. */
-  | { kind: "webEmbed"; url: string; embed: EmbedTarget };
+  | { kind: "webEmbed"; url: string; embed: EmbedTarget }
+  /** A file block holding an uploaded PDF, shown in place (see components/page/pdf-viewer.tsx). */
+  | { kind: "pdf"; fileId: string; name: string; caption: string };
 
 /** A bookmark card's details, every URL checked to be http(s). */
 export type PublishedBookmark = { url: string; title: string; description: string; image: string; favicon: string; siteName: string };
 
-const isStandalone = (type: string) =>
-  isEmbedBlockType(type) || isWebBlockType(type) || type === TOC_BLOCK || type === BREADCRUMB_BLOCK || type === MERMAID_BLOCK;
+/** The uploaded PDF a file block shows in place, if it holds one (see lib/files pdfFileId). */
+function pdfOf(block: PageBlock): string | null {
+  if (block.type !== "file") return null;
+  const props = block.props as { url?: unknown; name?: unknown };
+  return pdfFileId(props.url, props.name);
+}
+
+const isStandalone = (block: PageBlock) =>
+  isEmbedBlockType(block.type) ||
+  isWebBlockType(block.type) ||
+  block.type === TOC_BLOCK ||
+  block.type === BREADCRUMB_BLOCK ||
+  block.type === MERMAID_BLOCK ||
+  pdfOf(block) !== null;
 
 /** A bookmark or embed block as the published page draws it, or null when it has no valid URL. */
 function webSegment(block: PageBlock): BodySegment | null {
@@ -140,7 +155,7 @@ function withoutNestedStandalone(block: PageBlock, found: PageBlock[]): PageBloc
   if (!block.children?.length) return block;
   const children: PageBlock[] = [];
   for (const child of block.children) {
-    if (isStandalone(child.type)) found.push(child);
+    if (isStandalone(child)) found.push(child);
     else children.push(withoutNestedStandalone(child, found));
   }
   return { ...block, children } as PageBlock;
@@ -200,6 +215,18 @@ export async function bodySegmentsFromYdoc(state: Uint8Array | null): Promise<Bo
         segments.push(segment);
         return;
       }
+      const pdf = pdfOf(block);
+      if (pdf) {
+        const props = block.props as { name?: unknown; caption?: unknown };
+        await flush();
+        segments.push({
+          kind: "pdf",
+          fileId: pdf,
+          name: typeof props.name === "string" ? props.name : "",
+          caption: typeof props.caption === "string" ? props.caption : "",
+        });
+        return;
+      }
       if (block.type === MERMAID_BLOCK) {
         const source = plainText(block.content);
         if (!source.trim()) return;
@@ -218,7 +245,7 @@ export async function bodySegmentsFromYdoc(state: Uint8Array | null): Promise<Bo
       });
     };
     for (const block of blocks) {
-      if (isStandalone(block.type)) {
+      if (isStandalone(block)) {
         await standalone(block);
         continue;
       }

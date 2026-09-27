@@ -231,10 +231,10 @@ export type FilterEntry = FilterRule | FilterGroup;
 /** Gallery card sizes. */
 export type CardSize = "small" | "medium" | "large";
 /**
- * Where gallery cards take their cover from: the first image in the row's body, or nowhere.
- * Files properties will add `{ source: "property"; propertyId }`.
+ * Where gallery cards take their cover from: the first image in the row's body, the first image of
+ * a files property, or nowhere.
  */
-export type ViewCover = { source: "first_image" } | { source: "none" };
+export type ViewCover = { source: "first_image" } | { source: "none" } | { source: "property"; propertyId: string };
 /** Timeline scale: a column per day, per week or per month. */
 export type TimelineZoom = "day" | "week" | "month";
 /** Chart kinds: vertical bars (columns), horizontal bars, a line, or a donut (a pie with a hole). */

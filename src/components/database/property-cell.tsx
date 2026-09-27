@@ -15,7 +15,9 @@ import {
   statusGroupOf,
 } from "@/lib/properties";
 import { derivedType, isErrorValue, rollupFormat } from "@/lib/derived";
+import { asFiles } from "@/lib/files";
 import { holdsPeople, isDerived, isReadOnlyType } from "@/lib/property-types";
+import { FilesDisplay, FilesEditor, type UploadFile } from "./files-cell";
 import { Floating } from "./floating";
 import { useFormulaErrorMessage } from "./formula-editor";
 import { PersonChips, PersonPicker } from "./person-cell";
@@ -109,6 +111,7 @@ export function isEmptyValue(prop: Property, value: unknown) {
   if (isDerived(prop.type)) return value === false || (Array.isArray(value) && value.length === 0);
   if (prop.type === "relation" || holdsPeople(prop.type)) return !Array.isArray(value) || value.length === 0;
   if (prop.type === "checklist") return asChecklist(value).length === 0;
+  if (prop.type === "files") return asFiles(value).length === 0;
   if (Array.isArray(value)) return selectedOptions(prop, value).length === 0;
   if (prop.type === "select" || prop.type === "status") return selectedOptions(prop, value).length === 0;
   if (prop.type === "checkbox") return value !== true;
@@ -156,6 +159,8 @@ export function PropertyDisplay({ prop, value, wrap }: { prop: Property; value: 
       return <span className="truncate">{formatDateTime(String(value))}</span>;
     case "checklist":
       return <ChecklistDisplay value={value} wrap={wrap} />;
+    case "files":
+      return <FilesDisplay value={value} wrap={wrap} />;
     case "checkbox":
       return <CheckboxBox checked={value === true} />;
     case "relation":
@@ -336,6 +341,7 @@ export function PropertyCell({
   autoEdit,
   draft,
   placeholder,
+  upload,
 }: {
   prop: Property;
   value: unknown;
@@ -349,6 +355,8 @@ export function PropertyCell({
   /** Text typed before the editor opened; a text editor starts with it instead of the value. */
   draft?: string;
   placeholder?: string;
+  /** Files properties: where new files are stored (the row); without it files can only be removed. */
+  upload?: UploadFile;
 }) {
   const t = useTranslations("database.cell");
   const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
@@ -416,6 +424,7 @@ export function PropertyCell({
           onCreateOption={onCreateOption}
           onClose={() => setEditing(false)}
           draft={draft}
+          upload={upload}
         />
       )}
     </>
@@ -430,6 +439,7 @@ function CellEditor({
   onCreateOption,
   onClose,
   draft,
+  upload,
 }: {
   prop: Property;
   value: unknown;
@@ -438,6 +448,7 @@ function CellEditor({
   onCreateOption: CreateOption;
   onClose: () => void;
   draft?: string;
+  upload?: UploadFile;
 }) {
   switch (prop.type) {
     case "text":
@@ -450,6 +461,12 @@ function CellEditor({
       return (
         <Floating open anchor={anchor} onClose={onClose} className="w-80 p-0">
           <ChecklistEditor prop={prop} value={value} onChange={onChange} />
+        </Floating>
+      );
+    case "files":
+      return (
+        <Floating open anchor={anchor} onClose={onClose} className="w-80 p-0">
+          <FilesEditor name={prop.name} value={value} onChange={onChange} upload={upload} />
         </Floating>
       );
     case "date":

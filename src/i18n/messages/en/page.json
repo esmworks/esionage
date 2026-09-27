@@ -299,5 +299,11 @@
     "tooLarge": "{name} is too large. Files can be at most {limit}.",
     "quotaExceeded": "{name} wasn't uploaded: this workspace has used its {limit} of file storage.",
     "failed": "Couldn't upload {name}."
+  },
+  "pdf": {
+    "untitled": "PDF",
+    "openInNewTab": "Open in a new tab",
+    "frameTitle": "PDF: {name}",
+    "noPreview": "This browser can't show PDFs here. Open the file to read it."
   }
 }

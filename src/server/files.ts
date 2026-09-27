@@ -15,16 +15,20 @@ import { fetchRemoteFile, RemoteFetchError, type RemoteFetchOptions } from "@/se
 import { getStorage, uploadLimits } from "@/server/storage";
 
 /**
- * Uploaded files (images, video, audio and attachments in page bodies).
+ * Uploaded files (images, video, audio and attachments in page bodies, and the values of files
+ * properties of database rows).
  *
- * Storing: uploading needs edit access to the page the file goes on. The bytes are counted while
+ * Storing: uploading needs edit access to the page the file goes on. Files for a row's files
+ * property are uploaded to the row itself; files attached to a form answer are held by the form's
+ * database until the answer creates its row, which then takes them over (see forms.ts). The bytes are counted while
  * they arrive and the upload stops as soon as it passes the per-file limit or the workspace's
  * remaining quota; the quota is checked again, under a per-workspace lock, before the file is
  * recorded, so concurrent uploads can't overshoot it.
  *
  * Reading (see `fileForViewer`): a file is readable by someone who can view
  *  - the page it was uploaded to, or
- *  - any page of the same workspace whose body shows it (`file_reference`, kept by a trigger).
+ *  - any page of the same workspace whose body shows it, or any row of the same workspace whose
+ *    files property holds it (`file_reference`, kept by a trigger for both).
  * Copies of a page (Duplicate, templates, pasting blocks) share the stored file rather than copying
  * it; the second rule is what lets people who see only the copy load it. Knowing a file's URL alone
  * never grants anything: ids are unguessable, and a page's body only shows a URL someone who could
@@ -34,8 +38,9 @@ import { getStorage, uploadLimits } from "@/server/storage";
  *
  * Cleanup: deleting a page for good clears `file.page_id`; once no page shows such a file anymore
  * it is removed (right away, and by the hourly sweep). Uploads that no page ever showed are removed
- * after a day. A file that was shown once and then taken out of the body stays while its page
- * exists, so restoring an older version of the page brings it back.
+ * after a day. A file that was shown once and then taken out of the body (or removed from a files
+ * property) stays while its page exists, so restoring an older version of the page, or putting the
+ * file back, brings it back.
  */
 
 export class FileError extends Error {
@@ -107,7 +112,18 @@ export async function uploadFile(userId: string, pageId: string, input: UploadIn
   const target = await requirePageAccess(userId, pageId, "edit");
   if (target.archivedAt) throw new FileError("The page is in the trash", "notAllowed");
   if (target.kind === "database") throw new FileError("Databases have no body to put files in; add them to a row", "badRequest");
-  const workspaceId = target.workspaceId;
+  return storeFile({ workspaceId: target.workspaceId, pageId, uploadedBy: userId }, input);
+}
+
+/**
+ * Stores a file on `pageId` of `workspaceId` within the upload limits. No access check: callers
+ * decide who may put files where (uploadFile for pages and rows, forms.uploadFormFile for form
+ * answers). `uploadedBy` is null for anonymous form answers.
+ */
+export async function storeFile(
+  { workspaceId, pageId, uploadedBy }: { workspaceId: string; pageId: string; uploadedBy: string | null },
+  input: UploadInput,
+): Promise<StoredFile> {
   const name = cleanFileName(input.name);
   const contentType = contentTypeFor(input.contentType, name);
 
@@ -140,7 +156,7 @@ export async function uploadFile(userId: string, pageId: string, input: UploadIn
         .from(file)
         .where(eq(file.workspaceId, workspaceId));
       if (Number(row?.used ?? 0) + spooled.size > workspaceQuotaBytes) throw overQuota();
-      await tx.insert(file).values({ id, workspaceId, pageId, storageKey, name, contentType, size: spooled.size, uploadedBy: userId });
+      await tx.insert(file).values({ id, workspaceId, pageId, storageKey, name, contentType, size: spooled.size, uploadedBy });
     });
     try {
       await getStorage().put(storageKey, createReadStream(spooled.path), { size: spooled.size, contentType });
@@ -210,6 +226,16 @@ export async function fileForViewer(userId: string | null, fileId: string): Prom
     if (visible) return found;
   }
   return (await anyPagePublished(pages)) ? found : null;
+}
+
+/** Files of `workspaceId` among `ids` (any others are left out). */
+export async function workspaceFiles(workspaceId: string, ids: string[]): Promise<FileRow[]> {
+  const valid = ids.filter(isFileId);
+  if (!valid.length) return [];
+  return db
+    .select()
+    .from(file)
+    .where(and(eq(file.workspaceId, workspaceId), inArray(file.id, valid)));
 }
 
 /** The page the file was uploaded to (while it exists) and the pages of its workspace showing it. */

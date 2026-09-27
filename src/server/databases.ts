@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { firstImageInYdoc, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
+import { asFiles, fileIdOf, fileUrl, type FileValue } from "@/lib/files";
 import { isApplicable, isRollupFn, ROLLUP_DISPLAYS, type RollupDisplay } from "@/lib/aggregate";
 import { compileFormulas, formulaForStorage, TITLE_FIELD, valueType, withFormulaTypes } from "@/lib/derived";
 import { filterConfigError, filterRules, mapFilterRules } from "@/lib/filters";
@@ -51,6 +52,7 @@ import {
 } from "@/server/access";
 import { scheduleAssignmentEmails } from "@/server/assignments";
 import { computeDerived, loadProperties } from "@/server/derived";
+import { fileForViewer, workspaceFiles } from "@/server/files";
 import { recordAssignments } from "@/server/notifications";
 import { getCollab } from "@/server/collab/bridge";
 import { workspacePeople, type WorkspacePerson } from "@/server/workspaces";
@@ -227,6 +229,7 @@ export async function normalizeRowProperties(
   const props = await getProperties(databaseId);
   const out: Record<string, unknown> = {};
   let people: Promise<WorkspacePerson[]> | undefined;
+  let workspace: Promise<string | null> | undefined;
   for (const [key, value] of Object.entries(input)) {
     const prop = props.find((p) => p.id === key) ?? props.find((p) => p.name.toLowerCase() === key.toLowerCase());
     if (!prop) {
@@ -242,9 +245,48 @@ export async function normalizeRowProperties(
     } else if (prop.type === "person" && normalized) {
       people ??= workspacePeopleOf(databaseId);
       out[prop.id] = resolvePersonValue(userId, prop, normalized as string[], asIds(existing[prop.id]), await people);
+    } else if (prop.type === "files" && normalized) {
+      workspace ??= workspaceOf(databaseId);
+      out[prop.id] = await resolveFilesValue(userId, prop, normalized as FileValue[], asFiles(existing[prop.id]), await workspace);
     } else out[prop.id] = normalized;
   }
   return out;
+}
+
+async function workspaceOf(databaseId: string): Promise<string | null> {
+  const [database] = await db.select({ workspaceId: page.workspaceId }).from(page).where(eq(page.id, databaseId));
+  return database?.workspaceId ?? null;
+}
+
+/**
+ * Maps files input to stored values: files of the database's workspace that the user may read (see
+ * files.fileForViewer), each with the name and type it was uploaded with. Files the value already
+ * holds are kept without asking again, and dropped once they no longer exist, so a file removed
+ * meanwhile never blocks editing the rest of the cell. Anyone who can see the row can then read
+ * its files (the file_reference trigger, drizzle/0016).
+ */
+async function resolveFilesValue(
+  userId: string,
+  prop: DatabaseProperty,
+  input: FileValue[],
+  existing: FileValue[],
+  workspaceId: string | null,
+): Promise<FileValue[] | null> {
+  const ids = input.flatMap((f) => fileIdOf(f.url) ?? []);
+  const found = new Map((workspaceId ? await workspaceFiles(workspaceId, ids) : []).map((f) => [f.id, f]));
+  const held = new Set(existing.flatMap((f) => fileIdOf(f.url) ?? []));
+  const out: FileValue[] = [];
+  for (const id of ids) {
+    const stored = found.get(id);
+    if (!stored && held.has(id)) continue;
+    if (!stored || (!held.has(id) && !(await fileForViewer(userId, id)))) {
+      throw new PropertyValueError(`"${prop.name}" can only hold files uploaded to this workspace that you can open`, "invalidFile", {
+        property: prop.name,
+      });
+    }
+    out.push({ url: fileUrl(id), name: stored.name, type: stored.contentType });
+  }
+  return out.length ? out : null;
 }
 
 /** Everyone in the workspace a database belongs to, guests included. */
@@ -983,6 +1025,8 @@ export async function deleteProperty(userId: string, propertyId: string) {
             dateBy: c.dateBy === propertyId ? undefined : c.dateBy,
             endDateBy: c.endDateBy === propertyId ? undefined : c.endDateBy,
             stackBy: c.stackBy === propertyId ? undefined : c.stackBy,
+            // A gallery that took covers from the property goes back to the default.
+            cover: c.cover?.source === "property" && c.cover.propertyId === propertyId ? undefined : c.cover,
             chartAggregate: c.chartAggregate?.propertyId === propertyId ? undefined : c.chartAggregate,
             sorts: c.sorts?.filter((s) => s.propertyId !== propertyId),
             filters: c.filters && mapFilterRules(c.filters, (f) => (f.propertyId === propertyId ? null : f)),

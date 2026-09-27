@@ -17,6 +17,7 @@ import {
   type Value,
 } from "./formula";
 import type { RollupFn } from "./aggregate";
+import { asFiles } from "./files";
 import { holdsPeople } from "./property-types";
 
 /**
@@ -92,6 +93,7 @@ function baseType(prop: { type: PropertyType; options: PropertyOptions }): Formu
     case "person":
     case "created_by":
     case "last_edited_by":
+    case "files":
       return "list";
     default:
       return null;
@@ -284,6 +286,9 @@ function readValue(prop: Prop, value: unknown, ctx: FormulaContext, names: () =>
       if (!Array.isArray(value) || !value.length) return null;
       return value.filter((item) => (item as { checked?: unknown })?.checked === true).length / value.length;
     }
+    case "files":
+      // File names, in order: `length()` counts them, rollups showing the original list them.
+      return asFiles(value).map((file) => file.name);
     case "relation": {
       const titles = new Map((ctx.relations?.[prop.id]?.rows ?? []).map((r) => [r.id, r.title]));
       return ids(value).flatMap((id) => (titles.has(id) ? [titles.get(id)!] : []));

@@ -1,5 +1,6 @@
 import type { PropertyOptions } from "@/db/schema/app";
 import { isErrorValue } from "./derived";
+import { asFiles } from "./files";
 import { asChecklist, CREATED_KEY, TITLE_KEY, UPDATED_KEY, type RowLike } from "./properties";
 
 /**
@@ -39,7 +40,7 @@ export function isAggregateFn(fn: unknown): fn is AggregateFn {
 /**
  * How a property's values are read for calculations. `options` values are option ids (deleted
  * options don't count), `people` and `relation` values are lists of ids, `checklist` values lists
- * of items (counted by their text); `other` only gets the generic counts.
+ * of items (counted by their text), `files` lists of uploaded files (counted by URL); `other` only gets the generic counts.
  */
 export type ValueKind =
   | "text"
@@ -50,6 +51,7 @@ export type ValueKind =
   | "people"
   | "relation"
   | "checklist"
+  | "files"
   | "other";
 
 /**
@@ -78,6 +80,7 @@ const VALUE_KINDS: Record<string, ValueKind> = {
   last_edited_by: "people",
   relation: "relation",
   checklist: "checklist",
+  files: "files",
 };
 
 export function valueKind(type: string): ValueKind {
@@ -102,6 +105,7 @@ const BY_KIND: Record<ValueKind, AggregateFn[]> = {
   people: GENERIC,
   relation: GENERIC,
   checklist: GENERIC,
+  files: GENERIC,
   number: [...GENERIC, "sum", "average", "median", "min", "max", "range"],
   date: [...GENERIC, "earliest_date", "latest_date", "date_range"],
   checkbox: ["count_all", "count_checked", "count_unchecked", "percent_checked", "percent_unchecked"],
@@ -153,6 +157,9 @@ function items(value: unknown, kind: ValueKind, options: PropertyOptions | undef
       return (Array.isArray(value) ? value : [value]).filter((id) => typeof id === "string" && id !== "");
     case "checklist":
       return asChecklist(value).map((item) => item.text);
+    case "files":
+      // Each file once, by its URL: "count values" counts files, "count unique" distinct files.
+      return asFiles(value).map((file) => file.url);
     case "checkbox":
       return value === true ? [true] : [];
     case "number":

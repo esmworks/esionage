@@ -15,6 +15,7 @@ import { withFormulas } from "@/lib/derived";
 import type { PropertyType, SelectOption } from "@/db/schema/app";
 import { Floating, useFloating } from "./floating";
 import { PeopleProvider, type PeopleContextValue } from "./person-cell";
+import { uploadToPage } from "./files-cell";
 import { PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
 import { AddPropertyPanel } from "./property-menu";
@@ -224,6 +225,7 @@ export function RowProperties({
                       readOnly={readOnly}
                       onChange={(v) => void setValue(p.id, v)}
                       onCreateOption={createOption}
+                      upload={p.type === "files" ? uploadToPage(rowId) : undefined}
                     />
                   </div>
                 </div>

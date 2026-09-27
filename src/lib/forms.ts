@@ -41,12 +41,21 @@ const ASKABLE: readonly PropertyType[] = [
   "email",
   "phone",
   "checklist",
+  "files",
   "relation",
   "person",
 ];
 
 export function isAskable(type: PropertyType) {
   return ASKABLE.includes(type);
+}
+
+/**
+ * Types a form can give a default value: what it can ask, except files, whose uploads belong to
+ * one row each (a default would attach the same file to every answer).
+ */
+export function canDefault(type: PropertyType) {
+  return isAskable(type) && type !== "files";
 }
 
 /**
@@ -115,7 +124,7 @@ export function formDefaults(form: FormConfig | undefined, properties: PropertyD
   const out: Record<string, unknown> = {};
   for (const [id, value] of Object.entries(form?.defaults ?? {})) {
     const prop = properties.find((p) => p.id === id);
-    if (prop && isAskable(prop.type) && !asked.has(id) && value !== null && value !== undefined) out[id] = value;
+    if (prop && canDefault(prop.type) && !asked.has(id) && value !== null && value !== undefined) out[id] = value;
   }
   return out;
 }

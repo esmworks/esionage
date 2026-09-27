@@ -5,7 +5,7 @@ import { formConfigError } from "./forms";
 /** Every kind of database view, in the order the "Add a view" menu lists them. */
 export const VIEW_TYPES = ["table", "board", "calendar", "gallery", "list", "timeline", "chart", "form"] as const satisfies readonly ViewType[];
 export const CARD_SIZES = ["small", "medium", "large"] as const satisfies readonly CardSize[];
-export const COVER_SOURCES = ["first_image", "none"] as const satisfies readonly ViewCover["source"][];
+export const COVER_SOURCES = ["first_image", "property", "none"] as const satisfies readonly ViewCover["source"][];
 export const TIMELINE_ZOOMS = ["day", "week", "month"] as const satisfies readonly TimelineZoom[];
 
 export function isViewType(value: unknown): value is ViewType {
@@ -25,7 +25,18 @@ export const DEFAULT_VIEW_NAMES: Record<ViewType, string> = {
 };
 
 export function galleryCover(config: Pick<ViewConfig, "cover">): ViewCover["source"] {
-  return config.cover?.source === "none" ? "none" : "first_image";
+  const source = config.cover?.source;
+  return source === "none" || source === "property" ? source : "first_image";
+}
+
+/**
+ * The files property a gallery takes its covers from, while it still is one; null for the other
+ * sources. A cover property that was deleted (or changed) leaves cards without a cover.
+ */
+export function coverProperty<P extends { id: string; type: string }>(config: Pick<ViewConfig, "cover">, properties: P[]): P | null {
+  const cover = config.cover;
+  if (cover?.source !== "property") return null;
+  return properties.find((p) => p.id === cover.propertyId && p.type === "files") ?? null;
 }
 
 /**
@@ -48,9 +59,12 @@ export function layoutConfigError(config: ViewConfig): string | null {
     return `Card size must be one of: ${CARD_SIZES.join(", ")}`;
   }
   if (c.cover !== undefined) {
-    const cover = c.cover as { source?: unknown } | null;
+    const cover = c.cover as { source?: unknown; propertyId?: unknown } | null;
     if (!cover || typeof cover !== "object" || !COVER_SOURCES.includes(cover.source as ViewCover["source"])) {
       return `Cover must be one of: ${COVER_SOURCES.join(", ")}`;
+    }
+    if (cover.source === "property" && (typeof cover.propertyId !== "string" || !cover.propertyId)) {
+      return "A property cover must name a files property id";
     }
   }
   if (c.chartType !== undefined && !CHART_TYPES.includes(c.chartType as ChartType)) {

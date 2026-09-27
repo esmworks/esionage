@@ -2,7 +2,7 @@ import { ServerBlockNoteEditor } from "@blocknote/server-util";
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
-import { bodyHtmlFromYdoc, isSafeLink, isSafeMediaUrl, sanitizeBlocks } from "./published-body";
+import { bodyHtmlFromYdoc, bodySegmentsFromYdoc, isSafeLink, isSafeMediaUrl, sanitizeBlocks } from "./published-body";
 
 const editor = ServerBlockNoteEditor.create();
 
@@ -61,5 +61,21 @@ describe("published page body", () => {
     expect(html).not.toContain("javascript:");
     expect(html).toContain("see this");
     expect(await bodyHtmlFromYdoc(null)).toBe("");
+  });
+
+  it("shows uploaded PDFs in place and keeps other files as links", async () => {
+    const id = "AbCdEfGhIjKlMnOpQrStUv_-";
+    const state = await ydocFrom([
+      { type: "paragraph", content: "before" },
+      { type: "file", props: { url: `/api/files/${id}`, name: "Report.pdf", caption: "Q3" } },
+      { type: "file", props: { url: `/api/files/${id}`, name: "data.csv", caption: "" } },
+      { type: "file", props: { url: "https://example.com/other.pdf", name: "other.pdf", caption: "" } },
+    ]);
+    const segments = await bodySegmentsFromYdoc(state);
+    expect(segments.map((s) => s.kind)).toEqual(["html", "pdf", "html"]);
+    expect(segments[1]).toEqual({ kind: "pdf", fileId: id, name: "Report.pdf", caption: "Q3" });
+    const rest = segments[2].kind === "html" ? segments[2].html : "";
+    expect(rest).toContain("data.csv");
+    expect(rest).toContain("other.pdf");
   });
 });

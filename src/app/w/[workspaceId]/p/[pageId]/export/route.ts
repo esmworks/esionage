@@ -1,6 +1,8 @@
 import { getTranslations } from "next-intl/server";
 import { toCsv } from "@/lib/csv";
 import { isErrorValue } from "@/lib/derived";
+import { env } from "@/lib/env";
+import { asFiles } from "@/lib/files";
 import { mapReferenceLines, markdownReferences } from "@/lib/embed-blocks";
 import { pageLabel } from "@/lib/labels";
 import { asChecklist, displayValue } from "@/lib/properties";
@@ -71,6 +73,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
         asChecklist(value)
           .map((item) => `[${item.checked ? "x" : " "}] ${item.text}`)
           .join("\n") || null;
+      // One line per file, "photo.png (https://…/api/files/…)": the link opens for people who can see the row.
+      const files = (value: unknown) =>
+        asFiles(value)
+          .map((f) => `${f.name} (${env.appUrl}${f.url})`)
+          .join("\n") || null;
       const csv = toCsv([
         ["Name", ...snapshot.properties.map((p) => p.name)],
         ...rows.map((row) => [
@@ -79,6 +86,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
             const value = row.properties[p.id];
             // A formula that fails on this row says why.
             if (isErrorValue(value)) return `#ERROR: ${value.error.message}`;
+            if (p.type === "files") return files(value);
             return p.type === "checklist"
               ? checklist(value)
               : cell(displayValue(p, value), holdsPeople(p.type) ? nameOf : titleOf);

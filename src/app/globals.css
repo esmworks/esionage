@@ -403,6 +403,11 @@
   justify-content: center;
 }
 
+/* A file block showing a PDF in place takes the full width, not just its file name's. */
+.bn-block-content[data-content-type="file"] .bn-file-block-content-wrapper:has([data-esionage-pdf]) {
+  width: 100%;
+}
+
 /* A table of contents jumps to a heading below the sticky page header. */
 .esionage-editor .bn-block-outer {
   scroll-margin-top: 4rem;

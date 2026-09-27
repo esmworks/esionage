@@ -21,7 +21,7 @@ import {
 import { GROUP_DATE_BY, groupDateByOf } from "@/lib/grouping";
 import { isGroupable } from "@/lib/properties";
 import { holdsTimestamp } from "@/lib/property-types";
-import { CARD_SIZES, COVER_SOURCES, galleryCover } from "@/lib/views";
+import { CARD_SIZES, coverProperty, galleryCover } from "@/lib/views";
 import { Floating, useFloating } from "./floating";
 import { PropertyTypeIcon } from "./property-icons";
 import type { Property, View } from "./types";
@@ -98,11 +98,27 @@ export function ViewLayoutMenu({
               ))}
               <MenuSeparator />
               <Heading>{t("cover")}</Heading>
-              {COVER_SOURCES.map((source) => (
-                <Choice key={source} active={galleryCover(config) === source} onClick={() => set({ cover: { source } })}>
-                  {t(`covers.${source}`)}
-                </Choice>
-              ))}
+              <Choice active={galleryCover(config) === "first_image"} onClick={() => set({ cover: { source: "first_image" } })}>
+                {t("covers.first_image")}
+              </Choice>
+              {/* Each files property: its first image (see lib/views coverProperty). */}
+              {properties
+                .filter((p) => p.type === "files")
+                .map((p) => (
+                  <Choice
+                    key={p.id}
+                    active={coverProperty(config, properties)?.id === p.id}
+                    onClick={() => set({ cover: { source: "property", propertyId: p.id } })}
+                  >
+                    {t("covers.property", { name: p.name })}
+                  </Choice>
+                ))}
+              <Choice
+                active={galleryCover(config) === "none" || (galleryCover(config) === "property" && !coverProperty(config, properties))}
+                onClick={() => set({ cover: { source: "none" } })}
+              >
+                {t("covers.none")}
+              </Choice>
             </>
           ) : (
             <TimelineSettings

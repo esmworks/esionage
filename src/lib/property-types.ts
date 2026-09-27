@@ -11,6 +11,7 @@ export const PROPERTY_TYPES = [
   "email",
   "phone",
   "checklist",
+  "files",
   "relation",
   "person",
   "created_by",

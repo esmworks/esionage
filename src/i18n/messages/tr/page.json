@@ -299,5 +299,11 @@
     "tooLarge": "{name} çok büyük. Dosyalar en fazla {limit} olabilir.",
     "quotaExceeded": "{name} yüklenmedi: bu çalışma alanı {limit} dosya depolama alanının tamamını kullandı.",
     "failed": "{name} yüklenemedi."
+  },
+  "pdf": {
+    "untitled": "PDF",
+    "openInNewTab": "Yeni sekmede aç",
+    "frameTitle": "PDF: {name}",
+    "noPreview": "Bu tarayıcı PDF'leri burada gösteremiyor. Okumak için dosyayı açın."
   }
 }

@@ -7,6 +7,7 @@ import { Button, cn } from "@/components/ui";
 import type { SelectOption } from "@/db/schema/app";
 import { checkAnswers, MAX_TEXT_ANSWER, MAX_TITLE_ANSWER, type AnswerError, type ResolvedQuestion } from "@/lib/forms";
 import { isDatabaseErrorCode, sortStatusOptions } from "@/lib/properties";
+import { FilesEditor, type UploadFile } from "./files-cell";
 import { CheckboxBox, INPUT_MODE, OptionChip, parseInput } from "./property-cell";
 import type { PropertyType } from "./types";
 
@@ -35,6 +36,7 @@ export function FormFill<P extends FormProperty>({
   note,
   honeypot,
   renderPicker,
+  upload,
 }: {
   title: string;
   description?: string;
@@ -50,6 +52,8 @@ export function FormFill<P extends FormProperty>({
   honeypot?: boolean;
   /** Inputs for relation and person questions, which only the app offers. */
   renderPicker?: (question: FormFillQuestion<P>, value: unknown, onChange: (value: unknown) => void) => ReactNode;
+  /** Stores a file picked for a files question (see server/forms); without it they can't be answered. */
+  upload?: UploadFile;
 }) {
   const t = useTranslations();
   const locale = useLocale();
@@ -161,6 +165,7 @@ export function FormFill<P extends FormProperty>({
             invalid: Boolean(error),
             describedBy,
             renderPicker,
+            upload,
           };
           const inline = q.prop?.type === "checkbox";
           return (
@@ -260,9 +265,21 @@ type FieldProps<P extends FormProperty> = {
   invalid: boolean;
   describedBy?: string;
   renderPicker?: (question: FormFillQuestion<P>, value: unknown, onChange: (value: unknown) => void) => ReactNode;
+  upload?: UploadFile;
 };
 
-function AnswerInput<P extends FormProperty>({ id, label, question, value, onChange, disabled, invalid, describedBy, renderPicker }: FieldProps<P>) {
+function AnswerInput<P extends FormProperty>({
+  id,
+  label,
+  question,
+  value,
+  onChange,
+  disabled,
+  invalid,
+  describedBy,
+  renderPicker,
+  upload,
+}: FieldProps<P>) {
   const prop = question.prop;
   const a11y = { id, "aria-invalid": invalid || undefined, "aria-describedby": describedBy, "aria-required": question.required || undefined };
   const border = invalid ? "border-danger" : "";
@@ -342,6 +359,18 @@ function AnswerInput<P extends FormProperty>({ id, label, question, value, onCha
       return <OptionChoices {...a11y} prop={prop} value={value} onChange={onChange} disabled={disabled} label={label} />;
     case "checklist":
       return <ChecklistAnswer id={id} value={value} onChange={onChange} disabled={disabled} invalid={invalid} />;
+    case "files":
+      return (
+        <div className={cn("rounded-md border border-border", border)}>
+          <FilesEditor
+            name={label}
+            value={value}
+            onChange={onChange}
+            upload={upload}
+            answer={{ id, disabled: disabled || !upload, invalid, describedBy }}
+          />
+        </div>
+      );
     default:
       return renderPicker ? (
         <div id={id} className={cn("rounded-md border border-border", border)}>

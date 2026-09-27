@@ -21,7 +21,7 @@ approve them over OAuth.
   replaces one or all in a single undo step. Anyone who can open the page can search it.
 - **Databases**: every row is also a page.
   - Properties: text, number, select, multi-select, status, date, checkbox, checklist, URL,
-    email, phone, person, one- or two-way relations to other databases, formulas, rollups over
+    email, phone, files & media (uploads with image thumbnails), person, one- or two-way relations to other databases, formulas, rollups over
     relations, and the read-only "created by", "created time", "last edited time" and
     "last edited by".
   - Views: table, board, calendar, gallery, list, timeline and chart, each with its own filters,
@@ -54,7 +54,8 @@ approve them over OAuth.
   and can take any published page offline.
 - **File uploads**: drop, paste or pick images, video, audio and other files into a page. They are
   stored on disk or in S3-compatible storage, only people who can see a page showing them can open
-  them, and published pages show theirs (see [File uploads](#file-uploads)).
+  them, and published pages show theirs (see [File uploads](#file-uploads)). Uploaded PDFs show
+  in place.
 - **Workspaces and members**: add people by email (several at once) as owners or members, send
   an invitation link to people who don't have an account yet, or turn on a join link anyone can
   use. Owners can export the member list as CSV, hand ownership to someone else, and decide who
@@ -134,7 +135,8 @@ instead, set `S3_BUCKET` and its credentials; files already stored are not moved
 
 Limits are enforced while a file arrives. A file can be opened by anyone who can see the page it
 was uploaded to or a page of the same workspace showing it (so duplicates and pages made from
-templates share it), and by visitors of a published page showing it. Only raster images, video,
+templates share it), or a row whose files & media property holds it, and by visitors of a
+published page showing it. Only raster images, video,
 audio and PDF open in the browser; everything else, SVG included, is downloaded. When a page is
 deleted for good, its files go once no other page shows them, and uploads no page ever used are
 removed after a day.
@@ -213,8 +215,10 @@ The client opens a browser window where you sign in and approve access. The tool
 - **Templates:** `list_templates`; `create_page` and `create_database_row` take a `template_id`.
 - **Comments:** `list_comments`, `add_comment` (start a thread on quoted text, or reply).
 - **Inbox:** `list_notifications`, when the user also grants the `notifications:read` permission.
-- **Files:** `attach_file` uploads an image, video, audio or other file to a page from a public
-  URL or base64 data, when the user also grants the `files:write` permission. URLs that lead to
+- **Files:** `attach_file` uploads an image, video, audio or other file to a page (or, with
+  `property`, to a row's files & media property) from a public URL or base64 data, when the user
+  also grants the `files:write` permission. Files properties can only be set to files already
+  uploaded to the workspace. URLs that lead to
   private or loopback addresses are refused.
 - **Databases:** `get_database`, `query_database`, `create_database`, `create_database_row`,
   `create_database_rows`, `update_database_row`, `update_database_rows`, `add_database_property`
