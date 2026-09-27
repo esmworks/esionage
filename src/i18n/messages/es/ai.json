@@ -1,0 +1,112 @@
+{
+  "assistant": {
+    "askAi": "Preguntar a la IA",
+    "askAiSubtext": "Reescribe, traduce o sigue escribiendo con IA",
+    "askAiAliases": "ia ai asistente escribir reescribir mejorar traducir",
+    "continueSubtext": "La IA sigue escribiendo desde aquí",
+    "continueAliases": "ia ai continuar seguir escribir más",
+    "summarizeSubtext": "La IA añade un resumen de esta página",
+    "summarizeAliases": "ia ai resumen resumir tldr",
+    "group": "IA",
+    "label": "Asistente de IA",
+    "placeholder": "Dile a la IA qué escribir…",
+    "placeholderSelection": "Dile a la IA qué hacer con la selección…",
+    "send": "Enviar",
+    "actions": {
+      "improve": "Mejorar la redacción",
+      "shorten": "Acortar",
+      "fix": "Corregir ortografía y gramática",
+      "translate": "Traducir…",
+      "continue": "Seguir escribiendo",
+      "summarize": "Resumir la página",
+      "custom": "Tu instrucción"
+    },
+    "translateInto": "Traducir a",
+    "back": "Atrás",
+    "writing": "Escribiendo…",
+    "stop": "Detener",
+    "replace": "Reemplazar la selección",
+    "insertBelow": "Insertar debajo",
+    "retry": "Reintentar",
+    "discard": "Descartar",
+    "cutOff": "La respuesta alcanzó el límite de longitud y puede estar incompleta.",
+    "reviewNote": "La IA puede equivocarse. Revisa el texto antes de conservarlo.",
+    "stopped": "Detenido. Aún puedes conservar lo que se ha escrito hasta ahora.",
+    "applyFailed": "No se pudo añadir la sugerencia a la página.",
+    "selectionChanged": "El texto seleccionado cambió mientras tanto, así que la sugerencia se añadió debajo."
+  },
+  "errors": {
+    "disabled": "La IA no está disponible en este espacio de trabajo.",
+    "noAccess": "No puedes cambiar esta página.",
+    "tooLarge": "Es demasiado texto para una solicitud de IA. Selecciona menos e inténtalo de nuevo.",
+    "rateLimited": "Demasiadas solicitudes de IA. Inténtalo de nuevo en un momento.",
+    "timeout": "La IA tardó demasiado en responder. Inténtalo de nuevo.",
+    "aborted": "Se canceló la solicitud de IA.",
+    "provider": "El proveedor de IA no pudo responder. Inténtalo más tarde o pide a un administrador que revise los ajustes de IA.",
+    "empty": "La IA no dio ninguna respuesta. Inténtalo de nuevo o reformula.",
+    "invalid": "La solicitud de IA estaba incompleta. Inténtalo de nuevo.",
+    "interrupted": "El servidor se reinició mientras se calculaba esto. Vuelve a actualizarlo."
+  },
+  "autofill": {
+    "addEntry": "Autorrelleno con IA",
+    "configure": "Autorrelleno con IA…",
+    "titleNew": "Nueva propiedad con autorrelleno de IA",
+    "titleFor": "Autorrelleno con IA de {name}",
+    "back": "Atrás",
+    "mode": "La IA rellena",
+    "modes": {
+      "summary": "Un resumen",
+      "translation": "Una traducción",
+      "custom": "Tu propio prompt"
+    },
+    "modeHints": {
+      "summary": "Un breve resumen de la página de cada fila.",
+      "translation": "Un valor de la fila, traducido.",
+      "custom": "Lo que describas, usando los valores de la fila."
+    },
+    "defaultNames": {
+      "summary": "Resumen de IA",
+      "translation": "Traducción",
+      "custom": "Texto de IA"
+    },
+    "source": "Traducir",
+    "sourceTitle": "Nombre",
+    "sourceBody": "Contenido de la página",
+    "language": "Idioma",
+    "prompt": "Prompt",
+    "promptPlaceholder": "Por ejemplo: Escribe una frase de presentación de '{title}' dirigida a '{Audience}'.",
+    "promptHint": "Haz clic en una propiedad para insertarla; el valor de la fila ocupa su lugar.",
+    "includeBody": "Enviar también el contenido de la página de la fila",
+    "auto": "Actualizar cuando cambie la fila",
+    "autoHint": "Unos segundos después de que cambien los valores o la página de una fila, su valor se vuelve a calcular.",
+    "privacy": "Aquello a partir de lo que se calcula el valor de cada fila se envía al proveedor de IA de este servidor.",
+    "save": "Guardar",
+    "create": "Añadir propiedad",
+    "turnOff": "Desactivar el autorrelleno con IA",
+    "updateAll": "Actualizar todas las filas de esta vista",
+    "updateRow": "Actualizar con IA",
+    "pending": "La IA está trabajando en esto…",
+    "failed": "La IA no pudo rellenar esto: {reason}",
+    "tooManyRows": "Se pueden actualizar como máximo {max} filas a la vez; se están actualizando las primeras {max} de esta vista.",
+    "errors": {
+      "invalidMode": "Elige qué debe rellenar la IA.",
+      "unknownLanguage": "Elige un idioma al que traducir.",
+      "unknownSource": "Elige qué traducir.",
+      "promptRequired": "Escribe un prompt.",
+      "promptTooLong": "El prompt puede tener como máximo {max} caracteres.",
+      "unknownPlaceholder": "No hay ninguna propiedad llamada «{name}».",
+      "notText": "Solo las propiedades de texto pueden rellenarse con IA.",
+      "databaseLocked": "La base de datos está bloqueada."
+    }
+  },
+  "settings": {
+    "heading": "IA",
+    "description": "El asistente de escritura con IA en las páginas y las propiedades con autorrelleno de IA en las bases de datos.",
+    "enabled": "Funciones de IA",
+    "enabledHint": "Si está activado, los miembros pueden enviar el contenido de las páginas y los valores de las filas que pueden ver al proveedor de IA indicado abajo. Desactívalo para mantener el contenido de este espacio de trabajo fuera de su alcance.",
+    "ownersOnly": "Solo los propietarios pueden cambiar esto.",
+    "provider": "Proveedor",
+    "providerValue": "{provider}, modelo {model}",
+    "notConfigured": "No hay ningún proveedor de IA configurado en este servidor, así que las funciones de IA están desactivadas. Un administrador puede configurarlo con las variables de entorno AI_PROVIDER y AI_MODEL (consulta el README)."
+  }
+}

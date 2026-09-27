@@ -93,7 +93,8 @@
       "beforeRestore": "Avant restauration",
       "manual": "Version enregistrée",
       "beforeAiEdit": "Avant modification par l’IA",
-      "beforeAiEditBy": "Avant modification par {client}"
+      "beforeAiEditBy": "Avant modification par {client}",
+      "beforeAssistantEdit": "Avant modification par l’assistant IA"
     },
     "empty": "Aucune version pour l’instant. Des versions sont enregistrées automatiquement pendant que vous modifiez la page et avant qu’une application d’IA ne la modifie.",
     "restore": "Restaurer cette version",

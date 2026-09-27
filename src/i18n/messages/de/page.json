@@ -93,7 +93,8 @@
       "beforeRestore": "Vor Wiederherstellung",
       "manual": "Gespeicherte Version",
       "beforeAiEdit": "Vor KI-Bearbeitung",
-      "beforeAiEditBy": "Vor Bearbeitung durch {client}"
+      "beforeAiEditBy": "Vor Bearbeitung durch {client}",
+      "beforeAssistantEdit": "Vor Bearbeitung durch den KI-Assistenten"
     },
     "empty": "Noch keine Versionen. Versionen werden beim Bearbeiten automatisch gespeichert und bevor eine KI-App diese Seite ändert.",
     "restore": "Diese Version wiederherstellen",
