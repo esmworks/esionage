@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
+import { StaleDeploymentReload } from "@/components/stale-deployment";
 import { TimeZoneCookie } from "@/components/time-zone-cookie";
 import "./globals.css";
 
@@ -20,6 +21,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <NextIntlClientProvider>
           {children}
           <TimeZoneCookie />
+          <StaleDeploymentReload />
         </NextIntlClientProvider>
       </body>
     </html>
