@@ -2,15 +2,16 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
-import { hasLevel, pageAccessFor, pageVisibleTo, type AccessLevel } from "./access";
+import { hasLevel, levelFromRank, pageVisibleTo, type AccessLevel } from "./access";
 
 vi.mock("@/db", () => ({ db: {} }));
 
-describe("pageAccessFor", () => {
-  it("gives every workspace member full access and everyone else none", () => {
-    expect(pageAccessFor({ role: "owner" })).toBe("full");
-    expect(pageAccessFor({ role: "member" })).toBe("full");
-    expect(pageAccessFor({ role: null })).toBe("none");
+describe("levelFromRank", () => {
+  it("maps the SQL function's result to a level, and anything unexpected to none", () => {
+    expect([0, 1, 2, 3].map(levelFromRank)).toEqual(["none", "view", "edit", "full"]);
+    expect(levelFromRank("2")).toBe("edit");
+    expect(levelFromRank(null)).toBe("none");
+    expect(levelFromRank(7)).toBe("none");
   });
 });
 
@@ -32,15 +33,14 @@ describe("hasLevel", () => {
 describe("pageVisibleTo", () => {
   const render = (userId: string, alias?: string) => new PgDialect().sqlToQuery(pageVisibleTo(userId, alias));
 
-  it("checks membership of the page's workspace, with the user as a parameter", () => {
+  it("asks page_access_level for at least view, with the user as a parameter", () => {
     const { sql, params } = render("user-1");
-    expect(sql).toContain('"workspace_member"."user_id" = $1');
-    expect(sql).toContain('"page"."workspace_id"');
+    expect(sql).toBe('page_access_level($1, "page"."id") > 0');
     expect(params).toEqual(["user-1"]);
   });
 
   it("uses the alias of a raw query", () => {
-    expect(render("user-1", "p").sql).toContain('"p"."workspace_id"');
+    expect(render("user-1", "p").sql).toBe('page_access_level($1, "p"."id") > 0');
   });
 
   it("refuses aliases that could inject SQL", () => {
@@ -55,7 +55,7 @@ describe("pageVisibleTo", () => {
  */
 describe("access checks stay in one place", () => {
   const root = join(__dirname, "..");
-  const ALLOWED = new Set(["server/access.ts", "server/workspaces.ts"]);
+  const ALLOWED = new Set(["server/access.ts", "server/permissions.ts", "server/workspaces.ts"]);
 
   function sources(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

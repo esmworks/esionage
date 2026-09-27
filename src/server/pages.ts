@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
   databaseProperty,
@@ -10,7 +11,7 @@ import {
   user,
   type ViewType,
 } from "@/db/schema";
-import { AccessError, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
+import { accessRank, AccessError, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { normalizeRowProperties, syncPairedRelations, withCode } from "@/server/databases";
 
@@ -29,7 +30,10 @@ export type TreeView = { id: string; name: string; type: ViewType };
 
 export { listWorkspaces } from "@/server/workspaces";
 
-/** Sidebar tree: every live page except database rows (those live inside their database). */
+/**
+ * Sidebar tree: every live page the user can see except database rows (those live inside their
+ * database). A page shared with someone who can't see its parent shows up as a top-level page.
+ */
 export async function getTree(userId: string, workspaceId: string): Promise<TreeNode[]> {
   await requireMembership(userId, workspaceId);
   const rows = await db.execute<{
@@ -57,9 +61,10 @@ export async function getTree(userId: string, workspaceId: string): Promise<Tree
     .orderBy(asc(databaseView.position));
   const viewsOf = new Map<string, TreeView[]>();
   for (const { databaseId, ...v } of views) viewsOf.set(databaseId, [...(viewsOf.get(databaseId) ?? []), v]);
+  const visible = new Set(rows.map((r) => r.id));
   return rows.map((r) => ({
     id: r.id,
-    parentId: r.parent_id,
+    parentId: r.parent_id && visible.has(r.parent_id) ? r.parent_id : null,
     kind: r.kind,
     title: r.title,
     icon: r.icon,
@@ -351,16 +356,26 @@ function makeSnippet(text: string, q: string) {
   return (start ? "…" : "") + text.slice(start, i + q.length + 90).replace(/\s+/g, " ");
 }
 
+/**
+ * Pages directly under `parentId`, or the user's top-level pages: those without a parent and those
+ * shared with them whose parent (other than a database) they can't see.
+ */
 export async function listChildren(userId: string, workspaceId: string, parentId: string | null) {
   await requireMembership(userId, workspaceId);
   if (parentId) await requirePageAccess(userId, parentId, "view");
+  const parent = alias(page, "parent");
+  const topLevel = or(
+    isNull(page.parentId),
+    and(sql`${parent.kind} <> 'database'`, sql`${accessRank(userId, sql`${parent.id}`)} = 0`),
+  );
   return db
     .select({ id: page.id, kind: page.kind, title: page.title, icon: page.icon, updatedAt: page.updatedAt })
     .from(page)
+    .leftJoin(parent, eq(parent.id, page.parentId))
     .where(
       and(
         eq(page.workspaceId, workspaceId),
-        parentId ? eq(page.parentId, parentId) : isNull(page.parentId),
+        parentId ? eq(page.parentId, parentId) : topLevel,
         isNull(page.archivedAt),
         pageVisibleTo(userId),
       ),

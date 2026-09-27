@@ -22,6 +22,13 @@
       "when": 1790490442532,
       "tag": "0002_workspace_invite_link",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790492193137,
+      "tag": "0003_page_permission",
+      "breakpoints": true
     }
   ]
 }

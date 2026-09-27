@@ -1,14 +1,14 @@
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, getTableColumns, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { page, workspaceMember, type WorkspaceRole } from "@/db/schema";
+import { page, PAGE_LEVELS, workspaceMember, type PageLevel, type WorkspaceRole } from "@/db/schema";
 
 /**
  * The one place that decides who may see or change a page. Everything that reads or writes pages
- * goes through `requirePageAccess` (one page) or `pageVisibleTo` (lists, as a SQL condition), so
- * page-level sharing can be added here without touching the callers.
+ * goes through `requirePageAccess` (one page) or `pageVisibleTo` (lists, as a SQL condition).
  *
- * Today access comes only from workspace membership, and every member has full access to every
- * page of the workspace.
+ * The rule itself is the SQL function `page_access_level` (drizzle/0003_page_permission.sql):
+ * workspace members get full access unless a page permission on the page or its nearest ancestor
+ * says otherwise, and anyone in the workspace can be given access to a page and its subpages.
  */
 
 export class AccessError extends Error {
@@ -23,17 +23,18 @@ export class AccessError extends Error {
  * - `edit`: change content, title, icon, properties, rows, views; move or trash it.
  * - `full`: also delete it for good (and, later, change who it is shared with).
  */
-export type AccessLevel = "none" | "view" | "edit" | "full";
+export type AccessLevel = PageLevel;
 export type RequiredLevel = Exclude<AccessLevel, "none">;
 
-const RANK: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2, full: 3 };
+const rank = (level: AccessLevel) => PAGE_LEVELS.indexOf(level);
 
-export const hasLevel = (level: AccessLevel, needed: RequiredLevel) => RANK[level] >= RANK[needed];
+export const hasLevel = (level: AccessLevel, needed: RequiredLevel) => rank(level) >= rank(needed);
 
-/** What a page grants a user, from what is known about them. The access policy, in one function. */
-export function pageAccessFor({ role }: { role: WorkspaceRole | null }): AccessLevel {
-  return role ? "full" : "none";
-}
+/** The level `page_access_level` returns (0–3) as a name; anything unexpected is `none`. */
+export const levelFromRank = (value: unknown): AccessLevel => PAGE_LEVELS[Number(value)] ?? "none";
+
+/** SQL: the user's access rank (0–3) on a page id expression. */
+export const accessRank = (userId: string, pageId: SQL) => sql<number>`page_access_level(${userId}, ${pageId})`;
 
 export async function getMembership(userId: string, workspaceId: string) {
   const [row] = await db
@@ -54,16 +55,13 @@ export async function requireMembership(userId: string, workspaceId: string, rol
 /** The page and the user's access to it; `none` when it doesn't exist or they may not see it. */
 export async function resolvePageAccess(userId: string, pageId: string) {
   const [row] = await db
-    .select({ page, role: workspaceMember.role })
+    .select({ ...getTableColumns(page), level: accessRank(userId, sql`${page.id}`) })
     .from(page)
-    .leftJoin(
-      workspaceMember,
-      and(eq(workspaceMember.workspaceId, page.workspaceId), eq(workspaceMember.userId, userId)),
-    )
     .where(eq(page.id, pageId))
     .limit(1);
   if (!row) return { page: null, level: "none" as AccessLevel };
-  return { page: row.page, level: pageAccessFor({ role: row.role }) };
+  const { level, ...found } = row;
+  return { page: found, level: levelFromRank(level) };
 }
 
 /**
@@ -77,11 +75,15 @@ export async function requirePageAccess(userId: string, pageId: string, needed: 
 }
 
 /**
- * SQL condition: the page is visible to the user (at least `view`). Must match `pageAccessFor`.
- * Pass the alias when the page table is aliased in a raw query (`from page p` → "p").
+ * SQL condition: the user can at least view the page. Pass the alias when the page table is
+ * aliased in a raw query (`from page p` → "p").
  */
 export function pageVisibleTo(userId: string, alias?: string): SQL {
+  return sql`${accessRank(userId, pageIdColumn(alias))} > 0`;
+}
+
+/** The page id column, or `alias.id` in raw queries. */
+export function pageIdColumn(alias?: string): SQL {
   if (alias !== undefined && !/^[a-z_]+$/.test(alias)) throw new Error(`Bad table alias: ${alias}`);
-  const workspaceId = alias ? sql.raw(`"${alias}"."workspace_id"`) : sql`${page.workspaceId}`;
-  return sql`exists (select 1 from ${workspaceMember} where ${workspaceMember.workspaceId} = ${workspaceId} and ${workspaceMember.userId} = ${userId})`;
+  return alias ? sql.raw(`"${alias}"."id"`) : sql`${page.id}`;
 }

@@ -63,6 +63,9 @@ jobs:
       - run: pnpm build
       - run: pnpm db:migrate
 
+      - name: Page permissions end-to-end
+        run: pnpm tsx scripts/access-e2e.ts
+
       - name: Start the server
         run: |
           pnpm start > "$RUNNER_TEMP/server.log" 2>&1 &
