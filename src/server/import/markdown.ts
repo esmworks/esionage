@@ -3,7 +3,18 @@ import { inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { page } from "@/db/schema";
 import { csvTable, decodeText, guessTitleColumn } from "@/lib/import/csv";
-import { IMPORT_LIMITS, importFileKind, liftImages, planImport, rewriteLinks, splitTitle, withoutFrontMatter } from "@/lib/import/markdown";
+import enCommon from "@/i18n/messages/en/common.json";
+import trCommon from "@/i18n/messages/tr/common.json";
+import {
+  IMPORT_LIMITS,
+  importFileKind,
+  liftImages,
+  planImport,
+  rewriteLinks,
+  splitTitle,
+  stripRowProperties,
+  withoutFrontMatter,
+} from "@/lib/import/markdown";
 import { ImportError, WarningList, type ImportResult } from "@/lib/import/result";
 import { pagePath } from "@/lib/mentions";
 import { AccessError, requirePageAccess } from "@/server/access";
@@ -22,12 +33,20 @@ import { importCsvAsDatabase } from "./csv";
  * (which the editor shows as page mentions), and images and files it shows by relative path are
  * uploaded to the page and the links pointed at the uploads.
  *
+ * Esionage's own export comes back as it went: `Templates/` folders become row templates of their
+ * database and, when importing at the workspace's top level, workspace templates (elsewhere they're
+ * a page of that name: templates only live at the top), and the property list the export writes at
+ * the top of a row's page is left out of the body when the row's CSV values say the same.
+ *
  * All or nothing: limits are checked before anything is created, and if creating or writing fails
  * midway, what the import created so far is deleted again (uploads with it). What an import that
  * went through left out (a missing image, a file over the upload limit) comes back as warnings.
  */
 
 const text = decodeText;
+
+/** Titles the export gives untitled pages (in each language), for matching a row with no title. */
+const UNTITLED = new Set([enCommon.untitled, trCommon.untitled].map((t) => t.toLowerCase()));
 
 export type MarkdownImportInput = {
   workspaceId: string;
@@ -37,7 +56,7 @@ export type MarkdownImportInput = {
   seedNames?: DatabaseSeedNames;
 };
 
-type Created = { id: string; kind: "page" | "database" | "row"; title: string };
+type Created = { id: string; kind: "page" | "database" | "row"; title: string; template: boolean };
 
 export async function importPages(actor: WriteActor, input: MarkdownImportInput): Promise<ImportResult> {
   const { userId } = actor;
@@ -60,7 +79,7 @@ export async function importPages(actor: WriteActor, input: MarkdownImportInput)
       warnings.add({ code: "skipped", path, reason: "tooLarge" });
     }
   }
-  const plan = planImport([...files.keys()]);
+  const plan = planImport([...files.keys()], { topLevel: input.parentId === null });
   for (const s of plan.skipped) warnings.add({ code: "skipped", path: s.path, reason: s.reason });
   if (!plan.nodes.length) throw new ImportError("There is no Markdown or CSV file to import", "nothingToImport");
   if (plan.nodes.length > IMPORT_LIMITS.pages) {
@@ -89,9 +108,12 @@ export async function importPages(actor: WriteActor, input: MarkdownImportInput)
 
   const created = new Map<string, Created>();
   const roots: Created[] = [];
-  const counts = { pages: 0, databases: 0, rows: 0, files: 0 };
-  // Rows of imported databases that no page of the database's folder has claimed yet, by title.
-  const unclaimed = new Map<string, { id: string; title: string }[]>();
+  const counts = { pages: 0, databases: 0, rows: 0, templates: 0, files: 0 };
+  // Rows of imported databases that no page of the database's folder has claimed yet, with their
+  // cells (to recognise the property list an exported row page starts with).
+  type Unclaimed = { id: string; title: string; cells: string[] };
+  const unclaimed = new Map<string, Unclaimed[]>();
+  const tables = new Map<string, { headers: string[]; titleColumn: number | null }>();
   try {
     for (const node of plan.nodes) {
       const parentId = node.parent ? created.get(node.parent)!.id : input.parentId;
@@ -99,27 +121,36 @@ export async function importPages(actor: WriteActor, input: MarkdownImportInput)
       let id: string;
       if (node.kind === "database") {
         const table = csvTable(text(files.get(node.source!)!));
+        const titleColumn = guessTitleColumn(table.headers);
         const result = await importCsvAsDatabase(
           actor,
-          { workspaceId, parentId, title, table, titleColumn: guessTitleColumn(table.headers), seedNames: input.seedNames },
+          { workspaceId, parentId, title, table, titleColumn, seedNames: input.seedNames, template: node.template },
           warnings,
         );
         id = result.database.id;
-        unclaimed.set(node.key, result.rows);
-        counts.databases++;
+        // Rows come back in the CSV's order.
+        unclaimed.set(node.key, result.rows.map((r, i) => ({ ...r, cells: table.rows[i] })));
+        tables.set(node.key, { headers: table.headers, titleColumn });
+        if (node.template) counts.templates++;
+        else counts.databases++;
         counts.rows += result.rows.length;
       } else {
-        const rows = node.kind === "row" ? unclaimed.get(node.parent!) : undefined;
-        const match = rows?.findIndex((r) => r.title.trim().toLowerCase() === title.trim().toLowerCase()) ?? -1;
+        const rows = node.kind === "row" && !node.template ? unclaimed.get(node.parent!) : undefined;
+        const match = rows ? matchRow(rows, title) : -1;
         if (rows && match !== -1) {
-          id = rows.splice(match, 1)[0].id;
+          const row = rows.splice(match, 1)[0];
+          id = row.id;
+          const body = bodies.get(node.key);
+          const table = tables.get(node.parent!)!;
+          if (body !== undefined) bodies.set(node.key, stripRowProperties(body, table.headers, row.cells, table.titleColumn));
         } else {
-          id = (await createPage(actor, { workspaceId, parentId, title })).id;
-          if (node.kind === "row") counts.rows++;
+          id = (await createPage(actor, { workspaceId, parentId, title, template: node.template })).id;
+          if (node.template) counts.templates++;
+          else if (node.kind === "row") counts.rows++;
           else counts.pages++;
         }
       }
-      const entry: Created = { id, kind: node.kind, title };
+      const entry: Created = { id, kind: node.kind, title, template: Boolean(node.template) };
       created.set(node.key, entry);
       if (!node.parent) roots.push(entry);
     }
@@ -161,11 +192,27 @@ export async function importPages(actor: WriteActor, input: MarkdownImportInput)
   }
 
   return {
-    pages: roots.map((r) => ({ id: r.id, title: r.title, kind: r.kind === "database" ? "database" : "page" })),
+    // Templates after the pages: they're not in the sidebar, so the pages are what to open first.
+    pages: [...roots.filter((r) => !r.template), ...roots.filter((r) => r.template)].map((r) => ({
+      id: r.id,
+      title: r.title,
+      kind: r.kind === "database" ? ("database" as const) : ("page" as const),
+    })),
     created: counts,
     warnings: warnings.list,
     moreWarnings: warnings.more,
   };
+}
+
+/**
+ * Which of a database's unclaimed rows a page of its folder is: the one of the same title (without
+ * case), else, for a page titled the way the export titles untitled pages, a row with no title.
+ */
+function matchRow(rows: { title: string }[], title: string): number {
+  const wanted = title.trim().toLowerCase();
+  const same = rows.findIndex((r) => r.title.trim().toLowerCase() === wanted);
+  if (same !== -1 || !UNTITLED.has(wanted)) return same;
+  return rows.findIndex((r) => !r.title.trim());
 }
 
 /** A path as the link had it: relative to the file linking to it. */

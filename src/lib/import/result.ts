@@ -56,8 +56,8 @@ export const MAX_WARNINGS = 50;
 export type ImportResult = {
   /** Top-level pages and databases created (under the destination), or the database merged into. */
   pages: { id: string; title: string; kind: "page" | "database" }[];
-  /** Everything created: pages, databases and database rows. */
-  created: { pages: number; databases: number; rows: number; files: number };
+  /** Everything created: pages, databases, database rows, templates (workspace and row) and uploads. */
+  created: { pages: number; databases: number; rows: number; templates: number; files: number };
   warnings: ImportWarning[];
   moreWarnings: number;
 };

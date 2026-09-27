@@ -106,15 +106,24 @@ async function checkRows(userId: string, databaseId: string, rows: PendingRow[],
   return checked;
 }
 
-/** Writes checked rows; if a write fails, the rows already written go again. */
+/**
+ * Writes checked rows; if a write fails, the rows already written go again. Rows of a database in a
+ * template belong to the template, like every page under one (see server/templates).
+ */
 async function writeRows(
-  database: { id: string; workspaceId: string },
+  database: { id: string; workspaceId: string; inTemplate: boolean },
   userId: string,
   rows: { title: string; properties: Record<string, unknown> }[],
 ) {
   const created: { id: string; title: string }[] = [];
   try {
-    for (let i = 0; i < rows.length; i += CHUNK) created.push(...(await insertRows(database, userId, rows.slice(i, i + CHUNK))));
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunk = await insertRows(database, userId, rows.slice(i, i + CHUNK));
+      created.push(...chunk);
+      if (database.inTemplate) {
+        await db.update(page).set({ inTemplate: true }).where(inArray(page.id, chunk.map((r) => r.id)));
+      }
+    }
   } catch (error) {
     if (created.length) {
       await db.delete(page).where(inArray(page.id, created.map((r) => r.id)));
@@ -143,6 +152,8 @@ export type NewDatabaseInput = {
   /** Each column's property type, or null to leave the column out; guessed when not given. */
   types?: (CsvColumnType | null)[];
   seedNames?: DatabaseSeedNames;
+  /** A workspace template (at the top level) or a row template (in a database), as createPage makes them. */
+  template?: boolean;
 };
 
 /**
@@ -165,6 +176,7 @@ export async function importCsvAsDatabase(actor: WriteActor, input: NewDatabaseI
     title: input.title,
     seedNames: input.seedNames,
     seedProperties: false,
+    template: input.template,
   });
   try {
     const targets: (DatabaseProperty | null)[] = [];

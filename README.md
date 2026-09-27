@@ -63,7 +63,7 @@ approve them over OAuth.
   in place.
 - **Import**: bring in Markdown files, a folder or a ZIP (Notion exports included) as pages that
   keep their folder structure, with links between the files turned into page links and the images
-  they show uploaded. Import a CSV file as a new database with its column types guessed (and
+  they show uploaded. An Esionage export comes back as it went, templates included. Import a CSV file as a new database with its column types guessed (and
   changeable before importing), or add its rows to an existing database by matching columns to
   properties.
 - **Workspaces and members**: add people by email (several at once) as owners or members, send
@@ -328,7 +328,7 @@ Useful scripts:
 | `pnpm build` | Production build |
 | `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
-| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, presence, uploads, import); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
+| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, presence, uploads, import, export, and `roundtrip-e2e.ts` for an export imported again); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
 | `pnpm tsx scripts/two-factor-e2e.ts` | End-to-end two-step verification check (sign-in challenge, recovery codes, workspace policy) against a running server |

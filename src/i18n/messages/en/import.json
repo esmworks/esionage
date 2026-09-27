@@ -51,6 +51,7 @@
     "pages": "{count, plural, one {# page} other {# pages}}",
     "databases": "{count, plural, one {# database} other {# databases}}",
     "rows": "{count, plural, one {# row} other {# rows}}",
+    "templates": "{count, plural, one {# template} other {# templates}}",
     "files": "{count, plural, one {# file} other {# files}}"
   },
   "warnings": {

@@ -615,7 +615,7 @@ function ResultView({
   onAgain: () => void;
 }) {
   const t = useTranslations("import");
-  const counts = (["pages", "databases", "rows", "files"] as const)
+  const counts = (["pages", "databases", "rows", "templates", "files"] as const)
     .filter((key) => result.created[key] > 0)
     .map((key) => t(`counts.${key}`, { count: result.created[key] }));
   return (
