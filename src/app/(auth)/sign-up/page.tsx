@@ -9,5 +9,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function SignUpPage() {
-  return <AuthForm mode="sign-up" signUpEnabled={!env.signUpDisabled} />;
+  return <AuthForm mode="sign-up" signUpEnabled={!env.signUpDisabled} socialProviders={env.enabledSocialProviders} />;
 }

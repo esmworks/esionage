@@ -19,5 +19,12 @@ export default async function SignInPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { next } = await searchParams;
-  return <AuthForm mode="sign-in" signUpEnabled={!env.signUpDisabled} next={safeNext(next)} />;
+  return (
+    <AuthForm
+      mode="sign-in"
+      signUpEnabled={!env.signUpDisabled}
+      next={safeNext(next)}
+      socialProviders={env.enabledSocialProviders}
+    />
+  );
 }

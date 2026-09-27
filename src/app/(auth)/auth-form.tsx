@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Button, Input } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
+import type { SocialProvider } from "@/lib/social-providers";
+import { SocialSignIn, socialErrorKey } from "./social-sign-in";
 
 type Mode = "sign-in" | "sign-up";
 
@@ -32,6 +34,7 @@ export function AuthForm({
   join,
   next = "/",
   title,
+  socialProviders = [],
 }: {
   mode: Mode;
   signUpEnabled?: boolean;
@@ -42,6 +45,8 @@ export function AuthForm({
   /** Same-origin path to open afterwards. */
   next?: string;
   title?: string;
+  /** Providers the server has credentials for; empty hides the buttons. */
+  socialProviders?: SocialProvider[];
 }) {
   const router = useRouter();
   const t = useTranslations("auth");
@@ -52,7 +57,16 @@ export function AuthForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [search, setSearch] = useState("");
-  useEffect(() => setSearch(window.location.search), []);
+  useEffect(() => {
+    // A social sign-in that failed comes back here with `?error=`.
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("error");
+    if (!code) return setSearch(window.location.search);
+    setError(t(`errors.${socialErrorKey(code)}`));
+    params.delete("error");
+    params.delete("error_description");
+    setSearch(params.size ? `?${params}` : "");
+  }, [t]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -146,6 +160,17 @@ export function AuthForm({
       <Button type="submit" variant="primary" className="w-full" disabled={pending}>
         {pending ? t("pending") : t(`${text}.submit`)}
       </Button>
+      {socialProviders.length > 0 && (
+        <SocialSignIn
+          providers={socialProviders}
+          // From an invitation or join link, an existing account comes back to accept it there;
+          // a new one has already joined (see the user-create hook in auth.ts).
+          callbackURL={linkPath ?? next}
+          newUserCallbackURL={linkPath ? next : undefined}
+          query={invite ? { invite: invite.token } : join ? { join } : undefined}
+          onError={setError}
+        />
+      )}
       {(mode === "sign-up" || signUpEnabled) && (
         <p className="text-center text-sm text-fg-muted">
           {t(`${text}.switchPrompt`)}{" "}

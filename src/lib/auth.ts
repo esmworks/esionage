@@ -4,7 +4,7 @@ import { nextCookies } from "better-auth/next-js";
 import { db, schema } from "@/db";
 import { requestLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
-import { baseAuthOptions, inviteTokenOf, joinTokenOf } from "@/lib/auth-options";
+import { baseAuthOptions, closedSignUpGuard, signUpTokenOf, socialAuthOptions } from "@/lib/auth-options";
 import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetEmail, sendMail } from "@/server/mail";
 import { acceptInvitation, createPersonalWorkspace, invitationAllowsSignUp, joinWithLink } from "@/server/workspaces";
 
@@ -40,13 +40,15 @@ export const auth = betterAuth({
       "/reset-password": { window: 60, max: 10 },
     },
   },
+  ...socialAuthOptions(env.socialProviders),
   databaseHooks: {
     user: {
       create: {
+        before: closedSignUpGuard(invitationAllowsSignUp),
         after: async (user, ctx) => {
           // Signing up from an invitation link joins that workspace instead of creating a
           // personal one; if the invitation was revoked meanwhile, fall back to a personal one.
-          const token = inviteTokenOf(ctx);
+          const token = await signUpTokenOf(ctx, "invite");
           if (token) {
             try {
               await acceptInvitation(token, user.id, user.email);
@@ -56,7 +58,7 @@ export const auth = betterAuth({
             }
           }
           // Same for a workspace's join link (it never opens closed sign-up, see baseAuthOptions).
-          const joinToken = joinTokenOf(ctx);
+          const joinToken = await signUpTokenOf(ctx, "join");
           if (joinToken) {
             try {
               await joinWithLink(joinToken, user.id, user.email);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inviteTokenOf, joinTokenOf } from "./auth-options";
+import { closedSignUpAdmits, inviteTokenOf, joinTokenOf, socialTokenOf } from "./auth-options";
 
 describe("inviteTokenOf", () => {
   it("reads the parsed query first", () => {
@@ -28,5 +28,34 @@ describe("joinTokenOf", () => {
   it("does not confuse invitation and join tokens", () => {
     expect(joinTokenOf({ query: { invite: "abc" } })).toBeNull();
     expect(inviteTokenOf({ query: { join: "abc" } })).toBeNull();
+  });
+});
+
+describe("socialTokenOf", () => {
+  it("reads a string token from the OAuth state's server context", () => {
+    expect(socialTokenOf({ invite: "abc", join: "xyz" }, "invite")).toBe("abc");
+    expect(socialTokenOf({ invite: "abc", join: "xyz" }, "join")).toBe("xyz");
+  });
+
+  it("returns null for a missing, empty or non-string token", () => {
+    expect(socialTokenOf(undefined, "invite")).toBeNull();
+    expect(socialTokenOf({ invite: "" }, "invite")).toBeNull();
+    expect(socialTokenOf({ invite: 1 }, "invite")).toBeNull();
+  });
+});
+
+describe("closedSignUpAdmits", () => {
+  const check = async (token: string, email: string) => token === "t" && email === "a@example.com";
+
+  it("admits only an invitation for the same email", async () => {
+    expect(await closedSignUpAdmits("t", "a@example.com", check)).toBe(true);
+    expect(await closedSignUpAdmits("t", "b@example.com", check)).toBe(false);
+    expect(await closedSignUpAdmits("other", "a@example.com", check)).toBe(false);
+  });
+
+  it("admits nobody without a token, an email or a way to check", async () => {
+    expect(await closedSignUpAdmits(null, "a@example.com", check)).toBe(false);
+    expect(await closedSignUpAdmits("t", undefined, check)).toBe(false);
+    expect(await closedSignUpAdmits("t", "a@example.com")).toBe(false);
   });
 });
