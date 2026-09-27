@@ -313,7 +313,8 @@ function MembersTable({
   const t = useTranslations("settings.members");
   if (!members.length) return empty ? <p className="px-4 py-8 text-center text-sm text-fg-muted">{empty}</p> : null;
   return (
-    <div className="overflow-x-auto">
+    // `relative` keeps the absolutely positioned sr-only header text inside the scroller.
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-[640px] text-sm">
         <thead className="border-b border-border bg-bg-subtle text-xs text-fg-muted">
           <tr>
@@ -519,7 +520,7 @@ function InvitationsTable({
   const t = useTranslations("settings.members");
   if (!invitations.length) return <p className="px-4 py-8 text-center text-sm text-fg-muted">{empty}</p>;
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-[640px] text-sm">
         <thead className="border-b border-border bg-bg-subtle text-xs text-fg-muted">
           <tr>
