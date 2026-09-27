@@ -1,12 +1,13 @@
 "use client";
 
-import { Ellipsis, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { Check, EyeOff, Ellipsis, ExternalLink, Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Button, cn, MenuItem, MenuSeparator } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
-import { groupRows, isHiddenInView, orderGroups, positionBetween, type RowGroup } from "@/lib/properties";
+import type { SelectOption } from "@/db/schema/app";
+import { groupRows, isHiddenInView, orderGroups, positionBetween, SELECT_COLORS, type RowGroup } from "@/lib/properties";
 import { Floating, useFloating } from "./floating";
 import { isEmptyValue, OptionChip, PropertyDisplay } from "./property-cell";
 import { TITLE, type Property, type Row, type View } from "./types";
@@ -19,6 +20,7 @@ export function BoardView({
   rows,
   api,
   readOnly,
+  locked,
   onCreateGroupProperty,
 }: {
   workspaceId: string;
@@ -27,6 +29,8 @@ export function BoardView({
   rows: Row[];
   api: DatabaseApi;
   readOnly?: boolean;
+  /** The schema is locked: groups can't be added, renamed, recolored or deleted. */
+  locked?: boolean;
   onCreateGroupProperty: () => void;
 }) {
   const t = useTranslations("database");
@@ -38,6 +42,7 @@ export function BoardView({
   // Column drag: the dragged column's key and the insertion index among the shown columns.
   const [dragCol, setDragCol] = useState<string | null>(null);
   const [colDrop, setColDrop] = useState<number | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
 
   if (!groupBy) {
     return (
@@ -47,7 +52,7 @@ export function BoardView({
             <p className="text-sm font-medium">{t("board.needsSelectTitle")}</p>
             <p className="mt-1 text-sm text-fg-muted">{t("board.needsSelectBody")}</p>
           </div>
-          {!readOnly && (
+          {!readOnly && !locked && (
             <Button size="sm" onClick={onCreateGroupProperty}>
               <Plus className="h-3.5 w-3.5" />
               {t("board.addGroupProperty", { name: t("page.defaultGroupProperty") })}
@@ -64,8 +69,30 @@ export function BoardView({
   // The "no value" column only earns space when it has cards; while dragging a card it appears at
   // the end (so the other columns don't shift) as a place to clear the value.
   const noValue = ordered.find((g) => !g.option)!;
-  const groups = ordered.filter((g) => g.option || g.rows.length);
-  if (dragId && !noValue.rows.length) groups.push(noValue);
+  const hiddenKeys = new Set(view.config.hiddenGroups ?? []);
+  const hiddenGroups = ordered.filter((g) => hiddenKeys.has(groupKey(g)) && (g.option || g.rows.length));
+  const groups = ordered.filter((g) => !hiddenKeys.has(groupKey(g)) && (g.option || g.rows.length));
+  if (dragId && !noValue.rows.length && !hiddenKeys.has("")) groups.push(noValue);
+  const options = groupBy.options.options ?? [];
+
+  const setGroupHidden = (key: string, hide: boolean) => {
+    const next = [...hiddenKeys].filter((k) => k !== key);
+    if (hide) next.push(key);
+    void api.updateView(view, { config: { ...view.config, hiddenGroups: next } });
+  };
+  const updateOption = (id: string, patch: Partial<SelectOption>) =>
+    api.setOptions(groupBy, options.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+  const deleteGroup = (group: RowGroup<Row>) => {
+    const option = group.option;
+    if (!option) return;
+    if (
+      group.rows.length &&
+      !confirm(t("board.confirmDeleteGroup", { name: option.name, count: group.rows.length, property: groupBy.name }))
+    ) {
+      return;
+    }
+    void api.setOptions(groupBy, options.filter((o) => o.id !== option.id));
+  };
   const manualOrder = !(view.config.sorts?.length);
 
   const onColDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -176,7 +203,7 @@ export function BoardView({
               {lineAt === i && <ColumnDropLine side="left" />}
               {lineAt === groups.length && i === groups.length - 1 && <ColumnDropLine side="right" />}
               <header
-                draggable={!readOnly}
+                draggable={!readOnly && renaming !== key}
                 title={readOnly ? undefined : t("board.moveColumn")}
                 onDragStart={(e) => {
                   const col = e.currentTarget.closest("section");
@@ -194,8 +221,16 @@ export function BoardView({
                 }}
                 className={cn("flex h-8 items-center gap-2 px-1", !readOnly && "cursor-grab active:cursor-grabbing")}
               >
-                {group.option ? (
-                  <OptionChip option={group.option} className="font-medium" />
+                {group.option && renaming === key ? (
+                  <GroupNameInput
+                    initial={group.option.name}
+                    onDone={(name) => {
+                      setRenaming(null);
+                      if (name && name !== group.option?.name) void updateOption(key, { name });
+                    }}
+                  />
+                ) : group.option ? (
+                  <OptionChip option={group.option} className="min-w-0 truncate font-medium" />
                 ) : (
                   <span className="truncate text-sm text-fg-muted">{t("board.noValue", { property: groupBy.name })}</span>
                 )}
@@ -206,6 +241,16 @@ export function BoardView({
                   {group.rows.length}
                 </span>
                 <span className="flex-1" />
+                {!readOnly && (
+                  <GroupMenu
+                    option={group.option}
+                    locked={locked}
+                    onRename={() => setRenaming(key)}
+                    onColor={(color) => updateOption(key, { color })}
+                    onHide={() => setGroupHidden(key, true)}
+                    onDelete={() => deleteGroup(group)}
+                  />
+                )}
                 {!readOnly && (
                   <button
                     type="button"
@@ -271,9 +316,182 @@ export function BoardView({
             </section>
           );
         })}
-        {!readOnly && <NewGroup onCreate={(name) => api.createOption(groupBy.id, name)} />}
+        {(!readOnly || hiddenGroups.length > 0) && (
+          <div className="flex shrink-0 flex-col items-start gap-1">
+            {!readOnly && !locked && <NewGroup onCreate={(name) => api.createOption(groupBy.id, name)} />}
+            {hiddenGroups.length > 0 && (
+              <HiddenGroups
+                groups={hiddenGroups}
+                noValueLabel={t("board.noValue", { property: groupBy.name })}
+                readOnly={readOnly}
+                onShow={(key) => setGroupHidden(key, false)}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+/** The "…" menu on a column header: rename, hide, delete and color for options; hide for "no value". */
+function GroupMenu({
+  option,
+  locked,
+  onRename,
+  onColor,
+  onHide,
+  onDelete,
+}: {
+  option: SelectOption | null;
+  locked?: boolean;
+  onRename: () => void;
+  onColor: (color: string) => void;
+  onHide: () => void;
+  onDelete: () => void;
+}) {
+  const t = useTranslations("database.board");
+  const tColor = useTranslations("database.colors");
+  const menu = useFloating<HTMLButtonElement>();
+  const run = (action: () => void) => () => {
+    menu.close();
+    action();
+  };
+  return (
+    <>
+      <button
+        ref={menu.ref}
+        type="button"
+        draggable={false}
+        aria-label={t("groupActions")}
+        title={t("groupActions")}
+        onClick={menu.toggle}
+        className={cn(
+          "inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-fg/10 hover:text-fg focus-visible:opacity-100",
+          menu.open ? "opacity-100" : "opacity-0 group-hover/col:opacity-100",
+        )}
+      >
+        <Ellipsis className="h-3.5 w-3.5" />
+      </button>
+      <Floating open={menu.open} anchor={menu.el} onClose={menu.close} align="end">
+        <div className="w-52">
+          {option && !locked && (
+            <MenuItem icon={<Pencil className="h-3.5 w-3.5" />} onClick={run(onRename)}>
+              {t("renameGroup")}
+            </MenuItem>
+          )}
+          <MenuItem icon={<EyeOff className="h-3.5 w-3.5" />} onClick={run(onHide)}>
+            {t("hideGroup")}
+          </MenuItem>
+          {option && !locked && (
+            <>
+              <MenuItem danger icon={<Trash2 className="h-3.5 w-3.5" />} onClick={run(onDelete)}>
+                {t("deleteGroup")}
+              </MenuItem>
+              <MenuSeparator />
+              <div className="px-2 pt-1 pb-1 text-xs text-fg-muted">{t("colors")}</div>
+              {SELECT_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={run(() => color !== option.color && onColor(color))}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover"
+                >
+                  <span className={cn(`opt-${color}`, "h-4 w-4 rounded border border-fg/10")} />
+                  <span className="flex-1">{tColor(color)}</span>
+                  {color === option.color && <Check className="h-3.5 w-3.5 text-fg-muted" />}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      </Floating>
+    </>
+  );
+}
+
+function GroupNameInput({ initial, onDone }: { initial: string; onDone: (name: string) => void }) {
+  const t = useTranslations("database.board");
+  const [value, setValue] = useState(initial);
+  const input = useRef<HTMLInputElement>(null);
+  const done = useRef(false);
+  const finish = (save: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(save ? value.trim() : initial);
+  };
+  useEffect(() => input.current?.select(), []);
+  return (
+    <input
+      ref={input}
+      value={value}
+      aria-label={t("groupNameLabel")}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => finish(true)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") finish(true);
+        if (e.key === "Escape") finish(false);
+      }}
+      className="h-7 min-w-0 flex-1 rounded-md border border-border bg-bg px-2 text-sm outline-none focus:border-accent"
+    />
+  );
+}
+
+/** Lists the columns hidden in this view, each with a way to bring it back. */
+function HiddenGroups({
+  groups,
+  noValueLabel,
+  readOnly,
+  onShow,
+}: {
+  groups: RowGroup<Row>[];
+  noValueLabel: string;
+  readOnly?: boolean;
+  onShow: (key: string) => void;
+}) {
+  const t = useTranslations("database.board");
+  const menu = useFloating<HTMLButtonElement>();
+  return (
+    <>
+      <button
+        ref={menu.ref}
+        type="button"
+        onClick={menu.toggle}
+        className="flex h-9 w-44 items-center gap-1.5 rounded-lg px-2 text-sm text-fg-muted hover:bg-bg-hover hover:text-fg"
+      >
+        <EyeOff className="h-3.5 w-3.5" />
+        {t("hiddenGroups", { count: groups.length })}
+      </button>
+      <Floating open={menu.open} anchor={menu.el} onClose={menu.close}>
+        <div className="w-60">
+          {groups.map((g) => (
+            <div key={g.option?.id ?? ""} className="flex items-center gap-2 rounded px-2 py-1 hover:bg-bg-hover">
+              {g.option ? (
+                <OptionChip option={g.option} className="min-w-0 truncate" />
+              ) : (
+                <span className="min-w-0 truncate text-sm text-fg-muted">{noValueLabel}</span>
+              )}
+              <span className="text-xs text-fg-muted tabular-nums">{g.rows.length}</span>
+              <span className="flex-1" />
+              {!readOnly && (
+                <button
+                  type="button"
+                  aria-label={t("showGroup")}
+                  title={t("showGroup")}
+                  onClick={() => {
+                    if (groups.length === 1) menu.close();
+                    onShow(g.option?.id ?? "");
+                  }}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-fg/10 hover:text-fg"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </Floating>
+    </>
   );
 }
 

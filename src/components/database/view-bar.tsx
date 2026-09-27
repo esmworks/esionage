@@ -241,6 +241,7 @@ export function ViewToolbar({
   onCreateGroupProperty,
   onCreateDateProperty,
   readOnly,
+  locked,
 }: {
   view: View;
   properties: Property[];
@@ -248,6 +249,8 @@ export function ViewToolbar({
   onCreateGroupProperty: () => void;
   onCreateDateProperty: () => void;
   readOnly?: boolean;
+  /** The schema is locked: no creating properties from the group and calendar menus. */
+  locked?: boolean;
 }) {
   const t = useTranslations("database");
   const filterMenu = useFloating<HTMLButtonElement>();
@@ -322,16 +325,20 @@ export function ViewToolbar({
             {!selectProps.length && (
               <div className="px-2 pb-1 text-xs text-fg-faint">{t("toolbar.groupNeedsSelect")}</div>
             )}
-            <MenuSeparator />
-            <MenuItem
-              icon={<Plus className="h-3.5 w-3.5" />}
-              onClick={() => {
-                groupMenu.close();
-                onCreateGroupProperty();
-              }}
-            >
-              {t("toolbar.newSelectProperty")}
-            </MenuItem>
+            {!locked && (
+              <>
+                <MenuSeparator />
+                <MenuItem
+                  icon={<Plus className="h-3.5 w-3.5" />}
+                  onClick={() => {
+                    groupMenu.close();
+                    onCreateGroupProperty();
+                  }}
+                >
+                  {t("toolbar.newSelectProperty")}
+                </MenuItem>
+              </>
+            )}
           </Floating>
         </>
       )}
@@ -362,16 +369,20 @@ export function ViewToolbar({
             {!dateProps.length && (
               <div className="px-2 pb-1 text-xs text-fg-faint">{t("toolbar.calendarNeedsDate")}</div>
             )}
-            <MenuSeparator />
-            <MenuItem
-              icon={<Plus className="h-3.5 w-3.5" />}
-              onClick={() => {
-                dateMenu.close();
-                onCreateDateProperty();
-              }}
-            >
-              {t("toolbar.newDateProperty")}
-            </MenuItem>
+            {!locked && (
+              <>
+                <MenuSeparator />
+                <MenuItem
+                  icon={<Plus className="h-3.5 w-3.5" />}
+                  onClick={() => {
+                    dateMenu.close();
+                    onCreateDateProperty();
+                  }}
+                >
+                  {t("toolbar.newDateProperty")}
+                </MenuItem>
+              </>
+            )}
           </Floating>
         </>
       )}

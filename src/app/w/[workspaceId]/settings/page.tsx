@@ -1,3 +1,4 @@
+import { Plug, Settings, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -7,6 +8,7 @@ import { ConnectedApps } from "@/components/settings/connected-apps";
 import { LanguageSettings } from "@/components/settings/language-settings";
 import { McpInstructions } from "@/components/settings/mcp-instructions";
 import { MembersPanel } from "@/components/settings/members-panel";
+import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
 import { AccessError } from "@/server/access";
@@ -24,6 +26,12 @@ const NAV: { group: "account" | "workspace"; tabs: Tab[] }[] = [
   { group: "account", tabs: ["preferences", "apps"] },
   { group: "workspace", tabs: ["general", "members"] },
 ];
+const ICONS: Record<Tab, LucideIcon> = {
+  preferences: SlidersHorizontal,
+  apps: Plug,
+  general: Settings,
+  members: Users,
+};
 
 export default async function SettingsPage({
   params,
@@ -44,48 +52,63 @@ export default async function SettingsPage({
   const t = await getTranslations("settings");
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-10 md:flex-row md:gap-10">
-      <nav aria-label={t("title")} className="shrink-0 md:w-48">
-        <h1 className="mb-4 text-xl font-semibold">{t("title")}</h1>
-        <div className="flex gap-6 overflow-x-auto md:flex-col md:gap-5">
+    <div className="flex min-h-full flex-col md:flex-row">
+      <nav
+        aria-label={t("title")}
+        className="shrink-0 border-b border-border px-3 pt-12 pb-3 md:sticky md:top-0 md:h-dvh md:w-60 md:overflow-y-auto md:border-r md:border-b-0 md:pb-4"
+      >
+        <div className="flex gap-6 overflow-x-auto [scrollbar-width:none] md:flex-col">
           {NAV.map(({ group, tabs }) => (
-            <div key={group} className="shrink-0 space-y-1">
-              <div className="px-2 text-xs text-fg-faint">{t(`nav.${group}`)}</div>
+            <div key={group} className="shrink-0">
+              <div className="mb-1.5 px-2.5 text-[11px] font-medium tracking-wider text-fg-faint uppercase">
+                {t(`nav.${group}`)}
+              </div>
               <ul className="flex gap-1 md:flex-col md:gap-0.5">
-                {tabs.map((name) => (
-                  <li key={name}>
-                    <Link
-                      href={`/w/${workspaceId}/settings?tab=${name}`}
-                      aria-current={tab === name ? "page" : undefined}
-                      className={`block rounded-md px-2 py-1 text-sm whitespace-nowrap ${
-                        tab === name ? "bg-bg-active font-medium" : "text-fg-muted hover:bg-bg-hover hover:text-fg"
-                      }`}
-                    >
-                      {t(`nav.${name}`)}
-                    </Link>
-                  </li>
-                ))}
+                {tabs.map((name) => {
+                  const Icon = ICONS[name];
+                  return (
+                    <li key={name}>
+                      <Link
+                        href={`/w/${workspaceId}/settings?tab=${name}`}
+                        aria-current={tab === name ? "page" : undefined}
+                        className={`flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm whitespace-nowrap ${
+                          tab === name ? "bg-bg-active font-medium text-fg" : "text-fg-muted hover:bg-bg-hover hover:text-fg"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                        {t(`nav.${name}`)}
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}
         </div>
       </nav>
 
-      <div className="min-w-0 flex-1">
-        {tab === "general" && (
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold">{t("workspace.heading")}</h2>
-            <WorkspaceNameForm workspaceId={workspaceId} name={workspace.name} canEdit={isOwner} />
-          </section>
-        )}
-        {tab === "members" && <MembersTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
-        {tab === "preferences" && <PreferencesTab />}
-        {tab === "apps" && (
-          <div className="space-y-10">
-            <ConnectedApps />
-            <McpInstructions />
-          </div>
-        )}
+      <div className="min-w-0 flex-1 px-4 py-8 sm:px-8 md:py-12">
+        <div className="mx-auto max-w-3xl">
+          {tab === "general" && (
+            <>
+              <SettingsHeader title={t("nav.general")} description={t("workspace.description")} />
+              <SettingsGroup title={t("workspace.heading")}>
+                <WorkspaceNameForm workspaceId={workspaceId} name={workspace.name} canEdit={isOwner} />
+              </SettingsGroup>
+            </>
+          )}
+          {tab === "members" && <MembersTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
+          {tab === "preferences" && <PreferencesTab />}
+          {tab === "apps" && (
+            <>
+              <SettingsHeader title={t("nav.apps")} description={t("connectedApps.description")} />
+              <div className="space-y-10">
+                <ConnectedApps />
+                <McpInstructions />
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -114,5 +137,13 @@ async function MembersTab({ workspaceId, userId, isOwner }: { workspaceId: strin
 async function PreferencesTab() {
   const cookieStore = await cookies();
   const savedLocale = cookieStore.get(LOCALE_COOKIE)?.value;
-  return <LanguageSettings current={isLocale(savedLocale) ? savedLocale : null} />;
+  const t = await getTranslations("settings");
+  return (
+    <>
+      <SettingsHeader title={t("nav.preferences")} description={t("preferences.description")} />
+      <SettingsGroup title={t("language.heading")}>
+        <LanguageSettings current={isLocale(savedLocale) ? savedLocale : null} />
+      </SettingsGroup>
+    </>
+  );
 }

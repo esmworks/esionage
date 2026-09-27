@@ -47,6 +47,24 @@ async function requireDatabase(userId: string, databaseId: string, needed: Requi
   return p;
 }
 
+/**
+ * A locked database keeps its properties and views: they can't be added, renamed or removed until
+ * someone with full access unlocks it. Rows, cell values and view filters stay editable.
+ */
+function assertUnlocked(database: { lockedAt: Date | null }) {
+  if (database.lockedAt) throw withCode(new Error("The database is locked"), "databaseLocked");
+}
+
+/** Locks or unlocks a database's schema. Needs full access. */
+export async function setDatabaseLocked(userId: string, databaseId: string, locked: boolean) {
+  await requireDatabase(userId, databaseId, "full");
+  await db
+    .update(page)
+    .set({ lockedAt: locked ? new Date() : null, updatedBy: userId })
+    .where(eq(page.id, databaseId));
+  notifySchema(databaseId);
+}
+
 function notifyRows(databaseId: string) {
   getCollab().broadcast(`db:${databaseId}`, "rows");
 }
@@ -259,6 +277,7 @@ export async function addProperty(
   input: { name: string; type: PropertyType; options?: string[]; relation?: RelationInput },
 ) {
   const database = await requireDatabase(userId, databaseId, "edit");
+  assertUnlocked(database);
   if (!PROPERTY_TYPES.includes(input.type)) {
     throw new PropertyValueError(`Unsupported type "${input.type}"`, "unsupportedType", { type: String(input.type) });
   }
@@ -323,11 +342,15 @@ export function makeOption(name: string, index = 0): SelectOption {
   return { id: crypto.randomUUID(), name: name.trim(), color: SELECT_COLORS[index % SELECT_COLORS.length] };
 }
 
-/** A property the user may change (every caller edits the schema). */
-async function requireProperty(userId: string, propertyId: string) {
+/**
+ * A property the user may change. Every caller edits the schema, which a lock forbids, except
+ * adding an option while typing a new tag into a cell (`cellEdit`).
+ */
+async function requireProperty(userId: string, propertyId: string, { cellEdit = false } = {}) {
   const [prop] = await db.select().from(databaseProperty).where(eq(databaseProperty.id, propertyId));
   if (!prop) throw new AccessError();
-  await requireDatabase(userId, prop.databaseId, "edit");
+  const database = await requireDatabase(userId, prop.databaseId, "edit");
+  if (!cellEdit) assertUnlocked(database);
   return prop;
 }
 
@@ -350,7 +373,7 @@ export async function updateProperty(
 
 /** Adds a select option by name if missing and returns it (used when typing a new tag). */
 export async function ensureOption(userId: string, propertyId: string, name: string) {
-  const prop = await requireProperty(userId, propertyId);
+  const prop = await requireProperty(userId, propertyId, { cellEdit: true });
   if (prop.type !== "select" && prop.type !== "multi_select") {
     throw withCode(new Error("Not a select property"), "notASelectProperty");
   }
@@ -409,6 +432,7 @@ export async function deleteProperty(userId: string, propertyId: string) {
 
 export async function addView(userId: string, databaseId: string, input: { name: string; type: ViewType }) {
   const database = await requireDatabase(userId, databaseId, "edit");
+  assertUnlocked(database);
   const props = await getProperties(databaseId);
   const config: ViewConfig = {};
   if (input.type === "board") config.groupBy = props.find((p) => p.type === "select")?.id;
@@ -441,11 +465,13 @@ async function requireView(userId: string, viewId: string) {
   const [view] = await db.select().from(databaseView).where(eq(databaseView.id, viewId));
   if (!view) throw new AccessError();
   const database = await requireDatabase(userId, view.databaseId, "edit");
-  return { ...view, workspaceId: database.workspaceId };
+  return { ...view, workspaceId: database.workspaceId, lockedAt: database.lockedAt };
 }
 
 export async function updateView(userId: string, viewId: string, patch: { name?: string; config?: ViewConfig }) {
   const view = await requireView(userId, viewId);
+  // Filters, sorts and layout stay adjustable on a locked database; renaming doesn't.
+  if (patch.name !== undefined) assertUnlocked(view);
   await db
     .update(databaseView)
     .set({
@@ -459,6 +485,7 @@ export async function updateView(userId: string, viewId: string, patch: { name?:
 
 export async function deleteView(userId: string, viewId: string) {
   const view = await requireView(userId, viewId);
+  assertUnlocked(view);
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(databaseView)
@@ -518,6 +545,7 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
       title: database.title,
       icon: database.icon,
       archived: Boolean(database.archivedAt),
+      locked: Boolean(database.lockedAt),
     },
     properties,
     views,
@@ -602,6 +630,7 @@ export async function getRow(userId: string, rowId: string) {
   return {
     databaseId: row.parentId,
     databaseTitle: database.title,
+    databaseLocked: Boolean(database.lockedAt),
     row: { id: row.id, title: row.title, properties: row.properties },
     properties,
     relations: await getRelationTargets(userId, properties),

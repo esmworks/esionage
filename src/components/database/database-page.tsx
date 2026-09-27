@@ -31,6 +31,7 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
   const views = snapshot?.views ?? [];
   const view = views.find((v) => v.id === selectedViewId) ?? views[0] ?? null;
   const readOnly = snapshot?.database.archived ?? false;
+  const locked = snapshot?.database.locked ?? false;
 
   const selectView = useCallback((id: string) => {
     setSelectedViewId(id);
@@ -129,7 +130,7 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
             <ViewTabs
               views={views}
               activeId={view?.id ?? ""}
-              readOnly={readOnly}
+              readOnly={readOnly || locked}
               onSelect={selectView}
               onAdd={addView}
               onRename={(v, name) => api.updateView(v, { name })}
@@ -147,6 +148,7 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
                   view={view}
                   properties={snapshot.properties}
                   readOnly={readOnly}
+                  locked={locked}
                   onConfig={(config) => setConfig(view, config)}
                   onCreateGroupProperty={createGroupProperty}
                   onCreateDateProperty={createDateProperty}
@@ -210,6 +212,7 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
               rows={visibleRows}
               api={api}
               readOnly={readOnly}
+              locked={locked}
               onCreateGroupProperty={createGroupProperty}
             />
           ) : view.type === "calendar" ? (
@@ -233,6 +236,7 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
               rows={visibleRows}
               api={api}
               readOnly={readOnly}
+              locked={locked}
               filtered={rows.length > 0}
             />
           )}

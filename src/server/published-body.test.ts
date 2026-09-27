@@ -1,0 +1,65 @@
+import { ServerBlockNoteEditor } from "@blocknote/server-util";
+import { describe, expect, it } from "vitest";
+import * as Y from "yjs";
+import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { bodyHtmlFromYdoc, isSafeLink, isSafeMediaUrl, sanitizeBlocks } from "./published-body";
+
+const editor = ServerBlockNoteEditor.create();
+
+async function ydocFrom(blocks: unknown[]) {
+  const doc = new Y.Doc();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  doc.transact(() => editor.blocksToYXmlFragment(blocks as any, doc.getXmlFragment(COLLAB_FRAGMENT)));
+  return Y.encodeStateAsUpdate(doc);
+}
+
+describe("published page body", () => {
+  it("accepts only http(s)/mailto links and http(s) or same-origin media", () => {
+    expect(isSafeLink("https://example.com")).toBe(true);
+    expect(isSafeLink("mailto:a@b.c")).toBe(true);
+    expect(isSafeLink(" javascript:alert(1)")).toBe(false);
+    expect(isSafeLink("data:text/html,x")).toBe(false);
+    expect(isSafeMediaUrl("/files/a.png")).toBe(true);
+    expect(isSafeMediaUrl("//evil.example/a.png")).toBe(false);
+    expect(isSafeMediaUrl("javascript:alert(1)")).toBe(false);
+  });
+
+  it("unwraps unsafe links and clears unsafe media urls", () => {
+    const [block] = sanitizeBlocks([
+      {
+        type: "paragraph",
+        props: {},
+        content: [
+          { type: "link", href: "javascript:alert(1)", content: [{ type: "text", text: "bad", styles: {} }] },
+          { type: "link", href: "https://ok.example", content: [{ type: "text", text: "ok", styles: {} }] },
+        ],
+        children: [{ type: "image", props: { url: "javascript:alert(2)" }, content: undefined, children: [] }],
+      },
+    ]);
+    expect(block.content).toEqual([
+      { type: "text", text: "bad", styles: {} },
+      { type: "link", href: "https://ok.example", content: [{ type: "text", text: "ok", styles: {} }] },
+    ]);
+    expect(block.children[0].props.url).toBe("");
+  });
+
+  it("serializes the stored document to escaped HTML", async () => {
+    const state = await ydocFrom([
+      { type: "heading", props: { level: 2 }, content: "<script>alert(1)</script>" },
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "see ", styles: {} },
+          { type: "link", href: "javascript:alert(1)", content: [{ type: "text", text: "this", styles: {} }] },
+        ],
+      },
+    ]);
+    const html = await bodyHtmlFromYdoc(state);
+    expect(html).toContain("<h2");
+    expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("javascript:");
+    expect(html).toContain("see this");
+    expect(await bodyHtmlFromYdoc(null)).toBe("");
+  });
+});

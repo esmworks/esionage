@@ -73,7 +73,8 @@ export function AddPropertyPanel({
 }
 
 export type PropertyMenuActions = {
-  rename: (name: string) => void;
+  /** Omitted when the name can't change (Name column, locked database). */
+  rename?: (name: string) => void;
   /** Omitted for properties that can't be sorted (relations). */
   sort?: (direction: "asc" | "desc") => void;
   hide?: () => void;
@@ -99,7 +100,7 @@ export function PropertyMenu({
   const saved = useRef(prop?.name ?? "");
   const commitName = () => {
     const next = name.trim();
-    if (prop && next && next !== saved.current) {
+    if (prop && actions.rename && next && next !== saved.current) {
       saved.current = next;
       actions.rename(next);
     }
@@ -146,7 +147,8 @@ export function PropertyMenu({
             <Input
               value={name}
               aria-label={t("name")}
-              autoFocus
+              readOnly={!actions.rename}
+              autoFocus={Boolean(actions.rename)}
               onChange={(e) => setName(e.target.value)}
               onBlur={commitName}
               onKeyDown={(e) => {

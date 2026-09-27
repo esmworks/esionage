@@ -105,6 +105,8 @@ export const page = pgTable(
     contentText: text("content_text").notNull().default(""),
     contentMarkdown: text("content_markdown").notNull().default(""),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    /** Databases: while set, properties and views can't be added, renamed or removed. Rows stay editable. */
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
     ...timestamps,
@@ -159,6 +161,8 @@ export type ViewConfig = {
   shown?: string[];
   /** Board views: column order by option id, "" for the no-value column. Unlisted options follow in option order. */
   groupOrder?: string[];
+  /** Board views: columns the user hid, by option id ("" for no value). */
+  hiddenGroups?: string[];
 };
 
 export const databaseView = pgTable(

@@ -13,6 +13,7 @@ import {
   transferOwnershipAction,
 } from "@/app/actions/workspaces";
 import { CopyButton } from "@/components/settings/copy-button";
+import { SettingsGroup, SettingsHeader, SettingsRow } from "@/components/settings/section";
 import { selectClass, useAction } from "@/components/settings/workspace-settings";
 import { Floating, useFloating } from "@/components/database/floating";
 import { Button, cn, Dialog, IconButton, Input, MenuItem, Switch } from "@/components/ui";
@@ -87,78 +88,83 @@ export function MembersPanel({
   const shownInvitations = invitations.filter((i) => matches(query, i.email));
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-lg font-semibold">{t("heading")}</h2>
-        <p className="mt-1 text-sm text-fg-muted">{t("description")}</p>
-      </div>
+    <div>
+      <SettingsHeader title={t("heading")} description={t("description")} />
 
-      {isOwner && <JoinLinkCard workspaceId={workspaceId} link={joinLink} />}
+      <div className="space-y-10">
+        {isOwner && (
+          <SettingsGroup>
+            <JoinLinkCard workspaceId={workspaceId} link={joinLink} />
+          </SettingsGroup>
+        )}
 
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2 border-b border-border">
-          <div role="tablist" aria-label={t("heading")} className="flex gap-1">
-            <TabButton active={tab === "members"} onClick={() => setTab("members")}>
-              {t("tabs.members")} <span className="text-fg-faint">{members.length}</span>
-            </TabButton>
-            {isOwner && (
-              <TabButton active={tab === "invitations"} onClick={() => setTab("invitations")}>
-                {t("tabs.invitations")} <span className="text-fg-faint">{invitations.length}</span>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div role="tablist" aria-label={t("heading")} className="inline-flex gap-0.5 rounded-lg bg-bg-hover p-0.5">
+              <TabButton active={tab === "members"} onClick={() => setTab("members")}>
+                {t("tabs.members")} <span className="text-fg-faint">{members.length}</span>
               </TabButton>
-            )}
-          </div>
-          <div className="ml-auto flex items-center gap-2 pb-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-fg-faint" />
-              <Input
-                type="search"
-                aria-label={t("search")}
-                placeholder={t("search")}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="w-44 pl-7 sm:w-56"
-              />
+              {isOwner && (
+                <TabButton active={tab === "invitations"} onClick={() => setTab("invitations")}>
+                  {t("tabs.invitations")} <span className="text-fg-faint">{invitations.length}</span>
+                </TabButton>
+              )}
             </div>
-            {isOwner && (
-              <a
-                href={`/w/${workspaceId}/settings/members.csv`}
-                download
-                aria-label={t("exportCsv")}
-                title={t("exportCsv")}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-fg-muted hover:bg-bg-hover hover:text-fg"
-              >
-                <Download className="h-4 w-4" />
-              </a>
-            )}
-            {isOwner && (
-              <Button variant="primary" onClick={() => setAdding(true)}>
-                {t("addButton")}
-              </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-fg-faint" />
+                <Input
+                  type="search"
+                  aria-label={t("search")}
+                  placeholder={t("search")}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="w-44 pl-7 sm:w-56"
+                />
+              </div>
+              {isOwner && (
+                <a
+                  href={`/w/${workspaceId}/settings/members.csv`}
+                  download
+                  aria-label={t("exportCsv")}
+                  title={t("exportCsv")}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-fg-muted hover:bg-bg-hover hover:text-fg"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
+              )}
+              {isOwner && (
+                <Button variant="primary" onClick={() => setAdding(true)}>
+                  {t("addButton")}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-border">
+            {tab === "members" ? (
+              <MembersTable
+                now={now}
+                workspaceId={workspaceId}
+                currentUserId={currentUserId}
+                isOwner={isOwner}
+                members={shownMembers}
+                sort={sort}
+                onSort={(key) =>
+                  setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "edited" ? "desc" : "asc" }))
+                }
+                empty={members.length ? t("noMatches") : null}
+              />
+            ) : (
+              <InvitationsTable
+                now={now}
+                workspaceId={workspaceId}
+                invitations={shownInvitations}
+                empty={invitations.length ? t("noMatches") : t("noInvitations")}
+              />
             )}
           </div>
         </div>
-
-        {tab === "members" ? (
-          <MembersTable
-            now={now}
-            workspaceId={workspaceId}
-            currentUserId={currentUserId}
-            isOwner={isOwner}
-            members={shownMembers}
-            sort={sort}
-            onSort={(key) =>
-              setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "edited" ? "desc" : "asc" }))
-            }
-            empty={members.length ? t("noMatches") : null}
-          />
-        ) : (
-          <InvitationsTable
-            now={now}
-            workspaceId={workspaceId}
-            invitations={shownInvitations}
-            empty={invitations.length ? t("noMatches") : t("noInvitations")}
-          />
-        )}
       </div>
 
       {isOwner && <AddMembersDialog workspaceId={workspaceId} open={adding} onClose={() => setAdding(false)} />}
@@ -174,8 +180,8 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        "-mb-px flex items-center gap-1.5 border-b-2 px-2 pt-1 pb-2 text-sm",
-        active ? "border-fg font-medium text-fg" : "border-transparent text-fg-muted hover:text-fg",
+        "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-sm transition-colors",
+        active ? "bg-bg font-medium text-fg shadow-sm" : "text-fg-muted hover:text-fg",
       )}
     >
       {children}
@@ -190,35 +196,37 @@ function JoinLinkCard({ workspaceId, link }: { workspaceId: string; link: string
   const [confirmReset, setConfirmReset] = useState(false);
 
   return (
-    <section className="space-y-2">
-      <div className="flex items-start gap-4">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium">{t("heading")}</h3>
-          <p className="mt-1 text-sm text-fg-muted">
+    <>
+      <SettingsRow
+        title={t("heading")}
+        description={
+          <>
             {link ? t("descriptionOn") : t("descriptionOff")}{" "}
             {link && (
               <button
                 type="button"
-                className="text-fg-muted underline underline-offset-2 hover:text-fg"
+                className="underline underline-offset-2 hover:text-fg"
                 disabled={pending}
                 onClick={() => setConfirmReset(true)}
               >
                 {t("regenerate")}
               </button>
             )}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {link && <CopyButton value={link} label={t("copy")} />}
-          <Switch
-            checked={Boolean(link)}
-            disabled={pending}
-            label={t("toggle")}
-            onChange={(on) => run(() => setJoinLinkAction(workspaceId, on ? "enable" : "disable"))}
-          />
-        </div>
-      </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
+            {error && <span className="mt-1 block text-danger">{error}</span>}
+          </>
+        }
+        control={
+          <>
+            {link && <CopyButton value={link} label={t("copy")} />}
+            <Switch
+              checked={Boolean(link)}
+              disabled={pending}
+              label={t("toggle")}
+              onChange={(on) => run(() => setJoinLinkAction(workspaceId, on ? "enable" : "disable"))}
+            />
+          </>
+        }
+      />
       <Dialog open={confirmReset} onClose={() => setConfirmReset(false)} className="max-w-md">
         <div className="space-y-3 p-5">
           <h2 className="text-base font-semibold">{t("regenerateTitle")}</h2>
@@ -237,7 +245,7 @@ function JoinLinkCard({ workspaceId, link }: { workspaceId: string; link: string
           </div>
         </div>
       </Dialog>
-    </section>
+    </>
   );
 }
 
@@ -260,7 +268,7 @@ function SortHeader({
     <th
       scope="col"
       aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
-      className={cn("px-3 py-2 text-left font-normal", className)}
+      className={cn("px-4 py-2.5 text-left font-normal", className)}
     >
       <button type="button" onClick={() => onSort(column)} className="inline-flex items-center gap-1 hover:text-fg">
         {label}
@@ -290,11 +298,11 @@ function MembersTable({
   empty: string | null;
 }) {
   const t = useTranslations("settings.members");
-  if (!members.length) return empty ? <p className="px-3 py-6 text-center text-sm text-fg-muted">{empty}</p> : null;
+  if (!members.length) return empty ? <p className="px-4 py-8 text-center text-sm text-fg-muted">{empty}</p> : null;
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[640px] text-sm">
-        <thead className="border-b border-border text-xs text-fg-muted">
+        <thead className="border-b border-border bg-bg-subtle text-xs text-fg-muted">
           <tr>
             <SortHeader label={t("columns.user")} column="name" sort={sort} onSort={onSort} />
             <SortHeader label={t("columns.role")} column="role" sort={sort} onSort={onSort} className="w-36" />
@@ -361,7 +369,7 @@ function MemberRow({
 
   return (
     <tr className="align-middle">
-      <td className="px-3 py-2.5">
+      <td className="px-4 py-3">
         <div className="flex items-center gap-2.5">
           <Avatar name={member.name || member.email} />
           <div className="min-w-0">
@@ -374,7 +382,7 @@ function MemberRow({
         </div>
         {error && <p className="mt-1 text-xs text-danger">{error}</p>}
       </td>
-      <td className="px-3 py-2.5">
+      <td className="px-4 py-3">
         {isOwner ? (
           <select
             aria-label={t("roleOf", { name: member.name })}
@@ -390,8 +398,8 @@ function MemberRow({
           <span className="text-fg-muted">{t(`roles.${member.role}`)}</span>
         )}
       </td>
-      <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">{format.dateTime(member.joinedAt, { dateStyle: "medium" })}</td>
-      <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
+      <td className="px-4 py-3 whitespace-nowrap text-fg-muted">{format.dateTime(member.joinedAt, { dateStyle: "medium" })}</td>
+      <td className="px-4 py-3 whitespace-nowrap text-fg-muted">
         {member.lastEditedAt ? (
           <time dateTime={member.lastEditedAt.toISOString()} title={format.dateTime(member.lastEditedAt, { dateStyle: "medium", timeStyle: "short" })}>
             {format.relativeTime(member.lastEditedAt, now)}
@@ -494,19 +502,19 @@ function InvitationsTable({
   empty: string;
 }) {
   const t = useTranslations("settings.members");
-  if (!invitations.length) return <p className="px-3 py-6 text-center text-sm text-fg-muted">{empty}</p>;
+  if (!invitations.length) return <p className="px-4 py-8 text-center text-sm text-fg-muted">{empty}</p>;
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[640px] text-sm">
-        <thead className="border-b border-border text-xs text-fg-muted">
+        <thead className="border-b border-border bg-bg-subtle text-xs text-fg-muted">
           <tr>
-            <th scope="col" className="px-3 py-2 text-left font-normal">
+            <th scope="col" className="px-4 py-2.5 text-left font-normal">
               {t("columns.email")}
             </th>
-            <th scope="col" className="w-36 px-3 py-2 text-left font-normal">
+            <th scope="col" className="w-36 px-4 py-2.5 text-left font-normal">
               {t("columns.role")}
             </th>
-            <th scope="col" className="w-48 px-3 py-2 text-left font-normal">
+            <th scope="col" className="w-48 px-4 py-2.5 text-left font-normal">
               {t("columns.status")}
             </th>
             <th scope="col" className="w-64">
@@ -532,15 +540,15 @@ function InvitationRow({ now, workspaceId, invitation }: { now: Date; workspaceI
 
   return (
     <tr>
-      <td className="px-3 py-2.5">
+      <td className="px-4 py-3">
         <div className="truncate font-medium">{invitation.email}</div>
         {error && <p className="mt-1 text-xs text-danger">{error}</p>}
       </td>
-      <td className="px-3 py-2.5 text-fg-muted">{t(`roles.${invitation.role}`)}</td>
-      <td className={cn("px-3 py-2.5", expired ? "text-danger" : "text-fg-muted")}>
+      <td className="px-4 py-3 text-fg-muted">{t(`roles.${invitation.role}`)}</td>
+      <td className={cn("px-4 py-3", expired ? "text-danger" : "text-fg-muted")}>
         {expired ? t("expired") : t("expires", { date: format.dateTime(invitation.expiresAt, { dateStyle: "medium" }) })}
       </td>
-      <td className="px-3 py-2.5">
+      <td className="px-4 py-3">
         <div className="flex justify-end gap-2">
           {!expired && <CopyButton value={invitation.link} label={t("copyLink")} />}
           <Button

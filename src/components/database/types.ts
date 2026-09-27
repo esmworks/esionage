@@ -14,7 +14,7 @@ export type Row = DatabaseRowWithPosition;
 export type { PropertyType, RelationInput, RelationTarget, RelationTargetRow, SelectOption };
 
 export type DatabaseSnapshot = {
-  database: { id: string; workspaceId: string; title: string; icon: string | null; archived: boolean };
+  database: { id: string; workspaceId: string; title: string; icon: string | null; archived: boolean; locked: boolean };
   properties: Property[];
   views: View[];
   rows: Row[];

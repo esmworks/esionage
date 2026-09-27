@@ -27,7 +27,8 @@
     "actions": "Page actions",
     "moveToTrash": "Move to trash",
     "addInside": "Add a page inside",
-    "noChildren": "No pages inside"
+    "noChildren": "No pages inside",
+    "favorites": "Favorites"
   },
   "search": {
     "placeholder": "Search pages and content…",

@@ -138,7 +138,15 @@
     "nameLabel": "Ad",
     "newGroup": "Yeni grup",
     "groupNameLabel": "Grup adı",
-    "moveColumn": "Sütunu taşımak için sürükleyin"
+    "moveColumn": "Sütunu taşımak için sürükleyin",
+    "groupActions": "Grup işlemleri",
+    "renameGroup": "Yeniden adlandır",
+    "hideGroup": "Grubu gizle",
+    "deleteGroup": "Grubu sil",
+    "colors": "Renkler",
+    "confirmDeleteGroup": "“{name}” grubu silinsin mi? İçindeki {count, plural, other {# kart}} {property} yok grubuna geçer.",
+    "hiddenGroups": "Gizli gruplar ({count})",
+    "showGroup": "Göster"
   },
   "cell": {
     "empty": "Boş",
@@ -230,6 +238,7 @@
     "parentInTrash": "Üst sayfa çöp kutusunda. Önce onu geri yükleyin.",
     "nestedDatabase": "Bir veritabanının içinde başka bir veritabanı olamaz.",
     "invalidRelation": "“{property}” yalnızca ilişkili veritabanının satırlarına bağlanabilir.",
-    "invalidRelationTarget": "İlişki aynı çalışma alanındaki bir veritabanını göstermelidir."
+    "invalidRelationTarget": "İlişki aynı çalışma alanındaki bir veritabanını göstermelidir.",
+    "databaseLocked": "Veritabanı kilitli. Özellikleri ve görünümleri değiştirmek için önce kilidi açın."
   }
 }

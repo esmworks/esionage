@@ -19,12 +19,15 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { listFavoritesAction } from "@/app/actions/page-menu";
 import { archivePageAction, createPageAction, getTreeAction, movePageAction } from "@/app/actions/pages";
+import type { FavoritePage } from "@/server/page-meta";
 import { useChannel } from "@/components/collab/use-channel";
 import { ViewIcon } from "@/components/database/property-icons";
 import { cn, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, Popover } from "@/components/ui";
 import type { PageKind } from "@/db/schema/app";
 import { authClient } from "@/lib/auth-client";
+import { FAVORITES_EVENT } from "@/lib/favorites-event";
 import type { TreeNode } from "@/server/pages";
 import { NewWorkspaceDialog } from "./new-workspace-dialog";
 import { SearchDialog } from "./search-dialog";
@@ -48,20 +51,24 @@ export function Sidebar({
   workspaceId,
   workspaces,
   initialTree,
+  initialFavorites,
   user,
 }: {
   workspaceId: string;
   workspaces: Workspace[];
   initialTree: TreeNode[];
+  initialFavorites: FavoritePage[];
   user: { id: string; name: string; email: string };
 }) {
   const router = useRouter();
   const t = useTranslations("sidebar");
+  const tc = useTranslations("common");
   const pathname = usePathname();
   const activeId = /\/p\/([\w-]+)/.exec(pathname)?.[1] ?? null;
   const activeViewId = useSearchParams().get("view");
   const sidebar = useSidebar();
   const [tree, setTree] = useState(initialTree);
+  const [favorites, setFavorites] = useState(initialFavorites);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [searchOpen, setSearchOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
@@ -71,11 +78,21 @@ export function Sidebar({
 
   useEffect(() => setExpanded(loadExpanded()), []);
   useEffect(() => setTree(initialTree), [initialTree]);
+  useEffect(() => setFavorites(initialFavorites), [initialFavorites]);
 
+  const refreshFavorites = useCallback(() => {
+    listFavoritesAction(workspaceId).then(setFavorites).catch(() => {});
+  }, [workspaceId]);
   const refresh = useCallback(() => {
     getTreeAction(workspaceId).then(setTree).catch(() => {});
-  }, [workspaceId]);
+    // Renames, trash and sharing changes show up in Favorites too.
+    refreshFavorites();
+  }, [workspaceId, refreshFavorites]);
   useChannel(`ws:${workspaceId}`, refresh);
+  useEffect(() => {
+    window.addEventListener(FAVORITES_EVENT, refreshFavorites);
+    return () => window.removeEventListener(FAVORITES_EVENT, refreshFavorites);
+  }, [refreshFavorites]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -272,6 +289,28 @@ export function Sidebar({
             </SidebarButton>
           </div>
         </div>
+
+        {favorites.length > 0 && (
+          <div className="shrink-0 px-2 pt-2">
+            <div className="px-2 pb-1 text-xs font-medium text-fg-muted">{t("pages.favorites")}</div>
+            <ul className="max-h-48 space-y-px overflow-y-auto" aria-label={t("pages.favorites")}>
+              {favorites.map((f) => (
+                <li key={f.id}>
+                  <Link
+                    href={`/w/${workspaceId}/p/${f.id}`}
+                    className={cn(
+                      "flex h-7 items-center gap-2 rounded-md px-2 text-sm hover:bg-bg-hover",
+                      activeId === f.id ? "bg-bg-active font-medium text-fg" : "text-fg-muted",
+                    )}
+                  >
+                    <PageIcon icon={f.icon} kind={f.kind} className="text-sm" />
+                    <span className="truncate">{pageLabel(f.title, tc("untitled"))}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="flex items-center justify-between px-4 pb-1 pt-2">
           <span className="text-xs font-medium text-fg-muted">{t("pages.heading")}</span>

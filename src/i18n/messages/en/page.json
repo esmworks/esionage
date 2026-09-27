@@ -4,7 +4,29 @@
     "history": "Page history",
     "more": "More",
     "copyLink": "Copy link",
-    "moveToTrash": "Move to trash"
+    "moveToTrash": "Move to trash",
+    "edited": "Edited {time}",
+    "activity": "Activity",
+    "editedBy": "Edited by {name}",
+    "createdBy": "Created by {name}",
+    "someone": "Someone",
+    "share": "Share",
+    "addFavorite": "Add to favorites",
+    "removeFavorite": "Remove from favorites",
+    "linkCopied": "Link copied",
+    "duplicate": "Duplicate",
+    "duplicateSuffix": " (copy)",
+    "duplicateFailed": "Couldn't duplicate the page.",
+    "moveTo": "Move to",
+    "lockDatabase": "Lock database",
+    "lockHint": "While locked, properties and views can't change; rows stay editable.",
+    "locked": "Locked",
+    "unlock": "Unlock",
+    "exportMarkdown": "Export as Markdown",
+    "exportCsv": "Export as CSV",
+    "versionHistory": "Version history",
+    "lastEdited": "Last edited by {name}",
+    "actionFailed": "Couldn't finish that."
   },
   "archived": {
     "banner": "This page is in the trash.",
@@ -44,6 +66,43 @@
       "list": "Could not load the page history. Reload the page and try again.",
       "version": "Could not load this version.",
       "restore": "Could not restore this version."
+    }
+  },
+  "move": {
+    "title": "Move to",
+    "search": "Search pages…",
+    "root": "Top of the workspace",
+    "rootHint": "Becomes a top-level page in the sidebar",
+    "empty": "No matching pages.",
+    "failed": "Couldn't move the page there."
+  },
+  "share": {
+    "tabShare": "Share",
+    "tabPublish": "Publish",
+    "addPeople": "Search members to add",
+    "noMatches": "No matching members.",
+    "membersOnly": "Pages can only be shared with workspace members. Invite new people from Settings > Members.",
+    "you": "You",
+    "inherited": "From {title}",
+    "remove": "Remove",
+    "generalAccess": "General access",
+    "everyone": "Everyone in the workspace",
+    "everyoneHint": "Members get at least this much access, whatever you give them individually. Set it to \"No access\" to open the page only to the people you add.",
+    "readOnly": "Only people with full access can change sharing.",
+    "copyLink": "Copy link",
+    "copied": "Copied",
+    "loading": "Loading…",
+    "levels": {
+      "full": "Full access",
+      "edit": "Can edit",
+      "view": "Can view",
+      "none": "No access"
+    },
+    "errors": {
+      "notMember": "This person isn't a member of the workspace.",
+      "lastFullAccess": "Someone must keep full access to the page. Give someone else full access first.",
+      "accessDenied": "You can't change sharing for this page.",
+      "generic": "Couldn't update sharing."
     }
   }
 }

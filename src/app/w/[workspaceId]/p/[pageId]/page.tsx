@@ -6,6 +6,7 @@ import { RowProperties } from "@/components/database/row-properties";
 import { PageView } from "@/components/page/page-view";
 import { pageLabel } from "@/lib/labels";
 import { AccessError } from "@/server/access";
+import { getPageHeaderInfo } from "@/server/page-meta";
 import { getBreadcrumbs, getPage } from "@/server/pages";
 import { requireUser } from "@/server/session";
 
@@ -33,7 +34,7 @@ export default async function PageRoute({ params }: Params) {
   const p = await load(user.id, pageId);
   if (p.workspaceId !== workspaceId) redirect(`/w/${p.workspaceId}/p/${p.id}`);
 
-  const crumbs = await getBreadcrumbs(user.id, pageId);
+  const [crumbs, info] = await Promise.all([getBreadcrumbs(user.id, pageId), getPageHeaderInfo(user.id, pageId)]);
   const parent = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null;
   const isRow = parent?.kind === "database";
   const archived = Boolean(p.archivedAt);
@@ -42,7 +43,8 @@ export default async function PageRoute({ params }: Params) {
     <PageView
       key={p.id}
       workspaceId={workspaceId}
-      page={{ id: p.id, title: p.title, icon: p.icon, kind: p.kind, archived }}
+      page={{ id: p.id, parentId: p.parentId, title: p.title, icon: p.icon, kind: p.kind, archived }}
+      info={info}
       crumbs={crumbs}
       user={{ id: user.id, name: user.name }}
       showBody={p.kind !== "database"}

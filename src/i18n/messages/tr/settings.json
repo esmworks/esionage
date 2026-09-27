@@ -11,8 +11,10 @@
   },
   "workspace": {
     "heading": "Çalışma alanı",
-    "nameLabel": "Ad",
-    "ownersOnly": "Çalışma alanını yalnızca sahipler yeniden adlandırabilir."
+    "nameLabel": "Çalışma alanı adı",
+    "ownersOnly": "Çalışma alanını yalnızca sahipler yeniden adlandırabilir.",
+    "description": "Bu çalışma alanının adı ve temel ayarları.",
+    "nameDescription": "Kenar çubuğunda, davetlerde ve e-postalarda görünür."
   },
   "members": {
     "heading": "Üyeler",
@@ -86,6 +88,9 @@
       "addMore": "Başka ekle"
     }
   },
+  "preferences": {
+    "description": "Esionage'ın bu tarayıcıda nasıl görüneceği."
+  },
   "language": {
     "heading": "Dil",
     "label": "Arayüz dili",
@@ -101,7 +106,8 @@
     "revoke": "Erişimi kaldır",
     "revoking": "Kaldırılıyor…",
     "disconnect": "{name} bağlantısını kes",
-    "revokeError": "Erişim kaldırılamadı. Tekrar deneyin."
+    "revokeError": "Erişim kaldırılamadı. Tekrar deneyin.",
+    "listHeading": "Erişim verdiğiniz uygulamalar"
   },
   "mcp": {
     "heading": "Yapay zekâ asistanı bağlayın",

@@ -27,7 +27,8 @@
     "actions": "Sayfa işlemleri",
     "moveToTrash": "Çöp kutusuna taşı",
     "addInside": "İçine sayfa ekle",
-    "noChildren": "İçinde sayfa yok"
+    "noChildren": "İçinde sayfa yok",
+    "favorites": "Favoriler"
   },
   "search": {
     "placeholder": "Sayfalarda ve içerikte ara…",

@@ -11,8 +11,10 @@
   },
   "workspace": {
     "heading": "Workspace",
-    "nameLabel": "Name",
-    "ownersOnly": "Only owners can rename the workspace."
+    "nameLabel": "Workspace name",
+    "ownersOnly": "Only owners can rename the workspace.",
+    "description": "The name and basic settings of this workspace.",
+    "nameDescription": "Shown in the sidebar, in invitations and in emails."
   },
   "members": {
     "heading": "Members",
@@ -86,6 +88,9 @@
       "addMore": "Add more"
     }
   },
+  "preferences": {
+    "description": "How Esionage looks in this browser."
+  },
   "language": {
     "heading": "Language",
     "label": "Interface language",
@@ -101,7 +106,8 @@
     "revoke": "Revoke access",
     "revoking": "Revoking…",
     "disconnect": "Disconnect {name}",
-    "revokeError": "Could not revoke access. Try again."
+    "revokeError": "Could not revoke access. Try again.",
+    "listHeading": "Apps you have given access"
   },
   "mcp": {
     "heading": "Connect an AI assistant",

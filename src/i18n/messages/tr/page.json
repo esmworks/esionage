@@ -4,7 +4,29 @@
     "history": "Sayfa geçmişi",
     "more": "Diğer işlemler",
     "copyLink": "Bağlantıyı kopyala",
-    "moveToTrash": "Çöp kutusuna taşı"
+    "moveToTrash": "Çöp kutusuna taşı",
+    "edited": "{time} düzenlendi",
+    "activity": "Etkinlik",
+    "editedBy": "{name} düzenledi",
+    "createdBy": "{name} oluşturdu",
+    "someone": "Biri",
+    "share": "Paylaş",
+    "addFavorite": "Favorilere ekle",
+    "removeFavorite": "Favorilerden çıkar",
+    "linkCopied": "Bağlantı kopyalandı",
+    "duplicate": "Kopyasını oluştur",
+    "duplicateSuffix": " (kopya)",
+    "duplicateFailed": "Kopya oluşturulamadı.",
+    "moveTo": "Taşı",
+    "lockDatabase": "Veritabanını kilitle",
+    "lockHint": "Kilitliyken özellikler ve görünümler değiştirilemez; satırlar düzenlenebilir.",
+    "locked": "Kilitli",
+    "unlock": "Kilidi aç",
+    "exportMarkdown": "Markdown olarak dışa aktar",
+    "exportCsv": "CSV olarak dışa aktar",
+    "versionHistory": "Sürüm geçmişi",
+    "lastEdited": "Son düzenleyen: {name}",
+    "actionFailed": "İşlem tamamlanamadı."
   },
   "archived": {
     "banner": "Bu sayfa çöp kutusunda.",
@@ -44,6 +66,43 @@
       "list": "Sayfa geçmişi yüklenemedi. Sayfayı yenileyip tekrar deneyin.",
       "version": "Bu sürüm yüklenemedi.",
       "restore": "Bu sürüm geri yüklenemedi."
+    }
+  },
+  "move": {
+    "title": "Şuraya taşı",
+    "search": "Sayfa ara…",
+    "root": "Çalışma alanının en üstü",
+    "rootHint": "Kenar çubuğunda en üst düzey sayfa olur",
+    "empty": "Eşleşen sayfa yok.",
+    "failed": "Sayfa buraya taşınamadı."
+  },
+  "share": {
+    "tabShare": "Paylaş",
+    "tabPublish": "Yayınla",
+    "addPeople": "Üye ara ve ekle",
+    "noMatches": "Eşleşen üye yok.",
+    "membersOnly": "Sayfalar yalnızca çalışma alanı üyeleriyle paylaşılabilir. Yeni kişileri Ayarlar > Üyeler bölümünden davet edin.",
+    "you": "Siz",
+    "inherited": "{title} sayfasından",
+    "remove": "Kaldır",
+    "generalAccess": "Genel erişim",
+    "everyone": "Çalışma alanındaki herkes",
+    "everyoneHint": "Üyeler, kişi bazında ne verilirse verilsin en az bu kadar erişime sahip olur. Sayfayı yalnızca eklediğiniz kişilere açmak için bunu \"Erişim yok\" yapın.",
+    "readOnly": "Paylaşım ayarlarını yalnızca tam erişimi olanlar değiştirebilir.",
+    "copyLink": "Bağlantıyı kopyala",
+    "copied": "Kopyalandı",
+    "loading": "Yükleniyor…",
+    "levels": {
+      "full": "Tam erişim",
+      "edit": "Düzenleyebilir",
+      "view": "Görüntüleyebilir",
+      "none": "Erişim yok"
+    },
+    "errors": {
+      "notMember": "Bu kişi çalışma alanının üyesi değil.",
+      "lastFullAccess": "Sayfada tam erişimi olan en az bir kişi kalmalı. Önce başka birine tam erişim verin.",
+      "accessDenied": "Bu sayfanın paylaşımını değiştirme yetkiniz yok.",
+      "generic": "Paylaşım güncellenemedi."
     }
   }
 }

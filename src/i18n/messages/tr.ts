@@ -8,10 +8,11 @@ import settings from "./tr/settings.json";
 import database from "./tr/database.json";
 import invite from "./tr/invite.json";
 import join from "./tr/join.json";
+import publish from "./tr/publish.json";
 
 import type en from "./en";
 
 // Same shape as English; `pnpm typecheck` and messages.test.ts catch missing keys.
-const messages: typeof en = { common, auth, consent, sidebar, page, home, settings, database, invite, join };
+const messages: typeof en = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish };
 
 export default messages;

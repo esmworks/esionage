@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { renameWorkspaceAction, type ActionResult } from "@/app/actions/workspaces";
 import { Button, Input } from "@/components/ui";
+import { SettingsRow } from "./section";
 
 export function useAction() {
   const tc = useTranslations("common");
@@ -25,7 +26,7 @@ export function useAction() {
 }
 
 export const selectClass =
-  "h-8 rounded-md border border-border bg-bg px-2 text-sm outline-none focus:border-accent disabled:opacity-60";
+  "h-8 rounded-md border border-border bg-bg px-2.5 text-sm outline-none focus:border-accent disabled:opacity-60";
 
 export function WorkspaceNameForm({ workspaceId, name, canEdit }: { workspaceId: string; name: string; canEdit: boolean }) {
   const t = useTranslations("settings.workspace");
@@ -37,7 +38,6 @@ export function WorkspaceNameForm({ workspaceId, name, canEdit }: { workspaceId:
 
   return (
     <form
-      className="space-y-1.5"
       onSubmit={(e) => {
         e.preventDefault();
         if (!dirty) return;
@@ -45,29 +45,41 @@ export function WorkspaceNameForm({ workspaceId, name, canEdit }: { workspaceId:
         run(() => renameWorkspaceAction(workspaceId, value), () => setSaved(true));
       }}
     >
-      <label htmlFor="workspace-name" className="text-sm text-fg-muted">
-        {t("nameLabel")}
-      </label>
-      <div className="flex gap-2">
-        <Input
-          id="workspace-name"
-          value={value}
-          maxLength={80}
-          disabled={!canEdit}
-          onChange={(e) => {
-            setValue(e.target.value);
-            setSaved(false);
-          }}
-        />
-        {canEdit && (
-          <Button type="submit" variant="primary" disabled={!dirty || pending}>
-            {pending ? tc("saving") : tc("save")}
-          </Button>
-        )}
-      </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
-      {saved && !error && <p className="text-xs text-fg-muted">{tc("saved")}</p>}
-      {!canEdit && <p className="text-xs text-fg-muted">{t("ownersOnly")}</p>}
+      <SettingsRow
+        title={t("nameLabel")}
+        htmlFor="workspace-name"
+        description={
+          error ? (
+            <span className="text-danger">{error}</span>
+          ) : saved ? (
+            tc("saved")
+          ) : canEdit ? (
+            t("nameDescription")
+          ) : (
+            t("ownersOnly")
+          )
+        }
+        control={
+          <>
+            <Input
+              id="workspace-name"
+              value={value}
+              maxLength={80}
+              disabled={!canEdit}
+              className="w-full sm:w-60"
+              onChange={(e) => {
+                setValue(e.target.value);
+                setSaved(false);
+              }}
+            />
+            {canEdit && (
+              <Button type="submit" variant="primary" disabled={!dirty || pending}>
+                {pending ? tc("saving") : tc("save")}
+              </Button>
+            )}
+          </>
+        }
+      />
     </form>
   );
 }

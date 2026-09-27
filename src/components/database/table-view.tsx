@@ -40,6 +40,7 @@ export function TableView({
   rows,
   api,
   readOnly,
+  locked,
   filtered,
 }: {
   workspaceId: string;
@@ -49,6 +50,8 @@ export function TableView({
   rows: Row[];
   api: DatabaseApi;
   readOnly?: boolean;
+  /** The schema is locked: rows stay editable, properties don't. */
+  locked?: boolean;
   /** True when filters hide rows, to explain an empty table. */
   filtered: boolean;
 }) {
@@ -91,7 +94,6 @@ export function TableView({
               sort={sortOf(TITLE)}
               readOnly={readOnly}
               actions={{
-                rename: () => {},
                 sort: (direction) => setConfig({ ...view.config, sorts: [{ propertyId: TITLE, direction }] }),
               }}
             />
@@ -104,19 +106,19 @@ export function TableView({
                 sort={sortOf(p.id)}
                 readOnly={readOnly}
                 actions={{
-                  rename: (name) => api.renameProperty(p.id, name),
+                  rename: locked ? undefined : (name) => api.renameProperty(p.id, name),
                   sort: isSortable(p.type)
                     ? (direction) => setConfig({ ...view.config, sorts: [{ propertyId: p.id, direction }] })
                     : undefined,
                   hide: () => setConfig({ ...view.config, hidden: [...(view.config.hidden ?? []), p.id] }),
-                  setOptions: (options) => api.setOptions(p, options),
-                  remove: () => api.deleteProperty(p.id),
+                  setOptions: locked ? undefined : (options) => api.setOptions(p, options),
+                  remove: locked ? undefined : () => api.deleteProperty(p.id),
                 }}
               />
             ))}
             {!readOnly && (
               <th className="border-y border-border p-0 text-left font-normal">
-                <AddPropertyButton onCreate={(name, type, relation) => api.addProperty(name, type, undefined, relation)} />
+                {!locked && <AddPropertyButton onCreate={(name, type, relation) => api.addProperty(name, type, undefined, relation)} />}
               </th>
             )}
           </tr>

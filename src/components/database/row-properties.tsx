@@ -21,6 +21,8 @@ import type { Property, RelationInput, RelationTarget } from "./types";
 
 type Loaded = {
   databaseTitle: string;
+  /** The database's schema is locked: no new properties from here. */
+  locked: boolean;
   properties: Property[];
   values: Record<string, unknown>;
   relations: Record<string, RelationTarget>;
@@ -53,6 +55,7 @@ export function RowProperties({
     if (res.ok) {
       setData({
         databaseTitle: res.data.databaseTitle,
+        locked: res.data.databaseLocked,
         properties: res.data.properties,
         values: res.data.row.properties,
         relations: res.data.relations,
@@ -184,7 +187,7 @@ export function RowProperties({
           ))}
         </div>
         {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">{t("noProperties")}</p>}
-        {!readOnly && <AddPropertyRow onCreate={addProperty} />}
+        {!readOnly && !data.locked && <AddPropertyRow onCreate={addProperty} />}
         {error && <p className="mt-2 px-1 text-xs text-danger">{error}</p>}
       </div>
     </RelationProvider>

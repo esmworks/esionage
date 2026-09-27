@@ -29,6 +29,13 @@
       "when": 1790492193137,
       "tag": "0003_page_permission",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790492794349,
+      "tag": "0004_page_extras",
+      "breakpoints": true
     }
   ]
 }

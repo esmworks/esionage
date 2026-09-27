@@ -138,7 +138,15 @@
     "nameLabel": "Name",
     "newGroup": "New group",
     "groupNameLabel": "Group name",
-    "moveColumn": "Drag to move the column"
+    "moveColumn": "Drag to move the column",
+    "groupActions": "Group actions",
+    "renameGroup": "Rename",
+    "hideGroup": "Hide group",
+    "deleteGroup": "Delete group",
+    "colors": "Colors",
+    "confirmDeleteGroup": "Delete the “{name}” group? Its {count, plural, one {# card moves} other {# cards move}} to No {property}.",
+    "hiddenGroups": "Hidden groups ({count})",
+    "showGroup": "Show"
   },
   "cell": {
     "empty": "Empty",
@@ -230,6 +238,7 @@
     "parentInTrash": "The parent page is in the trash. Restore it first.",
     "nestedDatabase": "A database can’t contain another database.",
     "invalidRelation": "“{property}” can only link to rows of its related database.",
-    "invalidRelationTarget": "A relation must point to a database in the same workspace."
+    "invalidRelationTarget": "A relation must point to a database in the same workspace.",
+    "databaseLocked": "This database is locked. Unlock it to change its properties and views."
   }
 }

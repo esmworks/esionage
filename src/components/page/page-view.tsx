@@ -1,6 +1,6 @@
 "use client";
 
-import { History, Link2, MoreHorizontal, RotateCcw, SmilePlus, Trash2 } from "lucide-react";
+import { RotateCcw, SmilePlus } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -12,11 +12,13 @@ import {
   restorePageAction,
   setPageIconAction,
 } from "@/app/actions/pages";
-import { Button, cn, IconButton, MenuItem, PageIcon, pageLabel, Popover } from "@/components/ui";
+import { Button, cn, PageIcon, pageLabel } from "@/components/ui";
 import type { PageKind } from "@/db/schema/app";
 import { SidebarOpenButton } from "@/components/sidebar/sidebar-context";
+import type { PageHeaderInfo } from "@/server/page-meta";
 import { HistoryPanel } from "./history-panel";
 import { IconPicker } from "./icon-picker";
+import { PageHeaderActions } from "./page-header-actions";
 import { setDocTitle, useDocTitle, usePageDoc } from "./use-page-doc";
 
 // BlockNote touches `window` during setup; render it only in the browser.
@@ -27,6 +29,7 @@ type Crumb = { id: string; title: string; icon: string | null; kind: PageKind };
 export function PageView({
   workspaceId,
   page,
+  info,
   crumbs,
   user,
   showBody,
@@ -34,7 +37,8 @@ export function PageView({
   children,
 }: {
   workspaceId: string;
-  page: { id: string; title: string; icon: string | null; kind: PageKind; archived: boolean };
+  page: { id: string; parentId: string | null; title: string; icon: string | null; kind: PageKind; archived: boolean };
+  info: PageHeaderInfo;
   crumbs: Crumb[];
   user: { id: string; name: string };
   showBody: boolean;
@@ -139,47 +143,16 @@ export function PageView({
             <span className="max-w-60 truncate">{pageLabel(title, untitled)}</span>
           </span>
         </nav>
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-0.5">
           <ConnectionDot synced={synced} error={error} />
-          {showBody && (
-            <IconButton label={t("header.history")} className="h-7 w-7" onClick={() => setHistoryOpen(true)}>
-              <History className="h-4 w-4" />
-            </IconButton>
-          )}
-          <Popover
-            align="end"
-            trigger={({ toggle }) => (
-              <IconButton label={t("header.more")} className="h-7 w-7" onClick={toggle}>
-                <MoreHorizontal className="h-4 w-4" />
-              </IconButton>
-            )}
-          >
-            {(close) => (
-              <>
-                <MenuItem
-                  icon={<Link2 className="h-4 w-4" />}
-                  onClick={() => {
-                    navigator.clipboard.writeText(window.location.href);
-                    close();
-                  }}
-                >
-                  {t("header.copyLink")}
-                </MenuItem>
-                {!page.archived && (
-                  <MenuItem
-                    danger
-                    icon={<Trash2 className="h-4 w-4" />}
-                    onClick={() => {
-                      close();
-                      moveToTrash();
-                    }}
-                  >
-                    {t("header.moveToTrash")}
-                  </MenuItem>
-                )}
-              </>
-            )}
-          </Popover>
+          <PageHeaderActions
+            workspaceId={workspaceId}
+            page={{ id: page.id, kind: page.kind, parentId: page.parentId, archived: page.archived, hasBody: showBody }}
+            currentUser={user}
+            info={info}
+            onHistory={() => setHistoryOpen(true)}
+            onMoveToTrash={moveToTrash}
+          />
         </div>
       </header>
 
