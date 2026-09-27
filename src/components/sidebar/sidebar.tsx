@@ -8,6 +8,7 @@ import {
   Database,
   FileText,
   House,
+  Inbox,
   LogOut,
   MoreHorizontal,
   Plus,
@@ -19,6 +20,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { unreadCountAction } from "@/app/actions/notifications";
 import { listFavoritesAction } from "@/app/actions/page-menu";
 import { archivePageAction, createPageAction, getTreeAction, movePageAction } from "@/app/actions/pages";
 import type { FavoritePage } from "@/server/page-meta";
@@ -29,6 +31,7 @@ import type { PageKind } from "@/db/schema/app";
 import { authClient } from "@/lib/auth-client";
 import { FAVORITES_EVENT } from "@/lib/favorites-event";
 import type { TreeNode } from "@/server/pages";
+import { InboxDialog } from "./inbox-dialog";
 import { NewWorkspaceDialog } from "./new-workspace-dialog";
 import { SearchDialog } from "./search-dialog";
 import { SIDEBAR_WIDTH } from "@/lib/sidebar-layout";
@@ -77,6 +80,10 @@ export function Sidebar({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [searchOpen, setSearchOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+  // Bumped on every inbox signal so an open inbox reloads.
+  const [inboxVersion, setInboxVersion] = useState(0);
   const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false);
   const [, startTransition] = useTransition();
   const [moveError, setMoveError] = useState(false);
@@ -99,7 +106,21 @@ export function Sidebar({
     // Renames, trash and sharing changes show up in Favorites too.
     refreshFavorites();
   }, [workspaceId, refreshFavorites]);
-  useChannel(`ws:${workspaceId}`, refresh);
+  const refreshInbox = useCallback(() => {
+    unreadCountAction(workspaceId).then(setUnread).catch(() => {});
+  }, [workspaceId]);
+  useChannel(`ws:${workspaceId}`, (event) => {
+    if (event === "inbox") {
+      refreshInbox();
+      setInboxVersion((v) => v + 1);
+    } else refresh();
+  });
+  // Also on focus: a signal sent while the connection was down would otherwise be missed.
+  useEffect(() => {
+    refreshInbox();
+    window.addEventListener("focus", refreshInbox);
+    return () => window.removeEventListener("focus", refreshInbox);
+  }, [refreshInbox]);
   useEffect(() => {
     window.addEventListener(FAVORITES_EVENT, refreshFavorites);
     return () => window.removeEventListener(FAVORITES_EVENT, refreshFavorites);
@@ -333,6 +354,13 @@ export function Sidebar({
               {t("nav.home")}
             </SidebarButton>
             <SidebarButton
+              icon={<Inbox className="h-4 w-4" />}
+              onClick={() => setInboxOpen(true)}
+              badge={unread > 0 ? { count: unread, label: t("inbox.unreadCount", { count: unread }) } : undefined}
+            >
+              {t("nav.inbox")}
+            </SidebarButton>
+            <SidebarButton
               icon={<Settings className="h-4 w-4" />}
               href={`/w/${workspaceId}/settings`}
               active={pathname.startsWith(`/w/${workspaceId}/settings`)}
@@ -449,6 +477,13 @@ export function Sidebar({
       </aside>
       {/* Outside the aside: its slide transform would otherwise anchor these fixed dialogs. */}
       <SearchDialog workspaceId={workspaceId} open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <InboxDialog
+        workspaceId={workspaceId}
+        open={inboxOpen}
+        onClose={() => setInboxOpen(false)}
+        version={inboxVersion}
+        onRead={refreshInbox}
+      />
       <NewWorkspaceDialog open={newWorkspaceOpen} onClose={() => setNewWorkspaceOpen(false)} />
       <TrashDialog
         workspaceId={workspaceId}
@@ -501,6 +536,7 @@ function SidebarButton({
   href,
   hint,
   active,
+  badge,
 }: {
   icon: React.ReactNode;
   children: React.ReactNode;
@@ -508,6 +544,8 @@ function SidebarButton({
   href?: string;
   hint?: string;
   active?: boolean;
+  /** A count shown at the end (e.g. unread notifications), with its spoken label. */
+  badge?: { count: number; label: string };
 }) {
   const className = cn(
     "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-fg-muted hover:bg-bg-hover hover:text-fg",
@@ -518,6 +556,15 @@ function SidebarButton({
       {icon}
       <span className="flex-1">{children}</span>
       {hint && <span className="text-xs text-fg-faint">{hint}</span>}
+      {badge && (
+        <span
+          aria-label={badge.label}
+          title={badge.label}
+          className="min-w-5 rounded bg-accent px-1 text-center text-[11px] leading-[18px] font-medium text-white tabular-nums"
+        >
+          {badge.count > 99 ? "99+" : badge.count}
+        </span>
+      )}
     </>
   );
   return href ? (

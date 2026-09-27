@@ -33,6 +33,7 @@ import {
   type RequiredLevel,
 } from "@/server/access";
 import { scheduleAssignmentEmails } from "@/server/assignments";
+import { recordAssignments } from "@/server/notifications";
 import { getCollab } from "@/server/collab/bridge";
 import { workspacePeople, type WorkspacePerson } from "@/server/workspaces";
 
@@ -352,19 +353,25 @@ export async function updateRowProperties(userId: string, rowId: string, patch: 
   }
   await db.update(page).set({ properties: next, updatedBy: userId }).where(eq(page.id, rowId));
   await syncPairedRelations(rowId, row.parentId, row.properties, next);
-  await emailNewAssignees(userId, row.parentId, [{ rowId, before: row.properties, after: next }]);
+  await announceAssignments(userId, row.parentId, [{ rowId, before: row.properties, after: next }]);
   notifyRows(row.parentId);
   return next;
 }
 
-/** Emails the people these row writes newly assign (see server/assignments). */
-export async function emailNewAssignees(
+/**
+ * Tells the people these row writes newly assign: an inbox notification right away and an email
+ * after a short delay (see server/notifications and server/assignments).
+ */
+export async function announceAssignments(
   actorId: string,
   databaseId: string,
   changes: { rowId: string; before: Record<string, unknown>; after: Record<string, unknown> }[],
 ) {
   const personProps = (await getProperties(databaseId)).filter((p) => p.type === "person");
-  if (personProps.length) await scheduleAssignmentEmails(actorId, personProps, changes);
+  if (!personProps.length) return;
+  const [database] = await db.select({ workspaceId: page.workspaceId }).from(page).where(eq(page.id, databaseId));
+  if (database) await recordAssignments(actorId, database.workspaceId, personProps, changes);
+  await scheduleAssignmentEmails(actorId, personProps, changes);
 }
 
 export type NewRow = { title: string; properties?: Record<string, unknown> };
@@ -408,7 +415,7 @@ export async function createRows(userId: string, databaseId: string, rows: NewRo
   await db.insert(page).values(created);
 
   for (const row of created) await syncPairedRelations(row.id, databaseId, {}, row.properties);
-  await emailNewAssignees(
+  await announceAssignments(
     userId,
     databaseId,
     created.map((row) => ({ rowId: row.id, before: {}, after: row.properties })),
@@ -769,7 +776,7 @@ export async function moveRow(
     .update(page)
     .set({ properties, ...(position !== undefined ? { position } : {}), updatedBy: userId })
     .where(eq(page.id, rowId));
-  if (person) await emailNewAssignees(userId, row.parentId, [{ rowId, before: row.properties, after: properties }]);
+  if (person) await announceAssignments(userId, row.parentId, [{ rowId, before: row.properties, after: properties }]);
   notifyRows(row.parentId);
 }
 

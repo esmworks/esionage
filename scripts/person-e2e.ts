@@ -4,7 +4,8 @@
  * "me" filters show each viewer their own rows; former members keep showing where assigned;
  * people assigned by someone else get one email after the delay, queued in the database, unless
  * they turned them off; board drags swap assignees; rows sort by assignee name; a "created by"
- * property shows each row's creator, filters on "me" and can't be written.
+ * property shows each row's creator, filters on "me" and can't be written; assignments land in the
+ * assignee's inbox right away and unread ones disappear when undone.
  * Creates its own users and workspace and deletes them afterwards.
  *
  *   pnpm tsx scripts/person-e2e.ts
@@ -26,6 +27,8 @@ const { addProperty, getDatabaseSnapshot, getLookups, getRow, listRows, moveRow,
   "@/server/databases"
 );
 const { flushAssignmentEmails, setAssignmentEmailsEnabled, setAssignmentMailer } = await import("@/server/assignments");
+const { listInbox, markRead, unreadCount } = await import("@/server/notifications");
+const { archivePage } = await import("@/server/pages");
 const { createPage } = await import("@/server/pages");
 const { removePagePermission, setPagePermission } = await import("@/server/permissions");
 const { PropertyValueError } = await import("@/lib/properties");
@@ -33,7 +36,11 @@ const { PropertyValueError } = await import("@/lib/properties");
 const RUN = `person-e2e-${Date.now().toString(36)}`;
 
 // Writes notify open editors through the collab service, which only runs inside the app server.
-registerCollab({ broadcast() {} } as unknown as Parameters<typeof registerCollab>[0]);
+// Broadcasts are recorded so the inbox signal can be checked.
+const broadcasts: string[] = [];
+registerCollab({
+  broadcast: (channel: string, event: string) => void broadcasts.push(`${channel} ${event}`),
+} as unknown as Parameters<typeof registerCollab>[0]);
 
 // Assignment emails are captured instead of sent.
 const sent: { to: string; subject: string; text: string }[] = [];
@@ -276,6 +283,47 @@ try {
     "…not even by dragging the card to someone else's column",
   );
   check(await readOnly(createPage(actor, { workspaceId, parentId: tasks.id, title: "x", properties: { "Created by": [ids.member] } })), "…or when creating a row");
+
+  // Inbox: assignments by someone else show up right away, unread ones go away when undone
+  broadcasts.length = 0;
+  const inboxJob = await createPage(actor, { workspaceId, parentId: tasks.id, title: "Inbox job", properties: { Assignee: [ids.member, "me"] } });
+  check(broadcasts.includes(`ws:${workspaceId} inbox`), "open sidebars in the workspace are told to refetch their inbox", broadcasts);
+  const aboutJob = async (userId: string) => (await listInbox(userId, workspaceId)).filter((n) => n.pageId === inboxJob.id);
+  const [first] = await aboutJob(ids.member);
+  check(
+    first && !first.read && first.actorName === "Owner Olcay" && first.propertyName === "Assignee" && first.databaseTitle === "Tasks",
+    "the assignee gets an unread inbox notification naming who, where and which property",
+    await aboutJob(ids.member),
+  );
+  check((await aboutJob(ids.owner)).length === 0, "…the assigner gets none for assigning themselves");
+  const unreadBefore = await unreadCount(ids.member, workspaceId);
+  await updateRowProperties(ids.owner, inboxJob.id, { Assignee: [ids.owner] });
+  check(
+    (await aboutJob(ids.member)).length === 0 && (await unreadCount(ids.member, workspaceId)) === unreadBefore - 1,
+    "unassigning before it was read takes the notification back",
+  );
+  await updateRowProperties(ids.owner, inboxJob.id, { Assignee: [ids.owner, ids.member] });
+  const [again] = await aboutJob(ids.member);
+  await markRead(ids.member, workspaceId, [again.id]);
+  check((await aboutJob(ids.member))[0]?.read === true, "opening one marks it read");
+  await updateRowProperties(ids.owner, inboxJob.id, { Assignee: [ids.owner] });
+  check((await aboutJob(ids.member)).length === 1, "…and a read one stays after unassigning");
+  await markRead(ids.member, workspaceId);
+  check((await unreadCount(ids.member, workspaceId)) === 0, "mark all as read clears the count");
+  await updateRowProperties(ids.owner, inboxJob.id, { Assignee: [ids.owner, ids.bystander] });
+  check((await aboutJob(ids.bystander)).length === 1, "…before the row goes to the trash");
+  // The guest lost access to the database earlier: assigned or not, the row stays out of their inbox.
+  await updateRowProperties(ids.owner, inboxJob.id, { Assignee: [ids.owner, ids.bystander, ids.guest] });
+  check((await aboutJob(ids.guest)).length === 0, "notifications about rows someone can't open are hidden");
+  await archivePage(ids.owner, inboxJob.id);
+  check((await aboutJob(ids.bystander)).length === 0, "notifications about trashed rows are hidden");
+  check(
+    await listInbox(ids.former, workspaceId).then(
+      () => false,
+      () => true,
+    ),
+    "someone outside the workspace can't read its inbox",
+  );
 
   console.log(`\n${passed} checks passed`);
 } finally {

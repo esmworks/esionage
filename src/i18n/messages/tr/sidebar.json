@@ -7,6 +7,7 @@
   "nav": {
     "search": "Ara",
     "home": "Ana sayfa",
+    "inbox": "Gelen kutusu",
     "settings": "Ayarlar",
     "trash": "Çöp kutusu"
   },
@@ -49,5 +50,14 @@
     "namePlaceholder": "Çalışma alanı adı",
     "create": "Oluştur",
     "creating": "Oluşturuluyor…"
+  },
+  "inbox": {
+    "title": "Gelen kutusu",
+    "empty": "Henüz bildirim yok",
+    "markAllRead": "Tümünü okundu işaretle",
+    "assignment": "{actor}, sizi “{property}” alanına atadı",
+    "someone": "Biri",
+    "unread": "Okunmadı",
+    "unreadCount": "{count, plural, one {# okunmamış bildirim} other {# okunmamış bildirim}}"
   }
 }

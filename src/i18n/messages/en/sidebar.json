@@ -7,6 +7,7 @@
   "nav": {
     "search": "Search",
     "home": "Home",
+    "inbox": "Inbox",
     "settings": "Settings",
     "trash": "Trash"
   },
@@ -49,5 +50,14 @@
     "namePlaceholder": "Workspace name",
     "create": "Create",
     "creating": "Creating…"
+  },
+  "inbox": {
+    "title": "Inbox",
+    "empty": "No notifications yet",
+    "markAllRead": "Mark all as read",
+    "assignment": "{actor} assigned you to “{property}”",
+    "someone": "Someone",
+    "unread": "Unread",
+    "unreadCount": "{count, plural, one {# unread notification} other {# unread notifications}}"
   }
 }
