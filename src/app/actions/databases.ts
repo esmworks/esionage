@@ -96,7 +96,14 @@ export async function moveRowAction(
 
 export async function addPropertyAction(
   databaseId: string,
-  input: { name: string; type: PropertyType; options?: databases.OptionInput[]; relation?: databases.RelationInput },
+  input: {
+    name: string;
+    type: PropertyType;
+    options?: databases.OptionInput[];
+    relation?: databases.RelationInput;
+    formula?: { expression: string };
+    rollup?: databases.RollupInput;
+  },
 ) {
   return run(async (userId) => {
     // A new status starts with Not started / In progress / Done in the creator's language.
@@ -114,7 +121,13 @@ export async function listDatabasesAction(workspaceId: string) {
 
 export async function updatePropertyAction(
   propertyId: string,
-  patch: { name?: string; options?: SelectOption[]; position?: number },
+  patch: {
+    name?: string;
+    options?: SelectOption[];
+    position?: number;
+    formula?: { expression: string };
+    rollup?: Partial<databases.RollupInput>;
+  },
 ) {
   return run((userId) => databases.updateProperty(userId, propertyId, patch));
 }

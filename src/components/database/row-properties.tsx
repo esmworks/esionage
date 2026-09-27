@@ -11,6 +11,7 @@ import {
   updateRowPropertiesAction,
 } from "@/app/actions/databases";
 import { useChannel, useChannels } from "@/components/collab/use-channel";
+import { withFormulas } from "@/lib/derived";
 import type { PropertyType, SelectOption } from "@/db/schema/app";
 import { Floating, useFloating } from "./floating";
 import { PeopleProvider, type PeopleContextValue } from "./person-cell";
@@ -18,10 +19,13 @@ import { PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
 import { AddPropertyPanel } from "./property-menu";
 import { RelationProvider, type RelationContextValue } from "./relation-context";
-import type { PersonRef, Property, RelationInput, RelationTarget } from "./types";
+import { SchemaProvider } from "./schema-context";
+import type { DerivedInput, PersonRef, Property, RelationInput, RelationTarget } from "./types";
 
 type Loaded = {
   databaseTitle: string;
+  /** The row's title, which formulas can read. */
+  title: string;
   /** The database's schema is locked: no new properties from here. */
   locked: boolean;
   properties: Property[];
@@ -70,6 +74,7 @@ export function RowProperties({
     if (res.ok) {
       setData({
         databaseTitle: res.data.databaseTitle,
+        title: res.data.row.title,
         locked: res.data.databaseLocked,
         properties: res.data.properties,
         values: res.data.row.properties,
@@ -136,8 +141,8 @@ export function RowProperties({
     return option;
   };
 
-  const addProperty = async (name: string, type: PropertyType, relation?: RelationInput) => {
-    const res = await safe(addPropertyAction(databaseId, { name, type, relation }));
+  const addProperty = async (name: string, type: PropertyType, relation?: RelationInput, derived?: DerivedInput) => {
+    const res = await safe(addPropertyAction(databaseId, { name, type, relation, ...derived }));
     if (!res.ok) setError(res.error);
     await refetch();
   };
@@ -171,6 +176,21 @@ export function RowProperties({
     [data?.viewerId, data?.people],
   );
 
+  // Edited values show right away, with the row's formulas worked out again from them.
+  const values = useMemo(() => {
+    if (!data) return {};
+    const edited = Object.entries(pending);
+    if (!edited.length) return data.values;
+    const next = { ...data.values };
+    for (const [id, p] of edited) next[id] = p.value;
+    const [row] = withFormulas(data.properties, [{ title: data.title, properties: next }], {
+      now: new Date(),
+      people: data.people,
+      relations: data.relations,
+    });
+    return row.properties;
+  }, [data, pending]);
+
   if (!data) {
     return error ? (
       <p className="mb-4 text-sm text-danger">{error}</p>
@@ -179,39 +199,41 @@ export function RowProperties({
     );
   }
 
-  const valueOf = (id: string) => (id in pending ? pending[id].value : data.values[id]);
+  const valueOf = (id: string) => values[id];
 
   return (
     <RelationProvider value={relationContext}>
       <PeopleProvider value={peopleContext}>
-        <div className="mb-6 border-b border-border pb-4">
-          <div className="flex flex-col gap-0.5">
-            {data.properties.map((p) => (
-              <div key={p.id} className="flex min-h-[30px] items-start gap-2">
-                <div className="flex h-[30px] w-40 shrink-0 items-center gap-1.5 px-1 text-sm text-fg-muted">
-                  <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate" title={p.name}>
-                    {p.name}
-                  </span>
+        <SchemaProvider value={data.properties}>
+          <div className="mb-6 border-b border-border pb-4">
+            <div className="flex flex-col gap-0.5">
+              {data.properties.map((p) => (
+                <div key={p.id} className="flex min-h-[30px] items-start gap-2">
+                  <div className="flex h-[30px] w-40 shrink-0 items-center gap-1.5 px-1 text-sm text-fg-muted">
+                    <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate" title={p.name}>
+                      {p.name}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <PropertyCell
+                      variant="panel"
+                      wrap
+                      prop={p}
+                      value={valueOf(p.id)}
+                      readOnly={readOnly}
+                      onChange={(v) => void setValue(p.id, v)}
+                      onCreateOption={createOption}
+                    />
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <PropertyCell
-                    variant="panel"
-                    wrap
-                    prop={p}
-                    value={valueOf(p.id)}
-                    readOnly={readOnly}
-                    onChange={(v) => void setValue(p.id, v)}
-                    onCreateOption={createOption}
-                  />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">{t("noProperties")}</p>}
+            {!readOnly && !data.locked && <AddPropertyRow onCreate={addProperty} />}
+            {error && <p className="mt-2 px-1 text-xs text-danger">{error}</p>}
           </div>
-          {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">{t("noProperties")}</p>}
-          {!readOnly && !data.locked && <AddPropertyRow onCreate={addProperty} />}
-          {error && <p className="mt-2 px-1 text-xs text-danger">{error}</p>}
-        </div>
+        </SchemaProvider>
       </PeopleProvider>
     </RelationProvider>
   );
@@ -220,7 +242,7 @@ export function RowProperties({
 function AddPropertyRow({
   onCreate,
 }: {
-  onCreate: (name: string, type: PropertyType, relation?: RelationInput) => Promise<void>;
+  onCreate: (name: string, type: PropertyType, relation?: RelationInput, derived?: DerivedInput) => Promise<void>;
 }) {
   const t = useTranslations("database.rowProperties");
   const menu = useFloating<HTMLButtonElement>();

@@ -36,7 +36,7 @@ const amount = prop("number");
 const due = prop("date");
 const done = prop("checkbox");
 const COUNT: ChartMeasure = { kind: "count" };
-const sum: ChartMeasure = { kind: "aggregate", fn: "sum", prop: amount };
+const sum: ChartMeasure = { kind: "aggregate", fn: "sum", prop: { id: amount.id, type: "number", options: {} } };
 
 const chart = (rows: R[], input: Partial<ChartInput> & { config?: ChartInput["config"] } = {}) =>
   chartData(rows, { groupBy: select, measure: COUNT, config: {}, ...input });
@@ -99,7 +99,10 @@ describe("chartData", () => {
   });
 
   it("sorts groups by value, keeping ties in group order and groups without a value last", () => {
-    expect(keys(chart(rows, { config: { chartSort: "value_desc" } }))).toEqual(["o2", "o1", ""]);
+    const sorted = chart(rows, { config: { chartSort: "value_desc" } });
+    expect(keys(sorted)).toEqual(["o2", "o1", ""]);
+    // Colors follow the group, not its rank.
+    expect(sorted.groups.map((g) => g.slot)).toEqual([1, 0, 2]);
     expect(keys(chart(rows, { config: { chartSort: "value_asc" } }))).toEqual(["o1", "", "o2"]);
     const avg: ChartMeasure = { kind: "aggregate", fn: "average", prop: amount };
     const sparse = [row("a", { p_select: "o1", p_number: 3 }), row("b", { p_select: "o2" }), row("c", { p_number: 1 })];
@@ -161,6 +164,7 @@ describe("chartData", () => {
     expect(other.other).toBe(true);
     expect(other.amount).toBe(1 + 2 + 3);
     expect(other.rows).toHaveLength(6);
+    expect(data.groups.map((g) => g.slot)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
     expect(keys(chart(lots, { groupBy: many }))).toHaveLength(10);
   });
 
@@ -187,6 +191,21 @@ describe("chartMeasure", () => {
     expect(chartMeasure({ chartAggregate: { fn: "sum", propertyId: "gone" } }, props)).toEqual(COUNT);
     expect(chartMeasure({ chartAggregate: { fn: "sum", propertyId: "p_select" } }, props)).toEqual(COUNT);
     expect(chartMeasure({ chartAggregate: { fn: "latest_date", propertyId: "p_date" } }, props)).toEqual(COUNT);
+  });
+
+  it("measures formulas and rollups like their result type, skipping rows where a formula failed", () => {
+    const total = prop("formula", { formula: { expression: "1", type: "number" } }, "p_total");
+    const label = prop("formula", { formula: { expression: '"x"', type: "text" } }, "p_label");
+    const spent = prop("rollup", { rollup: { relationPropertyId: "r", targetPropertyId: "t", function: "sum" } }, "p_spent");
+    const measure = chartMeasure({ chartAggregate: { fn: "sum", propertyId: "p_total" } }, [total]);
+    expect(measure).toEqual({ kind: "aggregate", fn: "sum", prop: { id: "p_total", type: "number", options: total.options } });
+    expect(chartMeasure({ chartAggregate: { fn: "sum", propertyId: "p_label" } }, [label])).toEqual(COUNT);
+    expect(chartMeasure({ chartAggregate: { fn: "average", propertyId: "p_spent" } }, [spent]).kind).toBe("aggregate");
+    const data = chart(
+      [row("a", { p_select: "o1", p_total: 4 }), row("b", { p_select: "o1", p_total: { error: { code: "divide" } } }), row("c", { p_select: "o1", p_total: 1 })],
+      { measure, config: { hideEmptyGroups: true } },
+    );
+    expect(amounts(data)).toEqual([5]);
   });
 
   it("offers each type's calculations, without the ones a chart can't plot", () => {

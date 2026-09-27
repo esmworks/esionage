@@ -7,6 +7,7 @@ import {
   type AggregateFn,
   type AggregateResult,
 } from "./aggregate";
+import { valueType } from "./derived";
 import {
   arrangeGroups,
   boardGroupProperty,
@@ -70,12 +71,20 @@ export type ChartProperty = GroupedProperty & { name?: string };
 /** What each group is measured by: its row count, or a calculation over one property. */
 export type ChartMeasure = { kind: "count" } | { kind: "aggregate"; fn: AggregateFn; prop: { id: string; type: PropertyType; options: PropertyOptions } };
 
+/**
+ * The calculations a chart offers over a property: formulas and rollups calculate like a property
+ * of their result type (a number formula sums), and rows where a formula failed count as empty.
+ */
+export function chartAggregateFunctionsOf(prop: { type: PropertyType; options: PropertyOptions }): AggregateFn[] {
+  return chartAggregateFunctions(valueType(prop));
+}
+
 /** The view's measure; a calculation whose property is gone (or no longer offers it) counts rows. */
 export function chartMeasure(config: Pick<ViewConfig, "chartAggregate">, properties: ChartProperty[]): ChartMeasure {
   const agg = config.chartAggregate;
   const prop = agg && properties.find((p) => p.id === agg.propertyId);
-  if (!agg || !prop || !chartAggregateFunctions(prop.type).includes(agg.fn)) return { kind: "count" };
-  return { kind: "aggregate", fn: agg.fn, prop };
+  if (!agg || !prop || !chartAggregateFunctionsOf(prop).includes(agg.fn)) return { kind: "count" };
+  return { kind: "aggregate", fn: agg.fn, prop: { id: prop.id, type: valueType(prop), options: prop.options } };
 }
 
 /** Whether group values add up to a meaningful total (the values of an average don't). */

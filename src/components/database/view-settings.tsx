@@ -11,6 +11,7 @@ import {
   CHART_SORTS,
   CHART_TYPES,
   chartAggregateFunctions,
+  chartAggregateFunctionsOf,
   chartGroupProperty,
   chartMeasure,
   chartSortOf,
@@ -200,7 +201,7 @@ function ChartSettings({ view, properties, onSet }: { view: View; properties: Pr
   const groupBy = chartGroupProperty(properties, config);
   const measure = chartMeasure(config, properties);
   const groupable = properties.filter((p) => isGroupable(p.type));
-  const measurable = properties.filter((p) => chartAggregateFunctions(p.type).length > 0);
+  const measurable = properties.filter((p) => chartAggregateFunctionsOf(p).length > 0);
   const stackable = canStack(chartType, measure);
   const stackBy = groupable.find((p) => p.id === config.stackBy && p.id !== groupBy?.id);
   const hiddenGroups = config.hiddenGroups ?? [];
@@ -211,7 +212,7 @@ function ChartSettings({ view, properties, onSet }: { view: View; properties: Pr
   const setMeasure = (propertyId: string) => {
     const prop = properties.find((p) => p.id === propertyId);
     if (!prop) return onSet({ chartAggregate: undefined });
-    const fns = chartAggregateFunctions(prop.type);
+    const fns = chartAggregateFunctionsOf(prop);
     // Numbers are summed and checkboxes counted by default; other types count their values.
     const fn = fns.includes("sum") ? "sum" : fns[0];
     onSet({ chartAggregate: { fn, propertyId: prop.id } });
