@@ -26,6 +26,7 @@ import { archivePageAction, createPageAction, getTreeAction, movePageAction } fr
 import type { FavoritePage } from "@/server/page-meta";
 import { useChannel } from "@/components/collab/use-channel";
 import { ViewIcon } from "@/components/database/property-icons";
+import { markNewPage } from "@/components/page/new-page-focus";
 import { cn, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, Popover } from "@/components/ui";
 import type { PageKind } from "@/db/schema/app";
 import { authClient } from "@/lib/auth-client";
@@ -187,6 +188,7 @@ export function Sidebar({
       try {
         const { id } = await createPageAction({ workspaceId, parentId, kind });
         if (parentId) toggle(parentId, true);
+        markNewPage(id);
         router.push(`/w/${workspaceId}/p/${id}`);
       } catch {
         setActionError(true);

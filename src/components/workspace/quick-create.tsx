@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { createPageAction } from "@/app/actions/pages";
 import { Button } from "@/components/ui";
+import { markNewPage } from "@/components/page/new-page-focus";
 import type { PageKind } from "@/db/schema/app";
 
 export function QuickCreate({ workspaceId }: { workspaceId: string }) {
@@ -20,6 +21,7 @@ export function QuickCreate({ workspaceId }: { workspaceId: string }) {
     startTransition(async () => {
       try {
         const { id } = await createPageAction({ workspaceId, parentId: null, kind });
+        markNewPage(id);
         router.push(`/w/${workspaceId}/p/${id}`);
       } catch {
         setError(true);

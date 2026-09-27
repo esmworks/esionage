@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition, type ReactNode, type RefObject } from "react";
 import {
   archivePageAction,
   deletePagePermanentlyAction,
@@ -18,6 +18,7 @@ import { SidebarOpenButton } from "@/components/sidebar/sidebar-context";
 import type { PageHeaderInfo } from "@/server/page-meta";
 import { HistoryPanel } from "./history-panel";
 import { IconPicker } from "./icon-picker";
+import { takeNewPage } from "./new-page-focus";
 import { hasLevel, PageHeaderActions } from "./page-header-actions";
 import { setDocTitle, useDocTitle, usePageDoc, type ConnectionState } from "./use-page-doc";
 
@@ -61,8 +62,18 @@ export function PageView({
   // The collab server drops edits from people who may only view, so don't let them type at all.
   // Offline edits are kept: the doc syncs them when the connection comes back.
   const editable = !page.archived && canEdit && synced && connection !== "noAccess";
+  const titleRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => setIcon(page.icon), [page.icon]);
+
+  // A page the user just created opens ready for its name. Waits until the title is editable
+  // (the doc has synced), so the first keystrokes aren't lost.
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!editable || !el || !takeNewPage(page.id)) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [editable, page.id]);
 
   // Keep the tab title in sync with live renames.
   useEffect(() => {
@@ -211,6 +222,7 @@ export function PageView({
           <div className={cn(wide && icon && "flex items-center gap-3")}>
             {wide && icon && iconPicker}
             <TitleField
+              inputRef={titleRef}
               value={title}
               compact={wide}
               editable={editable}
@@ -257,12 +269,14 @@ export function PageView({
 }
 
 function TitleField({
+  inputRef: ref,
   value,
   compact = false,
   editable,
   onChange,
   onEnter,
 }: {
+  inputRef: RefObject<HTMLTextAreaElement | null>;
   value: string;
   /** Wide (database) pages use a smaller title so the views start higher. */
   compact?: boolean;
@@ -272,7 +286,6 @@ function TitleField({
 }) {
   const t = useTranslations("page");
   const tc = useTranslations("common");
-  const ref = useRef<HTMLTextAreaElement>(null);
   // What the field shows right now, including keystrokes the doc hasn't echoed back yet.
   const [text, setText] = useState(value);
   // The field is uncontrolled: when someone else's edit changes the title, write it here and keep

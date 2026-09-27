@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui";
+import { markNewPage } from "@/components/page/new-page-focus";
 import type { ViewConfig, ViewType } from "@/db/schema/app";
 import type { LinkedView } from "@/lib/embed-blocks";
 import { applyView, defaultsFromFilters } from "@/lib/properties";
@@ -220,7 +221,10 @@ export function DatabasePage({
   const newRow = async () => {
     const id = await viewApi.createRow();
     // Inside a page the new row shows up in place; leaving the page would lose the reader's spot.
-    if (id && !embedded) router.push(`/w/${workspaceId}/p/${id}`);
+    if (id && !embedded) {
+      markNewPage(id);
+      router.push(`/w/${workspaceId}/p/${id}`);
+    }
   };
 
   return (
