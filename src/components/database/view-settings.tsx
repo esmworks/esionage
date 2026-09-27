@@ -8,6 +8,7 @@ import type { ChartSort, GroupDateBy, ViewConfig } from "@/db/schema/app";
 import type { AggregateFn } from "@/lib/aggregate";
 import {
   canStack,
+  isStackable,
   CHART_SORTS,
   CHART_TYPES,
   chartAggregateFunctions,
@@ -203,7 +204,8 @@ function ChartSettings({ view, properties, onSet }: { view: View; properties: Pr
   const groupable = properties.filter((p) => isGroupable(p.type));
   const measurable = properties.filter((p) => chartAggregateFunctionsOf(p).length > 0);
   const stackable = canStack(chartType, measure);
-  const stackBy = groupable.find((p) => p.id === config.stackBy && p.id !== groupBy?.id);
+  const stackOptions = properties.filter((p) => isStackable(p.type) && p.id !== groupBy?.id);
+  const stackBy = stackOptions.find((p) => p.id === config.stackBy);
   const hiddenGroups = config.hiddenGroups ?? [];
   const showsNoValue = !hiddenGroups.includes("");
   const dates = groupBy && (groupBy.type === "date" || holdsTimestamp(groupBy.type));
@@ -295,7 +297,7 @@ function ChartSettings({ view, properties, onSet }: { view: View; properties: Pr
               onChange={(id) => onSet({ stackBy: id || undefined })}
               options={[
                 { value: "", label: t("chart.noStack") },
-                ...groupable.filter((p) => p.id !== groupBy?.id).map((p) => ({ value: p.id, label: p.name })),
+                ...stackOptions.map((p) => ({ value: p.id, label: p.name })),
               ]}
               className="w-36"
               disabled={!stackable}

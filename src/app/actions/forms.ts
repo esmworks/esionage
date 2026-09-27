@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { getTranslations } from "next-intl/server";
+import { CLIENT_IP_HEADER } from "@/lib/client-ip";
 import type { AnswerError } from "@/lib/forms";
 import { isDatabaseErrorCode, PropertyValueError } from "@/lib/properties";
 import { AccessError } from "@/server/access";
@@ -72,23 +73,13 @@ export async function unpublishFormAction(viewId: string) {
   return run(() => forms.unpublishForm(userId, viewId));
 }
 
-/**
- * The client's address as the reverse proxy reports it (the first X-Forwarded-For entry), else
- * X-Real-IP. Only as trustworthy as the proxy in front of the app; without one, clients could
- * claim any address, and only the per-form limit holds.
- */
-function clientIp(h: Headers) {
-  const forwarded = h.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return (forwarded || h.get("x-real-ip")?.trim() || "unknown").slice(0, 100);
-}
-
 /** Answers a public form (`/f/<token>`), signed in or not. */
 export async function submitPublicFormAction(token: string, submission: forms.PublicSubmission) {
   const [session, h] = await Promise.all([getSession(), headers()]);
   // Nothing comes back: a row id means nothing to the visitor, and an answer dropped as spam must
   // look the same as one that went in.
   return run(async () => {
-    await forms.submitPublicForm(token, submission, { userId: session?.user.id ?? null, ip: clientIp(h) });
+    await forms.submitPublicForm(token, submission, { userId: session?.user.id ?? null, ip: h.get(CLIENT_IP_HEADER) ?? "unknown" });
     return null;
   });
 }

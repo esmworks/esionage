@@ -60,7 +60,9 @@
     "hiddenQuestions": "{count, plural, one {# question asks for people or linked rows and is left out of the public link.} other {# questions ask for people or linked rows and are left out of the public link.}}",
     "needsFullAccess": "Only people with full access to this database can create a public link.",
     "notAllowed": "This workspace lets only owners publish to the web. Ask an owner to create the link.",
-    "failed": "Something went wrong. Try again."
+    "failed": "Something went wrong. Try again.",
+    "stale": "This link takes no answers: whoever opened it can no longer add rows to this database. Open it again to take answers on your behalf.",
+    "reactivate": "Take answers again"
   },
   "errors": {
     "required": "This question is required.",

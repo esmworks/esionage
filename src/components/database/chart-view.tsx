@@ -8,6 +8,7 @@ import { Button, cn, PageIcon } from "@/components/ui";
 import type { AggregateFn, AggregateResult } from "@/lib/aggregate";
 import {
   canStack,
+  isStackable,
   chartData,
   chartGroupProperty,
   chartMeasure,
@@ -23,7 +24,7 @@ import {
 } from "@/lib/chart";
 import type { GroupValue } from "@/lib/grouping";
 import { pageLabel } from "@/lib/labels";
-import { isGroupable, isHiddenInView, SELECT_COLORS, statusColor } from "@/lib/properties";
+import { isHiddenInView, SELECT_COLORS, statusColor } from "@/lib/properties";
 import { Floating } from "./floating";
 import { useGroupContext, useGroupName } from "./group-label";
 import { isEmptyValue, PropertyDisplay } from "./property-cell";
@@ -60,7 +61,7 @@ export function ChartView({
   const measure = useMemo(() => chartMeasure(config, properties), [config, properties]);
   const chartType = chartTypeOf(config);
   const stackBy =
-    properties.find((p) => p.id === config.stackBy && p.id !== groupBy?.id && isGroupable(p.type) && canStack(chartType, measure)) ?? null;
+    properties.find((p) => p.id === config.stackBy && p.id !== groupBy?.id && isStackable(p.type) && canStack(chartType, measure)) ?? null;
   const context = useGroupContext(groupBy ?? undefined);
   const stackContext = useGroupContext(stackBy ?? undefined);
   const data = useMemo(
@@ -157,7 +158,8 @@ function Chart({
     data.format === "percent"
       ? format.number(value, { style: "percent", maximumFractionDigits: 1 })
       : format.number(value, { notation: Math.abs(value) >= 10000 ? "compact" : "standard", maximumFractionDigits: 2 });
-  const total = data.groups.reduce((sum, g) => sum + Math.max(0, g.amount), 0);
+  // A donut slice's share is of the slices together (a row with two tags is in two slices).
+  const sliced = data.groups.reduce((sum, g) => sum + Math.max(0, g.amount), 0);
   const stacked = data.series.length > 0;
   const colorOf = markColor;
 
@@ -220,7 +222,7 @@ function Chart({
         </p>
         {width > 0 &&
           (chartType === "donut" ? (
-            <Donut {...common} titleId={titleId} total={total} legend={config.showLegend !== false} center={isAdditive(measure)} measureName={measureName} />
+            <Donut {...common} titleId={titleId} total={data.total} legend={config.showLegend !== false} center={isAdditive(measure)} measureName={measureName} />
           ) : chartType === "horizontal_bar" ? (
             <HorizontalBars {...common} titleId={titleId} stacked={stacked} />
           ) : chartType === "line" ? (
@@ -240,9 +242,9 @@ function Chart({
                 {measureName}: <b className="font-medium">{show(hover.group.result)}</b>
               </div>
             )}
-            {chartType === "donut" && total > 0 && isAdditive(measure) && (
+            {chartType === "donut" && sliced > 0 && isAdditive(measure) && (
               <div className="text-fg-muted">
-                {t("chart.share", { share: format.number(Math.max(0, hover.group.amount) / total, { style: "percent", maximumFractionDigits: 1 }) })}
+                {t("chart.share", { share: format.number(Math.max(0, hover.group.amount) / sliced, { style: "percent", maximumFractionDigits: 1 }) })}
               </div>
             )}
             <div className="text-fg-muted">
@@ -652,9 +654,12 @@ function Donut({
   const r1 = size / 2 - 4;
   const r0 = r1 * 0.62;
   const c = size / 2;
+  // Shares are of the slices together, so the ring closes; a row in two slices counts in both.
+  // The center shows `total`, where it counts once.
+  const sliced = data.groups.reduce((sum, g) => sum + Math.max(0, g.amount), 0);
   let angle = 0;
   const slices = data.groups.map((g) => {
-    const share = total > 0 ? Math.max(0, g.amount) / total : 0;
+    const share = sliced > 0 ? Math.max(0, g.amount) / sliced : 0;
     const start = angle;
     angle += share * Math.PI * 2;
     return { g, start, end: angle, share };
@@ -706,7 +711,7 @@ function Donut({
                 <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: colorOf(g.value, g.slot, g.other, false) }} />
                 <span className="min-w-0 flex-1 truncate">{nameOf(g)}</span>
                 {showValues && <span className="shrink-0 tabular-nums text-fg-muted">{show(g.result)}</span>}
-                {total > 0 && (
+                {sliced > 0 && (
                   <span className="w-12 shrink-0 text-right tabular-nums text-fg-faint">
                     {format.number(share, { style: "percent", maximumFractionDigits: 0 })}
                   </span>

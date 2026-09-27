@@ -50,6 +50,7 @@ function PublicFormRow({ workspaceId, form: f }: { workspaceId: string; form: Wo
             {f.publishedBy ? t("publishedBy", { name: f.publishedBy, date }) : t("publishedOn", { date })}
             {f.anonymous && <> · {t("anonymous")}</>}
             {f.inTrash && <> · {t("inTrash")}</>}
+            {!f.live && !f.inTrash && <> · {t("stale")}</>}
           </>
         )
       }

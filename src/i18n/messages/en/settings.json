@@ -196,7 +196,8 @@
       "publishedOn": "Opened {date}",
       "open": "Open form",
       "turnOff": "Turn off",
-      "confirm": "Turn off this form's public link? It stops working for everyone."
+      "confirm": "Turn off this form's public link? It stops working for everyone.",
+      "stale": "Takes no answers: whoever opened it lost access"
     },
     "ownersOnly": "Only owners can change this."
   },

@@ -283,6 +283,19 @@ function FormSharePanel({
               />
             </div>
             {hidden > 0 && <p className="mt-3 text-xs text-fg-muted">{t("hiddenQuestions", { count: hidden })}</p>}
+            {!publication.live && (
+              <div className="mt-3 rounded-md border border-border p-2">
+                <p className="text-xs text-danger">{t("stale")}</p>
+                <Button
+                  size="sm"
+                  className="mt-2"
+                  disabled={busy || blocker !== null}
+                  onClick={() => void change(() => publishFormAction(view.id, publication.anonymous))}
+                >
+                  {t("reactivate")}
+                </Button>
+              </div>
+            )}
           </>
         )}
 

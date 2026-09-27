@@ -196,7 +196,8 @@
       "publishedOn": "{date} tarihinde açıldı",
       "open": "Formu aç",
       "turnOff": "Kapat",
-      "confirm": "Bu formun herkese açık bağlantısı kapatılsın mı? Bağlantı herkes için çalışmayı bırakır."
+      "confirm": "Bu formun herkese açık bağlantısı kapatılsın mı? Bağlantı herkes için çalışmayı bırakır.",
+      "stale": "Yanıt almıyor: açan kişinin erişimi kalmadı"
     },
     "ownersOnly": "Bunu yalnızca sahipler değiştirebilir."
   },

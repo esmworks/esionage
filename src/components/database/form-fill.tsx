@@ -201,11 +201,23 @@ export function FormFill<P extends FormProperty>({
       </div>
 
       {honeypot && (
-        // People never see or reach this field; bots that fill in every input do.
+        // People never see or reach this field; bots that fill in every input do. Its name says
+        // nothing browsers autofill, and password managers are told to leave it alone.
         <div aria-hidden className="pointer-events-none absolute -left-[10000px] h-px w-px overflow-hidden">
           <label>
             {t("form.fill.honeypot")}
-            <input type="text" name="website" tabIndex={-1} autoComplete="off" value={trap} onChange={(e) => setTrap(e.target.value)} />
+            <input
+              type="text"
+              name="leave_empty"
+              tabIndex={-1}
+              autoComplete="off"
+              data-1p-ignore=""
+              data-lpignore="true"
+              data-bwignore=""
+              data-form-type="other"
+              value={trap}
+              onChange={(e) => setTrap(e.target.value)}
+            />
           </label>
         </div>
       )}

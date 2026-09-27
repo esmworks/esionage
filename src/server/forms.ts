@@ -152,7 +152,11 @@ export async function submitForm(userId: string, viewId: string, answers: Record
 // Opening a form to the web
 
 export type FormSharing = {
-  publication: { token: string; url: string; anonymous: boolean; createdAt: Date } | null;
+  /**
+   * `live` is false when whoever opened the link can no longer add rows to the database: the link
+   * then takes no answers until someone opens it again (see publishForm).
+   */
+  publication: { token: string; url: string; anonymous: boolean; createdAt: Date; live: boolean } | null;
   /** Why the user can't open the form to the web, or null when they can. */
   blocker: Awaited<ReturnType<typeof publishBlocker>>;
 };
@@ -162,13 +166,28 @@ export async function getFormSharing(userId: string, viewId: string): Promise<Fo
   const { database } = await requireForm(userId, viewId, "view");
   const [[row], blocker] = await Promise.all([
     db
-      .select({ token: formPublication.token, anonymous: formPublication.anonymous, createdAt: formPublication.createdAt })
+      .select({
+        token: formPublication.token,
+        anonymous: formPublication.anonymous,
+        createdAt: formPublication.createdAt,
+        publishedBy: formPublication.publishedBy,
+      })
       .from(formPublication)
       .where(eq(formPublication.viewId, viewId))
       .limit(1),
     publishBlocker(userId, database.id),
   ]);
-  return { publication: row ? { ...row, url: publicFormPath(row.token) } : null, blocker };
+  if (!row) return { publication: null, blocker };
+  const { publishedBy, ...publication } = row;
+  const live = await publisherCanAdd(publishedBy, database.id);
+  return { publication: { ...publication, url: publicFormPath(row.token), live }, blocker };
+}
+
+/** Whether a form's publisher can still add rows to its database, which keeps its link taking answers. */
+async function publisherCanAdd(publishedBy: string | null, databaseId: string) {
+  if (!publishedBy) return false;
+  const { level } = await resolvePageAccess(publishedBy, databaseId);
+  return hasLevel(level, "edit");
 }
 
 /**
@@ -194,7 +213,8 @@ async function assertMayPublish(userId: string, database: { workspaceId: string;
 
 /**
  * Opens a form to the web, or changes whether it takes anonymous answers. Needs full access to the
- * database and the workspace's publishing policy. An open form keeps its link.
+ * database and the workspace's publishing policy. An open form keeps its link, and the user becomes
+ * its publisher: a link whose earlier publisher lost access takes answers again.
  */
 export async function publishForm(userId: string, viewId: string, { anonymous = false }: { anonymous?: boolean } = {}) {
   const { database } = await requireForm(userId, viewId, "full");
@@ -202,7 +222,7 @@ export async function publishForm(userId: string, viewId: string, { anonymous = 
   const [row] = await db
     .insert(formPublication)
     .values({ viewId, token: randomBytes(32).toString("base64url"), anonymous, publishedBy: userId })
-    .onConflictDoUpdate({ target: formPublication.viewId, set: { anonymous } })
+    .onConflictDoUpdate({ target: formPublication.viewId, set: { anonymous, publishedBy: userId } })
     .returning({ token: formPublication.token, anonymous: formPublication.anonymous, createdAt: formPublication.createdAt });
   return { ...row, url: publicFormPath(row.token) };
 }
@@ -223,6 +243,8 @@ export type WorkspaceFormPublication = {
   /** Site path, for forms the owner can see that still take answers. */
   url: string | null;
   inTrash: boolean;
+  /** False when whoever opened the link can no longer add rows: it takes no answers. */
+  live: boolean;
   anonymous: boolean;
   publishedBy: string | null;
   createdAt: Date;
@@ -242,6 +264,7 @@ export async function listWorkspaceFormPublications(userId: string, workspaceId:
       token: formPublication.token,
       anonymous: formPublication.anonymous,
       publishedBy: user.name,
+      publisherId: formPublication.publishedBy,
       createdAt: formPublication.createdAt,
       visible: sql<boolean>`${accessRank(userId, sql`${page.id}`)} > 0`,
     })
@@ -251,14 +274,16 @@ export async function listWorkspaceFormPublications(userId: string, workspaceId:
     .leftJoin(user, eq(user.id, formPublication.publishedBy))
     .where(eq(page.workspaceId, workspaceId))
     .orderBy(desc(formPublication.createdAt));
-  return rows.map((r) => ({
+  const live = await Promise.all(rows.map((r) => publisherCanAdd(r.publisherId, r.databaseId)));
+  return rows.map((r, i) => ({
     viewId: r.viewId,
     databaseId: r.databaseId,
     viewName: r.visible ? r.viewName : null,
     title: r.visible ? r.title : null,
     icon: r.visible ? r.icon : null,
-    url: r.visible && !r.archivedAt ? publicFormPath(r.token) : null,
+    url: r.visible && !r.archivedAt && live[i] ? publicFormPath(r.token) : null,
     inTrash: r.archivedAt !== null,
+    live: live[i],
     anonymous: r.anonymous,
     publishedBy: r.publishedBy,
     createdAt: r.createdAt,
@@ -311,9 +336,8 @@ async function openPublicForm(token: string) {
     .innerJoin(page, eq(page.id, databaseView.databaseId))
     .where(and(eq(formPublication.token, token), isNull(page.archivedAt), eq(page.kind, "database")))
     .limit(1);
-  if (!found?.publishedBy || found.type !== "form") return null;
-  const { level } = await resolvePageAccess(found.publishedBy, found.databaseId);
-  return hasLevel(level, "edit") ? found : null;
+  if (!found || found.type !== "form") return null;
+  return (await publisherCanAdd(found.publishedBy, found.databaseId)) ? found : null;
 }
 
 function publicProperty(prop: DatabaseProperty): PublicFormProperty {

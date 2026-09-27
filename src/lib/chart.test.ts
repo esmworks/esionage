@@ -7,6 +7,7 @@ import {
   chartGroupProperty,
   chartMeasure,
   fillDateGaps,
+  isStackable,
   measureFormat,
   niceTicks,
   OTHER_KEY,
@@ -146,14 +147,36 @@ describe("chartData", () => {
   });
 
   it("stacks only the series the shown bars have, and totals them for the axis", () => {
-    const data = chart(rows, { stackBy: tags, config: { hiddenGroups: [""] } });
-    // Row a has two tags: the High bar's segments add up to 3 though it holds 2 rows.
-    expect(data.series.map((s) => s.key)).toEqual(["t1", "t2", ""]);
+    const size = prop("select", { options: ["s1", "s2", "s3"].map((id) => ({ id, name: id, color: "gray" })) }, "p_size");
+    const sized = [
+      row("a", { p_select: "o2", p_size: "s1" }),
+      row("b", { p_select: "o1", p_size: "s2" }),
+      row("c", { p_select: "o2" }),
+      // Only in the hidden no-value bar: s3 isn't a series.
+      row("d", { p_size: "s3" }),
+    ];
+    const data = chart(sized, { stackBy: size, config: { hiddenGroups: [""] } });
+    expect(data.series.map((s) => s.key)).toEqual(["s1", "s2", ""]);
     expect(data.groups.map((g) => g.segments.map((s) => s.amount))).toEqual([
-      [1, 0, 0],
-      [1, 1, 1],
+      [0, 1, 0],
+      [1, 0, 1],
     ]);
-    expect(data.max).toBe(3);
+    expect(data.max).toBe(2);
+  });
+
+  it("totals every row once, though a row with two tags is in two groups", () => {
+    const data = chart(rows, { groupBy: tags, config: { chartType: "donut" } });
+    expect(amounts(data)).toEqual([2, 1, 2]);
+    expect(data.total).toBe(4);
+    expect(chart(rows, { groupBy: tags, measure: sum }).total).toBe(18);
+  });
+
+  it("doesn't stack by properties that hold several values, whose rows would count in several segments", () => {
+    expect(chart(rows, { stackBy: tags }).series).toEqual([]);
+    expect(chart(rows, { stackBy: prop("person") }).series).toEqual([]);
+    expect(chart(rows, { stackBy: prop("relation") }).series).toEqual([]);
+    expect(isStackable("status") && isStackable("checkbox") && isStackable("created_by")).toBe(true);
+    expect(isStackable("multi_select") || isStackable("text")).toBe(false);
   });
 
   it("folds donut slices past the seven largest into Other", () => {

@@ -26,6 +26,7 @@ import {
   chartGroupProperty,
   chartMeasure,
   chartTypeOf,
+  isStackable,
 } from "@/lib/chart";
 import { formulaForStorage, withFormulaTypes } from "@/lib/derived";
 import { MAX_FORMULA_LENGTH } from "@/lib/formula";
@@ -279,7 +280,7 @@ const viewLayoutInputs = {
     .nullable()
     .optional()
     .describe(
-      "Bar and horizontal_bar charts only: split each bar into segments by a second groupable property (null for none). Only for measures that add up: count, sum, count_values, count_empty, count_not_empty, count_checked, count_unchecked.",
+      "Bar and horizontal_bar charts only: split each bar into segments by a second property holding one value per row (select, status, checkbox, date, created or edited time, created by, last edited by; null for none). Only for measures that add up: count, sum, count_values, count_empty, count_not_empty, count_checked, count_unchecked.",
     ),
   chart_sort: z
     .enum(CHART_SORTS)
@@ -451,8 +452,10 @@ function chartConfigPatch(props: PropertyDef[], input: ViewInput, current: ViewC
     if (input.stack_by === null) patch.stackBy = undefined;
     else {
       const prop = requireProperty(props, input.stack_by);
-      if (!isGroupable(prop.type)) {
-        throw new ToolInputError(`Charts stack by a property they could group by; "${prop.name}" is ${prop.type}.`);
+      if (!isStackable(prop.type)) {
+        throw new ToolInputError(
+          `Charts stack by a property holding one value per row (select, status, checkbox, date, created or edited time, created by, last edited by); "${prop.name}" is ${prop.type}.`,
+        );
       }
       patch.stackBy = prop.id;
     }

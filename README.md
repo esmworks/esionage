@@ -79,6 +79,12 @@ If the app is reachable under another URL (a domain behind a reverse proxy, anot
 `APP_URL` to that public origin. It is the OAuth issuer and the MCP resource identifier, so it
 must match what clients see.
 
+`TRUSTED_PROXIES` says how many reverse proxies stand in front of the app (default `1`). Public
+forms limit answers per visitor address, and the app reads that address from `X-Forwarded-For`
+only as far as these proxies wrote it. Set `0` when clients reach the app directly, otherwise a
+visitor could send the header and pose as a new address with every answer. Behind a CDN plus a
+proxy, set `2`.
+
 ### Use an external PostgreSQL
 
 The compose file runs PostgreSQL 18 only while `COMPOSE_PROFILES=bundled-db` is set in `.env`.

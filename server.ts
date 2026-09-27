@@ -7,6 +7,7 @@ import { createServer, type IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import crossws from "crossws/adapters/node";
 import next from "next";
+import { CLIENT_IP_HEADER, clientIpFrom, trustedProxyCount } from "./src/lib/client-ip";
 
 try {
   process.loadEnvFile();
@@ -48,7 +49,11 @@ const ws = crossws({
   },
 });
 
+const trustedProxies = trustedProxyCount();
+
 const server = createServer((req, res) => {
+  // Overwrites whatever the client sent under this name.
+  req.headers[CLIENT_IP_HEADER] = clientIpFrom(req.headers["x-forwarded-for"], req.socket.remoteAddress, trustedProxies);
   handleRequest(req, res).catch((error) => {
     console.error(error);
     res.statusCode = 500;

@@ -60,7 +60,9 @@
     "hiddenQuestions": "{count, plural, one {Kişi veya bağlantılı satır isteyen # soru herkese açık bağlantıda sorulmaz.} other {Kişi veya bağlantılı satır isteyen # soru herkese açık bağlantıda sorulmaz.}}",
     "needsFullAccess": "Herkese açık bağlantıyı yalnızca bu veritabanına tam erişimi olanlar oluşturabilir.",
     "notAllowed": "Bu çalışma alanında web'de yalnızca sahipler yayınlayabilir. Bağlantıyı oluşturması için bir sahibe başvurun.",
-    "failed": "Bir şeyler ters gitti. Tekrar deneyin."
+    "failed": "Bir şeyler ters gitti. Tekrar deneyin.",
+    "stale": "Bu bağlantı yanıt almıyor: açan kişi artık bu veritabanına satır ekleyemiyor. Yanıtları sizin adınıza almak için yeniden açın.",
+    "reactivate": "Yeniden yanıt al"
   },
   "errors": {
     "required": "Bu soru zorunludur.",

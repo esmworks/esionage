@@ -14,6 +14,7 @@ import {
   dateBucket,
   groupDateByOf,
   groupRowsBy,
+  isGroupable,
   type Group,
   type GroupContext,
   type GroupedProperty,
@@ -97,6 +98,14 @@ export function canStack(chartType: ChartType, measure: ChartMeasure) {
   return (chartType === "bar" || chartType === "horizontal_bar") && isAdditive(measure);
 }
 
+/**
+ * Properties a bar can be split by: those holding one value per row, so each row lands in exactly
+ * one segment and the segments add up to the bar. A row with two tags would be counted twice.
+ */
+export function isStackable(type: PropertyType) {
+  return isGroupable(type) && type !== "multi_select" && type !== "relation" && type !== "person";
+}
+
 /** Whether values are whole counts, so axis ticks never fall between them. */
 export function countsWholeNumbers(measure: ChartMeasure) {
   return measure.kind === "count" || measure.fn.startsWith("count_");
@@ -153,6 +162,11 @@ export type ChartData<T> = {
   /** The smallest and largest plotted amount (a stacked bar counts as its total), 0 included. */
   min: number;
   max: number;
+  /**
+   * The measure over every row on the chart, each counted once: a row in two groups (two tags)
+   * is in two slices but only once in the total.
+   */
+  total: number;
 };
 
 export type ChartInput = {
@@ -270,7 +284,7 @@ export function chartData<T extends { properties: Record<string, unknown> }>(row
 
   let series: ChartSeries[] = [];
   const stackBy = input.stackBy;
-  if (stackBy && stackBy.id !== groupBy.id && canStack(chartType, measure)) {
+  if (stackBy && stackBy.id !== groupBy.id && isStackable(stackBy.type) && canStack(chartType, measure)) {
     const shownRows = union(groups.map((g) => g.rows));
     let stacks = noValueLast(groupRowsBy(shownRows, stackBy, {}, input.stackContext), undefined)
       .filter((s) => s.rows.length > 0)
@@ -302,6 +316,7 @@ export function chartData<T extends { properties: Record<string, unknown> }>(row
     format: measureFormat(measure),
     min: Math.min(0, ...totals),
     max: Math.max(0, ...totals),
+    total: measured(union(groups.map((g) => g.rows)), measure).amount,
   };
 }
 

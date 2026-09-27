@@ -1,56 +1,86 @@
 "use client";
 
-import { useRef, useState } from "react";
-
-function isEditable(target: EventTarget | null) {
-  return (
-    target instanceof HTMLElement &&
-    (target.isContentEditable || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)
-  );
-}
+import { useEffect, useRef, useState } from "react";
 
 /**
- * A new row's title editor opens once the server has created the row. Keys typed before that are
- * kept and handed to the editor; Enter or Escape saves them as the title without opening it; and
+ * An invisible text field that takes what is typed while the row is being created. Being a real
+ * field, it gets accented letters, other keyboards, phone keyboards and paste like any input.
+ */
+function captureField() {
+  const field = document.createElement("input");
+  field.type = "text";
+  field.tabIndex = -1;
+  field.autocomplete = "off";
+  field.setAttribute("aria-hidden", "true");
+  // 16px keeps iOS from zooming in on focus.
+  field.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;font-size:16px;";
+  document.body.appendChild(field);
+  field.focus({ preventScroll: true });
+  return field;
+}
+
+/** How long the title editor has to take focus before what was typed is saved without it. */
+const EDITOR_WAIT_MS = 300;
+
+/**
+ * A new row's title editor opens once the server has created the row. What is typed before that is
+ * kept and handed to the editor; Enter or Escape saves it as the title without opening it; and
  * "New" does nothing while a row is still being created, so neither a click nor Enter on the
  * focused button makes a second row.
  */
 export function useNewRow(saveTitle: (rowId: string, title: string) => void) {
-  const [editing, setEditing] = useState<{ id: string; typed: string } | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const busy = useRef(false);
+  const capture = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => () => capture.current?.remove(), []);
 
   const create = async (run: () => Promise<string | null>) => {
     if (busy.current) return;
     busy.current = true;
-    let typed = "";
+    capture.current?.remove();
+    const field = captureField();
+    capture.current = field;
     let finished = false;
-    const onKey = (e: KeyboardEvent) => {
-      if (finished || e.metaKey || e.ctrlKey || e.altKey || e.isComposing || isEditable(e.target)) return;
-      if (e.key === "Enter" || e.key === "Escape") finished = true;
-      else if (e.key === "Backspace") typed = typed.slice(0, -1);
-      else if (e.key.length === 1) typed += e.key;
-      else return;
+    field.addEventListener("keydown", (e) => {
+      if (e.isComposing || e.keyCode === 229 || (e.key !== "Enter" && e.key !== "Escape")) return;
       e.preventDefault();
-      e.stopPropagation();
-    };
-    window.addEventListener("keydown", onKey, true);
+      finished = true;
+      field.remove();
+    });
+    // Focus moving on (to the title editor, or a click elsewhere) ends the capture; the text stays.
+    field.addEventListener("blur", () => field.remove());
     try {
       const id = await run();
-      if (!id) return;
-      if (!finished) setEditing({ id, typed });
-      else if (typed.trim()) saveTitle(id, typed.trim());
+      const text = field.value.trim();
+      if (!id || finished) {
+        field.remove();
+        if (id && text) saveTitle(id, text);
+        return;
+      }
+      setEditing(id);
+      // The row may not be shown here (filtered out, in a collapsed group): nothing takes the field's
+      // focus then, so save what was typed rather than lose it.
+      setTimeout(() => {
+        if (!field.isConnected) return;
+        field.remove();
+        if (field.value.trim()) saveTitle(id, field.value.trim());
+        setEditing((current) => (current === id ? null : current));
+      }, EDITOR_WAIT_MS);
     } finally {
-      window.removeEventListener("keydown", onKey, true);
       busy.current = false;
     }
   };
 
   return {
     /** The row whose title editor is open, if any. */
-    editTitleOf: editing?.id ?? null,
+    editTitleOf: editing,
     /** What was typed before that editor opened; it starts with this. */
-    typed: editing?.typed ?? "",
+    typed: editing ? (capture.current?.value ?? "") : "",
     create,
-    stopEditing: () => setEditing(null),
+    stopEditing: () => {
+      capture.current?.remove();
+      setEditing(null);
+    },
   };
 }

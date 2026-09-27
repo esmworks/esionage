@@ -407,6 +407,20 @@ try {
   // Removing the publisher from the workspace closes the link
   await removeMember(ids.owner, workspaceId, ids.member);
   check((await forms.getPublicForm(byMember.token)) === null, "a publisher removed from the workspace leaves the link closed");
+  const deadLink = (await forms.getFormSharing(ids.owner, view.id)).publication;
+  const listedStale = (await forms.listWorkspaceFormPublications(ids.owner, workspaceId)).find((f) => f.viewId === view.id);
+  check(
+    deadLink?.live === false && listedStale?.live === false && listedStale.url === null,
+    "the share panel and the owners' list say the link takes no answers",
+    { deadLink, listedStale },
+  );
+  const takenOver = await forms.publishForm(ids.owner, view.id, { anonymous: true });
+  check(
+    takenOver.token === byMember.token &&
+      (await forms.getPublicForm(byMember.token)) !== null &&
+      (await forms.getFormSharing(ids.owner, view.id)).publication?.live === true,
+    "opening it again makes the owner its publisher and the same link takes answers again",
+  );
 
   // A published database never opens on a form: it shows the first view that shows rows
   const survey = await createPage(actor, { workspaceId, kind: "database", title: "Survey" });

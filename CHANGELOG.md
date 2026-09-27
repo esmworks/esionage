@@ -41,11 +41,17 @@
   drag rows from. MCP `create_database_view` and `update_database_view` handle the new views.
 - **Chart view:** vertical or horizontal bars, a line or a donut over a grouping property, counting
   rows or using any column calculation (sum, average, median…). Counts and sums can be stacked by
-  a second property. Hover a bar for its value, click it to list its rows.
+  a second property that holds one value per row (select, status, checkbox, date, created or
+  edited time and by), so every row is counted once. A donut's center shows the number of rows,
+  even when a row sits in several slices. Hover a bar for its value, click it to list its rows.
 - **Form view:** ask for chosen properties in order, with labels, help text, required answers,
   default values and a thank-you message. Each answer adds a row. A form can get a public link
-  (`/f/…`) for signed-in or anonymous answers, guarded by rate limits. Owners see and close every
-  public form under Settings > Security. MCP can create and change forms and their links.
+  (`/f/…`) for signed-in or anonymous answers, guarded by rate limits and a hidden field that
+  password managers leave alone. A link stops taking answers when whoever opened it can no longer
+  add rows; the form and Settings say so, and anyone who can edit it can take it over. Owners see
+  and close every public form under Settings > Security. MCP can create and change forms and
+  their links. Behind reverse proxies, set `TRUSTED_PROXIES` (default 1) so limits count real
+  visitor addresses.
 - **Inline databases and linked views:** the slash menu adds a database inside a page, or a view
   of an existing database whose layout, filters and sorts are kept in the page. What a block shows
   follows the reader's access to the database. Published pages show them as tables.
@@ -60,8 +66,8 @@
 ### Fixed
 
 - Empty lines on published pages no longer show as a box.
-- Typing right after pressing New in a database keeps the first letters, and Enter no longer adds a
-  second empty row.
+- Typing right after pressing New in a database keeps the first letters, including accented
+  letters, other keyboards and pasted text, and Enter no longer adds a second empty row.
 - A formula dividing by an empty property is empty instead of a "division by zero" error.
 
 ## 0.2.0 — 2026-09-27
