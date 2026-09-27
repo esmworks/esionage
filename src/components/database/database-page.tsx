@@ -149,15 +149,15 @@ export function DatabasePage({
   const createDateProperty = async () => {
     const lower = (s: string) => s.toLocaleLowerCase(locale);
     const names = new Set(snapshot.properties.map((p) => lower(p.name)));
-    const base = t("calendar.defaultDateProperty");
+    // A timeline takes a new date property as its start, or as its end once it has a start.
+    const asEnd = view?.type === "timeline" && !!timelineDates(view, snapshot.properties).start;
+    const base = t(asEnd ? "calendar.defaultEndProperty" : "calendar.defaultDateProperty");
     let name = base;
     for (let i = 2; names.has(lower(name)); i++) name = `${base} ${i}`;
     const created = await api.addProperty(name, "date");
     if (created && view?.type === "calendar") await setConfig(view, { ...view.config, dateBy: created.id });
-    // A timeline takes a new date property as its start, or as its end once it has a start.
     if (created && view?.type === "timeline") {
-      const { start } = timelineDates(view, snapshot.properties);
-      await setConfig(view, { ...view.config, ...(start ? { endDateBy: created.id } : { dateBy: created.id }) });
+      await setConfig(view, { ...view.config, ...(asEnd ? { endDateBy: created.id } : { dateBy: created.id }) });
     }
   };
 
