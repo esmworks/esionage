@@ -10,7 +10,8 @@
   "topLevel": "Oberste Ebene des Workspace",
   "noDestination": "Es gibt keine Seite, der du Seiten hinzufügen kannst.",
   "pages": {
-    "help": "Markdown-Dateien werden zu Seiten, und Ordner behalten ihre Struktur. CSV-Dateien werden zu Datenbanken, und Bilder, auf die Seiten verlinken, werden hochgeladen. Exporte aus Notion funktionieren ebenfalls.",
+    "help": "Markdown-Dateien werden zu Seiten, und Ordner behalten ihre Struktur. CSV-Dateien werden zu Datenbanken, und Bilder, auf die Seiten verlinken, werden hochgeladen.",
+    "notion": "Aus Notion: Exportiere als „Markdown & CSV“ mit Unterseiten und wähle die ZIP-Datei so, wie sie heruntergeladen wurde (auch aufgeteilte Exporte funktionieren). Unterseiten, Datenbanken, Relationen, Callouts, Toggles und Bilder werden mit übernommen.",
     "chooseFiles": "Dateien auswählen",
     "chooseFolder": "Ordner auswählen",
     "drop": "oder Dateien hierher ziehen",
@@ -67,7 +68,9 @@
       "nestedZip": "„{path}“ ist eine zu tief verschachtelte ZIP-Datei und wurde ausgelassen.",
       "nestedDatabase": "„{path}“ wäre eine Datenbank in einer Datenbank und wurde ausgelassen.",
       "duplicate": "„{path}“ wurde ausgelassen: Die vollständige Version derselben Datenbank wurde importiert.",
-      "tooLarge": "„{path}“ ist zu groß für eine Seite und wurde ausgelassen."
+      "tooLarge": "„{path}“ ist zu groß für eine Seite und wurde ausgelassen.",
+      "unused": "„{path}“ wurde ausgelassen: Keine Seite zeigt die Datei an oder verlinkt darauf.",
+      "unsafePath": "„{path}“ wurde ausgelassen: Der Pfad führt aus der ZIP-Datei heraus."
     },
     "more": "…und {count, plural, one {# weiterer} other {# weitere}}."
   },

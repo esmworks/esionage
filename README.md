@@ -87,11 +87,24 @@ approve them over OAuth.
   stored on disk or in S3-compatible storage, only people who can see a page showing them can open
   them, and published pages show theirs (see [File uploads](#file-uploads)). Uploaded PDFs show
   in place.
-- **Import**: bring in Markdown files, a folder or a ZIP (Notion exports included) as pages that
-  keep their folder structure, with links between the files turned into page links and the images
-  they show uploaded. An Esionage export comes back as it went, templates included. Import a CSV file as a new database with its column types guessed (and
+- **Import**: bring in Markdown files, a folder or a ZIP as pages that keep their folder
+  structure, with links between the files turned into page links and the images they show
+  uploaded, into the page or teamspace you start it from. An Esionage export comes back as it went,
+  templates included. Import a CSV file as a new database with its column types guessed (and
   changeable before importing), or add its rows to an existing database by matching columns to
   properties.
+- **Import from Notion**: in Notion, export a page or the workspace as *Markdown & CSV* with
+  subpages, and choose the downloaded ZIP in Import (a large export split into parts, an
+  `Export-….zip` holding `…-Part-1.zip` and so on, works as it is). Pages keep their tree, without
+  Notion's ids in their titles; databases come from the full `_all.csv` with their column types
+  guessed, and each row page's property list is taken off its body. Relation columns whose links
+  lead to rows of another database in the same export become relations; others stay text.
+  Callouts, toggles, to-dos, tables, equations, links between pages (notion.so links to pages of
+  the export included) and subpage links come along; images and attachments are uploaded. Files no
+  page uses, and entries whose path leads out of the ZIP, are listed in the result. Not carried
+  over: page icons and covers, comments, database views, formulas and rollups (their values come in
+  as text or numbers), and people (as select or text). Tested against archives built from
+  Notion's documented format, not yet a real export.
 - **Workspaces and members**: add people by email (several at once) as owners or members, send
   an invitation link to people who don't have an account yet, or turn on a join link anyone can
   use. Owners can export the member list as CSV, hand ownership to someone else, and decide who
@@ -510,7 +523,7 @@ Useful scripts:
 | `pnpm build` | Production build |
 | `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
-| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (teamspaces, databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, sites and duplicating published pages, presence, offline editing, uploads, import, export, and `roundtrip-e2e.ts` for an export imported again); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
+| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (teamspaces, databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, sites and duplicating published pages, presence, offline editing, uploads, import, Notion import, export, and `roundtrip-e2e.ts` for an export imported again); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
 | `pnpm tsx scripts/sw-e2e.ts` | Checks the service worker (`public/sw.js`) in headless Chrome against a stand-in server: offline pages, per-user copies, the offline page (set `CHROME_PATH` outside macOS) |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/api-e2e.ts` | End-to-end REST API check (tokens, every endpoint, access, rate limits, OpenAPI) against a running server |

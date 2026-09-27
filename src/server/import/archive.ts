@@ -5,13 +5,17 @@ import { ImportError } from "@/lib/import/result";
 /**
  * The files of an upload by path: loose files as they came (a folder picked in the browser keeps
  * its relative paths), and ZIP files unpacked in place of themselves. Several ZIPs (Notion splits
- * large exports into parts) merge into one tree, and ZIPs inside a ZIP are unpacked once more.
+ * large exports into parts) merge into one tree, and ZIPs inside a ZIP are unpacked once more
+ * (Notion's `Export-<id>.zip` holding `Export-<id>-Part-1.zip`, `…-Part-2.zip`).
  *
  * Unpacking is bounded before it starts: entry sizes come from the ZIP's directory and the
  * decompressor never writes past them, so a ZIP bomb can't take more memory than the limits.
+ * Entries whose path climbs out of the archive (`../…`) are left out and reported.
  */
 
 export type UploadedFile = { path: string; data: Uint8Array };
+
+export type SkippedFile = { path: string; reason: "nestedZip" | "unsafePath" };
 
 type Budget = { files: number; bytes: number };
 
@@ -26,13 +30,21 @@ function take(budget: Budget, bytes: number) {
   }
 }
 
-function unzip(data: Uint8Array, budget: Budget, depth: number, out: Map<string, Uint8Array>, skipped: string[]) {
+/** A path to show for an entry that has no safe one: its name, shortened. */
+const shown = (name: string) => (name.length > 200 ? `${name.slice(0, 199)}…` : name);
+
+function unzip(data: Uint8Array, budget: Budget, depth: number, out: Map<string, Uint8Array>, skipped: SkippedFile[]) {
   let entries: Record<string, Uint8Array>;
   try {
     entries = unzipSync(data, {
       filter: (entry) => {
+        if (entry.name.endsWith("/") || entry.name.endsWith("\\")) return false;
         const path = normalizePath(entry.name);
-        if (entry.name.endsWith("/") || !path || isIgnoredPath(path)) return false;
+        if (!path) {
+          if (entry.name.trim()) skipped.push({ path: shown(entry.name), reason: "unsafePath" });
+          return false;
+        }
+        if (isIgnoredPath(path)) return false;
         take(budget, entry.originalSize);
         return true;
       },
@@ -45,29 +57,38 @@ function unzip(data: Uint8Array, budget: Budget, depth: number, out: Map<string,
     const path = normalizePath(name)!;
     if (importFileKind(path) === "zip") {
       if (depth < 1) unzip(bytes, budget, depth + 1, out, skipped);
-      else skipped.push(path);
+      else skipped.push({ path, reason: "nestedZip" });
     } else out.set(path, bytes);
   }
 }
 
-/** The upload's files by normalized path, and nested ZIPs left packed. */
-export function collectFiles(files: UploadedFile[]): { files: Map<string, Uint8Array>; skipped: string[] } {
+/**
+ * The folder Notion wraps an export's files in: `Export-<uuid>/` (or, in each part of a split
+ * export, `Export-<uuid>-Part-1/`). Not a page of its own.
+ */
+const EXPORT_FOLDER = /^Export-[0-9a-f-]+(?:-Part-\d+)?\//i;
+
+/** The upload's files by normalized path, and what was left out of it. */
+export function collectFiles(files: UploadedFile[]): { files: Map<string, Uint8Array>; skipped: SkippedFile[] } {
   const out = new Map<string, Uint8Array>();
-  const skipped: string[] = [];
+  const skipped: SkippedFile[] = [];
   const budget: Budget = { files: 0, bytes: 0 };
   for (const file of files) {
     const path = normalizePath(file.path);
-    if (!path || isIgnoredPath(path)) continue;
+    if (!path) {
+      if (file.path.trim()) skipped.push({ path: shown(file.path), reason: "unsafePath" });
+      continue;
+    }
+    if (isIgnoredPath(path)) continue;
     if (importFileKind(path) === "zip") unzip(file.data, budget, 0, out, skipped);
     else {
       take(budget, file.data.byteLength);
       out.set(path, file.data);
     }
   }
-  // "Export-1a2b…/" around a ZIP's files (Notion's, each part of a split export): not a page of its own.
   const unwrapped = new Map<string, Uint8Array>();
   for (const [path, bytes] of out) {
-    const inner = path.replace(/^Export-[0-9a-f-]+\//i, "");
+    const inner = path.replace(EXPORT_FOLDER, "");
     if (inner && !unwrapped.has(inner)) unwrapped.set(inner, bytes);
   }
   return { files: unwrapped, skipped };
