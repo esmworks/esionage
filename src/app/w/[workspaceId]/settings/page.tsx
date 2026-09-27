@@ -59,15 +59,16 @@ export default async function SettingsPage({
     <div className="flex min-h-full flex-col md:flex-row">
       <nav
         aria-label={t("title")}
-        className="shrink-0 border-b border-border px-3 pt-12 pb-3 md:sticky md:top-0 md:h-dvh md:w-60 md:overflow-y-auto md:border-r md:border-b-0 md:pb-4"
+        // Same look as the main sidebar next to it: subtle background, 28px rows, plain section labels.
+        className="shrink-0 border-b border-border p-2 text-sm md:sticky md:top-0 md:h-dvh md:w-60 md:overflow-y-auto md:border-r md:border-b-0 md:bg-bg-subtle"
       >
-        <div className="flex gap-6 overflow-x-auto [scrollbar-width:none] md:flex-col">
+        <div className="flex gap-4 overflow-x-auto [scrollbar-width:none] md:flex-col md:gap-3">
           {nav.map(({ group, tabs }) => (
             <div key={group} className="shrink-0">
-              <div className="mb-1.5 px-2.5 text-[11px] font-medium tracking-wider text-fg-faint uppercase">
+              <div className="px-2 pt-1 pb-1 text-xs font-medium text-fg-muted">
                 {t(`nav.${group}`)}
               </div>
-              <ul className="flex gap-1 md:flex-col md:gap-0.5">
+              <ul className="flex gap-1 md:flex-col md:gap-px">
                 {tabs.map((name) => {
                   const Icon = ICONS[name];
                   return (
@@ -75,7 +76,7 @@ export default async function SettingsPage({
                       <Link
                         href={`/w/${workspaceId}/settings?tab=${name}`}
                         aria-current={tab === name ? "page" : undefined}
-                        className={`flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm whitespace-nowrap ${
+                        className={`flex h-7 items-center gap-2 rounded-md px-2 whitespace-nowrap ${
                           tab === name ? "bg-bg-active font-medium text-fg" : "text-fg-muted hover:bg-bg-hover hover:text-fg"
                         }`}
                       >
