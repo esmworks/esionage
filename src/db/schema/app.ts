@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import type { AggregateFn } from "../../lib/aggregate";
 import { PROPERTY_TYPES, type PropertyType } from "../../lib/property-types";
 import { user } from "./auth";
 
@@ -185,6 +186,8 @@ export type ViewConfig = {
   groupOrder?: string[];
   /** Board views: columns the user hid, by option id ("" for no value). */
   hiddenGroups?: string[];
+  /** Table views: the footer calculation per column, keyed by property id or "title". */
+  calculations?: Record<string, AggregateFn>;
 };
 
 export const databaseView = pgTable(

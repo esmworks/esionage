@@ -1,0 +1,167 @@
+"use client";
+
+import { Check, ChevronDown } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
+import { Fragment, useMemo } from "react";
+import { cn, MenuItem, MenuSeparator } from "@/components/ui";
+import type { PropertyOptions } from "@/db/schema/app";
+import {
+  aggregate,
+  aggregateFunctions,
+  aggregateGroup,
+  isAggregateFn,
+  type AggregateFn,
+  type AggregateResult,
+} from "@/lib/aggregate";
+import { Floating, useFloating } from "./floating";
+import { useFormatDate } from "./property-cell";
+import type { Row } from "./types";
+
+/** A table column as calculations see it: the Name column is `{ key: "title", type: "title" }`. */
+export type CalculationColumn = { key: string; name: string; type: string; options?: PropertyOptions };
+
+/** Averages and medians rarely end evenly; two decimals are plenty in a footer. */
+const ROUNDED: AggregateFn[] = ["average", "median"];
+
+function useFormatResult() {
+  const t = useTranslations("database.calculate");
+  const format = useFormatter();
+  const formatDate = useFormatDate();
+  return (fn: AggregateFn, result: AggregateResult) => {
+    switch (result.format) {
+      case "number":
+        return format.number(result.value, { maximumFractionDigits: ROUNDED.includes(fn) ? 2 : 10 });
+      case "percent":
+        return format.number(result.value, { style: "percent", maximumFractionDigits: 1 });
+      case "date":
+        return formatDate(result.value);
+      case "days":
+        return t("days", { count: result.value });
+    }
+  };
+}
+
+/**
+ * The table footer: one calculation cell per column, lined up with the table's columns (`offset`
+ * is the width of the row-controls column before the first one). Hidden for viewers when the view
+ * has no calculations to show.
+ */
+export function CalculationRow({
+  offset,
+  columns,
+  rows,
+  calculations,
+  readOnly,
+  onChange,
+}: {
+  offset: number;
+  columns: (CalculationColumn & { width: number })[];
+  rows: Row[];
+  calculations: Record<string, string> | undefined;
+  readOnly?: boolean;
+  onChange: (key: string, fn: AggregateFn | null) => void;
+}) {
+  if (readOnly && !columns.some((c) => calculations?.[c.key])) return null;
+  return (
+    <div className="group/footer flex" style={{ paddingLeft: offset }}>
+      {columns.map((column) => (
+        <div key={column.key} className="shrink-0" style={{ width: column.width }}>
+          <CalculationCell
+            column={column}
+            rows={rows}
+            fn={calculations?.[column.key]}
+            readOnly={readOnly}
+            onChange={(fn) => onChange(column.key, fn)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * One footer cell: the column's calculation over the rows the view shows, or a "Calculate" button
+ * that appears on hover while none is set. Viewers see the result but can't change it.
+ */
+export function CalculationCell({
+  column,
+  rows,
+  fn: stored,
+  readOnly,
+  onChange,
+}: {
+  column: CalculationColumn;
+  rows: Row[];
+  fn: string | undefined;
+  readOnly?: boolean;
+  onChange: (fn: AggregateFn | null) => void;
+}) {
+  const t = useTranslations("database.calculate");
+  const menu = useFloating<HTMLButtonElement>();
+  const formatResult = useFormatResult();
+  const available = aggregateFunctions(column.type);
+  // A stored calculation the column no longer offers shows as unset.
+  const fn = isAggregateFn(stored) && available.includes(stored) ? stored : null;
+  const result = useMemo(
+    () => (fn ? aggregate(rows, column.key, fn, { type: column.type, options: column.options }) : null),
+    [rows, column.key, column.type, column.options, fn],
+  );
+
+  if (readOnly && !fn) return null;
+  return (
+    <>
+      <button
+        ref={menu.ref}
+        type="button"
+        disabled={readOnly}
+        onClick={menu.toggle}
+        aria-label={fn ? undefined : t("calculateColumn", { column: column.name })}
+        className={cn(
+          "flex h-[33px] w-full min-w-0 items-center justify-end gap-1 px-2 text-xs text-fg-muted hover:bg-bg-hover disabled:hover:bg-transparent",
+          // Unset cells stay out of the way until the table is hovered (or on touch screens).
+          !fn &&
+            !menu.open &&
+            "opacity-0 group-hover/footer:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
+        )}
+      >
+        {fn ? (
+          <>
+            <span className="truncate text-fg-faint">{t(`label.${fn}`)}</span>
+            <span className="shrink-0 tabular-nums text-fg">{result ? formatResult(fn, result) : "–"}</span>
+          </>
+        ) : (
+          <>
+            <span className="truncate">{t("calculate")}</span>
+            <ChevronDown className="h-3 w-3 shrink-0" />
+          </>
+        )}
+      </button>
+      <Floating open={menu.open} anchor={menu.el} onClose={menu.close} align="end" className="max-h-80 overflow-y-auto">
+        <MenuItem
+          icon={fn ? <span /> : <Check className="h-3.5 w-3.5" />}
+          onClick={() => {
+            menu.close();
+            if (fn) onChange(null);
+          }}
+        >
+          {t("none")}
+        </MenuItem>
+        {available.map((option, i) => (
+          <Fragment key={option}>
+            {(i === 0 || aggregateGroup(option) !== aggregateGroup(available[i - 1])) && <MenuSeparator />}
+            <MenuItem
+              active={option === fn}
+              icon={option === fn ? <Check className="h-3.5 w-3.5" /> : <span />}
+              onClick={() => {
+                menu.close();
+                if (option !== fn) onChange(option);
+              }}
+            >
+              {t(`menu.${option}`)}
+            </MenuItem>
+          </Fragment>
+        ))}
+      </Floating>
+    </>
+  );
+}

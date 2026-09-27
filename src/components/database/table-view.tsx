@@ -6,11 +6,13 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { cn, MenuItem, MenuSeparator } from "@/components/ui";
 import type { ViewConfig } from "@/db/schema/app";
+import type { AggregateFn } from "@/lib/aggregate";
 import { isSortable } from "@/lib/properties";
 import { Floating, useFloating } from "./floating";
 import { OpenLink, PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
 import { AddPropertyPanel, PropertyMenu } from "./property-menu";
+import { CalculationRow } from "./table-calculations";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
 
@@ -64,6 +66,12 @@ export function TableView({
   const sortOf = (id: string) => view.config.sorts?.find((s) => s.propertyId === id)?.direction;
 
   const setConfig = (config: ViewConfig) => api.updateView(view, { config });
+  const setCalculation = (key: string, fn: AggregateFn | null) => {
+    const calculations = { ...view.config.calculations };
+    if (fn) calculations[key] = fn;
+    else delete calculations[key];
+    void setConfig({ ...view.config, calculations });
+  };
   const createOption = api.createOption;
 
   const addRow = async () => {
@@ -180,6 +188,17 @@ export function TableView({
           {t("table.new")}
         </button>
       )}
+      <CalculationRow
+        offset={32}
+        columns={[
+          { key: TITLE, name: t("nameColumn"), type: TITLE, width: NAME_WIDTH },
+          ...visible.map((p) => ({ key: p.id, name: p.name, type: p.type, options: p.options, width: colWidth(p) })),
+        ]}
+        rows={rows}
+        calculations={view.config.calculations}
+        readOnly={readOnly}
+        onChange={setCalculation}
+      />
     </div>
   );
 }

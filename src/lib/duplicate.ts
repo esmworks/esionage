@@ -159,5 +159,8 @@ export function remapViewConfig(
   }
   if (config.hidden) out.hidden = config.hidden.map(map);
   if (config.shown) out.shown = config.shown.map(map);
+  if (config.calculations) {
+    out.calculations = Object.fromEntries(Object.entries(config.calculations).map(([key, fn]) => [map(key), fn]));
+  }
   return out;
 }

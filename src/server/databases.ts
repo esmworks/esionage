@@ -661,6 +661,7 @@ export async function deleteProperty(userId: string, propertyId: string) {
             filters: c.filters?.filter((f) => f.propertyId !== propertyId),
             hidden: c.hidden?.filter((h) => h !== propertyId),
             shown: c.shown?.filter((h) => h !== propertyId),
+            calculations: c.calculations && Object.fromEntries(Object.entries(c.calculations).filter(([k]) => k !== propertyId)),
           },
         })
         .where(eq(databaseView.id, view.id));
