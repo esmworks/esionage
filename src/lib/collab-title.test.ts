@@ -51,10 +51,22 @@ describe("doc title", () => {
     writeDocTitle(a, "Hello");
     sync();
     writeDocTitle(b, "Hello world");
-    writeDocTitle(a, "Hi");
+    // A different spot than b's edit: two inserts at the same spot are ordered by random client id.
+    writeDocTitle(a, "Hallo");
     sync();
     expect(readDocTitle(a)).toBe(readDocTitle(b));
-    expect(readDocTitle(a)).toBe("Hi world");
+    expect(readDocTitle(a)).toBe("Hallo world");
+  });
+
+  it("keeps the doc's client id when a write migrates a legacy title", () => {
+    const doc = new Y.Doc();
+    legacy("Plan")(doc);
+    const id = doc.clientID;
+    const origins: unknown[] = [];
+    doc.on("afterTransaction", (tr: Y.Transaction) => tr.local && origins.push(tr.origin));
+    writeDocTitle(doc, "Plan B", "me");
+    expect(doc.clientID).toBe(id);
+    expect(origins).toContain("me");
   });
 
   it("clears the title", () => {

@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { page, pageSnapshot, type SnapshotReason } from "@/db/schema";
 import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
-import { readDocTitle, writeDocTitle } from "@/lib/collab-title";
+import { migrateDocTitle, readDocTitle, writeDocTitle } from "@/lib/collab-title";
 import { AccessError, hasLevel, requireMembership, resolvePageAccess } from "@/server/access";
 import type { Channel, CollabService, PageContent, WriteActor } from "./bridge";
 import { verifyCollabToken } from "./token";
@@ -246,6 +246,7 @@ export function createCollab() {
       const blocks = editor.yXmlFragmentToBlocks(old.getXmlFragment(COLLAB_FRAGMENT));
       await transactPage(snap.pageId, actor, async (doc) => {
         await snapshotBefore(snap.pageId, doc, "before_restore", actor);
+        migrateDocTitle(doc, { source: "local", context: actor });
         doc.transact(
           () => {
             editor.blocksToYXmlFragment(blocks, doc.getXmlFragment(COLLAB_FRAGMENT));

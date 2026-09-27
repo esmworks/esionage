@@ -38,8 +38,12 @@ function clientIdFor(text: string) {
  * Moves a legacy string title into the Y.Text. The update is built with a client id derived from
  * the text, so two clients migrating the same title at once produce the identical update, which Yjs
  * applies only once, instead of the title appearing twice.
+ *
+ * Must run outside any transaction: Yjs marks a transaction that applies an update as remote, and a
+ * local edit in that same transaction then looks like another client using this doc's id, so Yjs
+ * gives the doc a new client id.
  */
-function migrate(doc: Y.Doc, origin: unknown) {
+export function migrateDocTitle(doc: Y.Doc, origin?: unknown) {
   const meta = doc.getMap(COLLAB_META);
   if (meta.get(MIGRATED) === true) return;
   const legacy = meta.get(LEGACY);
@@ -54,11 +58,12 @@ function migrate(doc: Y.Doc, origin: unknown) {
 
 /**
  * Writes `title` as the smallest edit to the current text (common prefix and suffix kept), so a
- * keystroke only inserts or deletes what changed and merges with other people's typing.
+ * keystroke only inserts or deletes what changed and merges with other people's typing. Callers
+ * that wrap this in their own transaction call `migrateDocTitle` before opening it.
  */
 export function writeDocTitle(doc: Y.Doc, title: string, origin?: unknown) {
+  migrateDocTitle(doc, origin);
   doc.transact(() => {
-    migrate(doc, origin);
     const text = doc.getText(COLLAB_TITLE);
     const current = text.toString();
     if (current === title) return;
