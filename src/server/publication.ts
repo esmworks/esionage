@@ -16,7 +16,7 @@ import { rowCovers, type DatabaseProperty } from "@/server/databases";
 import { computeDerived } from "@/server/derived";
 import { publishedPageRefs } from "@/server/mentions";
 import { canPublish } from "@/server/workspaces";
-import type { BodyHeading, PublishedBookmark } from "@/server/published-body";
+import type { BodyHeading, BodySegment, PublishedBookmark, PublishedColumn } from "@/server/published-body";
 import type { EmbedTarget } from "@/lib/web-blocks";
 
 /**
@@ -229,7 +229,7 @@ export type PublishedDatabase = {
 };
 /**
  * A part of a published page's body: text, a database block, or a block the page draws itself (a
- * table of contents, a breadcrumb from `crumbs`, a Mermaid diagram).
+ * table of contents, a breadcrumb from `crumbs`, a Mermaid diagram), or columns of these.
  */
 export type PublishedBlock =
   | { kind: "html"; html: string }
@@ -239,6 +239,7 @@ export type PublishedBlock =
   | { kind: "bookmark"; bookmark: PublishedBookmark }
   | { kind: "webEmbed"; url: string; embed: EmbedTarget }
   | { kind: "pdf"; fileId: string; name: string; caption: string }
+  | { kind: "columns"; columns: PublishedColumn<PublishedBlock>[] }
   | {
       kind: "embed";
       type: EmbedBlockType;
@@ -430,12 +431,20 @@ async function publishedBody(publisher: string, rootId: string, token: string, y
       });
     },
   });
-  return Promise.all(
-    segments.map(async (segment): Promise<PublishedBlock> => {
-      if (segment.kind !== "embed") return segment;
-      return { kind: "embed", type: segment.type, database: await publishedEmbed(publisher, rootId, segment.databaseId, segment.view) };
-    }),
-  );
+  const resolve = (list: BodySegment[]): Promise<PublishedBlock[]> =>
+    Promise.all(
+      list.map(async (segment): Promise<PublishedBlock> => {
+        if (segment.kind === "columns") {
+          return {
+            kind: "columns",
+            columns: await Promise.all(segment.columns.map(async (column) => ({ width: column.width, segments: await resolve(column.segments) }))),
+          };
+        }
+        if (segment.kind !== "embed") return segment;
+        return { kind: "embed", type: segment.type, database: await publishedEmbed(publisher, rootId, segment.databaseId, segment.view) };
+      }),
+    );
+  return resolve(segments);
 }
 
 async function publishedEmbed(publisher: string, rootId: string, databaseId: string, view: LinkedView | null) {

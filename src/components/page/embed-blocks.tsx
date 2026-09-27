@@ -16,6 +16,7 @@ import {
   serializeLinkedView,
   type LinkedView,
 } from "@/lib/embed-blocks";
+import { columnEditorBlockSpecs } from "./columns";
 import { contentBlockSpecs, contentInlineSpecs } from "./content-blocks";
 import { mentionBlockSpecs, mentionInlineSpecs } from "./mentions";
 import { DatabaseEmbed, useEmbedHost } from "./database-embed";
@@ -25,7 +26,8 @@ import { webBlockSpecs } from "./web-blocks";
 /**
  * The page editor's schema: BlockNote's blocks plus the database blocks (configs shared with the
  * server in lib/embed-blocks) and the content blocks (content-blocks.tsx, configs shared in
- * lib/content-blocks), and mentions and page links (mentions.tsx, configs shared in lib/mentions).
+ * lib/content-blocks), mentions and page links (mentions.tsx, configs shared in lib/mentions), and
+ * columns (columns.tsx, nodes shared in lib/columns).
  * The database blocks are self-contained widgets: not selectable as text, and
  * every event inside them belongs to the database UI rather than the editor.
  */
@@ -74,6 +76,8 @@ export const pageEditorSchema = BlockNoteSchema.create({
     ...mentionBlockSpecs,
     // Uploaded PDFs show in place (see file-block.tsx).
     file: FileBlock(),
+    // Blocks side by side (see columns.tsx).
+    ...columnEditorBlockSpecs,
   },
   inlineContentSpecs: { ...defaultInlineContentSpecs, ...contentInlineSpecs, ...mentionInlineSpecs },
 });

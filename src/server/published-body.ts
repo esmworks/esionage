@@ -1,6 +1,7 @@
 import * as Y from "yjs";
 import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { COLUMN_BLOCK, COLUMN_LIST_BLOCK, columnWidth } from "@/lib/columns";
 import { BREADCRUMB_BLOCK, MERMAID_BLOCK, TOC_BLOCK } from "@/lib/content-blocks";
 import { plainText } from "@/lib/content-markdown";
 import { isEmbedBlockType, parseLinkedView, type EmbedBlockType, type LinkedView } from "@/lib/embed-blocks";
@@ -22,6 +23,8 @@ import { serverEditor as editor, type PageBlock } from "@/server/blocknote";
  * contents, breadcrumbs and Mermaid diagrams come back between the parts too, for the page to
  * draw, and so do bookmarks and embeds (an iframe only for an allowlisted provider, see
  * lib/web-blocks), and uploaded PDFs, which the page shows in place. Equations are serialized: KaTeX builds them on the server (see server/blocknote.ts).
+ * Columns come back as a segment holding each column's own segments, so everything above works
+ * inside them too.
  */
 
 type Json = unknown;
@@ -162,7 +165,12 @@ export type BodySegment =
   /** An embed of an allowlisted provider; any other URL comes back as a bookmark. */
   | { kind: "webEmbed"; url: string; embed: EmbedTarget }
   /** A file block holding an uploaded PDF, shown in place (see components/page/pdf-viewer.tsx). */
-  | { kind: "pdf"; fileId: string; name: string; caption: string };
+  | { kind: "pdf"; fileId: string; name: string; caption: string }
+  /** Columns side by side (stacked on narrow screens), each with its own segments. */
+  | { kind: "columns"; columns: PublishedColumn<BodySegment>[] };
+
+/** A column of a published page: its share of the row (see lib/columns) and what it shows. */
+export type PublishedColumn<S> = { width: number; segments: S[] };
 
 /** A bookmark card's details, every URL checked to be http(s). */
 export type PublishedBookmark = { url: string; title: string; description: string; image: string; favicon: string; siteName: string };
@@ -175,6 +183,7 @@ function pdfOf(block: PageBlock): string | null {
 }
 
 const isStandalone = (block: PageBlock) =>
+  block.type === COLUMN_LIST_BLOCK ||
   isEmbedBlockType(block.type) ||
   isWebBlockType(block.type) ||
   block.type === TOC_BLOCK ||
@@ -237,92 +246,109 @@ export async function bodySegmentsFromYdoc(
     const blocks = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
     const { pageIds } = bodyReferences(blocks);
     const refs = pageIds.length && resolvePages ? await resolvePages(pageIds) : new Map<string, PublishedPageRef>();
-    const segments: BodySegment[] = [];
     // Every heading of the page, filled in as the runs are written; tables of contents share it.
     const headings: BodyHeading[] = [];
-    let run: PageBlock[] = [];
-    const flush = async () => {
-      if (!run.length) return;
-      const inRun = runHeadings(run).map((block) => {
-        const heading = {
-          anchor: `heading-${headings.length + 1}`,
-          level: Number((block.props as { level?: unknown }).level) || 1,
-          text: blocksToPlainText([{ ...block, children: [] }]),
-        };
-        headings.push(heading);
-        return heading;
-      });
-      let html = emptyLinesAsBreaks(await editor.blocksToHTMLLossy(resolveMentions(sanitizeBlocks(run), refs)));
-      run = [];
-      // The serializer escapes text, so "<h2" only ever starts a heading: the n-th one is the
-      // run's n-th heading block. The anchors are ours ("heading-3"), nothing from the document.
-      let n = 0;
-      html = html.replace(/<h([1-6])(?=[\s>])/g, (tag, level: string) => {
-        const heading = inRun[n++];
-        return heading ? `<h${level} id="${heading.anchor}"` : tag;
-      });
-      if (html) segments.push({ kind: "html", html });
-    };
-    const standalone = async (block: PageBlock) => {
-      if (block.type === TOC_BLOCK || block.type === BREADCRUMB_BLOCK) {
-        await flush();
-        segments.push(block.type === TOC_BLOCK ? { kind: "toc", headings } : { kind: "breadcrumb" });
-        return;
-      }
-      if (isWebBlockType(block.type)) {
-        const segment = webSegment(block);
-        if (!segment) return;
-        await flush();
-        segments.push(segment);
-        return;
-      }
-      const pdf = pdfOf(block);
-      if (pdf) {
-        const props = block.props as { name?: unknown; caption?: unknown };
+    /** The segments of a list of blocks: the body, or a column's blocks. */
+    const segmentsOf = async (blocks: PageBlock[]): Promise<BodySegment[]> => {
+      const segments: BodySegment[] = [];
+      let run: PageBlock[] = [];
+      const flush = async () => {
+        if (!run.length) return;
+        const inRun = runHeadings(run).map((block) => {
+          const heading = {
+            anchor: `heading-${headings.length + 1}`,
+            level: Number((block.props as { level?: unknown }).level) || 1,
+            text: blocksToPlainText([{ ...block, children: [] }]),
+          };
+          headings.push(heading);
+          return heading;
+        });
+        let html = emptyLinesAsBreaks(await editor.blocksToHTMLLossy(resolveMentions(sanitizeBlocks(run), refs)));
+        run = [];
+        // The serializer escapes text, so "<h2" only ever starts a heading: the n-th one is the
+        // run's n-th heading block. The anchors are ours ("heading-3"), nothing from the document.
+        let n = 0;
+        html = html.replace(/<h([1-6])(?=[\s>])/g, (tag, level: string) => {
+          const heading = inRun[n++];
+          return heading ? `<h${level} id="${heading.anchor}"` : tag;
+        });
+        if (html) segments.push({ kind: "html", html });
+      };
+      const standalone = async (block: PageBlock) => {
+        if (block.type === COLUMN_LIST_BLOCK) {
+          await flush();
+          const columns: PublishedColumn<BodySegment>[] = [];
+          for (const column of block.children ?? []) {
+            if (column.type !== COLUMN_BLOCK) continue;
+            columns.push({ width: columnWidth((column.props as { width?: unknown }).width), segments: await segmentsOf(column.children ?? []) });
+          }
+          if (columns.length) segments.push({ kind: "columns", columns });
+          return;
+        }
+        if (block.type === TOC_BLOCK || block.type === BREADCRUMB_BLOCK) {
+          await flush();
+          segments.push(block.type === TOC_BLOCK ? { kind: "toc", headings } : { kind: "breadcrumb" });
+          return;
+        }
+        if (isWebBlockType(block.type)) {
+          const segment = webSegment(block);
+          if (!segment) return;
+          await flush();
+          segments.push(segment);
+          return;
+        }
+        const pdf = pdfOf(block);
+        if (pdf) {
+          const props = block.props as { name?: unknown; caption?: unknown };
+          await flush();
+          segments.push({
+            kind: "pdf",
+            fileId: pdf,
+            name: typeof props.name === "string" ? props.name : "",
+            caption: typeof props.caption === "string" ? props.caption : "",
+          });
+          return;
+        }
+        if (block.type === MERMAID_BLOCK) {
+          const source = plainText(block.content);
+          if (!source.trim()) return;
+          await flush();
+          segments.push({ kind: "mermaid", source });
+          return;
+        }
+        const props = block.props as { databaseId?: unknown; view?: unknown };
+        if (typeof props.databaseId !== "string" || !props.databaseId || !isEmbedBlockType(block.type)) return;
         await flush();
         segments.push({
-          kind: "pdf",
-          fileId: pdf,
-          name: typeof props.name === "string" ? props.name : "",
-          caption: typeof props.caption === "string" ? props.caption : "",
+          kind: "embed",
+          type: block.type,
+          databaseId: props.databaseId,
+          view: block.type === "linkedView" ? parseLinkedView(props.view) : null,
         });
-        return;
+      };
+      for (const block of blocks) {
+        if (isStandalone(block)) {
+          await standalone(block);
+          continue;
+        }
+        const nested: PageBlock[] = [];
+        run.push(withoutNestedStandalone(block, nested));
+        for (const inner of nested) await standalone(inner);
       }
-      if (block.type === MERMAID_BLOCK) {
-        const source = plainText(block.content);
-        if (!source.trim()) return;
-        await flush();
-        segments.push({ kind: "mermaid", source });
-        return;
-      }
-      const props = block.props as { databaseId?: unknown; view?: unknown };
-      if (typeof props.databaseId !== "string" || !props.databaseId || !isEmbedBlockType(block.type)) return;
       await flush();
-      segments.push({
-        kind: "embed",
-        type: block.type,
-        databaseId: props.databaseId,
-        view: block.type === "linkedView" ? parseLinkedView(props.view) : null,
-      });
+      return segments;
     };
-    for (const block of blocks) {
-      if (isStandalone(block)) {
-        await standalone(block);
-        continue;
-      }
-      const nested: PageBlock[] = [];
-      run.push(withoutNestedStandalone(block, nested));
-      for (const inner of nested) await standalone(inner);
-    }
-    await flush();
-    return segments;
+    return await segmentsOf(blocks);
   } finally {
     doc.destroy();
   }
 }
 
-/** The body as one HTML string, leaving database blocks out. */
+/** The body as one HTML string, leaving database blocks out (columns' HTML one after another). */
 export async function bodyHtmlFromYdoc(state: Uint8Array | null): Promise<string> {
-  const segments = await bodySegmentsFromYdoc(state);
-  return segments.map((s) => (s.kind === "html" ? s.html : "")).join("");
+  const html = (segments: BodySegment[]): string =>
+    segments
+      .map((s) => (s.kind === "html" ? s.html : s.kind === "columns" ? s.columns.map((c) => html(c.segments)).join("") : ""))
+      .join("");
+  return html(await bodySegmentsFromYdoc(state));
 }

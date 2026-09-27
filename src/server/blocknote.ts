@@ -20,6 +20,7 @@ import {
   mermaidBlockConfig,
   tocBlockConfig,
 } from "@/lib/content-blocks";
+import { columnBlockSpecs, groupColumns } from "@/lib/columns";
 import { finishMarkdownImport, plainText, prepareMarkdownExport, prepareMarkdownImport } from "@/lib/content-markdown";
 import { carryOverMentions, mentionConfig, mentionPlainText, pageLinkBlockConfig, type MentionPerson } from "@/lib/mentions";
 import {
@@ -138,6 +139,7 @@ export const pageSchema = BlockNoteSchema.create({
     ...contentBlockSpecs,
     ...webBlockServerSpecs,
     pageLink: createBlockSpec(pageLinkBlockConfig, marker("pageLink"))(),
+    ...columnBlockSpecs(),
   },
   inlineContentSpecs: { ...defaultInlineContentSpecs, inlineMath, mention },
 });
@@ -195,7 +197,8 @@ async function parseMarkdown(markdown: string, context: MentionContext): Promise
 
 /**
  * Blocks for Markdown written into a page (MCP, new pages), given the page's current blocks.
- * Reference lines become database blocks; see mergeReferencedBlocks for what carries over. People
+ * Reference lines become database blocks; see mergeReferencedBlocks for what carries over. Column
+ * markers become column lists (lib/columns groupColumns). People
  * and dates mentioned before keep their mention's identity (see carryOverMentions).
  */
 export async function markdownToBlocks(
@@ -216,7 +219,7 @@ export async function markdownToBlocks(
       "markdown" in part ? { blocks: await parseMarkdown(part.markdown, context) } : part,
     ),
   );
-  const blocks = mergeReferencedBlocks(parts, existing, { keepMissingInline });
+  const blocks = groupColumns(mergeReferencedBlocks(parts, existing, { keepMissingInline }));
   carryOverMentions(blocks, carryOver ? existing : []);
   // A rewrite of the whole body (not an append) gets the page's bookmarks back from their link lines.
   return keepMissingInline ? restoreBookmarks(blocks, existing) : blocks;

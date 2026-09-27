@@ -11,7 +11,9 @@ approve them over OAuth.
   a ZIP; owners can export the whole workspace, see [Export](#export)), and full-text search over
   titles and content.
 - **Rich blocks**: callouts, LaTeX equations (block and inline, KaTeX), Mermaid diagrams with a
-  live preview, a table of contents and a breadcrumb, also on published pages and in Markdown.
+  live preview, a table of contents and a breadcrumb, and columns (2 to 5, resizable, blocks
+  dragged in and out with the side menu, stacked on phones), also on published pages and in
+  Markdown.
 - **Web bookmarks and embeds**: link cards with the page's title, description and image (fetched
   once on the server behind an SSRF guard), and YouTube, Vimeo, Loom, Figma, Google Docs, CodePen,
   Spotify and Google Maps embeds in sandboxed iframes.
