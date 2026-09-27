@@ -6,13 +6,11 @@ import {
   oauthClient,
   page,
   pageSnapshot,
-  workspace,
-  workspaceMember,
   type PageKind,
   user,
   type ViewType,
 } from "@/db/schema";
-import { AccessError, requireMembership, requirePageAccess } from "@/server/access";
+import { AccessError, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { normalizeRowProperties, syncPairedRelations, withCode } from "@/server/databases";
 
@@ -29,14 +27,7 @@ export type TreeNode = {
 
 export type TreeView = { id: string; name: string; type: ViewType };
 
-export async function listWorkspaces(userId: string) {
-  return db
-    .select({ id: workspace.id, name: workspace.name, icon: workspace.icon, role: workspaceMember.role })
-    .from(workspace)
-    .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, workspace.id))
-    .where(eq(workspaceMember.userId, userId))
-    .orderBy(asc(workspace.createdAt));
-}
+export { listWorkspaces } from "@/server/workspaces";
 
 /** Sidebar tree: every live page except database rows (those live inside their database). */
 export async function getTree(userId: string, workspaceId: string): Promise<TreeNode[]> {
@@ -55,13 +46,14 @@ export async function getTree(userId: string, workspaceId: string): Promise<Tree
     where p.workspace_id = ${workspaceId}
       and p.archived_at is null
       and (parent.id is null or parent.kind <> 'database')
+      and ${pageVisibleTo(userId, "p")}
     order by p.position, p.created_at
   `);
   const views = await db
     .select({ id: databaseView.id, name: databaseView.name, type: databaseView.type, databaseId: databaseView.databaseId })
     .from(databaseView)
     .innerJoin(page, eq(page.id, databaseView.databaseId))
-    .where(and(eq(page.workspaceId, workspaceId), isNull(page.archivedAt)))
+    .where(and(eq(page.workspaceId, workspaceId), isNull(page.archivedAt), pageVisibleTo(userId)))
     .orderBy(asc(databaseView.position));
   const viewsOf = new Map<string, TreeView[]>();
   for (const { databaseId, ...v } of views) viewsOf.set(databaseId, [...(viewsOf.get(databaseId) ?? []), v]);
@@ -77,19 +69,21 @@ export async function getTree(userId: string, workspaceId: string): Promise<Tree
 }
 
 export async function getPage(userId: string, pageId: string) {
-  return requirePageAccess(userId, pageId);
+  return requirePageAccess(userId, pageId, "view");
 }
 
 export async function getBreadcrumbs(userId: string, pageId: string) {
-  await requirePageAccess(userId, pageId);
+  await requirePageAccess(userId, pageId, "view");
   const rows = await db.execute<{ id: string; title: string; icon: string | null; kind: PageKind; depth: number }>(sql`
     with recursive chain as (
-      select id, parent_id, title, icon, kind, 0 as depth from ${page} where id = ${pageId}
+      select id, parent_id, workspace_id, title, icon, kind, 0 as depth from ${page} where id = ${pageId}
       union all
-      select p.id, p.parent_id, p.title, p.icon, p.kind, c.depth + 1
+      select p.id, p.parent_id, p.workspace_id, p.title, p.icon, p.kind, c.depth + 1
       from ${page} p join chain c on p.id = c.parent_id
     )
-    select id, title, icon, kind, depth from chain order by depth desc
+    select id, title, icon, kind, depth from chain
+    where ${pageVisibleTo(userId, "chain")}
+    order by depth desc
   `);
   return rows.map((r) => ({ id: r.id, title: r.title, icon: r.icon, kind: r.kind }));
 }
@@ -140,7 +134,7 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
   let workspaceId = input.workspaceId;
   let parentKind: PageKind | null = null;
   if (input.parentId) {
-    const parent = await requirePageAccess(userId, input.parentId);
+    const parent = await requirePageAccess(userId, input.parentId, "edit");
     workspaceId = parent.workspaceId;
     parentKind = parent.kind;
     if (parent.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
@@ -153,7 +147,7 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
 
   const properties =
     parentKind === "database" && input.properties
-      ? await normalizeRowProperties(input.parentId!, input.properties)
+      ? await normalizeRowProperties(userId, input.parentId!, input.properties)
       : {};
 
   const [created] = await db
@@ -202,13 +196,13 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
 }
 
 export async function renamePage(actor: WriteActor, pageId: string, title: string) {
-  await requirePageAccess(actor.userId, pageId);
+  await requirePageAccess(actor.userId, pageId, "edit");
   // Title lives in the shared doc so open editors update live; the store hook persists it.
   await getCollab().setTitle(pageId, title.trim(), actor);
 }
 
 export async function setPageIcon(userId: string, pageId: string, icon: string | null) {
-  const p = await requirePageAccess(userId, pageId);
+  const p = await requirePageAccess(userId, pageId, "edit");
   await db.update(page).set({ icon, updatedBy: userId }).where(eq(page.id, pageId));
   getCollab().broadcast(`ws:${p.workspaceId}`, "tree");
   if (p.parentId) getCollab().broadcast(`db:${p.parentId}`, "rows");
@@ -225,7 +219,7 @@ function subtreeIds(rootId: string) {
 }
 
 export async function archivePage(userId: string, pageId: string) {
-  const p = await requirePageAccess(userId, pageId);
+  const p = await requirePageAccess(userId, pageId, "edit");
   await db
     .update(page)
     .set({ archivedAt: new Date(), updatedBy: userId })
@@ -236,7 +230,7 @@ export async function archivePage(userId: string, pageId: string) {
 }
 
 export async function restorePage(userId: string, pageId: string) {
-  const p = await requirePageAccess(userId, pageId);
+  const p = await requirePageAccess(userId, pageId, "edit");
   // Restoring under an archived parent would leave the page unreachable; lift it to the root.
   let parentId = p.parentId;
   if (parentId) {
@@ -250,7 +244,7 @@ export async function restorePage(userId: string, pageId: string) {
 }
 
 export async function deletePagePermanently(userId: string, pageId: string) {
-  const p = await requirePageAccess(userId, pageId);
+  const p = await requirePageAccess(userId, pageId, "full");
   if (!p.archivedAt) throw new Error("Move the page to the trash before deleting it");
   await db.delete(page).where(eq(page.id, pageId));
   getCollab().broadcast(`ws:${p.workspaceId}`, "tree");
@@ -266,15 +260,16 @@ export async function listTrash(userId: string, workspaceId: string) {
     where p.workspace_id = ${workspaceId}
       and p.archived_at is not null
       and (parent.id is null or parent.archived_at is null or parent.archived_at <> p.archived_at)
+      and ${pageVisibleTo(userId, "p")}
     order by p.archived_at desc
     limit 100
   `);
 }
 
 export async function movePage(userId: string, pageId: string, newParentId: string | null, position?: number) {
-  const p = await requirePageAccess(userId, pageId);
+  const p = await requirePageAccess(userId, pageId, "edit");
   if (newParentId) {
-    const parent = await requirePageAccess(userId, newParentId);
+    const parent = await requirePageAccess(userId, newParentId, "edit");
     if (parent.workspaceId !== p.workspaceId) throw new AccessError("Cannot move across workspaces");
     if (parent.kind === "database" && p.kind === "database") throw new Error("A database cannot be a row");
     const cycle = await db.execute<{ hit: number }>(
@@ -326,8 +321,8 @@ export async function searchPages(
       + ts_rank(to_tsvector('simple', coalesce(p.title, '') || ' ' || coalesce(p.content_text, '')),
                 plainto_tsquery('simple', ${q})) as rank
     from ${page} p
-    join ${workspaceMember} m on m.workspace_id = p.workspace_id and m.user_id = ${userId}
     where p.archived_at is null
+      and ${pageVisibleTo(userId, "p")}
       ${workspaceId ? sql`and p.workspace_id = ${workspaceId}` : sql``}
       and (
         p.title ilike ${like} or p.content_text ilike ${like}
@@ -358,7 +353,7 @@ function makeSnippet(text: string, q: string) {
 
 export async function listChildren(userId: string, workspaceId: string, parentId: string | null) {
   await requireMembership(userId, workspaceId);
-  if (parentId) await requirePageAccess(userId, parentId);
+  if (parentId) await requirePageAccess(userId, parentId, "view");
   return db
     .select({ id: page.id, kind: page.kind, title: page.title, icon: page.icon, updatedAt: page.updatedAt })
     .from(page)
@@ -367,13 +362,14 @@ export async function listChildren(userId: string, workspaceId: string, parentId
         eq(page.workspaceId, workspaceId),
         parentId ? eq(page.parentId, parentId) : isNull(page.parentId),
         isNull(page.archivedAt),
+        pageVisibleTo(userId),
       ),
     )
     .orderBy(asc(page.position));
 }
 
 export async function listSnapshots(userId: string, pageId: string) {
-  await requirePageAccess(userId, pageId);
+  await requirePageAccess(userId, pageId, "view");
   return db
     .select({
       id: pageSnapshot.id,
@@ -403,12 +399,13 @@ export async function getSnapshot(userId: string, snapshotId: string) {
     .from(pageSnapshot)
     .where(eq(pageSnapshot.id, snapshotId));
   if (!snap) throw new AccessError();
-  await requirePageAccess(userId, snap.pageId);
+  await requirePageAccess(userId, snap.pageId, "view");
   return snap;
 }
 
 export async function restoreSnapshot(actor: WriteActor, snapshotId: string) {
   const snap = await getSnapshot(actor.userId, snapshotId);
+  await requirePageAccess(actor.userId, snap.pageId, "edit");
   await getCollab().restoreSnapshot(snapshotId, actor);
   return snap.pageId;
 }
@@ -418,7 +415,7 @@ export async function recentPages(userId: string, workspaceId: string, limit = 8
   return db
     .select({ id: page.id, title: page.title, icon: page.icon, kind: page.kind, updatedAt: page.updatedAt })
     .from(page)
-    .where(and(eq(page.workspaceId, workspaceId), isNull(page.archivedAt)))
+    .where(and(eq(page.workspaceId, workspaceId), isNull(page.archivedAt), pageVisibleTo(userId)))
     .orderBy(desc(page.updatedAt))
     .limit(limit);
 }

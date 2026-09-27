@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { page, pageSnapshot, type SnapshotReason } from "@/db/schema";
 import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT, COLLAB_META } from "@/lib/collab-constants";
-import { AccessError, requireMembership, requirePageAccess } from "@/server/access";
+import { AccessError, hasLevel, requireMembership, resolvePageAccess } from "@/server/access";
 import type { Channel, CollabService, PageContent, WriteActor } from "./bridge";
 import { verifyCollabToken } from "./token";
 
@@ -103,13 +103,18 @@ export function createCollab() {
   const extension: Extension<Context> = {
     extensionName: "esionage",
 
-    async onAuthenticate({ token, documentName }) {
+    async onAuthenticate({ token, documentName, connectionConfig }) {
       const user = verifyCollabToken(token);
       const target = parseName(documentName);
       if (!user || !target) throw new Error("unauthorized");
       try {
         if (target.kind === "ws") await requireMembership(user.userId, target.id);
-        else await requirePageAccess(user.userId, target.id);
+        else {
+          const { level } = await resolvePageAccess(user.userId, target.id);
+          if (!hasLevel(level, "view")) throw new AccessError();
+          // People who may only read get the live document but their edits are dropped.
+          connectionConfig.readOnly = !hasLevel(level, "edit");
+        }
       } catch (error) {
         if (error instanceof AccessError) throw new Error("forbidden");
         throw error;

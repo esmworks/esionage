@@ -19,7 +19,7 @@ import {
   SELECT_COLORS,
   type DatabaseErrorCode,
 } from "@/lib/properties";
-import { AccessError, requireMembership, requirePageAccess } from "@/server/access";
+import { AccessError, pageVisibleTo, requireMembership, requirePageAccess, type RequiredLevel } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 
 export type DatabaseProperty = typeof databaseProperty.$inferSelect;
@@ -41,8 +41,8 @@ export function withCode<E extends Error>(error: E, code: DatabaseErrorCode): E 
   return Object.assign(error, { code });
 }
 
-async function requireDatabase(userId: string, databaseId: string) {
-  const p = await requirePageAccess(userId, databaseId);
+async function requireDatabase(userId: string, databaseId: string, needed: RequiredLevel) {
+  const p = await requirePageAccess(userId, databaseId, needed);
   if (p.kind !== "database") throw withCode(new AccessError("Not a database"), "notADatabase");
   return p;
 }
@@ -67,7 +67,7 @@ export async function getProperties(databaseId: string) {
 }
 
 export async function getDatabase(userId: string, databaseId: string) {
-  const database = await requireDatabase(userId, databaseId);
+  const database = await requireDatabase(userId, databaseId, "view");
   const [properties, views] = await Promise.all([
     getProperties(databaseId),
     db
@@ -80,7 +80,8 @@ export async function getDatabase(userId: string, databaseId: string) {
 }
 
 export async function listRows(userId: string, databaseId: string, config: ViewConfig = {}) {
-  await requireDatabase(userId, databaseId);
+  // Rows share their database's access; a row page never grants more than its database.
+  await requireDatabase(userId, databaseId, "view");
   const [rows, properties] = await Promise.all([
     db
       .select({
@@ -103,7 +104,7 @@ export async function listRows(userId: string, databaseId: string, config: ViewC
  * Validates row values keyed by property id or (case-insensitive) name and returns them keyed
  * by id. Unknown keys are rejected so agents learn the schema instead of silently losing data.
  */
-export async function normalizeRowProperties(databaseId: string, input: Record<string, unknown>) {
+export async function normalizeRowProperties(userId: string, databaseId: string, input: Record<string, unknown>) {
   const props = await getProperties(databaseId);
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
@@ -116,7 +117,7 @@ export async function normalizeRowProperties(databaseId: string, input: Record<s
       );
     }
     const normalized = normalizeValue(prop, value);
-    out[prop.id] = prop.type === "relation" && normalized ? await resolveRelationValue(prop, normalized as string[]) : normalized;
+    out[prop.id] = prop.type === "relation" && normalized ? await resolveRelationValue(userId, prop, normalized as string[]) : normalized;
   }
   return out;
 }
@@ -125,17 +126,18 @@ export async function normalizeRowProperties(databaseId: string, input: Record<s
  * Maps relation input to row ids of the related database. Each entry is a row id (trashed rows
  * included, so existing links survive an edit) or, for agents, the exact title of a live row.
  */
-async function resolveRelationValue(prop: DatabaseProperty, input: string[]) {
+async function resolveRelationValue(userId: string, prop: DatabaseProperty, input: string[]) {
   const targetId = prop.options.relation?.databaseId;
   const invalid = (value: string) =>
     new PropertyValueError(`"${value}" is not a row of the database related to "${prop.name}"`, "invalidRelation", {
       property: prop.name,
     });
   if (!targetId) throw invalid(input[0]);
+  // Only rows the user can see can be linked (or found by title).
   const rows = await db
     .select({ id: page.id, title: page.title, archivedAt: page.archivedAt })
     .from(page)
-    .where(eq(page.parentId, targetId));
+    .where(and(eq(page.parentId, targetId), pageVisibleTo(userId)));
   const ids = new Set(rows.map((r) => r.id));
   const out: string[] = [];
   for (const value of input) {
@@ -210,10 +212,10 @@ export async function syncPairedRelations(
 }
 
 export async function updateRowProperties(userId: string, rowId: string, patch: Record<string, unknown>) {
-  const row = await requirePageAccess(userId, rowId);
+  const row = await requirePageAccess(userId, rowId, "edit");
   if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
-  await requireDatabase(userId, row.parentId);
-  const normalized = await normalizeRowProperties(row.parentId, patch);
+  await requireDatabase(userId, row.parentId, "view");
+  const normalized = await normalizeRowProperties(userId, row.parentId, patch);
   const next = { ...row.properties };
   for (const [id, value] of Object.entries(normalized)) {
     if (value === null) delete next[id];
@@ -256,7 +258,7 @@ export async function addProperty(
   databaseId: string,
   input: { name: string; type: PropertyType; options?: string[]; relation?: RelationInput },
 ) {
-  const database = await requireDatabase(userId, databaseId);
+  const database = await requireDatabase(userId, databaseId, "edit");
   if (!PROPERTY_TYPES.includes(input.type)) {
     throw new PropertyValueError(`Unsupported type "${input.type}"`, "unsupportedType", { type: String(input.type) });
   }
@@ -268,7 +270,8 @@ export async function addProperty(
     target =
       input.relation.databaseId === databaseId
         ? database
-        : await requireDatabase(userId, input.relation.databaseId).catch(() => null);
+        : // A two-way relation also adds a property to the target, so it needs edit access there.
+          await requireDatabase(userId, input.relation.databaseId, input.relation.twoWay ? "edit" : "view").catch(() => null);
     if (!target || target.workspaceId !== database.workspaceId || target.archivedAt) throw invalidTarget();
   }
   const options: PropertyOptions =
@@ -320,10 +323,11 @@ export function makeOption(name: string, index = 0): SelectOption {
   return { id: crypto.randomUUID(), name: name.trim(), color: SELECT_COLORS[index % SELECT_COLORS.length] };
 }
 
+/** A property the user may change (every caller edits the schema). */
 async function requireProperty(userId: string, propertyId: string) {
   const [prop] = await db.select().from(databaseProperty).where(eq(databaseProperty.id, propertyId));
   if (!prop) throw new AccessError();
-  await requireDatabase(userId, prop.databaseId);
+  await requireDatabase(userId, prop.databaseId, "edit");
   return prop;
 }
 
@@ -404,7 +408,7 @@ export async function deleteProperty(userId: string, propertyId: string) {
 }
 
 export async function addView(userId: string, databaseId: string, input: { name: string; type: ViewType }) {
-  const database = await requireDatabase(userId, databaseId);
+  const database = await requireDatabase(userId, databaseId, "edit");
   const props = await getProperties(databaseId);
   const config: ViewConfig = {};
   if (input.type === "board") config.groupBy = props.find((p) => p.type === "select")?.id;
@@ -432,10 +436,11 @@ export async function addView(userId: string, databaseId: string, input: { name:
   return created;
 }
 
+/** A view the user may change (every caller edits it). */
 async function requireView(userId: string, viewId: string) {
   const [view] = await db.select().from(databaseView).where(eq(databaseView.id, viewId));
   if (!view) throw new AccessError();
-  const database = await requireDatabase(userId, view.databaseId);
+  const database = await requireDatabase(userId, view.databaseId, "edit");
   return { ...view, workspaceId: database.workspaceId };
 }
 
@@ -470,9 +475,9 @@ export async function moveRow(
   rowId: string,
   { position, groupBy, groupValue }: { position?: number; groupBy?: string; groupValue?: string | null },
 ) {
-  const row = await requirePageAccess(userId, rowId);
+  const row = await requirePageAccess(userId, rowId, "edit");
   if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
-  await requireDatabase(userId, row.parentId);
+  await requireDatabase(userId, row.parentId, "view");
   const properties = { ...row.properties };
   if (groupBy) {
     if (groupValue) properties[groupBy] = groupValue;
@@ -517,7 +522,7 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
     properties,
     views,
     rows,
-    relations: await getRelationTargets(properties),
+    relations: await getRelationTargets(userId, properties),
   };
 }
 
@@ -532,11 +537,13 @@ export type RelationTarget = {
 };
 
 /**
- * The related database and its rows for every relation property, keyed by property id. Related
- * databases are in the same workspace as the source (checked when the property is created), so
- * the caller's access to the source covers them.
+ * The related database and its rows for every relation property, keyed by property id, limited
+ * to what the user can see: access to the source database doesn't cover the related one.
  */
-export async function getRelationTargets(properties: DatabaseProperty[]): Promise<Record<string, RelationTarget>> {
+export async function getRelationTargets(
+  userId: string,
+  properties: DatabaseProperty[],
+): Promise<Record<string, RelationTarget>> {
   const targetIds = [
     ...new Set(properties.flatMap((p) => (p.type === "relation" && p.options.relation ? [p.options.relation.databaseId] : []))),
   ];
@@ -546,11 +553,11 @@ export async function getRelationTargets(properties: DatabaseProperty[]): Promis
     db
       .select({ id: page.id, title: page.title, icon: page.icon })
       .from(page)
-      .where(and(inArray(page.id, targetIds), eq(page.kind, "database"), isNull(page.archivedAt))),
+      .where(and(inArray(page.id, targetIds), eq(page.kind, "database"), isNull(page.archivedAt), pageVisibleTo(userId))),
     db
       .select({ id: page.id, title: page.title, icon: page.icon, parentId: page.parentId })
       .from(page)
-      .where(and(inArray(page.parentId, targetIds), isNull(page.archivedAt)))
+      .where(and(inArray(page.parentId, targetIds), isNull(page.archivedAt), pageVisibleTo(userId)))
       .orderBy(asc(page.position), asc(page.createdAt)),
     pairedIds.length
       ? db
@@ -582,21 +589,21 @@ export async function listWorkspaceDatabases(userId: string, workspaceId: string
   return db
     .select({ id: page.id, title: page.title, icon: page.icon })
     .from(page)
-    .where(and(eq(page.workspaceId, workspaceId), eq(page.kind, "database"), isNull(page.archivedAt)))
+    .where(and(eq(page.workspaceId, workspaceId), eq(page.kind, "database"), isNull(page.archivedAt), pageVisibleTo(userId)))
     .orderBy(asc(page.title));
 }
 
 /** A single row with its database schema, for the property panel on a row page. */
 export async function getRow(userId: string, rowId: string) {
-  const row = await requirePageAccess(userId, rowId);
+  const row = await requirePageAccess(userId, rowId, "view");
   if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
-  const database = await requireDatabase(userId, row.parentId);
+  const database = await requireDatabase(userId, row.parentId, "view");
   const properties = await getProperties(row.parentId);
   return {
     databaseId: row.parentId,
     databaseTitle: database.title,
     row: { id: row.id, title: row.title, properties: row.properties },
     properties,
-    relations: await getRelationTargets(properties),
+    relations: await getRelationTargets(userId, properties),
   };
 }

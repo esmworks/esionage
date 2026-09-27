@@ -162,7 +162,7 @@ export function createMcpServer(principal: McpPrincipal) {
       id: row.id,
       title: pageLabel(row.title),
       database_id: databaseId,
-      properties: displayProperties(properties, row.properties, await databases.getRelationTargets(properties)),
+      properties: displayProperties(properties, row.properties, await databases.getRelationTargets(userId, properties)),
       url: pageUrl(database.workspaceId, row.id),
     };
   };
@@ -289,11 +289,11 @@ export function createMcpServer(principal: McpPrincipal) {
         if (parentDatabase) {
           const { properties } = await databases.getDatabase(userId, parentDatabase.id);
           out.database_id = parentDatabase.id;
-          out.properties = displayProperties(properties, page.properties, await databases.getRelationTargets(properties));
+          out.properties = displayProperties(properties, page.properties, await databases.getRelationTargets(userId, properties));
         }
         if (page.kind === "database") {
           const { properties } = await databases.getDatabase(userId, page.id);
-          const targets = await databases.getRelationTargets(properties);
+          const targets = await databases.getRelationTargets(userId, properties);
           out.database_properties = properties.map((p) => describeProperty(p, targets));
           out.note = "This is a database. Use query_database to list its rows and get_database for its full schema.";
         } else {
@@ -439,7 +439,7 @@ export function createMcpServer(principal: McpPrincipal) {
           databases.getDatabase(userId, database_id),
           databases.listRows(userId, database_id),
         ]);
-        const targets = await databases.getRelationTargets(properties);
+        const targets = await databases.getRelationTargets(userId, properties);
         return {
           id: database.id,
           title: pageLabel(database.title),
@@ -475,7 +475,7 @@ export function createMcpServer(principal: McpPrincipal) {
       runTool(async () => {
         const { database, properties, views } = await databases.getDatabase(userId, database_id);
         const props: PropertyDef[] = properties;
-        const targets = await databases.getRelationTargets(properties);
+        const targets = await databases.getRelationTargets(userId, properties);
         const view = view_id ? views.find((v) => v.id === view_id) : undefined;
         if (view_id && !view) throw new ToolInputError(`No view with id "${view_id}" in this database.`);
         const rows = await databases.listRows(userId, database_id, {
@@ -640,7 +640,7 @@ export function createMcpServer(principal: McpPrincipal) {
             ? { relation: { databaseId: related_database_id!, twoWay: two_way, pairedName: paired_property_name } }
             : {}),
         });
-        const targets = await databases.getRelationTargets([created]);
+        const targets = await databases.getRelationTargets(userId, [created]);
         return { database_id, property: describeProperty(created, targets) };
       }),
   );
@@ -692,7 +692,7 @@ export function createMcpServer(principal: McpPrincipal) {
         if (!patch.name && !patch.options) throw new ToolInputError("Nothing to change: provide name or option changes.");
         await databases.updateProperty(userId, prop.id, patch);
         const updated = { ...prop, name: patch.name ?? prop.name, options: patch.options ? { ...prop.options, options: patch.options } : prop.options };
-        return { database_id, property: describeProperty(updated, await databases.getRelationTargets([updated])) };
+        return { database_id, property: describeProperty(updated, await databases.getRelationTargets(userId, [updated])) };
       }),
   );
 
@@ -742,7 +742,7 @@ export function createMcpServer(principal: McpPrincipal) {
         assertWrite();
         const { database, properties } = await databases.getDatabase(userId, database_id);
         if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
-        const targets = await databases.getRelationTargets(properties);
+        const targets = await databases.getRelationTargets(userId, properties);
         // Validate before creating so a bad filter does not leave a half-configured view behind.
         const patch = viewConfigPatch(properties, type, { group_by, date_by, filters, sorts }, targets);
         const created = await databases.addView(userId, database_id, { name, type });
@@ -776,7 +776,7 @@ export function createMcpServer(principal: McpPrincipal) {
         const { database, properties, views } = await databases.getDatabase(userId, database_id);
         const view = views.find((v) => v.id === view_id);
         if (!view) throw new ToolInputError(`No view with id "${view_id}" in this database. Call get_database for view ids.`);
-        const targets = await databases.getRelationTargets(properties);
+        const targets = await databases.getRelationTargets(userId, properties);
         const patch = viewConfigPatch(properties, view.type, { group_by, date_by, filters, sorts }, targets);
         if (name === undefined && !Object.keys(patch).length) {
           throw new ToolInputError("Nothing to change: provide name, group_by, date_by, filters or sorts.");

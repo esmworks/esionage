@@ -72,6 +72,16 @@ export async function createWorkspace(userId: string, name: string) {
   });
 }
 
+/** The user's workspaces with their role, oldest first. */
+export async function listWorkspaces(userId: string) {
+  return db
+    .select({ id: workspace.id, name: workspace.name, icon: workspace.icon, role: workspaceMember.role })
+    .from(workspace)
+    .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, workspace.id))
+    .where(eq(workspaceMember.userId, userId))
+    .orderBy(asc(workspace.createdAt));
+}
+
 export async function getWorkspace(userId: string, workspaceId: string) {
   const { role } = await requireMembership(userId, workspaceId);
   const [ws] = await db
