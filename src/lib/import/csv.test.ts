@@ -95,10 +95,13 @@ describe("values", () => {
     expect(parseNumber("")).toBeNull();
   });
 
-  it("reads checkboxes in English and Turkish", () => {
+  it("reads checkboxes in English, Turkish, German, Spanish and French", () => {
     expect(parseCheckbox("Yes")).toBe(true);
     expect(parseCheckbox("EVET")).toBe(true);
     expect(parseCheckbox("Hayır")).toBe(false);
+    expect(parseCheckbox("Ja")).toBe(true);
+    expect(parseCheckbox("Sí")).toBe(true);
+    expect(parseCheckbox("NON")).toBe(false);
     expect(parseCheckbox("false")).toBe(false);
     expect(parseCheckbox("1")).toBe(true);
     expect(parseCheckbox("1", { numbers: false })).toBeNull();
@@ -163,6 +166,8 @@ describe("guessColumn", () => {
 
   it("finds the title column by name, else the first", () => {
     expect(guessTitleColumn(["Id", "Name", "Tags"])).toBe(1);
+    expect(guessTitleColumn(["Id", "Título", "Etiquetas"])).toBe(1);
+    expect(guessTitleColumn(["Id", "TITRE"])).toBe(1);
     expect(guessTitleColumn(["Kod", "Başlık"])).toBe(1);
     expect(guessTitleColumn(["Id", "Tags"])).toBe(0);
   });

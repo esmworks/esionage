@@ -1,0 +1,106 @@
+{
+  "workspaceMenu": {
+    "myAccount": "Mein Konto",
+    "newWorkspace": "Neuer Workspace",
+    "settingsAndMembers": "Einstellungen & Mitglieder",
+    "signOut": "Abmelden"
+  },
+  "nav": {
+    "search": "Suchen",
+    "home": "Startseite",
+    "inbox": "Posteingang",
+    "settings": "Einstellungen",
+    "trash": "Papierkorb",
+    "templates": "Vorlagen",
+    "import": "Importieren"
+  },
+  "toggle": {
+    "open": "Seitenleiste öffnen",
+    "close": "Seitenleiste ausblenden",
+    "resize": "Ziehen, um die Größe zu ändern",
+    "pin": "Seitenleiste geöffnet lassen"
+  },
+  "pages": {
+    "heading": "Seiten",
+    "new": "Neu",
+    "newPage": "Neue Seite",
+    "newDatabase": "Neue Datenbank",
+    "createFirst": "Erstelle deine erste Seite",
+    "nothingShared": "Es wurden noch keine Seiten mit dir geteilt",
+    "collapse": "Einklappen",
+    "expand": "Ausklappen",
+    "actions": "Seitenaktionen",
+    "moveToTrash": "In den Papierkorb verschieben",
+    "addInside": "Seite darin hinzufügen",
+    "noChildren": "Keine Seiten darin",
+    "favorites": "Favoriten",
+    "moveFailed": "Die Seite konnte nicht hierher verschoben werden. Um sie an einen anderen Ort zu verschieben, brauchst du Vollzugriff darauf.",
+    "fromTemplate": "Aus einer Vorlage",
+    "import": "Importieren…",
+    "confirmMoveSpace": "Diese Seite nach {place} verschieben? Wer sie sehen kann, ändert sich entsprechend."
+  },
+  "search": {
+    "placeholder": "Seiten und Inhalte durchsuchen…",
+    "label": "Suchen",
+    "noResults": "Keine Ergebnisse"
+  },
+  "trash": {
+    "title": "Papierkorb",
+    "empty": "Der Papierkorb ist leer",
+    "deletePermanently": "Endgültig löschen",
+    "confirmDelete": "Endgültig löschen? Das kann nicht rückgängig gemacht werden."
+  },
+  "newWorkspace": {
+    "title": "Neuer Workspace",
+    "description": "Ein eigener Bereich mit eigenen Seiten und Mitgliedern.",
+    "namePlaceholder": "Name des Workspace",
+    "create": "Erstellen",
+    "creating": "Wird erstellt…"
+  },
+  "inbox": {
+    "title": "Posteingang",
+    "empty": "Noch keine Benachrichtigungen",
+    "markAllRead": "Alle als gelesen markieren",
+    "assignment": "{actor} hat dich bei „{property}“ eingetragen",
+    "pageShared": "{actor} hat diese Seite mit dir geteilt",
+    "comment": "{actor} hat in einer Diskussion kommentiert, an der du beteiligt bist",
+    "mention": "{actor} hat dich erwähnt",
+    "reminder": "Erinnerung: {date}",
+    "someone": "Jemand",
+    "unread": "Ungelesen",
+    "unreadCount": "{count, plural, one {# ungelesene Benachrichtigung} other {# ungelesene Benachrichtigungen}}"
+  },
+  "templates": {
+    "title": "Vorlagen",
+    "description": "Wähle eine aus, um daraus eine neue Seite zu erstellen.",
+    "workspace": "In diesem Workspace",
+    "builtIn": "Integriert",
+    "empty": "Noch keine Vorlagen. Um eine hinzuzufügen, öffne das ⋯-Menü einer Seite und wähle „Als Vorlage speichern“.",
+    "use": "Seite aus dieser Vorlage erstellen",
+    "database": "Datenbank",
+    "edit": "Vorlage bearbeiten",
+    "open": "Vorlage öffnen",
+    "delete": "Vorlage löschen",
+    "confirmDelete": "Diese Vorlage endgültig löschen? Bereits daraus erstellte Seiten bleiben unverändert."
+  },
+  "teamspaces": {
+    "heading": "Teamspaces",
+    "options": "Teamspace-Optionen",
+    "new": "Neuer Teamspace",
+    "browse": "Teamspaces durchsuchen",
+    "none": "Du bist noch in keinem Teamspace. Teamspaces durchsuchen",
+    "actions": "Aktionen für {name}",
+    "addPage": "Seite zu {name} hinzufügen",
+    "edit": "Teamspace bearbeiten",
+    "members": "Mitglieder und Einstellungen",
+    "leave": "Teamspace verlassen",
+    "confirmLeave": "{name} verlassen? Die Seiten verschwinden aus deiner Seitenleiste. Sofern der Teamspace nicht offen ist, verlierst du auch den Zugriff darauf.",
+    "empty": "Noch keine Seiten. Füge eine hinzu",
+    "another": "einem anderen Teamspace"
+  },
+  "sections": {
+    "shared": "Geteilt",
+    "private": "Privat",
+    "newPrivate": "Neue private Seite"
+  }
+}

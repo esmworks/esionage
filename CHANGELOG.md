@@ -4,6 +4,41 @@
 
 ### Added
 
+- **German, Spanish and French** (#51): the whole interface, emails and built-in templates in
+  Deutsch, Español and Français, next to English and Turkish; the editor's menus use BlockNote's own
+  dictionaries for them. The language picker lists each language by its own name. Adding a
+  language is now a folder of JSON files (`src/i18n/messages/<locale>/`, found by name, no index
+  file) plus a line in `src/i18n/config.ts` and one in `src/i18n/blocknote/index.ts`; a language
+  that lacks a text shows the English one. Built-in templates moved to
+  `messages/<locale>/templates.json`. `Accept-Language` matching now also takes regional codes
+  (`pt-br`) when a language has them. `pnpm i18n:check` (also in `pnpm test` and a CI step)
+  compares every language with English: missing or extra files and keys, empty texts, invalid
+  ICU (parsed with @formatjs/icu-messageformat-parser 3.5.20, MIT, dev only), placeholders, tags
+  and select branches that differ (plural vs. plain `{count}` is allowed).
+  CSV import recognises German, Spanish and French title columns and yes/no words. The
+  translation workflow is in `CONTRIBUTING.md`. The new translations were not reviewed by native
+  speakers yet.
+- **Import from Notion** (#46): Notion's *Markdown & CSV* export ZIP, including a split export
+  (`Export-<id>.zip` holding `Export-<id>-Part-N.zip`, each possibly wrapped in its own
+  `Export-…-Part-N/` folder), goes in through the existing Import dialog and `/api/import`, under
+  the page or into the teamspace it was started from. On top of what the Markdown import already
+  did for Notion (ids out of titles, `_all.csv` over the partial CSV, folders as subpages):
+  callouts (`<aside>`) become callouts, `$`…`$` inline equations become equations (toggles as
+  `<details>`, to-dos, tables and `$$` blocks were already read), a line linking to one of the
+  page's own subpages becomes a link-to-page block, notion.so links to pages of the export point
+  at the imported pages, a database's own `.md` next to its CSV is left out as a duplicate, and
+  the `Name: value` property list at the top of each row page is taken off its body (lines linking
+  to files stay, so the files are uploaded). Relation cells (`Title (../DB%20<id>/Title%20<id>.md)`,
+  `Title (https://www.notion.so/…-<id>)`, or `[Title](…)` in the row page's list) make a one-way
+  relation property to the database their links lead to, linked by link, else by a unique title;
+  entries that find no row are counted in a warning, and columns whose links all lead outside the
+  export stay text without the links. New import warnings: files no page shows or links to
+  (`unused`) and ZIP entries whose path climbs out of the archive (`unsafePath`, previously
+  dropped silently). The dialog says how to export from Notion (en/tr). New code in
+  `src/lib/import/notion.ts`; checks in `src/lib/import/notion.test.ts`,
+  `src/server/import/archive.test.ts`, `src/server/import/notion-blocks.test.ts` and
+  `scripts/notion-import-e2e.ts` (33). The fixtures follow Notion's documented export format; no
+  real Notion export was tried. No migration.
 - **Offline editing** (#10): each page opened in the browser is kept in IndexedDB (its Yjs
   document, via y-indexeddb 9.0.12, MIT), loaded before the page connects. Without a connection the
   page stays editable, and the edits merge with the server's state when it returns (the sync

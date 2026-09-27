@@ -1,0 +1,72 @@
+{
+  "heading": "Tokens de acceso personal",
+  "description": "Los tokens permiten que scripts y otros programas usen la API REST de Esionage en tu nombre, con tu acceso a las páginas. Mantenlos en secreto, como una contraseña.",
+  "docs": "Documentación de la API",
+  "empty": "Todavía no tienes tokens.",
+  "create": "Nuevo token",
+  "form": {
+    "title": "Nuevo token de acceso personal",
+    "name": "Nombre",
+    "namePlaceholder": "p. ej., Script del informe semanal",
+    "access": "Acceso",
+    "read": "Solo lectura",
+    "readHint": "Leer páginas, bases de datos, filas y comentarios.",
+    "write": "Lectura y escritura",
+    "writeHint": "También crear y cambiar páginas, filas y comentarios, y mover páginas a la papelera.",
+    "workspace": "Espacio de trabajo",
+    "allWorkspaces": "Todos mis espacios de trabajo",
+    "expiry": "Caduca después de",
+    "days": "{count, plural, one {# día} other {# días}}",
+    "never": "Nunca",
+    "submit": "Crear token",
+    "creating": "Creando…"
+  },
+  "created": {
+    "title": "Copia tu nuevo token",
+    "body": "Esta es la única vez que se muestra el token. Guárdalo en un lugar seguro; si lo pierdes, revócalo y crea otro.",
+    "done": "Listo"
+  },
+  "row": {
+    "readOnly": "Solo lectura",
+    "readWrite": "Lectura y escritura",
+    "allWorkspaces": "Todos los espacios de trabajo",
+    "createdAt": "Creado el {date}",
+    "lastUsed": "último uso el {date}",
+    "neverUsed": "nunca usado",
+    "expires": "caduca el {date}",
+    "expired": "caducó el {date}",
+    "noExpiry": "no caduca"
+  },
+  "revoke": "Revocar",
+  "revoking": "Revocando…",
+  "confirmRevoke": "Revocar {name}",
+  "revokeError": "No se pudo revocar el token. Vuelve a intentarlo.",
+  "errors": {
+    "name": "Ponle al token un nombre de 100 caracteres como máximo.",
+    "scopes": "Elige qué puede hacer el token.",
+    "workspace": "No eres miembro de ese espacio de trabajo.",
+    "expiry": "Elige cuándo caduca el token.",
+    "limit": "Ya tienes el máximo de tokens permitidos. Revoca uno primero.",
+    "generic": "No se pudo crear el token. Vuelve a intentarlo."
+  },
+  "docsPage": {
+    "metaTitle": "API REST",
+    "openapi": "Documento OpenAPI (JSON)",
+    "tokensWhere": "Crea un token en Mi cuenta → Apps conectadas.",
+    "quickStart": "Inicio rápido",
+    "baseUrl": "URL base",
+    "errors": "Errores",
+    "code": "Código",
+    "status": "Estado",
+    "endpoints": "Endpoints",
+    "parameters": "Parámetros",
+    "inPath": "ruta",
+    "inQuery": "consulta",
+    "body": "Cuerpo de la solicitud (JSON)",
+    "response": "Respuesta {status}",
+    "name": "Nombre",
+    "type": "Tipo",
+    "description": "Descripción",
+    "required": "obligatorio"
+  }
+}

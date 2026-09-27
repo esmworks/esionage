@@ -118,11 +118,13 @@ export function csvTable(text: string): CsvTable {
   return { headers, rows };
 }
 
-const TITLE_HEADERS = ["name", "title", "ad", "isim", "başlık", "baslik", "page", "sayfa"];
+// English, Turkish, German, Spanish and French.
+const TITLE_HEADERS = ["name", "title", "page", "ad", "isim", "başlık", "baslik", "sayfa", "titel", "seite", "nombre", "título", "titulo", "página", "titre", "nom"];
 
-/** The column that becomes each row's title: one called Name or Title (or Ad, Başlık), else the first. */
+/** The column that becomes each row's title: one called Name or Title (or Ad, Başlık, Titel, Nombre, Titre…), else the first. */
 export function guessTitleColumn(headers: string[]): number {
-  const i = headers.findIndex((h) => TITLE_HEADERS.includes(h.trim().toLocaleLowerCase("tr")));
+  // Both ways of lower-casing: Turkish makes "TITLE" "tıtle", others make "BAŞLIK" "başlik".
+  const i = headers.findIndex((h) => [h.trim().toLowerCase(), h.trim().toLocaleLowerCase("tr")].some((l) => TITLE_HEADERS.includes(l)));
   return i === -1 ? 0 : i;
 }
 
@@ -151,10 +153,10 @@ function looksLikeCode(raw: string) {
   return /^[+-]?0\d/.test(s) || s.replace(/\D/g, "").length > 15;
 }
 
-const TRUE_WORDS = new Set(["true", "yes", "y", "evet", "checked", "✓", "✔", "[x]", "x"]);
-const FALSE_WORDS = new Set(["false", "no", "n", "hayır", "hayir", "unchecked", "[ ]", "✗"]);
+const TRUE_WORDS = new Set(["true", "yes", "y", "evet", "ja", "wahr", "sí", "si", "verdadero", "oui", "vrai", "checked", "✓", "✔", "[x]", "x"]);
+const FALSE_WORDS = new Set(["false", "no", "n", "hayır", "hayir", "nein", "falsch", "falso", "non", "faux", "unchecked", "[ ]", "✗"]);
 
-/** A checkbox cell: yes/no words (English and Turkish), true/false, 1/0, ✓. Null for anything else. */
+/** A checkbox cell: yes/no words (English, Turkish, German, Spanish, French), true/false, 1/0, ✓. Null for anything else. */
 export function parseCheckbox(raw: string, { numbers = true } = {}): boolean | null {
   const s = raw.trim().toLocaleLowerCase("tr").replace(/ı/g, "i");
   const word = raw.trim().toLowerCase();

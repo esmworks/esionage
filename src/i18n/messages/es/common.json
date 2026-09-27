@@ -1,0 +1,28 @@
+{
+  "appDescription": "Espacio de trabajo de código abierto para documentos y bases de datos, con acceso MCP para agentes de IA.",
+  "untitled": "Sin título",
+  "cancel": "Cancelar",
+  "save": "Guardar",
+  "saving": "Guardando…",
+  "saved": "Guardado.",
+  "close": "Cerrar",
+  "delete": "Eliminar",
+  "remove": "Quitar",
+  "restore": "Restaurar",
+  "loading": "Cargando…",
+  "copy": "Copiar",
+  "copied": "Copiado",
+  "genericError": "Algo salió mal. Vuelve a intentarlo.",
+  "errorPage": {
+    "title": "Algo salió mal",
+    "description": "No se pudo mostrar esta página o tu último cambio no se aplicó.",
+    "retry": "Volver a intentarlo",
+    "home": "Ir al inicio"
+  },
+  "export": {
+    "failed": "No se pudo iniciar la exportación. Vuelve a intentarlo.",
+    "tooManyPages": "Es demasiado para exportar de una vez: las exportaciones admiten como máximo {limit} páginas. Exporta una parte más pequeña del espacio de trabajo.",
+    "tooLarge": "Los archivos de esta exportación suman más de {size}. Exporta una parte más pequeña del espacio de trabajo.",
+    "busy": "Ya tienes una exportación en curso. Espera a que termine su descarga."
+  }
+}

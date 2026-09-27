@@ -328,6 +328,7 @@ export function ImportDialog({
           {tab === "pages" ? (
             <>
               <p className="text-sm text-fg-muted">{t("pages.help")}</p>
+              <p className="text-sm text-fg-muted">{t("pages.notion")}</p>
               <div
                 onDragOver={(e) => {
                   e.preventDefault();
