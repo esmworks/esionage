@@ -858,24 +858,27 @@ function RelativeDateValue({
         className="min-w-0 flex-1"
       />
       {range && rangeNeedsDays(range) && (
-        <Input
-          type="number"
-          inputMode="numeric"
-          min={1}
-          max={MAX_RELATIVE_DAYS}
-          step={1}
-          aria-label={t("days")}
-          title={t("days")}
-          value={rule.days ?? ""}
-          onChange={(e) => {
-            const raw = e.target.value;
-            const n = Math.round(Number(raw));
-            // Out-of-range counts are clamped rather than saved; an empty box leaves the rule incomplete.
-            const days = raw === "" || !Number.isFinite(n) ? undefined : Math.min(MAX_RELATIVE_DAYS, Math.max(1, n));
-            onChange({ days }, true);
-          }}
-          className="h-7 w-16 shrink-0"
-        />
+        // Input's own `w-full` wins over a width passed in, so the wrapper sets the width.
+        <div className="w-16 shrink-0">
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={MAX_RELATIVE_DAYS}
+            step={1}
+            aria-label={t("days")}
+            title={t("days")}
+            value={rule.days ?? ""}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const n = Math.round(Number(raw));
+              // Out-of-range counts are clamped rather than saved; an empty box leaves the rule incomplete.
+              const days = raw === "" || !Number.isFinite(n) ? undefined : Math.min(MAX_RELATIVE_DAYS, Math.max(1, n));
+              onChange({ days }, true);
+            }}
+            className="h-7"
+          />
+        </div>
       )}
     </div>
   );
