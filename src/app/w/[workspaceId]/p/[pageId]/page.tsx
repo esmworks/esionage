@@ -53,7 +53,7 @@ export default async function PageRoute({ params }: Params) {
       wide={p.kind === "database"}
     >
       {p.kind === "database" ? (
-        <DatabasePage workspaceId={workspaceId} databaseId={p.id} canEdit={canEdit && !archived} />
+        <DatabasePage workspaceId={workspaceId} databaseId={p.id} canEdit={canEdit && !archived} guest={info.guest} />
       ) : isRow ? (
         <RowProperties workspaceId={workspaceId} databaseId={parent.id} rowId={p.id} readOnly={archived || !canEdit} />
       ) : null}

@@ -20,11 +20,14 @@ export function DatabasePage({
   workspaceId,
   databaseId,
   canEdit = true,
+  guest = false,
 }: {
   workspaceId: string;
   databaseId: string;
   /** False for viewers: every change is refused by the server, so the controls are hidden. */
   canEdit?: boolean;
+  /** Guests get fewer bulk actions (no trash). */
+  guest?: boolean;
 }) {
   const t = useTranslations("database");
   const locale = useLocale();
@@ -271,6 +274,7 @@ export function DatabasePage({
                 readOnly={readOnly}
                 locked={locked}
                 filtered={rows.length > 0}
+                guest={guest}
               />
             )}
           </div>

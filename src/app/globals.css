@@ -162,9 +162,12 @@
   padding-inline: var(--gutter);
 }
 
-/* Tables start 2.5rem early so the row-handle column sits in the gutter and names line up with the title. */
+/*
+ * Tables start early so the row-handle column sits in the gutter and names line up with the title.
+ * --table-handles is that column's width plus the cell padding (set by the table).
+ */
 .page-gutter-table {
-  padding-inline-start: calc(var(--gutter) - 2.5rem);
+  padding-inline-start: max(0px, calc(var(--gutter) - var(--table-handles, 2.5rem)));
 }
 
 /* Phones get the whole width; the sidebar is a drawer there. */

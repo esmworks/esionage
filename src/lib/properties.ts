@@ -50,6 +50,7 @@ export const DATABASE_ERROR_CODES = [
   "relationTargetReadOnly",
   "databaseLocked",
   "invalidFilter",
+  "tooManyRows",
 ] as const;
 export type DatabaseErrorCode = (typeof DATABASE_ERROR_CODES)[number];
 export type DatabaseErrorParams = Record<string, string>;

@@ -223,4 +223,11 @@ describe("remapViewConfig", () => {
       ],
     });
   });
+
+  it("maps footer calculations to the copied properties", () => {
+    const ids = new Map([["amount", "amount2"]]);
+    expect(remapViewConfig({ calculations: { amount: "sum", title: "count_all" } }, ids, () => null)).toEqual({
+      calculations: { amount2: "sum", title: "count_all" },
+    });
+  });
 });

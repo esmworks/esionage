@@ -6,11 +6,14 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { cn, MenuItem, MenuSeparator } from "@/components/ui";
 import type { ViewConfig } from "@/db/schema/app";
+import type { AggregateFn } from "@/lib/aggregate";
 import { isSortable } from "@/lib/properties";
+import { BulkActionBar, SelectBox, useRowSelection } from "./bulk-actions";
 import { Floating, useFloating } from "./floating";
 import { OpenLink, PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
 import { AddPropertyPanel, PropertyMenu } from "./property-menu";
+import { CalculationRow } from "./table-calculations";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
 
@@ -42,6 +45,7 @@ export function TableView({
   readOnly,
   locked,
   filtered,
+  guest,
 }: {
   workspaceId: string;
   databaseId: string;
@@ -54,16 +58,27 @@ export function TableView({
   locked?: boolean;
   /** True when filters hide rows, to explain an empty table. */
   filtered: boolean;
+  /** Guests don't get bulk trash (see BulkActionBar). */
+  guest?: boolean;
 }) {
   const t = useTranslations("database");
   const tc = useTranslations("common");
   const [editTitleOf, setEditTitleOf] = useState<string | null>(null);
+  const selection = useRowSelection(rows);
+  // Row controls before the Name column: the selection checkbox, plus the row menu for editors.
+  const handles = readOnly ? 32 : 56;
   const hidden = new Set(view.config.hidden ?? []);
   const visible = properties.filter((p) => !hidden.has(p.id));
   const titleProp = titleProperty(databaseId, t("nameColumn"));
   const sortOf = (id: string) => view.config.sorts?.find((s) => s.propertyId === id)?.direction;
 
   const setConfig = (config: ViewConfig) => api.updateView(view, { config });
+  const setCalculation = (key: string, fn: AggregateFn | null) => {
+    const calculations = { ...view.config.calculations };
+    if (fn) calculations[key] = fn;
+    else delete calculations[key];
+    void setConfig({ ...view.config, calculations });
+  };
   const createOption = api.createOption;
 
   const addRow = async () => {
@@ -71,13 +86,16 @@ export function TableView({
     if (id) setEditTitleOf(id);
   };
 
-  const totalWidth = 32 + NAME_WIDTH + visible.reduce((sum, p) => sum + colWidth(p), 0) + (readOnly ? 0 : 36);
+  const totalWidth = handles + NAME_WIDTH + visible.reduce((sum, p) => sum + colWidth(p), 0) + (readOnly ? 0 : 36);
 
   return (
-    <div className="page-gutter-table overflow-x-auto pb-3 [color-scheme:light_dark]">
+    <div
+      className="page-gutter-table overflow-x-auto pb-3 [color-scheme:light_dark]"
+      style={{ "--table-handles": `${handles + 8}px` } as React.CSSProperties}
+    >
       <table className="table-fixed border-collapse text-sm" style={{ width: totalWidth }}>
         <colgroup>
-          <col style={{ width: 32 }} />
+          <col style={{ width: handles }} />
           <col style={{ width: NAME_WIDTH }} />
           {visible.map((p) => (
             <col key={p.id} style={{ width: colWidth(p) }} />
@@ -85,8 +103,18 @@ export function TableView({
           {!readOnly && <col style={{ width: 36 }} />}
         </colgroup>
         <thead>
-          <tr>
-            <th aria-hidden />
+          <tr className="group">
+            <th className="p-0 font-normal">
+              <div className="flex justify-end">
+                <SelectBox
+                  checked={selection.all}
+                  indeterminate={selection.some && !selection.all}
+                  label={t("bulk.selectAll")}
+                  visible={selection.some}
+                  onToggle={selection.toggleAll}
+                />
+              </div>
+            </th>
             <HeaderCell
               prop={null}
               label={t("nameColumn")}
@@ -125,9 +153,17 @@ export function TableView({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.id} className="group">
+            <tr key={row.id} className={cn("group", selection.isSelected(row.id) && "bg-accent/5")}>
               <td className="p-0 align-middle">
-                {!readOnly && <RowMenu workspaceId={workspaceId} rowId={row.id} onDelete={() => api.deleteRow(row.id)} />}
+                <div className="flex items-center justify-end">
+                  {!readOnly && <RowMenu workspaceId={workspaceId} rowId={row.id} onDelete={() => api.deleteRow(row.id)} />}
+                  <SelectBox
+                    checked={selection.isSelected(row.id)}
+                    label={t("bulk.selectRow")}
+                    visible={selection.some}
+                    onToggle={(range) => selection.toggle(row.id, range)}
+                  />
+                </div>
               </td>
               <td className="relative border-b border-border p-0 align-top">
                 <div className="font-medium">
@@ -165,7 +201,10 @@ export function TableView({
         </tbody>
       </table>
       {!rows.length && (
-        <div className="ml-8 border-b border-border px-2 py-6 text-sm text-fg-faint" style={{ width: totalWidth - 32 }}>
+        <div
+          className="border-b border-border px-2 py-6 text-sm text-fg-faint"
+          style={{ marginLeft: handles, width: totalWidth - handles }}
+        >
           {filtered ? t("table.noMatches") : t("table.noRows")}
         </div>
       )}
@@ -173,13 +212,34 @@ export function TableView({
         <button
           type="button"
           onClick={addRow}
-          className="ml-8 flex h-[33px] items-center gap-1.5 rounded-md px-2 text-sm text-fg-muted hover:bg-bg-hover hover:text-fg"
-          style={{ width: totalWidth - 32 }}
+          className="flex h-[33px] items-center gap-1.5 rounded-md px-2 text-sm text-fg-muted hover:bg-bg-hover hover:text-fg"
+          style={{ marginLeft: handles, width: totalWidth - handles }}
         >
           <Plus className="h-4 w-4" />
           {t("table.new")}
         </button>
       )}
+      <CalculationRow
+        offset={handles}
+        columns={[
+          { key: TITLE, name: t("nameColumn"), type: TITLE, width: NAME_WIDTH },
+          ...visible.map((p) => ({ key: p.id, name: p.name, type: p.type, options: p.options, width: colWidth(p) })),
+        ]}
+        rows={rows}
+        calculations={view.config.calculations}
+        readOnly={readOnly}
+        onChange={setCalculation}
+      />
+      <BulkActionBar
+        workspaceId={workspaceId}
+        databaseId={databaseId}
+        properties={properties}
+        rows={rows}
+        selection={selection}
+        api={api}
+        readOnly={readOnly}
+        guest={guest}
+      />
     </div>
   );
 }

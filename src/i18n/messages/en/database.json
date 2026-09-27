@@ -147,6 +147,78 @@
   "rowMenu": {
     "open": "Open"
   },
+  "bulk": {
+    "actions": "Selected rows",
+    "selected": "{count} selected",
+    "selectRow": "Select row",
+    "selectAll": "Select all rows",
+    "editProperty": "Edit property",
+    "chooseProperty": "Set a property on the selected rows",
+    "noEditable": "No properties to edit",
+    "setValue": "Set {property}",
+    "apply": "Apply",
+    "clearValue": "Clear",
+    "checked": "Checked",
+    "unchecked": "Unchecked",
+    "back": "Back",
+    "duplicate": "Duplicate",
+    "trash": "Move to trash",
+    "export": "Export CSV",
+    "exportFailed": "Couldn’t export the selected rows.",
+    "clearSelection": "Clear selection",
+    "confirmTrash": "Move {count, plural, one {# row} other {# rows}} to the trash?",
+    "skipped": "{count, plural, one {# row was skipped because you can’t change it.} other {# rows were skipped because you can’t change them.}}"
+  },
+  "calculate": {
+    "calculate": "Calculate",
+    "calculateColumn": "Calculate {column}",
+    "none": "None",
+    "days": "{count, plural, one {# day} other {# days}}",
+    "menu": {
+      "count_all": "Count all",
+      "count_values": "Count values",
+      "count_unique": "Count unique values",
+      "count_empty": "Count empty",
+      "count_not_empty": "Count not empty",
+      "percent_empty": "Percent empty",
+      "percent_not_empty": "Percent not empty",
+      "sum": "Sum",
+      "average": "Average",
+      "median": "Median",
+      "min": "Min",
+      "max": "Max",
+      "range": "Range",
+      "earliest_date": "Earliest date",
+      "latest_date": "Latest date",
+      "date_range": "Date range",
+      "count_checked": "Checked",
+      "count_unchecked": "Unchecked",
+      "percent_checked": "Percent checked",
+      "percent_unchecked": "Percent unchecked"
+    },
+    "label": {
+      "count_all": "Count",
+      "count_values": "Values",
+      "count_unique": "Unique",
+      "count_empty": "Empty",
+      "count_not_empty": "Not empty",
+      "percent_empty": "Empty",
+      "percent_not_empty": "Not empty",
+      "sum": "Sum",
+      "average": "Average",
+      "median": "Median",
+      "min": "Min",
+      "max": "Max",
+      "range": "Range",
+      "earliest_date": "Earliest",
+      "latest_date": "Latest",
+      "date_range": "Range",
+      "count_checked": "Checked",
+      "count_unchecked": "Unchecked",
+      "percent_checked": "Checked",
+      "percent_unchecked": "Unchecked"
+    }
+  },
   "board": {
     "needsSelectTitle": "Boards group rows by a select or person property",
     "needsSelectBody": "This database has no select or person property yet.",
@@ -277,6 +349,7 @@
     "databaseLocked": "This database is locked. Unlock it to change its properties and views.",
     "invalidPerson": "“{property}” can only hold people of this workspace.",
     "readOnlyProperty": "“{property}” is filled in automatically and can’t be changed.",
-    "invalidFilter": "This filter can’t be saved. Reload the page and try again."
+    "invalidFilter": "This filter can’t be saved. Reload the page and try again.",
+    "tooManyRows": "You can change at most {max} rows at once."
   }
 }

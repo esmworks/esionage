@@ -26,8 +26,11 @@ import {
 } from "@/lib/properties";
 import {
   AccessError,
+  accessRank,
   getMembership,
+  hasLevel,
   isGuest,
+  levelFromRank,
   pageVisibleTo,
   requireMembership,
   requirePageAccess,
@@ -303,43 +306,55 @@ export async function syncPairedRelations(
   before: Record<string, unknown>,
   after: Record<string, unknown>,
 ) {
-  const props = await getProperties(databaseId);
-  for (const prop of props) {
-    const relation = prop.options.relation;
-    if (prop.type !== "relation" || !relation?.pairedPropertyId) continue;
-    const was = asIds(before[prop.id]);
-    const now = asIds(after[prop.id]);
-    const added = now.filter((id) => !was.includes(id));
-    const removed = was.filter((id) => !now.includes(id));
-    if (!added.length && !removed.length) continue;
-    const key = relation.pairedPropertyId;
-    const path = `{${key}}`;
-    const current = sql`coalesce(${page.properties} -> ${key}, '[]'::jsonb)`;
-    if (added.length) {
-      await db
-        .update(page)
-        .set({
-          properties: sql`jsonb_set(${page.properties}, ${path}::text[], ${current} || to_jsonb(${rowId}::text))`,
-        })
-        .where(
-          and(
-            inArray(page.id, added),
-            eq(page.parentId, relation.databaseId),
-            sql`not (${current} ? ${rowId})`,
-          ),
-        );
+  await syncPairedRelationsMany(databaseId, [{ rowId, before, after }]);
+}
+
+/** `syncPairedRelations` for several rows of one database; each related database is notified once. */
+export async function syncPairedRelationsMany(
+  databaseId: string,
+  changes: { rowId: string; before: Record<string, unknown>; after: Record<string, unknown> }[],
+) {
+  const props = (await getProperties(databaseId)).filter((p) => p.type === "relation" && p.options.relation?.pairedPropertyId);
+  if (!props.length) return;
+  const touched = new Set<string>();
+  for (const { rowId, before, after } of changes) {
+    for (const prop of props) {
+      const relation = prop.options.relation!;
+      const was = asIds(before[prop.id]);
+      const now = asIds(after[prop.id]);
+      const added = now.filter((id) => !was.includes(id));
+      const removed = was.filter((id) => !now.includes(id));
+      if (!added.length && !removed.length) continue;
+      const key = relation.pairedPropertyId!;
+      const path = `{${key}}`;
+      const current = sql`coalesce(${page.properties} -> ${key}, '[]'::jsonb)`;
+      if (added.length) {
+        await db
+          .update(page)
+          .set({
+            properties: sql`jsonb_set(${page.properties}, ${path}::text[], ${current} || to_jsonb(${rowId}::text))`,
+          })
+          .where(
+            and(
+              inArray(page.id, added),
+              eq(page.parentId, relation.databaseId),
+              sql`not (${current} ? ${rowId})`,
+            ),
+          );
+      }
+      if (removed.length) {
+        await db
+          .update(page)
+          .set({
+            properties: sql`case when (${current} - ${rowId}::text) = '[]'::jsonb then ${page.properties} - ${key}
+              else jsonb_set(${page.properties}, ${path}::text[], ${current} - ${rowId}::text) end`,
+          })
+          .where(and(inArray(page.id, removed), eq(page.parentId, relation.databaseId)));
+      }
+      touched.add(relation.databaseId);
     }
-    if (removed.length) {
-      await db
-        .update(page)
-        .set({
-          properties: sql`case when (${current} - ${rowId}::text) = '[]'::jsonb then ${page.properties} - ${key}
-            else jsonb_set(${page.properties}, ${path}::text[], ${current} - ${rowId}::text) end`,
-        })
-        .where(and(inArray(page.id, removed), eq(page.parentId, relation.databaseId)));
-    }
-    notifyRows(relation.databaseId);
   }
+  for (const id of touched) notifyRows(id);
 }
 
 export async function updateRowProperties(userId: string, rowId: string, patch: Record<string, unknown>) {
@@ -357,6 +372,96 @@ export async function updateRowProperties(userId: string, rowId: string, patch: 
   await announceAssignments(userId, row.parentId, [{ rowId, before: row.properties, after: next }]);
   notifyRows(row.parentId);
   return next;
+}
+
+/** Bulk row actions take at most this many rows per call. */
+export const MAX_BULK_ROWS = 1000;
+
+/** Guards a bulk call's size and drops repeated ids, keeping the given order. */
+export function bulkRowIds(rowIds: string[]) {
+  const unique = [...new Set(rowIds)];
+  if (unique.length > MAX_BULK_ROWS) {
+    throw new PropertyValueError(`At most ${MAX_BULK_ROWS} rows can be changed at once`, "tooManyRows", {
+      max: String(MAX_BULK_ROWS),
+    });
+  }
+  return unique;
+}
+
+/**
+ * Which of `rowIds` are rows of the database the user may act on at `needed` level, in one query.
+ * Everything else (rows they can't see or may only view, rows in the trash, ids of other pages or
+ * of nothing) comes back as `skipped`, without saying why, so the call never reveals what exists.
+ */
+export async function rowsWithAccess(userId: string, databaseId: string, rowIds: string[], needed: RequiredLevel) {
+  const found = rowIds.length
+    ? await db
+        .select({
+          id: page.id,
+          properties: page.properties,
+          archivedAt: page.archivedAt,
+          level: accessRank(userId, sql`${page.id}`),
+        })
+        .from(page)
+        .where(and(inArray(page.id, rowIds), eq(page.parentId, databaseId)))
+    : [];
+  const allowed = new Map(
+    found.filter((r) => !r.archivedAt && hasLevel(levelFromRank(r.level), needed)).map((r) => [r.id, r] as const),
+  );
+  return {
+    rows: rowIds.flatMap((id) => (allowed.has(id) ? [allowed.get(id)!] : [])),
+    skipped: rowIds.filter((id) => !allowed.has(id)),
+  };
+}
+
+/** What a bulk row action did: the rows it changed and the ones it left alone (see rowsWithAccess). */
+export type BulkResult = { done: string[]; skipped: string[] };
+
+/**
+ * Sets the same property values on several rows of a database ("edit property" on a selection).
+ * Values are checked once, before anything is written, so a bad value changes nothing. Access is
+ * checked per row: rows the user may edit are updated in one statement, the rest are skipped and
+ * returned so the caller can say so (nothing is skipped silently). Links to rows the user can't
+ * see can't be set in bulk. Other properties of the rows are left as they are.
+ */
+export async function updateRowsProperties(
+  userId: string,
+  databaseId: string,
+  rowIds: string[],
+  patch: Record<string, unknown>,
+): Promise<BulkResult> {
+  const ids = bulkRowIds(rowIds);
+  await requireDatabase(userId, databaseId, "view");
+  const normalized = await normalizeRowProperties(userId, databaseId, patch);
+  const { rows, skipped } = await rowsWithAccess(userId, databaseId, ids, "edit");
+  if (!rows.length || !Object.keys(normalized).length) return { done: [], skipped };
+
+  const set = Object.fromEntries(Object.entries(normalized).filter(([, v]) => v !== null));
+  const cleared = Object.keys(normalized).filter((k) => normalized[k] === null);
+  // Merged in SQL, so a concurrent edit of another property of the same row isn't overwritten.
+  const minus = cleared.length
+    ? sql` - ARRAY[${sql.join(
+        cleared.map((k) => sql`${k}::text`),
+        sql`, `,
+      )}]::text[]`
+    : sql``;
+  await db.execute(sql`
+    update ${page} set
+      properties = (properties || ${JSON.stringify(set)}::jsonb)${minus},
+      updated_by = ${userId},
+      updated_at = now()
+    where ${inArray(page.id, rows.map((r) => r.id))}
+  `);
+
+  const changes = rows.map((row) => {
+    const after: Record<string, unknown> = { ...row.properties, ...set };
+    for (const k of cleared) delete after[k];
+    return { rowId: row.id, before: row.properties, after };
+  });
+  await syncPairedRelationsMany(databaseId, changes);
+  await announceAssignments(userId, databaseId, changes);
+  notifyRows(databaseId);
+  return { done: rows.map((r) => r.id), skipped };
 }
 
 /**
@@ -662,6 +767,7 @@ export async function deleteProperty(userId: string, propertyId: string) {
             filters: c.filters && mapFilterRules(c.filters, (f) => (f.propertyId === propertyId ? null : f)),
             hidden: c.hidden?.filter((h) => h !== propertyId),
             shown: c.shown?.filter((h) => h !== propertyId),
+            calculations: c.calculations && Object.fromEntries(Object.entries(c.calculations).filter(([k]) => k !== propertyId)),
           },
         })
         .where(eq(databaseView.id, view.id));
