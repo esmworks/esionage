@@ -5,6 +5,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   CalendarDays,
+  Check,
   ChevronDown,
   Eye,
   EyeOff,
@@ -38,6 +39,7 @@ import {
   rangeNeedsDays,
 } from "@/lib/filters";
 import { valueType } from "@/lib/derived";
+import { GROUP_DATE_BY, groupDateByOf } from "@/lib/grouping";
 import { pageLabel } from "@/lib/labels";
 import {
   boardGroupProperty,
@@ -294,7 +296,11 @@ export function ViewToolbar({
   const hiddenCount = properties.filter((p) => isHiddenInView(view, p)).length;
   const columns = columnsOf(properties, t("nameColumn"));
   const groupProps = properties.filter((p) => isGroupable(p.type));
-  const groupBy = boardGroupProperty(properties, config.groupBy);
+  // Boards always group (by the first fitting property until one is picked); tables only on request.
+  const groupBy =
+    view.type === "board"
+      ? boardGroupProperty(properties, config.groupBy)
+      : groupProps.find((p) => p.id === config.groupBy);
   const dateMenu = useFloating<HTMLButtonElement>();
   const dateProps = properties.filter((p) => p.type === "date");
   const dateBy = dateProps.find((p) => p.id === config.dateBy) ?? dateProps[0];
@@ -337,16 +343,29 @@ export function ViewToolbar({
         />
       </Floating>
 
-      {view.type === "board" && (
+      {(view.type === "board" || view.type === "table") && (
         <>
           <ToolbarButton
             icon={<Rows3 className="h-4 w-4" />}
             label={groupBy ? t("toolbar.groupWithName", { name: groupBy.name }) : t("toolbar.group")}
+            active={view.type === "table" && Boolean(groupBy)}
             buttonRef={groupMenu.ref}
             onClick={groupMenu.toggle}
           />
           <Floating open={groupMenu.open} anchor={groupMenu.el} onClose={groupMenu.close} align="end">
             <div className="px-2 pt-1 pb-1.5 text-xs text-fg-muted">{t("toolbar.groupBy")}</div>
+            {view.type === "table" && (
+              <MenuItem
+                active={!groupBy}
+                icon={<X className="h-3.5 w-3.5" />}
+                onClick={() => {
+                  groupMenu.close();
+                  if (groupBy) onConfig({ ...config, groupBy: undefined });
+                }}
+              >
+                {t("toolbar.noGrouping")}
+              </MenuItem>
+            )}
             {groupProps.map((p) => (
               <MenuItem
                 key={p.id}
@@ -361,8 +380,9 @@ export function ViewToolbar({
               </MenuItem>
             ))}
             {!groupProps.length && (
-              <div className="px-2 pb-1 text-xs text-fg-faint">{t("toolbar.groupNeedsSelect")}</div>
+              <div className="max-w-60 px-2 pb-1 text-xs text-fg-faint">{t("toolbar.groupNeedsSelect")}</div>
             )}
+            {groupBy && <GroupSettings prop={groupBy} config={config} onConfig={onConfig} />}
             {!locked && (
               <>
                 <MenuSeparator />
@@ -458,6 +478,56 @@ export function ViewToolbar({
         </div>
       </Floating>
     </div>
+  );
+}
+
+/** How the view groups by `prop`: date bucket size, status by option or stage, and empty groups. */
+function GroupSettings({
+  prop,
+  config,
+  onConfig,
+}: {
+  prop: Property;
+  config: ViewConfig;
+  onConfig: (config: ViewConfig) => void;
+}) {
+  const t = useTranslations("database.group");
+  const dates = prop.type === "date" || holdsTimestamp(prop.type);
+  return (
+    <>
+      <MenuSeparator />
+      {dates && (
+        <label className="flex items-center justify-between gap-3 px-2 py-1 text-sm">
+          <span className="text-fg-muted">{t("dateBy")}</span>
+          <NativeSelect
+            label={t("dateBy")}
+            value={groupDateByOf(config)}
+            onChange={(v) => onConfig({ ...config, groupDateBy: v as ViewConfig["groupDateBy"] })}
+            options={GROUP_DATE_BY.map((by) => ({ value: by, label: t(`dateByOptions.${by}`) }))}
+          />
+        </label>
+      )}
+      {prop.type === "status" && (
+        <label className="flex items-center justify-between gap-3 px-2 py-1 text-sm">
+          <span className="text-fg-muted">{t("statusBy")}</span>
+          <NativeSelect
+            label={t("statusBy")}
+            value={config.groupStatusBy === "group" ? "group" : "option"}
+            onChange={(v) => onConfig({ ...config, groupStatusBy: v === "group" ? "group" : undefined })}
+            options={[
+              { value: "option", label: t("statusByOptions.option") },
+              { value: "group", label: t("statusByOptions.group") },
+            ]}
+          />
+        </label>
+      )}
+      <MenuItem
+        icon={config.hideEmptyGroups ? <Check className="h-3.5 w-3.5" /> : <span />}
+        onClick={() => onConfig({ ...config, hideEmptyGroups: config.hideEmptyGroups ? undefined : true })}
+      >
+        {t("hideEmpty")}
+      </MenuItem>
+    </>
   );
 }
 

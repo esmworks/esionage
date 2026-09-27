@@ -66,7 +66,7 @@
     "group": "Group",
     "groupWithName": "Group: {name}",
     "groupBy": "Group by",
-    "groupNeedsSelect": "Boards group by a select, status or person property.",
+    "groupNeedsSelect": "Views group by a select, status, multi-select, person, date, checkbox or relation property.",
     "newSelectProperty": "New select property",
     "properties": "Properties",
     "shownInView": "Shown in this view",
@@ -76,7 +76,8 @@
     "calendarBy": "Calendar date",
     "calendarWithName": "Date: {name}",
     "calendarNeedsDate": "Calendars place rows by a date property.",
-    "newDateProperty": "New date property"
+    "newDateProperty": "New date property",
+    "noGrouping": "None"
   },
   "activeRules": {
     "clear": "Clear",
@@ -228,8 +229,8 @@
     }
   },
   "board": {
-    "needsSelectTitle": "Boards group rows by a select, status or person property",
-    "needsSelectBody": "This database has no select, status or person property yet.",
+    "needsSelectTitle": "Boards group rows by a property such as a select, status, person or date",
+    "needsSelectBody": "This database has no property a board can group by yet.",
     "addGroupProperty": "Add a {name} property",
     "noValue": "No {property}",
     "cardCount": "{count, plural, one {# card} other {# cards}}",
@@ -446,5 +447,27 @@
       "notFinite": "The result is not a finite number.",
       "resultTooLong": "The text is longer than {max} characters."
     }
+  },
+  "group": {
+    "checked": "Checked",
+    "unchecked": "Unchecked",
+    "dateBy": "Group dates by",
+    "dateByOptions": {
+      "day": "Day",
+      "week": "Week",
+      "month": "Month",
+      "year": "Year"
+    },
+    "statusBy": "Group status by",
+    "statusByOptions": {
+      "option": "Option",
+      "group": "Status group"
+    },
+    "hideEmpty": "Hide empty groups",
+    "collapse": "Collapse {name}",
+    "expand": "Expand {name}",
+    "rowCount": "{count, plural, one {# row} other {# rows}}",
+    "actions": "Group actions",
+    "addRow": "Add a row to {name}"
   }
 }

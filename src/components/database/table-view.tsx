@@ -1,16 +1,19 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Ellipsis, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, Ellipsis, EyeOff, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { cn, MenuItem, MenuSeparator } from "@/components/ui";
 import type { ViewConfig } from "@/db/schema/app";
 import type { AggregateFn } from "@/lib/aggregate";
 import { valueType } from "@/lib/derived";
-import { isSortable } from "@/lib/properties";
+import { arrangeGroups, canAddToGroup, groupDefaults, groupRowsBy, type Group } from "@/lib/grouping";
+import { isGroupable, isSortable, localDay } from "@/lib/properties";
 import { BulkActionBar, SelectBox, useRowSelection } from "./bulk-actions";
 import { Floating, useFloating } from "./floating";
+import { GroupLabel, HiddenGroups, useGroupContext, useGroupName } from "./group-label";
+import { usePeople } from "./person-cell";
 import { OpenLink, PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
 import { AddPropertyPanel, PropertyMenu } from "./property-menu";
@@ -65,7 +68,29 @@ export function TableView({
   const t = useTranslations("database");
   const tc = useTranslations("common");
   const [editTitleOf, setEditTitleOf] = useState<string | null>(null);
-  const selection = useRowSelection(rows);
+  const { viewerId } = usePeople();
+  // Grouped only when the view asks for it (unlike boards, which always group).
+  const groupBy = properties.find((p) => p.id === view.config.groupBy && isGroupable(p.type));
+  const groupContext = useGroupContext(groupBy);
+  const groupName = useGroupName(groupBy ?? { name: "" });
+  // Viewers can't save the view, so their collapsing stays on this page.
+  const [ownCollapsed, setOwnCollapsed] = useState<string[] | null>(null);
+  const collapsed = useMemo(
+    () => new Set(readOnly && ownCollapsed ? ownCollapsed : (view.config.collapsedGroups ?? [])),
+    [readOnly, ownCollapsed, view.config.collapsedGroups],
+  );
+  const grouping = useMemo(
+    () => (groupBy ? arrangeGroups(groupRowsBy(rows, groupBy, view.config, groupContext), view.config) : null),
+    [rows, groupBy, view.config, groupContext],
+  );
+  // Rows in the order they show, each once (a row with several tags shows in several groups):
+  // what calculations count, and, leaving out collapsed groups, what can be selected.
+  const [inView, expanded] = useMemo(() => {
+    if (!grouping) return [rows, rows];
+    const unique = (groups: Group<Row>[]) => [...new Map(groups.flatMap((g) => g.rows.map((r) => [r.id, r]))).values()];
+    return [unique(grouping.shown), unique(grouping.shown.filter((g) => !collapsed.has(g.key)))];
+  }, [grouping, rows, collapsed]);
+  const selection = useRowSelection(expanded);
   // Row controls before the Name column: the selection checkbox, plus the row menu for editors.
   const handles = readOnly ? 32 : 56;
   const hidden = new Set(view.config.hidden ?? []);
@@ -82,10 +107,78 @@ export function TableView({
   };
   const createOption = api.createOption;
 
-  const addRow = async () => {
-    const id = await api.createRow();
+  const addRow = async (group?: Group<Row>) => {
+    const defaults = group && groupBy ? groupDefaults(groupBy, group) : {};
+    const id = await api.createRow(Object.keys(defaults).length ? { properties: defaults } : {});
     if (id) setEditTitleOf(id);
   };
+  const today = localDay(new Date());
+  const canAddTo = (group: Group<Row>) => !readOnly && !!groupBy && canAddToGroup(groupBy, group, { viewerId, today });
+
+  const toggleCollapsed = (key: string) => {
+    const next = collapsed.has(key) ? [...collapsed].filter((k) => k !== key) : [...collapsed, key];
+    if (readOnly) setOwnCollapsed(next);
+    else void setConfig({ ...view.config, collapsedGroups: next });
+  };
+  const setGroupHidden = (key: string, hide: boolean) => {
+    const next = (view.config.hiddenGroups ?? []).filter((k) => k !== key);
+    if (hide) next.push(key);
+    void setConfig({ ...view.config, hiddenGroups: next });
+  };
+
+  const renderRow = (row: Row) => (
+    <tr key={row.id} className={cn("group", selection.isSelected(row.id) && "bg-accent/5")}>
+      <td className="p-0 align-middle">
+        <div className="flex items-center justify-end">
+          {!readOnly && <RowMenu workspaceId={workspaceId} rowId={row.id} onDelete={() => api.deleteRow(row.id)} />}
+          <SelectBox
+            checked={selection.isSelected(row.id)}
+            label={t("bulk.selectRow")}
+            visible={selection.some}
+            onToggle={(range) => selection.toggle(row.id, range)}
+          />
+        </div>
+      </td>
+      <td className="relative border-b border-border p-0 align-top">
+        <div className="font-medium">
+          <PropertyCell
+            prop={titleProp}
+            value={row.title}
+            readOnly={readOnly}
+            placeholder={tc("untitled")}
+            autoEdit={editTitleOf === row.id}
+            onChange={(v) => {
+              setEditTitleOf(null);
+              void api.setCell(row.id, TITLE, v ?? "");
+            }}
+            onCreateOption={createOption}
+          />
+        </div>
+        <span className="absolute inset-y-0 right-1 hidden items-center group-hover:flex">
+          <OpenLink href={`/w/${workspaceId}/p/${row.id}`} />
+        </span>
+      </td>
+      {visible.map((p) => (
+        <td key={p.id} className="border-b border-l border-border p-0 align-top">
+          <PropertyCell
+            prop={p}
+            value={row.properties[p.id]}
+            readOnly={readOnly}
+            onChange={(v) => void api.setCell(row.id, p.id, v)}
+            onCreateOption={createOption}
+          />
+        </td>
+      ))}
+      {!readOnly && <td className="border-b border-l border-border" />}
+    </tr>
+  );
+  const columnCount = 2 + visible.length + (readOnly ? 0 : 1);
+  const calculated = [TITLE, ...visible.map((p) => p.id)].some((key) => view.config.calculations?.[key]);
+  const calculationColumns = [
+    { key: TITLE, name: t("nameColumn"), type: TITLE, width: NAME_WIDTH },
+    // A formula calculates like a property of its result type.
+    ...visible.map((p) => ({ key: p.id, name: p.name, type: valueType(p), options: p.options, width: colWidth(p) })),
+  ];
 
   const totalWidth = handles + NAME_WIDTH + visible.reduce((sum, p) => sum + colWidth(p), 0) + (readOnly ? 0 : 36);
 
@@ -157,56 +250,67 @@ export function TableView({
             )}
           </tr>
         </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className={cn("group", selection.isSelected(row.id) && "bg-accent/5")}>
-              <td className="p-0 align-middle">
-                <div className="flex items-center justify-end">
-                  {!readOnly && <RowMenu workspaceId={workspaceId} rowId={row.id} onDelete={() => api.deleteRow(row.id)} />}
-                  <SelectBox
-                    checked={selection.isSelected(row.id)}
-                    label={t("bulk.selectRow")}
-                    visible={selection.some}
-                    onToggle={(range) => selection.toggle(row.id, range)}
-                  />
-                </div>
-              </td>
-              <td className="relative border-b border-border p-0 align-top">
-                <div className="font-medium">
-                  <PropertyCell
-                    prop={titleProp}
-                    value={row.title}
-                    readOnly={readOnly}
-                    placeholder={tc("untitled")}
-                    autoEdit={editTitleOf === row.id}
-                    onChange={(v) => {
-                      setEditTitleOf(null);
-                      void api.setCell(row.id, TITLE, v ?? "");
-                    }}
-                    onCreateOption={createOption}
-                  />
-                </div>
-                <span className="absolute inset-y-0 right-1 hidden items-center group-hover:flex">
-                  <OpenLink href={`/w/${workspaceId}/p/${row.id}`} />
-                </span>
-              </td>
-              {visible.map((p) => (
-                <td key={p.id} className="border-b border-l border-border p-0 align-top">
-                  <PropertyCell
-                    prop={p}
-                    value={row.properties[p.id]}
-                    readOnly={readOnly}
-                    onChange={(v) => void api.setCell(row.id, p.id, v)}
-                    onCreateOption={createOption}
-                  />
-                </td>
-              ))}
-              {!readOnly && <td className="border-b border-l border-border" />}
-            </tr>
-          ))}
-        </tbody>
+        {!grouping ? (
+          <tbody>{rows.map(renderRow)}</tbody>
+        ) : (
+          grouping.shown.map((group) => {
+            const open = !collapsed.has(group.key);
+            const name = groupName(group);
+            return (
+              <tbody key={group.key || "__none"} aria-label={name}>
+                <tr>
+                  <td colSpan={columnCount} className="p-0">
+                    <GroupHeader
+                      prop={groupBy!}
+                      group={group}
+                      name={name}
+                      open={open}
+                      offset={handles}
+                      readOnly={readOnly}
+                      canAdd={canAddTo(group)}
+                      onToggle={() => toggleCollapsed(group.key)}
+                      onHide={() => setGroupHidden(group.key, true)}
+                      onAdd={() => addRow(group)}
+                    />
+                  </td>
+                </tr>
+                {open && group.rows.map(renderRow)}
+                {open && canAddTo(group) && (
+                  <tr>
+                    <td colSpan={columnCount} className="p-0">
+                      <button
+                        type="button"
+                        onClick={() => addRow(group)}
+                        className="flex h-[33px] w-full items-center gap-1.5 px-2 text-sm text-fg-muted hover:bg-bg-hover hover:text-fg"
+                        style={{ paddingLeft: handles + 8 }}
+                      >
+                        <Plus className="h-4 w-4" />
+                        {t("table.new")}
+                      </button>
+                    </td>
+                  </tr>
+                )}
+                {open && calculated && group.rows.length > 0 && (
+                  <tr>
+                    <td colSpan={columnCount} className="p-0">
+                      {/* Per-group results; calculations are picked in the table's own footer. */}
+                      <CalculationRow
+                        offset={handles}
+                        columns={calculationColumns}
+                        rows={group.rows}
+                        calculations={view.config.calculations}
+                        readOnly
+                        onChange={setCalculation}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            );
+          })
+        )}
       </table>
-      {!rows.length && (
+      {(grouping ? !grouping.shown.length : !rows.length) && (
         <div
           className="border-b border-border px-2 py-6 text-sm text-fg-faint"
           style={{ marginLeft: handles, width: totalWidth - handles }}
@@ -214,10 +318,20 @@ export function TableView({
           {filtered ? t("table.noMatches") : t("table.noRows")}
         </div>
       )}
-      {!readOnly && (
+      {grouping && grouping.hidden.length > 0 && (
+        <div style={{ marginLeft: handles }}>
+          <HiddenGroups
+            prop={groupBy!}
+            groups={grouping.hidden}
+            readOnly={readOnly}
+            onShow={(key) => setGroupHidden(key, false)}
+          />
+        </div>
+      )}
+      {!readOnly && !grouping && (
         <button
           type="button"
-          onClick={addRow}
+          onClick={() => addRow()}
           className="flex h-[33px] items-center gap-1.5 rounded-md px-2 text-sm text-fg-muted hover:bg-bg-hover hover:text-fg"
           style={{ marginLeft: handles, width: totalWidth - handles }}
         >
@@ -227,12 +341,8 @@ export function TableView({
       )}
       <CalculationRow
         offset={handles}
-        columns={[
-          { key: TITLE, name: t("nameColumn"), type: TITLE, width: NAME_WIDTH },
-          // A formula calculates like a property of its result type.
-          ...visible.map((p) => ({ key: p.id, name: p.name, type: valueType(p), options: p.options, width: colWidth(p) })),
-        ]}
-        rows={rows}
+        columns={calculationColumns}
+        rows={inView}
         calculations={view.config.calculations}
         readOnly={readOnly}
         onChange={setCalculation}
@@ -241,12 +351,103 @@ export function TableView({
         workspaceId={workspaceId}
         databaseId={databaseId}
         properties={properties}
-        rows={rows}
+        rows={expanded}
         selection={selection}
         api={api}
         readOnly={readOnly}
         guest={guest}
       />
+    </div>
+  );
+}
+
+/**
+ * A group's title row in a grouped table: collapse toggle, name and row count, then (on hover)
+ * hiding the group and adding a row to it. Stays at the left edge while the table scrolls sideways.
+ */
+function GroupHeader({
+  prop,
+  group,
+  name,
+  open,
+  offset,
+  readOnly,
+  canAdd,
+  onToggle,
+  onHide,
+  onAdd,
+}: {
+  prop: Property;
+  group: Group<Row>;
+  name: string;
+  open: boolean;
+  offset: number;
+  readOnly?: boolean;
+  canAdd: boolean;
+  onToggle: () => void;
+  onHide: () => void;
+  onAdd: () => void;
+}) {
+  const t = useTranslations("database");
+  const menu = useFloating<HTMLButtonElement>();
+  return (
+    <div
+      className="group/grp sticky left-0 flex h-10 w-max items-center gap-1.5 pt-2"
+      style={{ paddingLeft: Math.max(offset - 28, 0) }}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label={t(open ? "group.collapse" : "group.expand", { name })}
+        title={t(open ? "group.collapse" : "group.expand", { name })}
+        onClick={onToggle}
+        className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-hover hover:text-fg"
+      >
+        <ChevronRight className={cn("h-4 w-4 transition-transform", open && "rotate-90")} />
+      </button>
+      <GroupLabel prop={prop} group={group} className="font-medium" />
+      <span className="text-xs text-fg-muted tabular-nums" title={t("group.rowCount", { count: group.rows.length })}>
+        {group.rows.length}
+      </span>
+      {!readOnly && (
+        <>
+          <button
+            ref={menu.ref}
+            type="button"
+            aria-label={t("group.actions")}
+            title={t("group.actions")}
+            onClick={menu.toggle}
+            className={cn(
+              "inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-hover hover:text-fg focus-visible:opacity-100 pointer-coarse:opacity-100",
+              menu.open ? "opacity-100" : "opacity-0 group-hover/grp:opacity-100",
+            )}
+          >
+            <Ellipsis className="h-3.5 w-3.5" />
+          </button>
+          <Floating open={menu.open} anchor={menu.el} onClose={menu.close}>
+            <MenuItem
+              icon={<EyeOff className="h-3.5 w-3.5" />}
+              onClick={() => {
+                menu.close();
+                onHide();
+              }}
+            >
+              {t("board.hideGroup")}
+            </MenuItem>
+          </Floating>
+        </>
+      )}
+      {canAdd && (
+        <button
+          type="button"
+          aria-label={t("group.addRow", { name })}
+          title={t("group.addRow", { name })}
+          onClick={onAdd}
+          className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted opacity-0 group-hover/grp:opacity-100 hover:bg-bg-hover hover:text-fg focus-visible:opacity-100 pointer-coarse:opacity-100"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 }

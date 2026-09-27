@@ -11,6 +11,20 @@
 - **MCP:** `list_notifications` lists the user's inbox. It needs the new `notifications:read`
   permission. Apps connected earlier can ask for it too; the user approves it once on the consent
   screen.
+- **Database filters** can be combined with "or" and grouped two levels deep. Date filters can be
+  relative: today, this week, this month, or the past or next N days. MCP `query_database` and the
+  view tools accept the new shape, and flat filter lists keep working.
+- **Column calculations** in table views: count, sum, average, median, min, max, range, earliest,
+  latest, percent checked and more. They are calculated over the filtered rows and saved with the
+  view.
+- **Bulk row actions:** select rows in a table (shift-click for a range, or select all) to set a
+  property, duplicate, export as CSV or move them to the trash at once. Rows you can't change are
+  skipped and reported. MCP `update_database_rows` sets the same values on up to 100 rows.
+- **New property types:** Status (options grouped as to do, in progress and done), Checklist
+  (sub-items with progress), Email and Phone (click to write or call).
+- **System properties:** when a row was created, when it was last edited, and who edited it last.
+  They are read-only and can be filtered (including relative dates) and sorted. They are included
+  in CSV export and MCP. Editing a row's body counts as an edit.
 
 ## 0.2.0 — 2026-09-27
 
