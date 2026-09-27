@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import type { WorkspaceRole } from "@/db/schema";
+import type { WorkspaceRole, WorkspaceSettings } from "@/db/schema";
 import { AccessError } from "@/server/access";
 import { getSession, requireUserId } from "@/server/session";
 import {
@@ -16,6 +16,7 @@ import {
   setJoinLink,
   setMemberRole,
   transferOwnership,
+  updateWorkspaceSettings,
   WorkspaceError,
   type WorkspaceErrorCode,
 } from "@/server/workspaces";
@@ -45,6 +46,13 @@ const refresh = (workspaceId: string) => revalidatePath(`/w/${workspaceId}`, "la
 export async function createWorkspaceAction(name: string) {
   const userId = await requireUserId();
   return run(async () => (await createWorkspace(userId, name)).id);
+}
+
+export async function updateWorkspaceSettingsAction(workspaceId: string, patch: Partial<WorkspaceSettings>) {
+  const userId = await requireUserId();
+  const result = await run(() => updateWorkspaceSettings(userId, workspaceId, patch));
+  refresh(workspaceId);
+  return result;
 }
 
 export async function renameWorkspaceAction(workspaceId: string, name: string) {

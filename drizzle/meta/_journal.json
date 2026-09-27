@@ -43,6 +43,13 @@
       "when": 1790497274898,
       "tag": "0005_page_invitation",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790497856309,
+      "tag": "0006_workspace_settings",
+      "breakpoints": true
     }
   ]
 }

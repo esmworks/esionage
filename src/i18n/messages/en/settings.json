@@ -7,7 +7,8 @@
     "general": "General",
     "members": "Members",
     "preferences": "Preferences",
-    "apps": "Connected apps"
+    "apps": "Connected apps",
+    "security": "Security"
   },
   "workspace": {
     "heading": "Workspace",
@@ -134,6 +135,7 @@
     }
   },
   "errors": {
+    "invalidSetting": "That setting isn't available.",
     "nameRequired": "Give the workspace a name.",
     "alreadyMember": "This person is already a member.",
     "notMember": "This person is not a member.",
@@ -148,5 +150,16 @@
     "tooManyEmails": "Add at most 50 people at a time.",
     "joinLinkInvalid": "This join link is invalid or was turned off.",
     "transferToSelf": "Choose someone else to make owner."
+  },
+  "security": {
+    "description": "Decide who can bring people into this workspace. Only owners can change these settings.",
+    "guestsHeading": "Guests",
+    "guestInvites": {
+      "title": "Who can invite guests",
+      "description": "People outside the workspace join as guests when someone shares a page with them by email. They see only the pages shared with them.",
+      "owners": "Owners only",
+      "members": "Owners and members"
+    },
+    "ownersOnly": "Only owners can change this."
   }
 }

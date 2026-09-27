@@ -1,4 +1,4 @@
-import { Plug, Settings, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
+import { Plug, Settings, Shield, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -9,29 +9,38 @@ import { LanguageSettings } from "@/components/settings/language-settings";
 import { LeaveWorkspaceRow } from "@/components/settings/leave-workspace";
 import { McpInstructions } from "@/components/settings/mcp-instructions";
 import { MembersPanel } from "@/components/settings/members-panel";
+import { GuestInviteSetting } from "@/components/settings/security-settings";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
 import { AccessError, isGuest } from "@/server/access";
 import { requireUser } from "@/server/session";
-import { getJoinLink, getWorkspace, lastEdits, listInvitations, listMembers } from "@/server/workspaces";
+import {
+  getJoinLink,
+  getWorkspace,
+  getWorkspaceSettings,
+  lastEdits,
+  listInvitations,
+  listMembers,
+} from "@/server/workspaces";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("settings");
   return { title: t("metaTitle") };
 }
 
-const TABS = ["general", "members", "preferences", "apps"] as const;
+const TABS = ["general", "members", "security", "preferences", "apps"] as const;
 type Tab = (typeof TABS)[number];
 const NAV: { group: "account" | "workspace"; tabs: Tab[] }[] = [
   { group: "account", tabs: ["preferences", "apps"] },
-  { group: "workspace", tabs: ["general", "members"] },
+  { group: "workspace", tabs: ["general", "members", "security"] },
 ];
 const ICONS: Record<Tab, LucideIcon> = {
   preferences: SlidersHorizontal,
   apps: Plug,
   general: Settings,
   members: Users,
+  security: Shield,
 };
 
 export default async function SettingsPage({
@@ -103,6 +112,7 @@ export default async function SettingsPage({
             </>
           )}
           {tab === "members" && <MembersTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
+          {tab === "security" && <SecurityTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "preferences" && (
             <PreferencesTab workspaceId={workspaceId} userId={user.id} guest={isGuest(workspace.role)} />
           )}
@@ -118,6 +128,18 @@ export default async function SettingsPage({
         </div>
       </div>
     </div>
+  );
+}
+
+async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
+  const [settings, t] = await Promise.all([getWorkspaceSettings(userId, workspaceId), getTranslations("settings")]);
+  return (
+    <>
+      <SettingsHeader title={t("nav.security")} description={t("security.description")} />
+      <SettingsGroup title={t("security.guestsHeading")}>
+        <GuestInviteSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
+      </SettingsGroup>
+    </>
   );
 }
 

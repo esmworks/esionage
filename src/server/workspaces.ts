@@ -3,6 +3,7 @@ import { and, asc, eq, gt, isNotNull, max, sql } from "drizzle-orm";
 import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/db";
 import {
+  DEFAULT_WORKSPACE_SETTINGS,
   page,
   pageInvitation,
   pagePermission,
@@ -11,12 +12,13 @@ import {
   workspaceInvitation,
   workspaceMember,
   type WorkspaceRole,
+  type WorkspaceSettings,
 } from "@/db/schema";
 import { isLocale, type Locale } from "@/i18n/config";
 import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
 import { env } from "@/lib/env";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
-import { AccessError, isGuest, requireMember, requireMembership } from "@/server/access";
+import { AccessError, getMembership, isGuest, requireMember, requireMembership } from "@/server/access";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
 
@@ -55,7 +57,8 @@ export type WorkspaceErrorCode =
   | "invalidEmail"
   | "tooManyEmails"
   | "joinLinkInvalid"
-  | "transferToSelf";
+  | "transferToSelf"
+  | "invalidSetting";
 
 /**
  * An expected failure the user can act on. `code` is stable and translated by the UI; the
@@ -239,10 +242,10 @@ const ROLE_RANK: Record<WorkspaceRole, number> = { guest: 0, member: 1, owner: 2
 
 /**
  * Invites someone without an account as a guest, so a page can be shared with them. A pending
- * invitation keeps its link, and its role when that is higher. Owners only.
+ * invitation keeps its link, and its role when that is higher. Needs `canInviteGuests`.
  */
 export async function inviteGuest(actorId: string, workspaceId: string, email: string) {
-  await requireMembership(actorId, workspaceId, "owner");
+  if (!(await canInviteGuests(actorId, workspaceId))) throw new AccessError();
   const clean = normalizeEmail(email);
   const [existing] = await db
     .select({ token: workspaceInvitation.token, role: workspaceInvitation.role, expiresAt: workspaceInvitation.expiresAt })
@@ -265,9 +268,9 @@ export async function inviteGuest(actorId: string, workspaceId: string, email: s
   return { link, delivery };
 }
 
-/** Adds an existing account to the workspace as a guest, if they aren't in it yet. Owners only. */
+/** Adds an existing account to the workspace as a guest, if they aren't in it yet. Needs `canInviteGuests`. */
 export async function addGuest(actorId: string, workspaceId: string, userId: string, email: string) {
-  await requireMembership(actorId, workspaceId, "owner");
+  if (!(await canInviteGuests(actorId, workspaceId))) throw new AccessError();
   await db.transaction(async (tx) => {
     const rows = await tx
       .insert(workspaceMember)
@@ -572,4 +575,49 @@ export async function removeMember(actorId: string, workspaceId: string, targetI
       .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)));
   });
   await getCollab().disconnectUser(targetId, workspaceId);
+}
+
+/** The workspace's policies, defaults filled in. For server code that enforces them. */
+export async function workspaceSettings(workspaceId: string): Promise<WorkspaceSettings> {
+  const [row] = await db
+    .select({ settings: workspace.settings })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1);
+  return { ...DEFAULT_WORKSPACE_SETTINGS, ...row?.settings };
+}
+
+/** The policies, for owners and members to read (guests don't see workspace settings). */
+export async function getWorkspaceSettings(userId: string, workspaceId: string) {
+  await requireMember(userId, workspaceId);
+  return workspaceSettings(workspaceId);
+}
+
+const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettings[K][] } = {
+  guestInvites: ["owners", "members"],
+};
+
+/** Changes some policies, leaving the rest as they are. Owners only. */
+export async function updateWorkspaceSettings(actorId: string, workspaceId: string, patch: Partial<WorkspaceSettings>) {
+  await requireMembership(actorId, workspaceId, "owner");
+  const clean: Partial<WorkspaceSettings> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    const allowed = SETTING_VALUES[key as keyof WorkspaceSettings] as readonly unknown[] | undefined;
+    if (!allowed?.includes(value)) throw new WorkspaceError("invalidSetting", `Unknown setting ${key}=${String(value)}`);
+    Object.assign(clean, { [key]: value });
+  }
+  await db
+    .update(workspace)
+    .set({ settings: sql`${workspace.settings} || ${JSON.stringify(clean)}::jsonb` })
+    .where(eq(workspace.id, workspaceId));
+}
+
+/**
+ * Whether the user may bring people from outside the workspace in as guests, by sharing a page
+ * with them: owners always, members when the workspace allows it, guests never.
+ */
+export async function canInviteGuests(userId: string, workspaceId: string) {
+  const [membership, settings] = await Promise.all([getMembership(userId, workspaceId), workspaceSettings(workspaceId)]);
+  if (!membership) return false;
+  return membership.role === "owner" || (membership.role === "member" && settings.guestInvites === "members");
 }

@@ -14,9 +14,9 @@ import {
   type ShareByEmailResult,
 } from "@/server/permissions";
 import { requireUserId } from "@/server/session";
-import { listMembers } from "@/server/workspaces";
+import { canInviteGuests, listMembers } from "@/server/workspaces";
 
-export type SharingErrorCode = "notMember" | "lastFullAccess" | "invalidEmail" | "ownersOnly" | "accessDenied" | "generic";
+export type SharingErrorCode = "notMember" | "lastFullAccess" | "invalidEmail" | "invitesRestricted" | "accessDenied" | "generic";
 export type SharingResult<T = unknown> = { ok: true; data?: T } | { ok: false; code: SharingErrorCode };
 
 /** Who the page is shared with, plus the workspace members it can be shared with. */
@@ -24,8 +24,9 @@ export async function getSharingAction(pageId: string) {
   const userId = await requireUserId();
   const { page: target, level } = await resolvePageAccess(userId, pageId);
   if (!target || level === "none") throw new AccessError();
-  const [permissions, members] = await Promise.all([
+  const [permissions, canInvite, members] = await Promise.all([
     listPagePermissions(userId, pageId),
+    canInviteGuests(userId, target.workspaceId),
     // Guests can't see who is in the workspace, so they get no one to pick from.
     listMembers(userId, target.workspaceId).catch((error) => {
       if (error instanceof AccessError) return [];
@@ -34,6 +35,8 @@ export async function getSharingAction(pageId: string) {
   ]);
   return {
     ...permissions,
+    /** Whether they may share with people outside the workspace (Settings > Security). */
+    canInvite,
     members: members.map((m) => ({ userId: m.userId, name: m.name, email: m.email, role: m.role })),
   };
 }

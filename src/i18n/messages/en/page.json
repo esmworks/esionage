@@ -84,7 +84,7 @@
     "tabPublish": "Publish",
     "addPeople": "Add people by name or email",
     "noMatches": "No matching members.",
-    "membersOnly": "You can share with workspace members. Only owners can share with people outside the workspace.",
+    "membersOnly": "You can share with workspace members. This workspace doesn't let you share with people outside it.",
     "guestHint": "Type a full email address to share with someone outside the workspace. They join as a guest and see only the pages shared with them.",
     "shareWith": "Share with {email}",
     "asGuest": "Joins as a guest",
@@ -116,7 +116,7 @@
       "lastFullAccess": "Someone must keep full access to the page. Give someone else full access first.",
       "accessDenied": "You can't change sharing for this page.",
       "invalidEmail": "Enter a valid email address.",
-      "ownersOnly": "Only workspace owners can share pages with people outside the workspace.",
+      "invitesRestricted": "This workspace doesn't let you share pages with people outside it. Ask an owner.",
       "generic": "Couldn't update sharing."
     }
   }

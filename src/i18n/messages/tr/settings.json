@@ -7,7 +7,8 @@
     "general": "Genel",
     "members": "Üyeler",
     "preferences": "Tercihler",
-    "apps": "Bağlı uygulamalar"
+    "apps": "Bağlı uygulamalar",
+    "security": "Güvenlik"
   },
   "workspace": {
     "heading": "Çalışma alanı",
@@ -134,6 +135,7 @@
     }
   },
   "errors": {
+    "invalidSetting": "Bu ayar kullanılamıyor.",
     "nameRequired": "Çalışma alanına bir ad verin.",
     "alreadyMember": "Bu kişi zaten üye.",
     "notMember": "Bu kişi üye değil.",
@@ -148,5 +150,16 @@
     "tooManyEmails": "Tek seferde en fazla 50 kişi ekleyin.",
     "joinLinkInvalid": "Bu katılma bağlantısı geçersiz veya kapatılmış.",
     "transferToSelf": "Sahip yapmak için başka birini seçin."
+  },
+  "security": {
+    "description": "Bu çalışma alanına kimlerin kişi getirebileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
+    "guestsHeading": "Misafirler",
+    "guestInvites": {
+      "title": "Kimler misafir davet edebilir",
+      "description": "Biri bir sayfayı e-postayla çalışma alanı dışındaki bir kişiyle paylaşınca o kişi misafir olarak katılır ve yalnızca kendisiyle paylaşılan sayfaları görür.",
+      "owners": "Yalnızca sahipler",
+      "members": "Sahipler ve üyeler"
+    },
+    "ownersOnly": "Bunu yalnızca sahipler değiştirebilir."
   }
 }

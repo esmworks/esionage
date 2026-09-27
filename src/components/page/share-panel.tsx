@@ -118,11 +118,10 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
   // An address typed in full can be shared with even when it isn't a member: owners can bring
   // people in as guests. A member with that address already shows up as a candidate.
   const typedEmail = normalizeEmail(query);
-  const canInvite =
+  const invitable =
     isEmail(typedEmail) &&
     !data?.members.some((m) => m.email.toLocaleLowerCase() === typedEmail) &&
     !data?.invitations.some((i) => i.email === typedEmail);
-  const isOwner = data?.members.find((m) => m.userId === currentUserId)?.role === "owner";
   const shareByEmail = (email: string) => {
     setQuery("");
     void run(async () => {
@@ -187,7 +186,7 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
                   <PersonLabel name={m.name} detail={m.email} />
                 </button>
               ))}
-              {canInvite && isOwner && (
+              {invitable && data.canInvite && (
                 <button
                   type="button"
                   onClick={() => shareByEmail(typedEmail)}
@@ -199,11 +198,11 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
                   <PersonLabel name={t("shareWith", { email: typedEmail })} detail={t("asGuest")} />
                 </button>
               )}
-              {!candidates.length && !(canInvite && isOwner) && (
+              {!candidates.length && !(invitable && data.canInvite) && (
                 <p className="px-2 py-1.5 text-sm text-fg-muted">{t("noMatches")}</p>
               )}
               <p className="border-t border-border px-2 pt-1.5 pb-1 text-xs text-fg-faint">
-                {isOwner ? t("guestHint") : t("membersOnly")}
+                {data.canInvite ? t("guestHint") : t("membersOnly")}
               </p>
             </div>
           )}

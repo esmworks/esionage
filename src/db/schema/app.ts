@@ -33,12 +33,22 @@ const timestamps = {
     .$onUpdate(() => new Date()),
 };
 
+/** Workspace-wide policies, changed by owners in Settings > Security. */
+export type WorkspaceSettings = {
+  /** Who may share pages with people outside the workspace, bringing them in as guests. */
+  guestInvites: "owners" | "members";
+};
+
+export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = { guestInvites: "owners" };
+
 export const workspace = pgTable("workspace", {
   id: id(),
   name: text("name").notNull(),
   icon: text("icon"),
   /** Token of the shareable join link (joins as member); null while the link is turned off. */
   inviteLinkToken: text("invite_link_token").unique(),
+  /** Only the policies an owner changed; `workspaceSettings` fills in the rest from the defaults. */
+  settings: jsonb("settings").$type<Partial<WorkspaceSettings>>().notNull().default({}),
   ...timestamps,
 });
 

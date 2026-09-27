@@ -84,7 +84,7 @@
     "tabPublish": "Yayınla",
     "addPeople": "Ad veya e-posta ile kişi ekle",
     "noMatches": "Eşleşen üye yok.",
-    "membersOnly": "Çalışma alanı üyeleriyle paylaşabilirsiniz. Çalışma alanı dışındaki kişilerle yalnızca sahipler paylaşabilir.",
+    "membersOnly": "Çalışma alanı üyeleriyle paylaşabilirsiniz. Bu çalışma alanında dışarıdan kişilerle paylaşma izniniz yok.",
     "guestHint": "Çalışma alanı dışından biriyle paylaşmak için e-posta adresinin tamamını yazın. Misafir olarak katılır ve yalnızca kendisiyle paylaşılan sayfaları görür.",
     "shareWith": "{email} ile paylaş",
     "asGuest": "Misafir olarak katılır",
@@ -116,7 +116,7 @@
       "lastFullAccess": "Sayfada tam erişimi olan en az bir kişi kalmalı. Önce başka birine tam erişim verin.",
       "accessDenied": "Bu sayfanın paylaşımını değiştirme yetkiniz yok.",
       "invalidEmail": "Geçerli bir e-posta adresi girin.",
-      "ownersOnly": "Çalışma alanı dışındaki kişilerle sayfa paylaşmayı yalnızca sahipler yapabilir.",
+      "invitesRestricted": "Bu çalışma alanında sayfaları dışarıdan kişilerle paylaşma izniniz yok. Bir sahipten isteyin.",
       "generic": "Paylaşım güncellenemedi."
     }
   }

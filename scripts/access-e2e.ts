@@ -28,7 +28,9 @@ const { AccessError, getMembership, requirePageAccess, resolvePageAccess } = awa
 const { createPage, getBreadcrumbs, getTree, listChildren, movePage, recentPages, searchPages } = await import(
   "@/server/pages"
 );
-const { acceptInvitation, listMembers } = await import("@/server/workspaces");
+const { acceptInvitation, canInviteGuests, listMembers, updateWorkspaceSettings, WorkspaceError } = await import(
+  "@/server/workspaces"
+);
 const {
   listPagePermissions,
   PermissionError,
@@ -228,9 +230,37 @@ try {
   await setPagePermission(owner, C, alice, "full");
   await rejects(
     () => sharePageByEmail(alice, C, emailOf(newcomer), "view"),
-    isCode("ownersOnly"),
-    "only owners bring new people in",
+    isCode("invitesRestricted"),
+    "by default only owners bring new people in",
   );
+
+  // Who may invite guests (Settings > Security)
+  await rejects(
+    () => updateWorkspaceSettings(alice, workspaceId, { guestInvites: "members" }),
+    isAccessError,
+    "only owners change the workspace's settings",
+  );
+  await rejects(
+    () => updateWorkspaceSettings(owner, workspaceId, { guestInvites: "anyone" as "members" }),
+    (error) => error instanceof WorkspaceError && error.code === "invalidSetting",
+    "an unknown setting value is refused",
+  );
+  await updateWorkspaceSettings(owner, workspaceId, { guestInvites: "members" });
+  check(
+    (await canInviteGuests(alice, workspaceId)) && !(await canInviteGuests(guest, workspaceId)),
+    "letting members invite guests reaches members, never guests",
+  );
+  const byMember = await sharePageByEmail(alice, C, `${RUN}-friend@example.test`, "view");
+  check(byMember.kind === "invited", "a member can then share with someone new", byMember);
+  await setPagePermission(owner, Pg, guest, "full");
+  await rejects(
+    () => sharePageByEmail(guest, Pg, `${RUN}-other@example.test`, "view"),
+    isCode("invitesRestricted"),
+    "a guest with full access still can't bring people in",
+  );
+  await setPagePermission(owner, Pg, guest, "edit");
+  await updateWorkspaceSettings(owner, workspaceId, { guestInvites: "owners" });
+  check(!(await canInviteGuests(alice, workspaceId)), "switching back takes it away again");
   check((await sharePageByEmail(owner, Pg, emailOf(outsider), "edit")).kind === "added", "an existing account joins as a guest");
   check(
     (await getMembership(outsider, workspaceId))?.role === "guest" && (await levels(Pg, outsider))[0] === "edit",
@@ -253,7 +283,7 @@ try {
   await db.insert(user).values({ id: newcomer, name: newcomer, email: emailOf(newcomer) });
   await acceptInvitation(invitation.token, newcomer, emailOf(newcomer));
   check((await levels(Pg, newcomer))[0] === "edit", "accepting the invitation turns it into access to the page");
-  const leftover = await db.select().from(pageInvitation).where(inArray(pageInvitation.workspaceId, [workspaceId]));
+  const leftover = await db.select().from(pageInvitation).where(inArray(pageInvitation.email, [emailOf(newcomer)]));
   check(leftover.length === 0, "…and nothing waits any more");
 
   const later = `${RUN}-later@example.test`;

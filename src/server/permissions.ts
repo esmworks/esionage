@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { pageInvitation, pagePermission, type PageLevel, user, workspaceInvitation, workspaceMember } from "@/db/schema";
 import { isEmail, normalizeEmail } from "@/lib/emails";
 import { AccessError, getMembership, hasLevel, requirePageAccess, resolvePageAccess } from "@/server/access";
-import { addGuest, type InvitationDelivery, inviteGuest } from "@/server/workspaces";
+import { addGuest, canInviteGuests, type InvitationDelivery, inviteGuest } from "@/server/workspaces";
 
 /**
  * Who a page is shared with. An entry gives one member (`userId`) or everyone with a member role
@@ -11,7 +11,7 @@ import { addGuest, type InvitationDelivery, inviteGuest } from "@/server/workspa
  * same principal. The rule that reads these entries is `page_access_level` in the database.
  */
 
-export type PermissionErrorCode = "notMember" | "lastFullAccess" | "invalidEmail" | "ownersOnly";
+export type PermissionErrorCode = "notMember" | "lastFullAccess" | "invalidEmail" | "invitesRestricted";
 
 export class PermissionError extends Error {
   readonly code: PermissionErrorCode;
@@ -99,7 +99,7 @@ export type ShareByEmailResult =
 /**
  * Shares the page with whoever uses `email`. Someone in the workspace gets the level right away;
  * an account outside it joins as a guest; anyone else is invited as a guest and gets the page
- * once they accept. Needs full access, and bringing new people in is up to the workspace owners.
+ * once they accept. Needs full access; bringing new people in also needs `canInviteGuests`.
  */
 export async function sharePageByEmail(
   actorId: string,
@@ -119,8 +119,8 @@ export async function sharePageByEmail(
     await setPagePermission(actorId, pageId, account.id, level);
     return { kind: "shared" };
   }
-  if ((await getMembership(actorId, target.workspaceId))?.role !== "owner") {
-    throw new PermissionError("ownersOnly", "Only workspace owners can share pages with new people");
+  if (!(await canInviteGuests(actorId, target.workspaceId))) {
+    throw new PermissionError("invitesRestricted", "This workspace doesn't let you share pages with new people");
   }
   if (account) {
     await addGuest(actorId, target.workspaceId, account.id, clean);
