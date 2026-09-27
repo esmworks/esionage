@@ -225,6 +225,14 @@ function ViewTab({
 type Column = { id: string; name: string; type: Property["type"] | "title"; prop: Property | null };
 
 /** Columns filters and sorts offer; a formula is offered as a property of its result type. */
+/**
+ * A menu label inside a sentence ("Status is empty"): only its first letter lower-cased, since
+ * German capitalises nouns anywhere ("diese Woche", not "diese woche").
+ */
+function lowerFirst(label: string, locale: string) {
+  return label.charAt(0).toLocaleLowerCase(locale) + label.slice(1);
+}
+
 function columnsOf(properties: Property[], titleName: string): Column[] {
   return [
     { id: TITLE, name: titleName, type: "title", prop: null },
@@ -551,7 +559,7 @@ export function ActiveRulesBar({
   if (!filters.length && !sorts.length) return null;
   const columns = columnsOf(properties, t("nameColumn"));
   const nameOf = (id: string) => columns.find((c) => c.id === id)?.name ?? t("activeRules.unknownProperty");
-  const word = (combinator: FilterCombinator) => t(`filter.${combinator}`).toLocaleLowerCase(locale);
+  const word = (combinator: FilterCombinator) => lowerFirst(t(`filter.${combinator}`), locale);
   // A group reads as one chip: "(Status is Done or Assignee contains Me)".
   const describeEntry = (entry: FilterEntry): string =>
     isFilterGroup(entry)
@@ -622,10 +630,10 @@ function useDescribeFilter() {
     const col = columns.find((c) => c.id === f.propertyId);
     if (!col) return t("unknownFilter");
     if (f.op === "is_within") {
-      const range = isRelativeDateRange(f.value) ? rangeLabel(f.value, f.days).toLocaleLowerCase(locale) : "…";
+      const range = isRelativeDateRange(f.value) ? lowerFirst(rangeLabel(f.value, f.days), locale) : "…";
       return t("filterWithin", { property: col.name, range });
     }
-    const operator = operatorLabel(col.type, f.op).toLocaleLowerCase(locale);
+    const operator = lowerFirst(operatorLabel(col.type, f.op), locale);
     if (!filterNeedsValue(f.op) || col.type === "checkbox") {
       return t("filterWithoutValue", { property: col.name, operator });
     }

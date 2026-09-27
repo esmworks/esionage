@@ -795,7 +795,7 @@ export function createMcpServer(principal: McpPrincipal) {
             kind: t.kind,
             url: pageUrl(workspace_id, t.id),
           })),
-          built_in: builtinTemplates("en").map((t) => ({ id: `builtin:${t.key}`, title: t.title, kind: t.kind, description: t.description })),
+          built_in: (await builtinTemplates("en")).map((t) => ({ id: `builtin:${t.key}`, title: t.title, kind: t.kind, description: t.description })),
         };
       }),
   );

@@ -1,0 +1,88 @@
+{
+  "open": "Importieren",
+  "title": "Importieren",
+  "description": "Importiere Seiten aus Markdown-Dateien und ZIP-Exporten oder Zeilen aus einer CSV-Datei.",
+  "tabs": {
+    "pages": "Markdown & ZIP",
+    "csv": "CSV"
+  },
+  "destination": "Einfügen unter",
+  "topLevel": "Oberste Ebene des Workspace",
+  "noDestination": "Es gibt keine Seite, der du Seiten hinzufügen kannst.",
+  "pages": {
+    "help": "Markdown-Dateien werden zu Seiten, und Ordner behalten ihre Struktur. CSV-Dateien werden zu Datenbanken, und Bilder, auf die Seiten verlinken, werden hochgeladen. Exporte aus Notion funktionieren ebenfalls.",
+    "chooseFiles": "Dateien auswählen",
+    "chooseFolder": "Ordner auswählen",
+    "drop": "oder Dateien hierher ziehen",
+    "selected": "{count, plural, one {# Datei} other {# Dateien}}, {size}",
+    "clear": "Leeren"
+  },
+  "csv": {
+    "choose": "CSV-Datei auswählen",
+    "summary": "{name}: {rows, plural, one {# Zeile} other {# Zeilen}}, {columns, plural, one {# Spalte} other {# Spalten}}",
+    "mode": "Importieren als",
+    "newDatabase": "Neue Datenbank",
+    "existing": "Zeilen einer Datenbank",
+    "name": "Name",
+    "titleColumn": "Zeilentitel aus",
+    "noTitle": "Keine Spalte (Zeilen ohne Titel)",
+    "column": "Spalte",
+    "type": "Typ",
+    "target": "Ziel",
+    "values": "Werte",
+    "leaveOut": "Auslassen",
+    "rowTitle": "Zeilentitel",
+    "database": "Datenbank",
+    "chooseDatabase": "Datenbank auswählen",
+    "noDatabases": "Es gibt keine Datenbank, der du Zeilen hinzufügen kannst.",
+    "cantLoad": "Die Eigenschaften dieser Datenbank konnten nicht geladen werden.",
+    "newOptions": "Auswahlwerte, die es in der Datenbank noch nicht gibt, werden als Optionen hinzugefügt."
+  },
+  "import": "Importieren",
+  "importing": "Wird importiert…",
+  "done": {
+    "title": "Import abgeschlossen",
+    "created": "Erstellt: {list}.",
+    "nothing": "Es wurde nichts Neues erstellt.",
+    "open": "Öffnen",
+    "again": "Weitere importieren"
+  },
+  "counts": {
+    "pages": "{count, plural, one {# Seite} other {# Seiten}}",
+    "databases": "{count, plural, one {# Datenbank} other {# Datenbanken}}",
+    "rows": "{count, plural, one {# Zeile} other {# Zeilen}}",
+    "templates": "{count, plural, one {# Vorlage} other {# Vorlagen}}",
+    "files": "{count, plural, one {# Datei} other {# Dateien}}"
+  },
+  "warnings": {
+    "heading": "Ausgelassen oder geändert",
+    "invalidValues": "{count, plural, one {# Wert in „{column}“ passte nicht zur Eigenschaft und wurde leer gelassen.} other {# Werte in „{column}“ passten nicht zur Eigenschaft und wurden leer gelassen.}}",
+    "missingFile": "„{path}“, verlinkt in „{page}“, war nicht im Upload enthalten.",
+    "fileNotStored": {
+      "tooLarge": "„{path}“ überschreitet die Upload-Grenze und wurde nicht gespeichert.",
+      "quotaExceeded": "„{path}“ wurde nicht gespeichert: Der Dateispeicher des Workspace ist voll.",
+      "failed": "„{path}“ konnte nicht gespeichert werden."
+    },
+    "skipped": {
+      "nestedZip": "„{path}“ ist eine zu tief verschachtelte ZIP-Datei und wurde ausgelassen.",
+      "nestedDatabase": "„{path}“ wäre eine Datenbank in einer Datenbank und wurde ausgelassen.",
+      "duplicate": "„{path}“ wurde ausgelassen: Die vollständige Version derselben Datenbank wurde importiert.",
+      "tooLarge": "„{path}“ ist zu groß für eine Seite und wurde ausgelassen."
+    },
+    "more": "…und {count, plural, one {# weiterer} other {# weitere}}."
+  },
+  "errors": {
+    "tooLarge": "Der Upload ist größer als {limit}.",
+    "tooManyFiles": "Ein Import darf höchstens {limit} Dateien enthalten.",
+    "tooManyPages": "Ein Import kann höchstens {limit} Seiten erstellen.",
+    "tooManyRows": "Eine CSV-Datei darf höchstens {limit} Zeilen haben.",
+    "tooManyColumns": "Eine CSV-Datei darf höchstens {limit} Spalten haben.",
+    "badZip": "Die ZIP-Datei kann nicht gelesen werden.",
+    "nothingToImport": "Es gibt keine Markdown- oder CSV-Datei zum Importieren.",
+    "emptyCsv": "Die CSV-Datei hat keine Kopfzeile.",
+    "badMapping": "Lege für mindestens eine Spalte ein Ziel fest und verwende jede Eigenschaft nur einmal.",
+    "noAccess": "Du kannst dort keine Seiten hinzufügen, oder das Ziel existiert nicht mehr.",
+    "notADatabase": "Zeilen können nur einer Datenbank hinzugefügt werden.",
+    "badRequest": "Der Import ist fehlgeschlagen. Es wurde nichts geändert."
+  }
+}

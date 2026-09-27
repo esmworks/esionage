@@ -1,0 +1,18 @@
+{
+  "banner": "Sin conexión",
+  "hint": "No tienes conexión. Las páginas que abriste antes se pueden seguir leyendo y editando; los cambios se sincronizarán cuando vuelva la conexión.",
+  "needsConnection": "{action}: necesita conexión",
+  "readOnly": "Sin conexión: solo lectura",
+  "readOnlyCopy": "Copia sin conexión de {time}, solo lectura",
+  "signOutUnsynced": "Algunas páginas tienen cambios que aún no han llegado al servidor. Al cerrar sesión se eliminarán de este navegador. ¿Cerrar sesión de todos modos?",
+  "installApp": "Instalar app",
+  "page": {
+    "documentTitle": "Sin conexión",
+    "heading": "No tienes conexión",
+    "body": "Esionage no puede conectarse con el servidor en este momento. Abajo se muestran las páginas que abriste en este dispositivo; se abren desde la copia de este navegador.",
+    "saved": "Guardadas en este dispositivo",
+    "unsynced": "Cambios aún sin sincronizar",
+    "empty": "Todavía no hay páginas guardadas en este dispositivo. Las páginas que abras con conexión se guardarán para usarlas sin conexión.",
+    "retry": "Volver a intentarlo"
+  }
+}

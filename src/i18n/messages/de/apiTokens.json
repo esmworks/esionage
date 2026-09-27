@@ -1,0 +1,72 @@
+{
+  "heading": "Persönliche Zugriffstoken",
+  "description": "Mit Token können Skripte und andere Programme die Esionage-REST-API in deinem Namen und mit deinem Zugriff auf Seiten nutzen. Halte sie geheim wie ein Passwort.",
+  "docs": "API-Dokumentation",
+  "empty": "Du hast noch keine Token.",
+  "create": "Neues Token",
+  "form": {
+    "title": "Neues persönliches Zugriffstoken",
+    "name": "Name",
+    "namePlaceholder": "z. B. Skript für Wochenbericht",
+    "access": "Zugriff",
+    "read": "Nur lesen",
+    "readHint": "Seiten, Datenbanken, Zeilen und Kommentare lesen.",
+    "write": "Lesen und schreiben",
+    "writeHint": "Außerdem Seiten, Zeilen und Kommentare erstellen und ändern sowie Seiten in den Papierkorb verschieben.",
+    "workspace": "Workspace",
+    "allWorkspaces": "Alle meine Workspaces",
+    "expiry": "Gültigkeitsdauer",
+    "days": "{count, plural, one {# Tag} other {# Tage}}",
+    "never": "Unbegrenzt",
+    "submit": "Token erstellen",
+    "creating": "Wird erstellt…"
+  },
+  "created": {
+    "title": "Kopiere dein neues Token",
+    "body": "Das Token wird nur dieses eine Mal angezeigt. Bewahre es sicher auf; wenn du es verlierst, widerrufe es und erstelle ein neues.",
+    "done": "Fertig"
+  },
+  "row": {
+    "readOnly": "Nur lesen",
+    "readWrite": "Lesen und schreiben",
+    "allWorkspaces": "Alle Workspaces",
+    "createdAt": "Erstellt am {date}",
+    "lastUsed": "zuletzt verwendet am {date}",
+    "neverUsed": "nie verwendet",
+    "expires": "läuft am {date} ab",
+    "expired": "am {date} abgelaufen",
+    "noExpiry": "läuft nicht ab"
+  },
+  "revoke": "Widerrufen",
+  "revoking": "Wird widerrufen…",
+  "confirmRevoke": "{name} widerrufen",
+  "revokeError": "Das Token konnte nicht widerrufen werden. Versuch es noch einmal.",
+  "errors": {
+    "name": "Gib dem Token einen Namen mit höchstens 100 Zeichen.",
+    "scopes": "Wähle aus, was das Token darf.",
+    "workspace": "Du bist kein Mitglied dieses Workspace.",
+    "expiry": "Wähle aus, wann das Token abläuft.",
+    "limit": "Du hast die maximale Anzahl an Token erreicht. Widerrufe zuerst eines.",
+    "generic": "Das Token konnte nicht erstellt werden. Versuch es noch einmal."
+  },
+  "docsPage": {
+    "metaTitle": "REST API",
+    "openapi": "OpenAPI-Dokument (JSON)",
+    "tokensWhere": "Erstelle ein Token unter Mein Konto → Verbundene Apps.",
+    "quickStart": "Schnellstart",
+    "baseUrl": "Basis-URL",
+    "errors": "Fehler",
+    "code": "Code",
+    "status": "Status",
+    "endpoints": "Endpunkte",
+    "parameters": "Parameter",
+    "inPath": "Pfad",
+    "inQuery": "Query",
+    "body": "Request-Body (JSON)",
+    "response": "Antwort {status}",
+    "name": "Name",
+    "type": "Typ",
+    "description": "Beschreibung",
+    "required": "erforderlich"
+  }
+}

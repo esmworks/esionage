@@ -4,6 +4,20 @@
 
 ### Added
 
+- **German, Spanish and French** (#51): the whole interface, emails and built-in templates in
+  Deutsch, Español and Français, next to English and Turkish; the editor's menus use BlockNote's own
+  dictionaries for them. The language picker lists each language by its own name. Adding a
+  language is now a folder of JSON files (`src/i18n/messages/<locale>/`, found by name, no index
+  file) plus a line in `src/i18n/config.ts` and one in `src/i18n/blocknote/index.ts`; a language
+  that lacks a text shows the English one. Built-in templates moved to
+  `messages/<locale>/templates.json`. `Accept-Language` matching now also takes regional codes
+  (`pt-br`) when a language has them. `pnpm i18n:check` (also in `pnpm test` and a CI step)
+  compares every language with English: missing or extra files and keys, empty texts, invalid
+  ICU (parsed with @formatjs/icu-messageformat-parser 3.5.20, MIT, dev only), placeholders, tags
+  and select branches that differ (plural vs. plain `{count}` is allowed).
+  CSV import recognises German, Spanish and French title columns and yes/no words. The
+  translation workflow is in `CONTRIBUTING.md`. The new translations were not reviewed by native
+  speakers yet.
 - **Offline editing** (#10): each page opened in the browser is kept in IndexedDB (its Yjs
   document, via y-indexeddb 9.0.12, MIT), loaded before the page connects. Without a connection the
   page stays editable, and the edits merge with the server's state when it returns (the sync

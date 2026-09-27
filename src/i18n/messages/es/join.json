@@ -1,0 +1,14 @@
+{
+  "metaTitle": "Unirse al espacio de trabajo",
+  "title": "Únete a “{workspace}”",
+  "invalidTitle": "No se encontró el enlace",
+  "invalidBody": "Este enlace para unirse no es válido o se desactivó. Pide uno nuevo a un propietario del espacio de trabajo.",
+  "home": "Ir a Esionage",
+  "body": "Te unirás como miembro, salvo que te hayan invitado con otro rol.",
+  "join": "Unirse al espacio de trabajo",
+  "joining": "Uniéndote…",
+  "alreadyMember": "Ya eres miembro de este espacio de trabajo.",
+  "open": "Abrir espacio de trabajo",
+  "signInBody": "Inicia sesión con tu cuenta para unirte. Este servidor no permite cuentas nuevas.",
+  "signIn": "Iniciar sesión"
+}

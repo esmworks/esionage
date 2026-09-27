@@ -1,0 +1,88 @@
+{
+  "open": "Importer",
+  "title": "Importer",
+  "description": "Importez des pages depuis des fichiers Markdown et des exportations ZIP, ou des lignes depuis un fichier CSV.",
+  "tabs": {
+    "pages": "Markdown et ZIP",
+    "csv": "CSV"
+  },
+  "destination": "Placer sous",
+  "topLevel": "Niveau supérieur de l’espace de travail",
+  "noDestination": "Il n’y a aucune page à laquelle vous pouvez ajouter des pages.",
+  "pages": {
+    "help": "Les fichiers Markdown deviennent des pages et les dossiers conservent leur structure. Les fichiers CSV deviennent des bases de données, et les images vers lesquelles pointent les pages sont ajoutées. Les exportations Notion fonctionnent aussi.",
+    "chooseFiles": "Choisir des fichiers",
+    "chooseFolder": "Choisir un dossier",
+    "drop": "ou déposez des fichiers ici",
+    "selected": "{count, plural, one {# fichier} other {# fichiers}}, {size}",
+    "clear": "Effacer"
+  },
+  "csv": {
+    "choose": "Choisir un fichier CSV",
+    "summary": "{name} : {rows, plural, one {# ligne} other {# lignes}}, {columns, plural, one {# colonne} other {# colonnes}}",
+    "mode": "Importer comme",
+    "newDatabase": "Une nouvelle base de données",
+    "existing": "Des lignes d’une base de données",
+    "name": "Nom",
+    "titleColumn": "Titres des lignes depuis",
+    "noTitle": "Aucune colonne (lignes sans titre)",
+    "column": "Colonne",
+    "type": "Type",
+    "target": "Destination",
+    "values": "Valeurs",
+    "leaveOut": "Ignorer",
+    "rowTitle": "Titre de la ligne",
+    "database": "Base de données",
+    "chooseDatabase": "Choisir une base de données",
+    "noDatabases": "Il n’y a aucune base de données à laquelle vous pouvez ajouter des lignes.",
+    "cantLoad": "Les propriétés de cette base de données n’ont pas pu être chargées.",
+    "newOptions": "Les valeurs de sélection que la base de données ne contient pas encore sont ajoutées comme options."
+  },
+  "import": "Importer",
+  "importing": "Importation…",
+  "done": {
+    "title": "Importation terminée",
+    "created": "Créé : {list}.",
+    "nothing": "Rien de nouveau n’a été créé.",
+    "open": "Ouvrir",
+    "again": "Importer d’autres éléments"
+  },
+  "counts": {
+    "pages": "{count, plural, one {# page} other {# pages}}",
+    "databases": "{count, plural, one {# base de données} other {# bases de données}}",
+    "rows": "{count, plural, one {# ligne} other {# lignes}}",
+    "templates": "{count, plural, one {# modèle} other {# modèles}}",
+    "files": "{count, plural, one {# fichier} other {# fichiers}}"
+  },
+  "warnings": {
+    "heading": "Éléments ignorés ou modifiés",
+    "invalidValues": "{count, plural, one {# valeur} other {# valeurs}} dans « {column} » ne correspondaient pas à la propriété et ont été laissées vides.",
+    "missingFile": "« {path} », lié depuis « {page} », ne faisait pas partie de l’envoi.",
+    "fileNotStored": {
+      "tooLarge": "« {path} » dépasse la taille maximale autorisée et n’a pas été enregistré.",
+      "quotaExceeded": "« {path} » n’a pas été enregistré : l’espace de travail n’a plus d’espace de stockage.",
+      "failed": "« {path} » n’a pas pu être enregistré."
+    },
+    "skipped": {
+      "nestedZip": "« {path} » est un ZIP imbriqué trop profondément et a été ignoré.",
+      "nestedDatabase": "« {path} » serait une base de données dans une base de données et a été ignoré.",
+      "duplicate": "« {path} » a été ignoré : la version complète de la même base de données a été importée.",
+      "tooLarge": "« {path} » est trop volumineux pour une seule page et a été ignoré."
+    },
+    "more": "…et {count, plural, one {# autre} other {# autres}}."
+  },
+  "errors": {
+    "tooLarge": "L’envoi dépasse {limit}.",
+    "tooManyFiles": "Une importation peut contenir au maximum {limit} fichiers.",
+    "tooManyPages": "Une importation peut créer au maximum {limit} pages.",
+    "tooManyRows": "Un fichier CSV peut contenir au maximum {limit} lignes.",
+    "tooManyColumns": "Un fichier CSV peut contenir au maximum {limit} colonnes.",
+    "badZip": "Le fichier ZIP ne peut pas être lu.",
+    "nothingToImport": "Il n’y a aucun fichier Markdown ou CSV à importer.",
+    "emptyCsv": "Le fichier CSV n’a pas de ligne d’en-tête.",
+    "badMapping": "Choisissez la destination d’au moins une colonne, et utilisez chaque propriété une seule fois.",
+    "noAccess": "Vous ne pouvez pas ajouter de pages à cet endroit, ou il n’existe plus.",
+    "notADatabase": "Les lignes ne peuvent être ajoutées qu’à une base de données.",
+    "badRequest": "L’importation n’a pas abouti. Rien n’a été modifié."
+  }
+}

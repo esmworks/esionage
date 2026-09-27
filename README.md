@@ -104,7 +104,8 @@ approve them over OAuth.
 - **Two-step verification and passkeys**: an authenticator app with one-time recovery codes,
   passkeys, and a workspace policy that requires one of them (see
   [Two-step verification and passkeys](#two-step-verification-and-passkeys)).
-- **English and Turkish** interface.
+- **Five interface languages**: English, Turkish, German, Spanish and French, chosen in My account
+  or taken from the browser (see [Languages](#languages)).
 - **MCP server with OAuth 2.1**: remote MCP endpoint at `/mcp`.
   - Supports Client ID Metadata Documents and Dynamic Client Registration, with PKCE and a
     consent screen.
@@ -505,6 +506,7 @@ Useful scripts:
 | --- | --- |
 | `pnpm typecheck` | TypeScript check |
 | `pnpm test` | Unit tests (Vitest) |
+| `pnpm i18n:check [locale…]` | Compares every translation with English: missing or extra files and keys, and placeholders or plural/select syntax that differ (see [Languages](#languages)) |
 | `pnpm build` | Production build |
 | `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
@@ -514,6 +516,22 @@ Useful scripts:
 | `pnpm tsx scripts/api-e2e.ts` | End-to-end REST API check (tokens, every endpoint, access, rate limits, OpenAPI) against a running server |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
 | `pnpm tsx scripts/two-factor-e2e.ts` | End-to-end two-step verification check (sign-in challenge, recovery codes, workspace policy) against a running server |
+
+## Languages
+
+The interface is available in English, Turkish (Türkçe), German (Deutsch), Spanish (Español) and
+French (Français). Each person picks a language in My account → Language, stored per browser;
+without a choice the app follows the browser's `Accept-Language` and falls back to English. Dates
+and numbers are formatted for the language, and emails go out in the language of whoever caused
+them. The editor's own menus use [BlockNote](https://www.blocknotejs.org)'s dictionaries (Turkish is
+ours, in `src/i18n/blocknote/tr.ts`).
+
+Texts live in `src/i18n/messages/<locale>/*.json` (app, `email.json`, `templates.json` for the
+built-in templates), in ICU MessageFormat. English is the source: `pnpm i18n:check` (also part of
+`pnpm test` and CI) reports what each language lacks or gets wrong, and anything missing shows in
+English. Adding a language is a new folder of JSON files plus one line each in
+`src/i18n/config.ts` and `src/i18n/blocknote/index.ts`. Translations are welcome as pull
+requests; see [CONTRIBUTING.md](CONTRIBUTING.md#translations) for the workflow.
 
 ## Architecture
 

@@ -3,8 +3,8 @@ import { inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { page } from "@/db/schema";
 import { csvTable, decodeText, guessTitleColumn } from "@/lib/import/csv";
-import enCommon from "@/i18n/messages/en/common.json";
-import trCommon from "@/i18n/messages/tr/common.json";
+import { LOCALES } from "@/i18n/config";
+import { loadMessages } from "@/i18n/messages";
 import {
   IMPORT_LIMITS,
   importFileKind,
@@ -46,7 +46,9 @@ import { importCsvAsDatabase } from "./csv";
 const text = decodeText;
 
 /** Titles the export gives untitled pages (in each language), for matching a row with no title. */
-const UNTITLED = new Set([enCommon.untitled, trCommon.untitled].map((t) => t.toLowerCase()));
+const UNTITLED = new Set(
+  (await Promise.all(LOCALES.map(loadMessages))).map((messages) => messages.common.untitled.toLowerCase()),
+);
 
 export type MarkdownImportInput = {
   workspaceId: string;

@@ -339,7 +339,7 @@ export async function createFromBuiltin(
   }: { locale?: string; parentId?: string | null; teamspaceId?: string | null } = {},
 ): Promise<{ id: string; workspaceId: string }> {
   if (!isBuiltinTemplateKey(key)) throw withCode(new Error(`Unknown built-in template "${String(key)}"`), "notATemplate");
-  const builtin = builtinTemplate(key, locale);
+  const builtin = await builtinTemplate(key, locale);
   if (builtin.kind === "page") {
     const created = await createPage(actor, {
       workspaceId,

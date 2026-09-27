@@ -1,0 +1,88 @@
+{
+  "open": "Importar",
+  "title": "Importar",
+  "description": "Trae páginas desde archivos Markdown y exportaciones ZIP, o filas desde un archivo CSV.",
+  "tabs": {
+    "pages": "Markdown y ZIP",
+    "csv": "CSV"
+  },
+  "destination": "Colocar dentro de",
+  "topLevel": "Nivel superior del espacio de trabajo",
+  "noDestination": "No hay ninguna página a la que puedas añadir páginas.",
+  "pages": {
+    "help": "Los archivos Markdown se convierten en páginas y las carpetas conservan su estructura. Los archivos CSV se convierten en bases de datos y se suben las imágenes enlazadas desde las páginas. También funcionan las exportaciones de Notion.",
+    "chooseFiles": "Elegir archivos",
+    "chooseFolder": "Elegir una carpeta",
+    "drop": "o suelta los archivos aquí",
+    "selected": "{count, plural, one {# archivo} other {# archivos}}, {size}",
+    "clear": "Borrar"
+  },
+  "csv": {
+    "choose": "Elegir un archivo CSV",
+    "summary": "{name}: {rows, plural, one {# fila} other {# filas}}, {columns, plural, one {# columna} other {# columnas}}",
+    "mode": "Importar como",
+    "newDatabase": "Una base de datos nueva",
+    "existing": "Filas de una base de datos",
+    "name": "Nombre",
+    "titleColumn": "Títulos de las filas desde",
+    "noTitle": "Ninguna columna (filas sin título)",
+    "column": "Columna",
+    "type": "Tipo",
+    "target": "Destino",
+    "values": "Valores",
+    "leaveOut": "Excluir",
+    "rowTitle": "Título de la fila",
+    "database": "Base de datos",
+    "chooseDatabase": "Elige una base de datos",
+    "noDatabases": "No hay ninguna base de datos a la que puedas añadir filas.",
+    "cantLoad": "No se pudieron cargar las propiedades de esta base de datos.",
+    "newOptions": "Los valores de selección que la base de datos aún no tiene se añaden como opciones."
+  },
+  "import": "Importar",
+  "importing": "Importando…",
+  "done": {
+    "title": "Importación completada",
+    "created": "Elementos creados: {list}.",
+    "nothing": "No se creó nada nuevo.",
+    "open": "Abrir",
+    "again": "Importar más"
+  },
+  "counts": {
+    "pages": "{count, plural, one {# página} other {# páginas}}",
+    "databases": "{count, plural, one {# base de datos} other {# bases de datos}}",
+    "rows": "{count, plural, one {# fila} other {# filas}}",
+    "templates": "{count, plural, one {# plantilla} other {# plantillas}}",
+    "files": "{count, plural, one {# archivo} other {# archivos}}"
+  },
+  "warnings": {
+    "heading": "Excluido o modificado",
+    "invalidValues": "{count, plural, one {# valor} other {# valores}} de “{column}” no encajaban con la propiedad y se dejaron vacíos.",
+    "missingFile": "“{path}”, enlazado desde “{page}”, no estaba en lo que subiste.",
+    "fileNotStored": {
+      "tooLarge": "“{path}” supera el límite de subida y no se guardó.",
+      "quotaExceeded": "“{path}” no se guardó: el espacio de trabajo se ha quedado sin almacenamiento de archivos.",
+      "failed": "“{path}” no se pudo guardar."
+    },
+    "skipped": {
+      "nestedZip": "“{path}” es un ZIP anidado a demasiada profundidad y se excluyó.",
+      "nestedDatabase": "“{path}” sería una base de datos dentro de otra y se excluyó.",
+      "duplicate": "“{path}” se excluyó: se importó la versión completa de la misma base de datos.",
+      "tooLarge": "“{path}” es demasiado grande para una sola página y se excluyó."
+    },
+    "more": "…y {count, plural, one {# más} other {# más}}."
+  },
+  "errors": {
+    "tooLarge": "Lo que subiste supera {limit}.",
+    "tooManyFiles": "Una importación puede contener como máximo {limit} archivos.",
+    "tooManyPages": "Una importación puede crear como máximo {limit} páginas.",
+    "tooManyRows": "Un archivo CSV puede tener como máximo {limit} filas.",
+    "tooManyColumns": "Un archivo CSV puede tener como máximo {limit} columnas.",
+    "badZip": "No se puede leer el archivo ZIP.",
+    "nothingToImport": "No hay ningún archivo Markdown o CSV que importar.",
+    "emptyCsv": "El archivo CSV no tiene fila de encabezado.",
+    "badMapping": "Elige el destino de al menos una columna, y usa cada propiedad una sola vez.",
+    "noAccess": "No puedes añadir páginas ahí o ya no existe.",
+    "notADatabase": "Solo se pueden añadir filas a una base de datos.",
+    "badRequest": "La importación no se completó. No se cambió nada."
+  }
+}

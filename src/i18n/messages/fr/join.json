@@ -1,0 +1,14 @@
+{
+  "metaTitle": "Rejoindre l’espace de travail",
+  "title": "Rejoindre « {workspace} »",
+  "invalidTitle": "Lien introuvable",
+  "invalidBody": "Ce lien d’accès n’est pas valide ou a été désactivé. Demandez-en un nouveau à un propriétaire de l’espace de travail.",
+  "home": "Aller sur Esionage",
+  "body": "Vous rejoindrez l’espace en tant que membre, sauf si vous avez été invité avec un autre rôle.",
+  "join": "Rejoindre l’espace de travail",
+  "joining": "Ajout en cours…",
+  "alreadyMember": "Vous êtes déjà membre de cet espace de travail.",
+  "open": "Ouvrir l’espace de travail",
+  "signInBody": "Connectez-vous avec votre compte pour rejoindre l’espace. Ce serveur n’accepte pas de nouveaux comptes.",
+  "signIn": "Se connecter"
+}
