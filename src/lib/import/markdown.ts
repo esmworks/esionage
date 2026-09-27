@@ -16,7 +16,8 @@
  *     index.md             whose body is index.md (or README.md, or Archive.md) when there is one
  *     Old.md
  *
- * Notion adds a 32-character id to every name ("Project 1a2b….md"); titles leave it out.
+ * Notion adds a 32-character id to every name ("Project 1a2b….md"); titles leave it out. What else
+ * is particular to Notion's export (callouts, row property lists, relations) is in lib/import/notion.
  *
  * Esionage's own export (lib/export-layout) adds `Templates/` folders: in a database's folder its
  * row templates, at the top the workspace's templates.
@@ -193,6 +194,20 @@ export function planImport(paths: string[], { topLevel = false }: { topLevel?: b
     }
     return true;
   });
+  // A Markdown file with a database's own name and Notion id next to its CSV is the database's page
+  // (the database is that page here): left out, and links to it lead to the database.
+  const csvByStem = new Map(
+    files.filter((p) => importFileKind(p) === "csv").map((p) => [p.replace(/(?:_all)?\.csv$/i, "").toLowerCase(), p]),
+  );
+  const twins = new Map<string, string>();
+  files = files.filter((p) => {
+    const stemPath = p.replace(/\.(?:md|markdown)$/i, "");
+    const csv = importFileKind(p) === "markdown" && /\s[0-9a-f]{32}$/i.test(stemPath) ? csvByStem.get(stemPath.toLowerCase()) : undefined;
+    if (!csv) return true;
+    skipped.push({ path: p, reason: "duplicate" });
+    twins.set(p, csv);
+    return false;
+  });
   const content = files.filter((p) => importFileKind(p) === "markdown" || importFileKind(p) === "csv");
 
   // Folders holding (at any depth) something that becomes a page.
@@ -296,6 +311,8 @@ export function planImport(paths: string[], { topLevel = false }: { topLevel?: b
   for (const [folder, file] of siblingOf) if (nodeOf.has(file)) nodeOf.set(folder, file);
   // …and a link to the CSV left out for its full twin means the database.
   for (const [partial, full] of fullOf) if (nodeOf.has(full)) nodeOf.set(partial, nodeOf.get(full)!);
+  // …and so does a link to a database's own Markdown file.
+  for (const [twin, csv] of twins) if (nodeOf.has(csv)) nodeOf.set(twin, nodeOf.get(csv)!);
   return { nodes, nodeOf, skipped };
 }
 

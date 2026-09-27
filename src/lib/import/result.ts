@@ -47,8 +47,12 @@ export type ImportWarning =
   | { code: "missingFile"; path: string; page: string }
   /** A file a page shows couldn't be stored (too large, quota): the link was left as it was. */
   | { code: "fileNotStored"; path: string; reason: "tooLarge" | "quotaExceeded" | "failed" }
-  /** Files left out: a ZIP inside the ZIP, a database inside a database, a duplicate CSV, a Markdown file over the size limit. */
-  | { code: "skipped"; path: string; reason: "nestedZip" | "nestedDatabase" | "duplicate" | "tooLarge" };
+  /**
+   * Files left out: a ZIP inside the ZIP, a database inside a database, a duplicate CSV (or a
+   * database's own Markdown file), a Markdown file over the size limit, a file no page shows or
+   * links to (there's nowhere to put it), and a ZIP entry whose path climbs out of the archive.
+   */
+  | { code: "skipped"; path: string; reason: "nestedZip" | "nestedDatabase" | "duplicate" | "tooLarge" | "unused" | "unsafePath" };
 
 /** At most this many warnings are listed; `moreWarnings` counts the rest. */
 export const MAX_WARNINGS = 50;
