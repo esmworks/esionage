@@ -13,6 +13,7 @@ import {
   type ChartInput,
   type ChartMeasure,
 } from "./chart";
+import { parseLinkedView, serializeLinkedView } from "./embed-blocks";
 import { groupRowsBy } from "./grouping";
 import { layoutConfigError } from "./views";
 
@@ -283,5 +284,19 @@ describe("layoutConfigError for charts", () => {
     ["group order", { groupOrder: [1] }],
   ])("refuses a malformed %s", (_, config) => {
     expect(error(config)).toBeTruthy();
+  });
+});
+
+describe("a linked chart view", () => {
+  it("keeps its chart settings", () => {
+    const view = {
+      type: "chart" as const,
+      config: { groupBy: "p", chartType: "donut" as const, chartAggregate: { fn: "sum" as const, propertyId: "n" }, showLegend: true },
+    };
+    expect(parseLinkedView(serializeLinkedView(view))).toEqual(view);
+  });
+
+  it("reads malformed chart settings as none", () => {
+    expect(parseLinkedView(JSON.stringify({ type: "chart", config: { chartType: "radar" } }))).toEqual({ type: "chart", config: {} });
   });
 });
