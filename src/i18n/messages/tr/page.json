@@ -27,7 +27,10 @@
     "exportCsv": "CSV olarak dışa aktar",
     "versionHistory": "Sürüm geçmişi",
     "lastEdited": "Son düzenleyen: {name}",
-    "actionFailed": "İşlem tamamlanamadı."
+    "actionFailed": "İşlem tamamlanamadı.",
+    "saveAsTemplate": "Şablon olarak kaydet",
+    "saveAsRowTemplate": "Satır şablonu olarak kaydet",
+    "deleteTemplate": "Şablonu sil"
   },
   "comments": {
     "title": "Yorumlar",
@@ -182,5 +185,12 @@
         "aliases": "linked view database db bağlı görünüm bagli gorunum veritabanı veritabani"
       }
     }
+  },
+  "template": {
+    "workspace": "Bu bir şablon. Ondan oluşturulan yeni sayfalar içeriğini ve alt sayfalarını kopyalar.",
+    "row": "Bu bir satır şablonu. Ondan oluşturulan yeni satırlar özelliklerini ve içeriğini alır.",
+    "inside": "Bu sayfa bir şablonun parçası.",
+    "use": "Şablonu kullan",
+    "confirmDelete": "Bu şablon kalıcı olarak silinsin mi? Ondan oluşturulmuş sayfalar olduğu gibi kalır."
   }
 }

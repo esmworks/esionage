@@ -9,7 +9,8 @@
     "home": "Ana sayfa",
     "inbox": "Gelen kutusu",
     "settings": "Ayarlar",
-    "trash": "Çöp kutusu"
+    "trash": "Çöp kutusu",
+    "templates": "Şablonlar"
   },
   "toggle": {
     "open": "Kenar çubuğunu aç",
@@ -31,7 +32,8 @@
     "addInside": "İçine sayfa ekle",
     "noChildren": "İçinde sayfa yok",
     "favorites": "Favoriler",
-    "moveFailed": "Sayfa buraya taşınamadı. Başka bir sayfanın altına taşımak için sayfada tam erişiminiz olmalı."
+    "moveFailed": "Sayfa buraya taşınamadı. Başka bir sayfanın altına taşımak için sayfada tam erişiminiz olmalı.",
+    "fromTemplate": "Şablondan"
   },
   "search": {
     "placeholder": "Sayfalarda ve içerikte ara…",
@@ -61,5 +63,18 @@
     "someone": "Biri",
     "unread": "Okunmadı",
     "unreadCount": "{count, plural, one {# okunmamış bildirim} other {# okunmamış bildirim}}"
+  },
+  "templates": {
+    "title": "Şablonlar",
+    "description": "Yeni bir sayfa oluşturmak için birini seçin.",
+    "workspace": "Bu çalışma alanında",
+    "builtIn": "Hazır şablonlar",
+    "empty": "Henüz şablon yok. Eklemek için bir sayfanın ⋯ menüsünü açıp “Şablon olarak kaydet”i seçin.",
+    "use": "Bu şablondan sayfa oluştur",
+    "database": "Veritabanı",
+    "edit": "Şablonu düzenle",
+    "open": "Şablonu aç",
+    "delete": "Şablonu sil",
+    "confirmDelete": "Bu şablon kalıcı olarak silinsin mi? Ondan oluşturulmuş sayfalar olduğu gibi kalır."
   }
 }

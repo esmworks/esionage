@@ -4,6 +4,18 @@
 
 ### Added
 
+- **Templates:** save a page or database, with its subpages, as a workspace template from the page
+  menu, and create new pages from it via "From a template" in the sidebar or on the home page. The
+  copy leaves out the template's comments and gets the access of where it's created. Using a
+  template needs view access to it and edit access where the new page goes. A built-in gallery
+  (meeting notes, weekly plan, project tracker) creates its pages only when you pick one. Templates
+  are kept out of the sidebar, search, trash, favorites and published sites, and deleting one
+  removes it for good.
+- **Database row templates:** the arrow next to "New" lists a database's row templates with preset
+  properties and content, adds a row from one, and sets which one "New" uses by default. MCP
+  `create_database_row` uses that default too when no values are given.
+- **MCP:** `list_templates` lists workspace, built-in and row templates, and `create_page` and
+  `create_database_row` take a `template_id`.
 - **"Can comment" access:** share a page so people can read and comment on it without editing it.
   Their comments mark the selected text on the server, so the page itself stays read-only for them.
 - **Comments on pages:** select text and choose Comment to start a thread; reply, react with emoji,

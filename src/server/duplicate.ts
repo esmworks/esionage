@@ -1,10 +1,11 @@
-import { and, asc, eq, gt, inArray, isNull, like, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNotNull, isNull, like, sql } from "drizzle-orm";
 import * as Y from "yjs";
 import { db } from "@/db";
 import { databaseProperty, databaseView, page, pagePermission, type PageKind, type RowProperties } from "@/db/schema";
-import { planDuplicate, type DuplicatePlan, type SourcePage } from "@/lib/duplicate";
+import { planDuplicate, type DuplicatePlan, type PlannedPage, type SourcePage } from "@/lib/duplicate";
 import { DATABASE_BLOCK, mapReferenceLines, referenceLine, remapInlineDatabases } from "@/lib/embed-blocks";
 import { positionBetween } from "@/lib/properties";
+import { stripComments } from "@/lib/strip-comments";
 import { AccessError, pageVisibleTo, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { bulkRowIds, rowsWithAccess, syncPairedRelations, withCode, type BulkResult } from "@/server/databases";
@@ -14,36 +15,49 @@ import { requireTopLevel } from "@/server/workspaces";
 /** Larger subtrees are refused rather than copied in one long transaction. */
 export const MAX_DUPLICATE_PAGES = 2000;
 
-/**
- * Copies a page and everything live under it (subpages, databases with their properties, views
- * and rows, pages inside rows) next to the original. Only what the user can see is copied.
- * Each page's own permission entries are copied too, so a copy is never visible to more people
- * than its source; a guest's top-level copy is theirs alone, like any top-level page they add.
- * Favorites, publication, history and locks stay with the original.
- */
-export async function duplicatePage(
-  actor: WriteActor,
-  pageId: string,
-  copySuffix: string,
-  /** False when the caller tells open views about several copies at once. */
-  { notify = true }: { notify?: boolean } = {},
-): Promise<{ id: string; workspaceId: string }> {
-  const { userId } = actor;
-  const source = await requirePageAccess(userId, pageId, "view");
-  if (source.archivedAt) throw new Error("Restore the page from the trash before duplicating it");
-  // The copy lands beside the original, so the user needs to be allowed to add pages there.
-  let parentKind: PageKind | null = null;
-  let topLevel: "shared" | "private" | null = null;
-  if (source.parentId) {
-    const parent = await requirePageAccess(userId, source.parentId, "edit");
-    if (parent.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
-    parentKind = parent.kind;
-  } else {
-    topLevel = await requireTopLevel(userId, source.workspaceId);
-  }
-  const title = `${source.title}${copySuffix}`.trim();
+/** Where `copyPageTree` puts the copy, and what it carries over from the source. */
+export type CopyTarget = {
+  parentId: string | null;
+  /** Whether the destination lies in a template (see `page.inTemplate`); false at the top level. */
+  parentInTemplate: boolean;
+  title: string;
+  /** Right after the source when missing, as "Duplicate" places it. */
+  position?: number;
+  /** Whether the copy's root is a template; the source's own flag when missing. */
+  rootTemplate?: boolean;
+  /**
+   * Copy the root's own permission entries (Duplicate), or let the root inherit its new parent's
+   * access (a page made from a template). Entries of the pages under it are always copied.
+   */
+  rootPermissions: boolean;
+  /** A guest's top-level copy is theirs alone, like any top-level page they add. */
+  private: boolean;
+  /** Leave the source's comment threads (and their marks in the text) behind. */
+  stripComments: boolean;
+};
 
-  const plan = await db.transaction(async (tx) => {
+export type CopiedTree = {
+  plan: DuplicatePlan;
+  /** The copy of the source page. */
+  root: { id: string; properties: RowProperties; isTemplate: boolean; inTemplate: boolean };
+};
+
+/**
+ * Copies `source` and everything live under it that the user can see (subpages, databases with
+ * their properties, views, rows and row templates, pages inside rows) to `target`. The caller has
+ * checked access to the source and the destination. Pages under the copy keep their permission
+ * entries, so they are never visible to more people than their source. Favorites, publication,
+ * history and locks stay with the original.
+ */
+export async function copyPageTree(
+  actor: WriteActor,
+  source: { id: string; workspaceId: string; parentId: string | null; position: number; isTemplate: boolean },
+  target: CopyTarget,
+): Promise<CopiedTree> {
+  const { userId } = actor;
+  const pageId = source.id;
+
+  const copied = await db.transaction(async (tx) => {
     // Walk down live pages the user can see; a hidden page hides its whole subtree.
     const pages = await tx.execute<{
       id: string;
@@ -52,6 +66,8 @@ export async function duplicatePage(
       title: string;
       position: number;
       properties: RowProperties;
+      is_template: boolean;
+      default_template_id: string | null;
     }>(sql`
       with recursive sub as (
         select id from ${page} where id = ${pageId}
@@ -59,7 +75,7 @@ export async function duplicatePage(
         select p.id from ${page} p join sub on p.parent_id = sub.id
         where p.archived_at is null and ${pageVisibleTo(userId, "p")}
       )
-      select p.id, p.parent_id, p.kind, p.title, p.position, p.properties
+      select p.id, p.parent_id, p.kind, p.title, p.position, p.properties, p.is_template, p.default_template_id
       from (select id from sub limit ${MAX_DUPLICATE_PAGES + 1}) s
       join ${page} p on p.id = s.id
     `);
@@ -75,19 +91,23 @@ export async function duplicatePage(
         ])
       : [[], []];
 
-    // Right after the original: halfway to the next sibling, or one past it when it is last.
-    const [next] = await tx
-      .select({ position: page.position })
-      .from(page)
-      .where(
-        and(
-          eq(page.workspaceId, source.workspaceId),
-          source.parentId ? eq(page.parentId, source.parentId) : isNull(page.parentId),
-          gt(page.position, source.position),
-        ),
-      )
-      .orderBy(asc(page.position))
-      .limit(1);
+    let rootPosition = target.position;
+    if (rootPosition === undefined) {
+      // Right after the original: halfway to the next sibling, or one past it when it is last.
+      const [next] = await tx
+        .select({ position: page.position })
+        .from(page)
+        .where(
+          and(
+            eq(page.workspaceId, source.workspaceId),
+            source.parentId ? eq(page.parentId, source.parentId) : isNull(page.parentId),
+            gt(page.position, source.position),
+          ),
+        )
+        .orderBy(asc(page.position))
+        .limit(1);
+      rootPosition = positionBetween(source.position, next?.position);
+    }
 
     const plan = planDuplicate({
       rootId: pageId,
@@ -103,27 +123,52 @@ export async function duplicatePage(
       ),
       properties,
       views,
-      rootTitle: title,
-      rootPosition: positionBetween(source.position, next?.position),
+      rootTitle: target.title,
+      rootPosition,
     });
+
+    // Template flags: the root's is chosen by the caller, the rest keep theirs (row templates of a
+    // copied database stay row templates); a page lies in a template when it is one or its parent does.
+    const sources = new Map(pages.map((p) => [p.id, p]));
+    const planned = new Map(plan.pages.map((p) => [p.id, p]));
+    const isTemplate = (copy: PlannedPage) =>
+      copy.id === plan.rootId ? (target.rootTemplate ?? source.isTemplate) : Boolean(sources.get(copy.sourceId)?.is_template);
+    const inTemplate = new Map<string, boolean>();
+    const inTemplateOf = (copy: PlannedPage): boolean => {
+      const known = inTemplate.get(copy.id);
+      if (known !== undefined) return known;
+      const parent = copy.id === plan.rootId ? undefined : planned.get(copy.parentId!);
+      const value = isTemplate(copy) || (parent ? inTemplateOf(parent) : target.parentInTemplate);
+      inTemplate.set(copy.id, value);
+      return value;
+    };
 
     // One statement for all pages, so the bodies (ydoc can be large) are copied inside Postgres
     // and foreign keys to parents are checked once every page exists.
-    const rows = plan.pages.map((p) => ({
-      id: p.id,
-      source_id: p.sourceId,
-      parent_id: p.parentId,
-      title: p.title,
-      position: p.position,
-      properties: p.properties,
-    }));
+    const rows = plan.pages.map((p) => {
+      const defaultTemplate = sources.get(p.sourceId)?.default_template_id;
+      return {
+        id: p.id,
+        source_id: p.sourceId,
+        parent_id: p.id === plan.rootId ? target.parentId : p.parentId,
+        title: p.title,
+        position: p.position,
+        properties: p.properties,
+        is_template: isTemplate(p),
+        in_template: inTemplateOf(p),
+        // A database's default row template, when it was copied along (the user could see it).
+        default_template_id: (defaultTemplate && plan.pageIds.get(defaultTemplate)) || null,
+      };
+    });
     const inserted = await tx.execute<{ id: string }>(sql`
       insert into ${page} (id, workspace_id, parent_id, kind, title, icon, position, properties,
-        ydoc, content_text, content_markdown, created_by, updated_by)
+        ydoc, content_text, content_markdown, is_template, in_template, default_template_id, created_by, updated_by)
       select m.id, src.workspace_id, m.parent_id, src.kind, m.title, src.icon, m.position, m.properties,
-        src.ydoc, src.content_text, src.content_markdown, ${userId}, ${userId}
+        src.ydoc, src.content_text, src.content_markdown, m.is_template, m.in_template, m.default_template_id,
+        ${userId}, ${userId}
       from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb)
-        as m(id text, source_id text, parent_id text, title text, position double precision, properties jsonb)
+        as m(id text, source_id text, parent_id text, title text, position double precision, properties jsonb,
+          is_template boolean, in_template boolean, default_template_id text)
       join ${page} src on src.id = m.source_id
       returning id
     `);
@@ -136,9 +181,11 @@ export async function duplicatePage(
       select gen_random_uuid()::text, m.id, pp.workspace_id, pp.user_id, pp.level, ${userId}
       from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) as m(id text, source_id text)
       join ${pagePermission} pp on pp.page_id = m.source_id
+      ${target.rootPermissions ? sql`` : sql`where m.id <> ${plan.rootId}`}
     `);
-    if (topLevel === "private") await makePagePrivate(tx, source.workspaceId, plan.rootId, userId);
+    if (target.private) await makePagePrivate(tx, source.workspaceId, plan.rootId, userId);
     await pointAtCopiedDatabases(tx, plan);
+    if (target.stripComments) await stripCopiedComments(tx, plan);
 
     if (plan.properties.length) {
       await tx.insert(databaseProperty).values(
@@ -157,23 +204,86 @@ export async function duplicatePage(
         plan.views.map(({ id, databaseId, name, type, config, position }) => ({ id, databaseId, name, type, config, position })),
       );
     }
-    return plan;
+    const root = rows.find((r) => r.id === plan.rootId)!;
+    return {
+      plan,
+      root: { id: root.id, properties: root.properties, isTemplate: root.is_template, inTemplate: root.in_template },
+    };
+  });
+
+  // The copied doc still carries the original title; the store hook persists the new one.
+  await getCollab().setTitle(copied.plan.rootId, target.title, actor);
+  return copied;
+}
+
+/**
+ * Copies a page and everything live under it next to the original (see copyPageTree). Only what
+ * the user can see is copied. Each page's own permission entries are copied too, so a copy is
+ * never visible to more people than its source; a guest's top-level copy is theirs alone.
+ */
+export async function duplicatePage(
+  actor: WriteActor,
+  pageId: string,
+  copySuffix: string,
+  /** False when the caller tells open views about several copies at once. */
+  { notify = true }: { notify?: boolean } = {},
+): Promise<{ id: string; workspaceId: string }> {
+  const { userId } = actor;
+  const source = await requirePageAccess(userId, pageId, "view");
+  if (source.archivedAt) throw new Error("Restore the page from the trash before duplicating it");
+  // The copy lands beside the original, so the user needs to be allowed to add pages there.
+  let parentKind: PageKind | null = null;
+  let parentInTemplate = false;
+  let topLevel: "shared" | "private" | null = null;
+  if (source.parentId) {
+    const parent = await requirePageAccess(userId, source.parentId, "edit");
+    if (parent.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
+    parentKind = parent.kind;
+    parentInTemplate = parent.inTemplate;
+  } else {
+    topLevel = await requireTopLevel(userId, source.workspaceId);
+  }
+  const title = `${source.title}${copySuffix}`.trim();
+
+  const { root } = await copyPageTree(actor, source, {
+    parentId: source.parentId,
+    parentInTemplate,
+    title,
+    rootPermissions: true,
+    private: topLevel === "private",
+    stripComments: false,
   });
 
   // A row copied into its database links to the same rows; two-way relations mirror that.
-  if (parentKind === "database") {
-    const root = plan.pages.find((p) => p.id === plan.rootId)!;
-    await syncPairedRelations(plan.rootId, source.parentId!, {}, root.properties);
+  // Templates link one way only: their links would show up on the linked rows.
+  if (parentKind === "database" && !root.inTemplate) {
+    await syncPairedRelations(root.id, source.parentId!, {}, root.properties);
   }
 
-  const collab = getCollab();
-  // The copied doc still carries the original title; the store hook persists the new one.
-  await collab.setTitle(plan.rootId, title, actor);
   if (notify) {
+    const collab = getCollab();
     collab.broadcast(`ws:${source.workspaceId}`, "tree");
     if (parentKind === "database") collab.broadcast(`db:${source.parentId}`, "rows");
   }
-  return { id: plan.rootId, workspaceId: source.workspaceId };
+  return { id: root.id, workspaceId: source.workspaceId };
+}
+
+/** Copied page documents without the comments of their source (see stripComments). */
+async function stripCopiedComments(tx: Tx, plan: DuplicatePlan) {
+  const bodies = await tx
+    .select({ id: page.id, ydoc: page.ydoc })
+    .from(page)
+    .where(and(inArray(page.id, [...plan.pageIds.values()]), isNotNull(page.ydoc)));
+  for (const body of bodies) {
+    if (!body.ydoc?.byteLength) continue;
+    const doc = new Y.Doc();
+    try {
+      Y.applyUpdate(doc, body.ydoc);
+      if (stripComments(doc)) await tx.update(page).set({ ydoc: Y.encodeStateAsUpdate(doc) }).where(eq(page.id, body.id));
+    } finally {
+      doc.destroy();
+    }
+  }
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];

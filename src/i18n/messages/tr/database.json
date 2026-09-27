@@ -57,7 +57,19 @@
       "inProgress": "Devam ediyor",
       "done": "Tamamlandı"
     },
-    "defaultTagsProperty": "Etiketler"
+    "defaultTagsProperty": "Etiketler",
+    "templates": {
+      "menu": "Yeni satır seçenekleri",
+      "heading": "Şablonlar",
+      "blank": "Boş satır",
+      "setDefault": "“Yeni” için kullan",
+      "isDefault": "“Yeni” için kullanılıyor",
+      "edit": "Şablonu düzenle",
+      "delete": "Şablonu sil",
+      "confirmDelete": "Bu satır şablonu kalıcı olarak silinsin mi? Ondan oluşturulmuş satırlar olduğu gibi kalır.",
+      "newTemplate": "Yeni şablon",
+      "none": "Henüz şablon yok"
+    }
   },
   "viewTabs": {
     "addView": "Görünüm ekle",
@@ -489,7 +501,9 @@
     "invalidFormula": "“{property}” formülünde bir hata var: {message}",
     "invalidViewConfig": "Bu görünüm ayarları kaydedilemedi. Sayfayı yenileyip tekrar deneyin.",
     "unsupportedViewType": "Desteklenmeyen görünüm türü: “{type}”.",
-    "invalidRollup": "“{property}” toplaması kaydedilemiyor: {message}"
+    "invalidRollup": "“{property}” toplaması kaydedilemiyor: {message}",
+    "isTemplate": "Şablonlar taşınamaz ve çöp kutusuna atılamaz. Onları şablon listesinden silin.",
+    "notATemplate": "Bu sayfa bu çalışma alanının ya da veritabanının bir şablonu değil."
   },
   "formula": {
     "title": "Formül",

@@ -117,7 +117,7 @@ async function liveDefaults(database: { workspaceId: string }, properties: Datab
           ? await db
               .select({ id: page.id })
               .from(page)
-              .where(and(eq(page.parentId, targetId), inArray(page.id, ids), isNull(page.archivedAt)))
+              .where(and(eq(page.parentId, targetId), inArray(page.id, ids), eq(page.isTemplate, false), isNull(page.archivedAt)))
           : [];
       next = ids.filter((rowId) => live.some((r) => r.id === rowId));
     }

@@ -27,7 +27,10 @@
     "exportCsv": "Export as CSV",
     "versionHistory": "Version history",
     "lastEdited": "Last edited by {name}",
-    "actionFailed": "Couldn't finish that."
+    "actionFailed": "Couldn't finish that.",
+    "saveAsTemplate": "Save as template",
+    "saveAsRowTemplate": "Save as row template",
+    "deleteTemplate": "Delete template"
   },
   "comments": {
     "title": "Comments",
@@ -182,5 +185,12 @@
         "aliases": "linked view database db"
       }
     }
+  },
+  "template": {
+    "workspace": "This is a template. New pages made from it copy its content and subpages.",
+    "row": "This is a row template. New rows made from it get its properties and content.",
+    "inside": "This page is part of a template.",
+    "use": "Use template",
+    "confirmDelete": "Delete this template for good? Pages already made from it stay as they are."
   }
 }

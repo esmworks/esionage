@@ -253,7 +253,13 @@ export function useDatabase(
       showError: (message: string) => setError(message),
       report,
 
-      async createRow(input: { title?: string; properties?: Record<string, unknown> } = {}) {
+      /**
+       * Adds a row: blank, from a row template (templateId), or from the database's default
+       * template when it has one (useDefault, what "New" does). Returns its id.
+       */
+      async createRow(
+        input: { title?: string; properties?: Record<string, unknown>; templateId?: string | null; useDefault?: boolean } = {},
+      ) {
         if (!snapshot) return null;
         try {
           const created = await unwrap(createRowAction(snapshot.database.workspaceId, databaseId, input));

@@ -9,6 +9,7 @@ import {
   FileText,
   House,
   Inbox,
+  LayoutTemplate,
   LogOut,
   MoreHorizontal,
   Plus,
@@ -38,6 +39,7 @@ import { SearchDialog } from "./search-dialog";
 import { SIDEBAR_WIDTH } from "@/lib/sidebar-layout";
 import { SidebarPeekEdge, useSidebar } from "./sidebar-context";
 import { TrashDialog } from "./trash-dialog";
+import { TemplatesDialog } from "@/components/workspace/templates-dialog";
 
 type Workspace = { id: string; name: string; icon: string | null; role: string };
 
@@ -81,6 +83,7 @@ export function Sidebar({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [searchOpen, setSearchOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   // Bumped on every inbox signal so an open inbox reloads.
@@ -428,6 +431,16 @@ export function Sidebar({
                   >
                     {t("pages.newDatabase")}
                   </MenuItem>
+                  <MenuSeparator />
+                  <MenuItem
+                    icon={<LayoutTemplate className="h-4 w-4" />}
+                    onClick={() => {
+                      close();
+                      setTemplatesOpen(true);
+                    }}
+                  >
+                    {t("pages.fromTemplate")}
+                  </MenuItem>
                 </>
               )}
             </Popover>
@@ -473,7 +486,13 @@ export function Sidebar({
           />
         </nav>
 
-        <div className="border-t border-border p-2">
+        <div className="space-y-px border-t border-border p-2">
+          {/* Templates live here rather than in the page tree; making pages from them needs the top level. */}
+          {topLevel && (
+            <SidebarButton icon={<LayoutTemplate className="h-4 w-4" />} onClick={() => setTemplatesOpen(true)}>
+              {t("nav.templates")}
+            </SidebarButton>
+          )}
           <SidebarButton icon={<Trash2 className="h-4 w-4" />} onClick={() => setTrashOpen(true)}>
             {t("nav.trash")}
           </SidebarButton>
@@ -490,6 +509,7 @@ export function Sidebar({
         onRead={refreshInbox}
       />
       <NewWorkspaceDialog open={newWorkspaceOpen} onClose={() => setNewWorkspaceOpen(false)} />
+      <TemplatesDialog workspaceId={workspaceId} open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
       <TrashDialog
         workspaceId={workspaceId}
         open={trashOpen}

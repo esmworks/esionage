@@ -18,6 +18,11 @@ export type PageHeaderInfo = {
   updatedBy: string | null;
   favorite: boolean;
   locked: boolean;
+  /**
+   * Set when the page is a template or lies under one: pages made from it copy it. "workspace"
+   * for the template picker's pages, "row" for a database's row templates, "inside" below either.
+   */
+  template: "workspace" | "row" | "inside" | null;
 };
 
 export async function getPageHeaderInfo(userId: string, pageId: string): Promise<PageHeaderInfo> {
@@ -49,6 +54,7 @@ export async function getPageHeaderInfo(userId: string, pageId: string): Promise
     updatedBy: names?.updatedBy ?? null,
     favorite: Boolean(star),
     locked: Boolean(found.lockedAt),
+    template: found.isTemplate ? (found.parentId ? "row" : "workspace") : found.inTemplate ? "inside" : null,
   };
 }
 
@@ -81,6 +87,7 @@ export async function listFavorites(userId: string, workspaceId: string): Promis
         eq(pageFavorite.userId, userId),
         eq(page.workspaceId, workspaceId),
         isNull(page.archivedAt),
+        eq(page.inTemplate, false),
         pageVisibleTo(userId),
       ),
     )

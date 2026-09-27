@@ -1,12 +1,13 @@
 "use client";
 
-import { Database, FileText } from "lucide-react";
+import { Database, FileText, LayoutTemplate } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { createPageAction } from "@/app/actions/pages";
 import { Button } from "@/components/ui";
 import type { PageKind } from "@/db/schema/app";
+import { TemplatesDialog } from "./templates-dialog";
 
 export function QuickCreate({ workspaceId }: { workspaceId: string }) {
   const router = useRouter();
@@ -14,6 +15,7 @@ export function QuickCreate({ workspaceId }: { workspaceId: string }) {
   const tc = useTranslations("common");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
   function create(kind: PageKind) {
     setError(false);
@@ -36,7 +38,11 @@ export function QuickCreate({ workspaceId }: { workspaceId: string }) {
         <Button onClick={() => create("database")} disabled={pending}>
           <Database className="h-4 w-4" /> {t("newDatabase")}
         </Button>
+        <Button onClick={() => setTemplatesOpen(true)} disabled={pending}>
+          <LayoutTemplate className="h-4 w-4" /> {t("fromTemplate")}
+        </Button>
       </div>
+      <TemplatesDialog workspaceId={workspaceId} open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
       {error && (
         <p role="alert" className="text-xs text-danger">
           {tc("genericError")}
