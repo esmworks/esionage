@@ -17,6 +17,7 @@ export const PROPERTY_TYPES = [
   "created_time",
   "last_edited_by",
   "last_edited_time",
+  "formula",
 ] as const;
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
 
@@ -37,6 +38,16 @@ export function holdsPeople(type: string) {
 /** Types Esionage fills in from the row itself (who and when): never stored, never written. */
 export function isComputed(type: string) {
   return type === "created_by" || type === "created_time" || type === "last_edited_by" || type === "last_edited_time";
+}
+
+/** Types whose values are worked out from other values of the row when it is read: never stored, never written. */
+export function isDerived(type: string) {
+  return type === "formula";
+}
+
+/** Types nobody writes: system values and derived values. */
+export function isReadOnlyType(type: string) {
+  return isComputed(type) || isDerived(type);
 }
 
 /** Types whose values are points in time (ISO timestamps), filtered by day like dates. */

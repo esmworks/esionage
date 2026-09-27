@@ -15,6 +15,7 @@ import {
   Mail,
   Phone,
   Sheet,
+  Sigma,
   SquareCheck,
   Type,
   UserRound,
@@ -45,6 +46,7 @@ export const PROPERTY_TYPE_META = {
   created_time: { label: "createdTime", icon: Clock },
   last_edited_by: { label: "lastEditedBy", icon: UserRoundCog },
   last_edited_time: { label: "lastEditedTime", icon: History },
+  formula: { label: "formula", icon: Sigma },
 } as const satisfies Record<PropertyType, { label: string; icon: LucideIcon }>;
 
 /** Translated display name of a property type. */

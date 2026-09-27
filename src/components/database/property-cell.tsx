@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ExternalLink, Plus, X } from "lucide-react";
+import { Check, ExternalLink, Plus, TriangleAlert, X } from "lucide-react";
 import Link from "next/link";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -14,8 +14,10 @@ import {
   sortStatusOptions,
   statusGroupOf,
 } from "@/lib/properties";
-import { holdsPeople, isComputed } from "@/lib/property-types";
+import { derivedType, isErrorValue } from "@/lib/derived";
+import { holdsPeople, isDerived, isReadOnlyType } from "@/lib/property-types";
 import { Floating } from "./floating";
+import { useFormulaErrorMessage } from "./formula-editor";
 import { PersonChips, PersonPicker } from "./person-cell";
 import { RelationChips, RelationPicker } from "./relation-cell";
 import type { ChecklistItem, Property, SelectOption } from "./types";
@@ -103,6 +105,8 @@ export function useFormatNumber() {
 
 export function isEmptyValue(prop: Property, value: unknown) {
   if (value === null || value === undefined || value === "") return true;
+  // A formula's unticked checkbox counts as empty, like a checkbox property's.
+  if (isDerived(prop.type)) return value === false || (Array.isArray(value) && value.length === 0);
   if (prop.type === "relation" || holdsPeople(prop.type)) return !Array.isArray(value) || value.length === 0;
   if (prop.type === "checklist") return asChecklist(value).length === 0;
   if (Array.isArray(value)) return selectedOptions(prop, value).length === 0;
@@ -160,6 +164,8 @@ export function PropertyDisplay({ prop, value, wrap }: { prop: Property; value: 
     case "created_by":
     case "last_edited_by":
       return <PersonChips value={value} wrap={wrap} />;
+    case "formula":
+      return <DerivedDisplay prop={prop} value={value} wrap={wrap} />;
     case "select":
     case "multi_select":
     case "status": {
@@ -173,6 +179,42 @@ export function PropertyDisplay({ prop, value, wrap }: { prop: Property; value: 
         </span>
       );
     }
+  }
+}
+
+/**
+ * A formula's value, shown as its result type; a row the formula fails on shows an error marker
+ * with the reason on hover.
+ */
+function DerivedDisplay({ prop, value, wrap }: { prop: Property; value: unknown; wrap?: boolean }) {
+  const t = useTranslations("database.formula");
+  const errorMessage = useFormulaErrorMessage();
+  const formatDate = useFormatDate();
+  const formatDateTime = useFormatDateTime();
+  const formatNumber = useFormatNumber();
+  if (isErrorValue(value)) {
+    const message = t("errorTitle", { message: errorMessage(value.error) });
+    return (
+      <span className="inline-flex min-w-0 items-center gap-1 text-xs text-danger" title={message} aria-label={message}>
+        <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{t("error")}</span>
+      </span>
+    );
+  }
+  if (Array.isArray(value)) {
+    return <span className={cn(wrap ? "whitespace-pre-wrap break-words" : "truncate")}>{value.map(String).join(", ")}</span>;
+  }
+  switch (derivedType(prop)) {
+    case "number":
+      return <span className="tabular-nums">{typeof value === "number" ? formatNumber(value) : String(value)}</span>;
+    case "checkbox":
+      return <CheckboxBox checked={value === true} />;
+    case "date": {
+      const text = String(value);
+      return <span className="truncate">{text.length > 10 ? formatDateTime(text) : formatDate(text)}</span>;
+    }
+    default:
+      return <span className={cn(wrap ? "whitespace-pre-wrap break-words" : "truncate")}>{String(value)}</span>;
   }
 }
 
@@ -252,8 +294,9 @@ export function PropertyCell({
 }) {
   const t = useTranslations("database.cell");
   const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
-  // Who created or last edited a row, and when, is filled in by Esionage and never edited.
-  const readOnly = readOnlyProp || isComputed(prop.type);
+  // Who created or last edited a row, and when, is filled in by Esionage and never edited; formulas
+  // are worked out from the row.
+  const readOnly = readOnlyProp || isReadOnlyType(prop.type);
   const [editing, setEditing] = useState(Boolean(autoEdit) && !readOnly);
 
   const base = cn(
@@ -281,7 +324,8 @@ export function PropertyCell({
     );
   }
 
-  const empty = isEmptyValue(prop, value);
+  // A checkbox formula shows its box ticked or not, like a checkbox property.
+  const empty = derivedType(prop) === "checkbox" && value === false ? false : isEmptyValue(prop, value);
   return (
     <>
       <div

@@ -1,4 +1,5 @@
 import type { PropertyOptions } from "@/db/schema/app";
+import { isErrorValue } from "./derived";
 import { asChecklist, CREATED_KEY, TITLE_KEY, UPDATED_KEY, type RowLike } from "./properties";
 
 /**
@@ -139,7 +140,8 @@ export type AggregateColumn = { type: string; options?: PropertyOptions };
 
 /** The items a value holds: one for plain values, several for lists, none when empty. */
 function items(value: unknown, kind: ValueKind, options: PropertyOptions | undefined): unknown[] {
-  if (value === null || value === undefined || value === "") return [];
+  // A formula that failed on a row has no value there.
+  if (value === null || value === undefined || value === "" || isErrorValue(value)) return [];
   switch (kind) {
     case "options": {
       // Ids of deleted options display as empty, so they count as empty.

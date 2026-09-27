@@ -6,6 +6,7 @@ import {
   page,
   PROPERTY_TYPES,
   user,
+  type FormulaConfig,
   type PropertyOptions,
   type PropertyType,
   type RelationConfig,
@@ -13,6 +14,7 @@ import {
   type ViewConfig,
   type ViewType,
 } from "@/db/schema";
+import { compileFormulas, formulaForStorage, withFormulaTypes } from "@/lib/derived";
 import { filterConfigError, filterRules, mapFilterRules } from "@/lib/filters";
 import { holdsOptions, holdsPeople, isComputed, PERSON_ME, type StatusGroup } from "@/lib/property-types";
 import {
@@ -40,6 +42,7 @@ import {
   type RequiredLevel,
 } from "@/server/access";
 import { scheduleAssignmentEmails } from "@/server/assignments";
+import { computeDerived } from "@/server/derived";
 import { recordAssignments } from "@/server/notifications";
 import { getCollab } from "@/server/collab/bridge";
 import { workspacePeople, type WorkspacePerson } from "@/server/workspaces";
@@ -71,12 +74,39 @@ function withComputed<T extends StoredRow>(
 }
 
 type StoredRow = {
+  title: string;
   properties: Record<string, unknown>;
   createdBy: string | null;
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
+
+/**
+ * Rows as `userId` reads them: stored values, system values (withComputed) and derived values
+ * (formulas), evaluated once per row. Pass `lookups` when they are loaded anyway, so formulas that
+ * show people or related rows don't load them again.
+ */
+async function withValues<T extends StoredRow>(
+  userId: string,
+  rows: T[],
+  properties: DatabaseProperty[],
+  lookups?: DatabaseLookups,
+) {
+  return computeDerived(withComputed(rows, properties), properties, {
+    lookups: (props) => (lookups && props === properties ? Promise.resolve(lookups) : getLookups(userId, props)),
+  });
+}
+
+/** One row's values as `userId` reads them (see withValues), e.g. for MCP output. */
+export async function rowValues(
+  userId: string,
+  row: StoredRow,
+  properties: DatabaseProperty[],
+): Promise<Record<string, unknown>> {
+  const [out] = await withValues(userId, [row], properties);
+  return out.properties;
+}
 
 /** Sorting by a people property orders rows by names, so the view needs to know them. */
 async function peopleForSorts(userId: string, properties: DatabaseProperty[], config: ViewConfig) {
@@ -127,12 +157,14 @@ function notifyTree(workspaceId: string) {
   getCollab().broadcast(`ws:${workspaceId}`, "tree");
 }
 
+/** A database's properties in order, with each formula's result type filled in (see FormulaConfig). */
 export async function getProperties(databaseId: string) {
-  return db
+  const properties = await db
     .select()
     .from(databaseProperty)
     .where(eq(databaseProperty.databaseId, databaseId))
     .orderBy(asc(databaseProperty.position), asc(databaseProperty.createdAt));
+  return withFormulaTypes(properties);
 }
 
 export async function getDatabase(userId: string, databaseId: string) {
@@ -169,7 +201,7 @@ export async function listRows(userId: string, databaseId: string, config: ViewC
     getProperties(databaseId),
   ]);
   const people = await peopleForSorts(userId, properties, config);
-  return applyView<DatabaseRow>(withComputed(rows, properties), config, properties, { viewerId: userId, people });
+  return applyView<DatabaseRow>(await withValues(userId, rows, properties), config, properties, { viewerId: userId, people });
 }
 
 /**
@@ -595,16 +627,47 @@ async function hideInCalendars(exec: Executor, databaseId: string, propertyId: s
     .where(and(eq(databaseView.databaseId, databaseId), eq(databaseView.type, "calendar")));
 }
 
+/**
+ * A formula as stored: names in `prop("…")` replaced by property ids, checked against the
+ * database's properties (`self` is the formula property itself, new or edited). A formula that
+ * can't run (a syntax or type error, an unknown property, a cycle) is refused with the reason.
+ */
+function formulaConfig(expression: string, properties: DatabaseProperty[], self: { id: string; name: string }): FormulaConfig {
+  const others = properties.filter((p) => p.id !== self.id);
+  const stored = formulaForStorage(expression.trim(), [...others, self]);
+  const props = [...others, { ...self, type: "formula" as const, options: { formula: { expression: stored } } }];
+  const error = compileFormulas(props).get(self.id)?.error;
+  if (error) {
+    throw new PropertyValueError(`Invalid formula for "${self.name}": ${error.message}`, "invalidFormula", {
+      property: self.name,
+      message: error.message,
+    });
+  }
+  return { expression: stored };
+}
+
 export async function addProperty(
   userId: string,
   databaseId: string,
-  input: { name: string; type: PropertyType; options?: OptionInput[]; relation?: RelationInput },
+  input: {
+    name: string;
+    type: PropertyType;
+    options?: OptionInput[];
+    relation?: RelationInput;
+    /** Formulas: the expression, with property names or ids in `prop("…")`. */
+    formula?: { expression: string };
+  },
 ) {
   const database = await requireDatabase(userId, databaseId, "edit");
   assertUnlocked(database);
   if (!PROPERTY_TYPES.includes(input.type)) {
     throw new PropertyValueError(`Unsupported type "${input.type}"`, "unsupportedType", { type: String(input.type) });
   }
+  const name = input.name.trim() || "Property";
+  const formula =
+    input.type === "formula"
+      ? formulaConfig(input.formula?.expression ?? "", await getProperties(databaseId), { id: "\u0000new", name })
+      : undefined;
   let target: typeof database | null = null;
   if (input.type === "relation") {
     const invalidTarget = () =>
@@ -633,13 +696,15 @@ export async function addProperty(
         ? { options: makeStatusOptions(input.options) }
         : target
           ? { relation: { databaseId: target.id } }
-          : {};
+          : formula
+            ? { formula }
+            : {};
   const created = await db.transaction(async (tx) => {
     const [created] = await tx
       .insert(databaseProperty)
       .values({
         databaseId,
-        name: input.name.trim() || "Property",
+        name,
         type: input.type,
         options,
         position: await nextPropertyPosition(databaseId, tx),
@@ -707,9 +772,16 @@ async function requireProperty(userId: string, propertyId: string, { cellEdit = 
 export async function updateProperty(
   userId: string,
   propertyId: string,
-  patch: { name?: string; options?: SelectOption[]; position?: number },
+  patch: { name?: string; options?: SelectOption[]; position?: number; formula?: { expression: string } },
 ) {
   const prop = await requireProperty(userId, propertyId);
+  const formula =
+    patch.formula && prop.type === "formula"
+      ? formulaConfig(patch.formula.expression, await getProperties(prop.databaseId), {
+          id: prop.id,
+          name: patch.name?.trim() || prop.name,
+        })
+      : undefined;
   // Status options are kept in group order with a valid group each.
   if (patch.options && prop.type === "status") patch = { ...patch, options: sortStatusOptions(patch.options) };
   // Rows must not keep ids of deleted options: they'd show as empty yet fail validation on the next edit.
@@ -722,6 +794,7 @@ export async function updateProperty(
       .set({
         ...(patch.name !== undefined ? { name: patch.name.trim() || prop.name } : {}),
         ...(patch.options !== undefined ? { options: { ...prop.options, options: patch.options } } : {}),
+        ...(formula ? { options: { ...prop.options, formula } } : {}),
         ...(patch.position !== undefined ? { position: patch.position } : {}),
       })
       .where(eq(databaseProperty.id, propertyId));
@@ -960,7 +1033,8 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
       ),
     )
     .orderBy(asc(page.position), asc(page.createdAt));
-  const rows: DatabaseRowWithPosition[] = withComputed(stored, properties);
+  const [relations, people] = await Promise.all([getRelationTargets(userId, properties), getPeople(userId, properties)]);
+  const rows: DatabaseRowWithPosition[] = await withValues(userId, stored, properties, { relations, people });
   return {
     database: {
       id: database.id,
@@ -973,8 +1047,8 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
     properties,
     views,
     rows,
-    relations: await getRelationTargets(userId, properties),
-    people: await getPeople(userId, properties),
+    relations,
+    people,
     viewerId: userId,
   };
 }
@@ -1115,14 +1189,16 @@ export async function getRow(userId: string, rowId: string) {
   if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
   const database = await requireDatabase(userId, row.parentId, "view");
   const properties = await getProperties(row.parentId);
+  const [relations, people] = await Promise.all([getRelationTargets(userId, properties), getPeople(userId, properties)]);
+  const [withDerived] = await withValues(userId, [row], properties, { relations, people });
   return {
     databaseId: row.parentId,
     databaseTitle: database.title,
     databaseLocked: Boolean(database.lockedAt),
-    row: { id: row.id, title: row.title, properties: { ...row.properties, ...computedValues(properties, row) } },
+    row: { id: row.id, title: row.title, properties: withDerived.properties },
     properties,
-    relations: await getRelationTargets(userId, properties),
-    people: await getPeople(userId, properties),
+    relations,
+    people,
     viewerId: userId,
   };
 }

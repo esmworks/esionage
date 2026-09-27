@@ -12,6 +12,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import type { AggregateFn } from "../../lib/aggregate";
+import type { FormulaResultType } from "../../lib/formula/types";
 import { PROPERTY_TYPES, type PropertyType, type StatusGroup } from "../../lib/property-types";
 import { user } from "./auth";
 
@@ -154,7 +155,16 @@ export type ChecklistItem = { id: string; text: string; checked: boolean };
  * database that is kept in sync (`pairedPropertyId`).
  */
 export type RelationConfig = { databaseId: string; pairedPropertyId?: string | null };
-export type PropertyOptions = { options?: SelectOption[]; relation?: RelationConfig };
+/**
+ * A formula property's expression. `prop("…")` references hold property ids (or "title"), so
+ * renaming a property keeps its formulas working; editors show names instead (see lib/derived).
+ */
+export type FormulaConfig = {
+  expression: string;
+  /** What the formula evaluates to. Worked out whenever properties are read; never stored. */
+  type?: FormulaResultType;
+};
+export type PropertyOptions = { options?: SelectOption[]; relation?: RelationConfig; formula?: FormulaConfig };
 
 export const databaseProperty = pgTable(
   "database_property",

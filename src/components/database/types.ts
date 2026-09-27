@@ -14,6 +14,9 @@ export type View = DatabaseView;
 export type Row = DatabaseRowWithPosition;
 export type { ChecklistItem, PersonRef, PropertyType, RelationInput, RelationTarget, RelationTargetRow, SelectOption };
 
+/** Settings of a derived property being added: a formula's expression (with property ids). */
+export type DerivedInput = { formula?: { expression: string } };
+
 export type DatabaseSnapshot = {
   database: { id: string; workspaceId: string; title: string; icon: string | null; archived: boolean; locked: boolean };
   properties: Property[];

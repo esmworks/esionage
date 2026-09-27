@@ -1,11 +1,13 @@
 import { randomBytes } from "node:crypto";
-import { and, asc, desc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { databaseProperty, databaseView, page, pagePublication, user, type PageKind, type ViewConfig, type ViewType } from "@/db/schema";
+import { withFormulaTypes } from "@/lib/derived";
 import { applyView, computedValues, isHiddenInView } from "@/lib/properties";
 import { holdsPeople } from "@/lib/property-types";
 import { AccessError, accessRank, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
 import type { DatabaseProperty } from "@/server/databases";
+import { computeDerived } from "@/server/derived";
 import { canPublish } from "@/server/workspaces";
 
 /**
@@ -219,8 +221,12 @@ export async function getPublishedPage(token: string, pageId?: string): Promise<
     target.kind === "page" ? bodyHtmlFromYdoc(target.ydoc) : Promise.resolve(""),
     target.kind === "database" ? Promise.resolve([]) : liveChildren(publisher, target.id),
     target.kind === "database" ? publishedDatabase(publisher, target.id) : Promise.resolve(null),
-    parent?.kind === "database" && target.parentId ? publicProperties(target.parentId) : Promise.resolve(null),
+    parent?.kind === "database" && target.parentId ? databaseProperties(target.parentId) : Promise.resolve(null),
   ]);
+  // Public properties hold no people, so only the created and last edited times are filled in.
+  const [row] = rowProperties
+    ? await publicValues([{ ...target, properties: { ...target.properties, ...computedValues(rowProperties, { createdBy: null, ...target }) } }], rowProperties)
+    : [];
 
   return {
     token,
@@ -234,10 +240,7 @@ export async function getPublishedPage(token: string, pageId?: string): Promise<
     crumbs,
     children,
     database,
-    // Public properties hold no people, so only the created and last edited times are filled in.
-    row: rowProperties
-      ? { properties: rowProperties, values: { ...target.properties, ...computedValues(rowProperties, { createdBy: null, ...target }) } }
-      : null,
+    row: rowProperties ? { properties: publicProperties(rowProperties), values: row.properties } : null,
   };
 }
 
@@ -279,21 +282,32 @@ async function liveChildren(publisher: string, parentId: string): Promise<Publis
     .orderBy(asc(page.position), asc(page.createdAt));
 }
 
-/**
- * A database's properties minus relations, whose values point at pages that may not be published,
- * and people, who didn't agree to have their names on a public page.
- */
-async function publicProperties(databaseId: string) {
-  return db
+/** A database's properties in order, with formula result types (see databases.getProperties). */
+async function databaseProperties(databaseId: string) {
+  const properties = await db
     .select()
     .from(databaseProperty)
-    .where(
-      and(
-        eq(databaseProperty.databaseId, databaseId),
-        notInArray(databaseProperty.type, ["relation", "person", "created_by", "last_edited_by"]),
-      ),
-    )
+    .where(eq(databaseProperty.databaseId, databaseId))
     .orderBy(asc(databaseProperty.position), asc(databaseProperty.createdAt));
+  return withFormulaTypes(properties);
+}
+
+const PRIVATE_TYPES = new Set<string>(["relation", "person", "created_by", "last_edited_by"]);
+
+/**
+ * The properties a published page shows: all but relations, whose values point at pages that may
+ * not be published, and people, who didn't agree to have their names on a public page.
+ */
+function publicProperties(properties: DatabaseProperty[]) {
+  return properties.filter((p) => !PRIVATE_TYPES.has(p.type));
+}
+
+/**
+ * Rows with their formulas worked out for a public page: formulas that show people or related
+ * rows get no names or titles, so nothing private reaches the page through them.
+ */
+function publicValues<R extends { title: string; properties: Record<string, unknown> }>(rows: R[], properties: DatabaseProperty[]) {
+  return computeDerived(rows, properties, { lookups: async () => ({}) });
 }
 
 /**
@@ -307,8 +321,8 @@ async function sortNames(rows: { properties: Record<string, unknown> }[], props:
 }
 
 async function publishedDatabase(publisher: string, databaseId: string): Promise<PublishedDatabase> {
-  const [properties, [view], stored] = await Promise.all([
-    publicProperties(databaseId),
+  const [allProperties, [view], stored] = await Promise.all([
+    databaseProperties(databaseId),
     db
       .select()
       .from(databaseView)
@@ -330,19 +344,25 @@ async function publishedDatabase(publisher: string, databaseId: string): Promise
       .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt), pageVisibleTo(publisher)))
       .orderBy(asc(page.position), asc(page.createdAt)),
   ]);
+  const properties = publicProperties(allProperties);
   if (!view) {
-    const rows = stored.map(({ createdBy: _, updatedBy: __, ...row }) => ({
-      ...row,
-      properties: { ...row.properties, ...computedValues(properties, { createdBy: null, ...row }) },
-    }));
+    const rows = await publicValues(
+      stored.map(({ createdBy: _, updatedBy: __, ...row }) => ({
+        ...row,
+        properties: { ...row.properties, ...computedValues(allProperties, { createdBy: null, ...row }) },
+      })),
+      allProperties,
+    );
     return { properties, view: null, rows };
   }
   // Filters and sorts may use relation and people properties; applyView needs every property for that.
-  const allProperties = await db.select().from(databaseProperty).where(eq(databaseProperty.databaseId, databaseId));
-  const rows = stored.map(({ createdBy, updatedBy, ...row }) => ({
-    ...row,
-    properties: { ...row.properties, ...computedValues(allProperties, { createdBy, updatedBy, ...row }) },
-  }));
+  const rows = await publicValues(
+    stored.map(({ createdBy, updatedBy, ...row }) => ({
+      ...row,
+      properties: { ...row.properties, ...computedValues(allProperties, { createdBy, updatedBy, ...row }) },
+    })),
+    allProperties,
+  );
   return {
     properties: properties.filter((prop) => !isHiddenInView({ type: "table", config: view.config }, prop)),
     view: { id: view.id, name: view.name, type: view.type },

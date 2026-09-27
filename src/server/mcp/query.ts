@@ -28,7 +28,8 @@ import {
   TITLE_KEY,
   UPDATED_KEY,
 } from "@/lib/properties";
-import { holdsOptions, holdsPeople, holdsTimestamp, isComputed, PERSON_ME, STATUS_GROUPS } from "@/lib/property-types";
+import { derivedType, formulaForEditing, valueType } from "@/lib/derived";
+import { holdsOptions, holdsPeople, holdsTimestamp, isDerived, isReadOnlyType, PERSON_ME, STATUS_GROUPS } from "@/lib/property-types";
 
 export type PropertyDef = { id: string; name: string; type: PropertyType; options: PropertyOptions };
 
@@ -95,7 +96,12 @@ const VALUE_OPS = new Set<FilterOp>(["contains", "equals", "not_equals", "gt", "
 
 /** Whether a property (or built-in key) holds dates or timestamps that relative date filters apply to. */
 function holdsDates(key: string, prop: PropertyDef | undefined) {
-  return prop ? prop.type === "date" || holdsTimestamp(prop.type) : key === CREATED_KEY || key === UPDATED_KEY;
+  return prop ? valueType(prop) === "date" || holdsTimestamp(prop.type) : key === CREATED_KEY || key === UPDATED_KEY;
+}
+
+/** Timestamps and dates worked out by formulas: filtered by day, with a YYYY-MM-DD value. */
+function filtersByDay(prop: PropertyDef) {
+  return holdsTimestamp(prop.type) || (isDerived(prop.type) && derivedType(prop) === "date");
 }
 
 const PEOPLE_LABELS: Record<string, string> = { person: "Person", created_by: "Created by", last_edited_by: "Last edited by" };
@@ -145,9 +151,11 @@ export function toFilterRule(props: PropertyDef[], input: FilterInput, lookups: 
   }
   if (input.op === "is_within") return relativeDateRule(key, prop, input);
   let value: unknown = input.value;
+  // A formula filters like a property of its result type.
+  const type = prop && valueType(prop);
   if (prop?.type === "checklist") {
     throw new PropertyValueError(`Checklist "${prop.name}" supports is_empty and is_not_empty`);
-  } else if (prop && holdsTimestamp(prop.type)) {
+  } else if (prop && filtersByDay(prop)) {
     if (input.op !== "equals" && input.op !== "gt" && input.op !== "lt") {
       throw new PropertyValueError(`"${prop.name}" supports equals (on the day), gt (after), lt (before), is_within, is_empty and is_not_empty`);
     }
@@ -175,10 +183,10 @@ export function toFilterRule(props: PropertyDef[], input: FilterInput, lookups: 
       throw new PropertyValueError(`"${input.op}" is not supported on select property "${prop.name}"`);
     }
     value = optionId(prop, value);
-  } else if (prop?.type === "checkbox") {
+  } else if (type === "checkbox") {
     if (value === "true") value = true;
     else if (value === "false") value = false;
-  } else if (prop?.type === "number" && (input.op === "gt" || input.op === "lt" || input.op === "equals" || input.op === "not_equals")) {
+  } else if (prop && type === "number" && (input.op === "gt" || input.op === "lt" || input.op === "equals" || input.op === "not_equals")) {
     const n = typeof value === "number" ? value : Number(value);
     if (!Number.isFinite(n)) throw new PropertyValueError(`"${prop.name}" filter value must be a number`);
     value = n;
@@ -309,13 +317,20 @@ export function describeViewConfig(props: PropertyDef[], config: ViewConfig, loo
   };
 }
 
-export function describeProperty(prop: PropertyDef, lookups: Lookups = NO_LOOKUPS) {
+/**
+ * A property for get_database and friends. `props` (the database's properties) name the
+ * properties a formula uses.
+ */
+export function describeProperty(prop: PropertyDef, lookups: Lookups = NO_LOOKUPS, props: PropertyDef[] = [prop]) {
   const relation = prop.type === "relation" ? prop.options.relation : undefined;
   const target = lookups.relations[prop.id];
   return {
     id: prop.id,
     name: prop.name,
     type: prop.type,
+    ...(prop.type === "formula"
+      ? { formula: formulaForEditing(prop.options.formula?.expression ?? "", props), result_type: derivedType(prop) }
+      : {}),
     ...(holdsOptions(prop.type) ? { options: (prop.options.options ?? []).map((o) => o.name) } : {}),
     ...(prop.type === "status" ? { status_groups: statusGroups(prop) } : {}),
     ...(relation
@@ -334,7 +349,7 @@ export function describeProperty(prop: PropertyDef, lookups: Lookups = NO_LOOKUP
             .map((p) => ({ id: p.id, name: p.name, ...(p.email ? { email: p.email } : {}) })),
         }
       : {}),
-    ...(isComputed(prop.type) ? { read_only: true } : {}),
+    ...(isReadOnlyType(prop.type) ? { read_only: true } : {}),
   };
 }
 

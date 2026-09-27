@@ -9,8 +9,10 @@ import {
   type ViewType,
 } from "@/db/schema/app";
 import { FILTER_COMBINATORS, MAX_FILTER_DEPTH, MAX_RELATIVE_DAYS, RELATIVE_DATE_RANGES } from "@/lib/filters";
+import { formulaForStorage, withFormulaTypes } from "@/lib/derived";
+import { MAX_FORMULA_LENGTH } from "@/lib/formula";
 import { pageLabel } from "@/lib/labels";
-import { computedValues, isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
+import { isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
 import { holdsOptions, STATUS_GROUPS } from "@/lib/property-types";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import * as databases from "@/server/databases";
@@ -34,7 +36,7 @@ import {
 } from "./query";
 
 const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
-Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, status, date, checkbox, url, email, phone, checklist, relation, person, created_by, created_time, last_edited_by, last_edited_time). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A status is a select whose options belong to the groups todo, in_progress and done. A checklist holds items that can be ticked off. created_by, created_time, last_edited_by and last_edited_time show who created or last edited each row and when; they are filled in automatically and can't be written.
+Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, status, date, checkbox, url, email, phone, checklist, relation, person, created_by, created_time, last_edited_by, last_edited_time, formula). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A status is a select whose options belong to the groups todo, in_progress and done. A checklist holds items that can be ticked off. created_by, created_time, last_edited_by and last_edited_time show who created or last edited each row and when; they are filled in automatically and can't be written. A formula property computes its value from the row's other properties (see add_database_property); it can't be written either.
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / restore_page_version).
 list_notifications shows the user's inbox: rows someone assigned them to and pages shared with them.
@@ -49,8 +51,13 @@ const rowValue = z.union([z.string(), z.number(), z.boolean(), z.array(z.union([
 const rowProperties = z
   .record(z.string(), rowValue)
   .describe(
-    'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select / status (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an email address for email, a phone number for phone, an array of item texts or {text, checked} objects for checklist, an array of row ids (or exact row titles) of the related database for relation, an array of user ids, emails, names or "me" for person, and null to clear a value. Setting a relation, person or checklist replaces its values. created_by, created_time, last_edited_by and last_edited_time properties are read-only. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"], "Assignee": ["me"]}',
+    'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select / status (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an email address for email, a phone number for phone, an array of item texts or {text, checked} objects for checklist, an array of row ids (or exact row titles) of the related database for relation, an array of user ids, emails, names or "me" for person, and null to clear a value. Setting a relation, person or checklist replaces its values. created_by, created_time, last_edited_by, last_edited_time and formula properties are read-only. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"], "Assignee": ["me"]}',
   );
+
+/** How formulas are written, for tool descriptions. */
+const FORMULA_HELP =
+  'Reference properties with prop("Name") (prop("title") is the row title). Operators: + - * / % ^, == != < <= > >=, and or not; "+" also joins text. Functions: if, ifs, empty, and, or, not; concat, length, lower, upper, trim, contains, startsWith, endsWith, replace, replaceAll, slice, join, format; round, floor, ceil, abs, sqrt, sign, pow, min, max; toNumber, parseDate; now, today, dateAdd, dateSubtract, dateBetween (units: years, quarters, months, weeks, days, hours, minutes, seconds), formatDate (tokens YYYY MM DD HH mm…), year, month, day, weekday, hour, minute, timestamp. Select and status read as their option name; multi-select, relation and person as lists; checklists as the share of ticked items; dates work in UTC. Invalid formulas are refused with the reason. Formula values are read-only; query_database returns them and can filter and sort on them like values of their result type.';
+const formulaInput = z.string().max(MAX_FORMULA_LENGTH);
 
 const filterRuleInput = z.object({
   property: z.string().min(1).describe("Property name or id, or title / created_at / updated_at."),
@@ -264,7 +271,7 @@ export function createMcpServer(principal: McpPrincipal) {
       database_id: databaseId,
       properties: displayProperties(
         properties,
-        { ...row.properties, ...computedValues(properties, row) },
+        await databases.rowValues(userId, row, properties),
         await databases.getLookups(userId, properties),
       ),
       url: pageUrl(database.workspaceId, row.id),
@@ -444,14 +451,14 @@ export function createMcpServer(principal: McpPrincipal) {
           out.database_id = parentDatabase.id;
           out.properties = displayProperties(
             properties,
-            { ...page.properties, ...computedValues(properties, page) },
+            await databases.rowValues(userId, page, properties),
             await databases.getLookups(userId, properties),
           );
         }
         if (page.kind === "database") {
           const { properties } = await databases.getDatabase(userId, page.id);
           const lookups = await databases.getLookups(userId, properties);
-          out.database_properties = properties.map((p) => describeProperty(p, lookups));
+          out.database_properties = properties.map((p) => describeProperty(p, lookups, properties));
           out.note = "This is a database. Use query_database to list its rows and get_database for its full schema.";
         } else {
           out.markdown = body.text;
@@ -605,7 +612,7 @@ export function createMcpServer(principal: McpPrincipal) {
           row_count: rows.length,
           properties: [
             { name: "title", type: "title", note: "Every row's title; filter and sort on it with property \"title\"." },
-            ...properties.map((p) => describeProperty(p, lookups)),
+            ...properties.map((p) => describeProperty(p, lookups, properties)),
           ],
           views: views.map((v) => ({ id: v.id, name: v.name, type: v.type, ...describeViewConfig(properties, v.config, lookups) })),
           url: pageUrl(database.workspaceId, database.id),
@@ -836,7 +843,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Add a database property",
       description:
-        "Add a property (column) to a database. For select and multi_select, pass the option names. For status, pass option names (spread over the groups: the first is todo, the last done, the ones between in_progress) or {name, group} objects; without options a status gets Not started, In progress and Done. Other types ignore options. For a relation, pass related_database_id (a database in the same workspace, or this one); with two_way the related database also gets a property listing the links back. created_by, created_time, last_edited_by and last_edited_time properties fill themselves in with who created or last edited each row and when.",
+        `Add a property (column) to a database. For select and multi_select, pass the option names. For status, pass option names (spread over the groups: the first is todo, the last done, the ones between in_progress) or {name, group} objects; without options a status gets Not started, In progress and Done. Other types ignore options. For a relation, pass related_database_id (a database in the same workspace, or this one); with two_way the related database also gets a property listing the links back. created_by, created_time, last_edited_by and last_edited_time properties fill themselves in with who created or last edited each row and when. A formula computes its value from the row's other properties: pass the expression in formula. ${FORMULA_HELP}`,
       inputSchema: z.object({
         database_id: id("database"),
         name: z.string().min(1).max(100).describe("Property name; must be unique within the database."),
@@ -850,17 +857,20 @@ export function createMcpServer(principal: McpPrincipal) {
           .max(100)
           .optional()
           .describe("Relation with two_way only: name of the property added to the related database. Defaults to this database's title."),
+        formula: formulaInput.optional().describe('Formula only: the expression, e.g. prop("Price") * prop("Quantity").'),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, name, type, options, related_database_id, two_way, paired_property_name }) =>
+    ({ database_id, name, type, options, related_database_id, two_way, paired_property_name, formula }) =>
       runTool(async () => {
         assertWrite();
         if (type === "relation" && !related_database_id) throw new ToolInputError("A relation needs related_database_id.");
         if (type !== "relation" && (related_database_id || paired_property_name)) {
           throw new ToolInputError("related_database_id and paired_property_name only apply to relation properties.");
         }
+        if (type === "formula" && !formula?.trim()) throw new ToolInputError("A formula property needs formula, its expression.");
+        if (type !== "formula" && formula !== undefined) throw new ToolInputError("formula only applies to formula properties.");
         const { properties } = await databases.getDatabase(userId, database_id);
         const needle = name.trim().toLowerCase();
         if (needle === "title" || properties.some((p) => p.name.trim().toLowerCase() === needle)) {
@@ -876,9 +886,13 @@ export function createMcpServer(principal: McpPrincipal) {
           ...(type === "relation"
             ? { relation: { databaseId: related_database_id!, twoWay: two_way, pairedName: paired_property_name } }
             : {}),
+          ...(type === "formula" ? { formula: { expression: formula! } } : {}),
         });
-        const lookups = await databases.getLookups(userId, [created]);
-        return { database_id, property: describeProperty(created, lookups) };
+        // Formulas come with their result type.
+        const after = withFormulaTypes([...properties, created]);
+        const shown = after[after.length - 1];
+        const lookups = await databases.getLookups(userId, [shown]);
+        return { database_id, property: describeProperty(shown, lookups, after) };
       }),
   );
 
@@ -887,7 +901,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Update a database property",
       description:
-        "Rename a database property and/or change the options of a select / multi_select / status property (add, rename or remove options by name; for status also move options between the todo, in_progress and done groups). Renaming an option keeps it on every row that uses it; removing one clears it from those rows.",
+        "Rename a database property, change the options of a select / multi_select / status property (add, rename or remove options by name; for status also move options between the todo, in_progress and done groups) and/or change a formula's expression. Renaming an option keeps it on every row that uses it; removing one clears it from those rows. Renaming a property keeps the formulas that use it working.",
       inputSchema: z.object({
         database_id: id("database"),
         property: z.string().min(1).describe("Current property name or id."),
@@ -906,16 +920,17 @@ export function createMcpServer(principal: McpPrincipal) {
           .max(100)
           .optional()
           .describe("Status only: options to move to another group, by name."),
+        formula: formulaInput.optional().describe(`Formula only: the new expression. ${FORMULA_HELP}`),
       }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, property, name, add_options, rename_options, remove_options, option_groups }) =>
+    ({ database_id, property, name, add_options, rename_options, remove_options, option_groups, formula }) =>
       runTool(async () => {
         assertWrite();
         const { properties } = await databases.getDatabase(userId, database_id);
         const prop = requireProperty(properties, property);
-        const patch: { name?: string; options?: SelectOption[] } = {};
+        const patch: { name?: string; options?: SelectOption[]; formula?: { expression: string } } = {};
         if (name !== undefined && name.trim() !== prop.name) {
           const needle = name.trim().toLowerCase();
           if (needle === "title" || properties.some((p) => p.id !== prop.id && p.name.trim().toLowerCase() === needle)) {
@@ -937,10 +952,31 @@ export function createMcpServer(principal: McpPrincipal) {
             groups: option_groups,
           });
         }
-        if (!patch.name && !patch.options) throw new ToolInputError("Nothing to change: provide name or option changes.");
+        if (formula !== undefined) {
+          if (prop.type !== "formula") throw new ToolInputError(`"${prop.name}" is a ${prop.type} property; only formulas have an expression.`);
+          patch.formula = { expression: formula };
+        }
+        if (!patch.name && !patch.options && !patch.formula) {
+          throw new ToolInputError("Nothing to change: provide name, option changes or formula.");
+        }
         await databases.updateProperty(userId, prop.id, patch);
-        const updated = { ...prop, name: patch.name ?? prop.name, options: patch.options ? { ...prop.options, options: patch.options } : prop.options };
-        return { database_id, property: describeProperty(updated, await databases.getLookups(userId, [updated])) };
+        const after = withFormulaTypes(
+          properties.map((p) =>
+            p.id !== prop.id
+              ? p
+              : {
+                  ...p,
+                  name: patch.name ?? p.name,
+                  options: {
+                    ...p.options,
+                    ...(patch.options ? { options: patch.options } : {}),
+                    ...(patch.formula ? { formula: { expression: formulaForStorage(patch.formula.expression, properties) } } : {}),
+                  },
+                },
+          ),
+        );
+        const updated = after.find((p) => p.id === prop.id)!;
+        return { database_id, property: describeProperty(updated, await databases.getLookups(userId, [updated]), after) };
       }),
   );
 

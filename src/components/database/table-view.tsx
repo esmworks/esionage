@@ -7,6 +7,7 @@ import { useState } from "react";
 import { cn, MenuItem, MenuSeparator } from "@/components/ui";
 import type { ViewConfig } from "@/db/schema/app";
 import type { AggregateFn } from "@/lib/aggregate";
+import { valueType } from "@/lib/derived";
 import { isSortable } from "@/lib/properties";
 import { BulkActionBar, SelectBox, useRowSelection } from "./bulk-actions";
 import { Floating, useFloating } from "./floating";
@@ -140,13 +141,18 @@ export function TableView({
                     : undefined,
                   hide: () => setConfig({ ...view.config, hidden: [...(view.config.hidden ?? []), p.id] }),
                   setOptions: locked ? undefined : (options) => api.setOptions(p, options),
+                  setFormula: locked ? undefined : (expression) => api.setFormula(p, expression),
                   remove: locked ? undefined : () => api.deleteProperty(p.id),
                 }}
               />
             ))}
             {!readOnly && (
               <th className="border-y border-border p-0 text-left font-normal">
-                {!locked && <AddPropertyButton onCreate={(name, type, relation) => api.addProperty(name, type, undefined, relation)} />}
+                {!locked && (
+                  <AddPropertyButton
+                    onCreate={(name, type, relation, derived) => api.addProperty(name, type, undefined, relation, derived)}
+                  />
+                )}
               </th>
             )}
           </tr>
@@ -223,7 +229,8 @@ export function TableView({
         offset={handles}
         columns={[
           { key: TITLE, name: t("nameColumn"), type: TITLE, width: NAME_WIDTH },
-          ...visible.map((p) => ({ key: p.id, name: p.name, type: p.type, options: p.options, width: colWidth(p) })),
+          // A formula calculates like a property of its result type.
+          ...visible.map((p) => ({ key: p.id, name: p.name, type: valueType(p), options: p.options, width: colWidth(p) })),
         ]}
         rows={rows}
         calculations={view.config.calculations}

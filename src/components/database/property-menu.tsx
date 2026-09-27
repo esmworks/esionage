@@ -1,42 +1,56 @@
 "use client";
 
-import { ArrowDown, ArrowLeft, ArrowUp, EyeOff, Plus, Settings2, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, EyeOff, Plus, Settings2, Sigma, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem, MenuSeparator } from "@/components/ui";
-import { isComputed, PROPERTY_TYPES, STATUS_GROUPS, type StatusGroup } from "@/lib/property-types";
+import { isComputed, isDerived, PROPERTY_TYPES, STATUS_GROUPS, type StatusGroup } from "@/lib/property-types";
 import { pageLabel } from "@/lib/labels";
 import { SELECT_COLORS, sortStatusOptions, statusColor, statusGroupOf } from "@/lib/properties";
+import { FormulaEditor } from "./formula-editor";
 import { OptionChip } from "./property-cell";
 import { PropertyTypeIcon, usePropertyTypeLabel } from "./property-icons";
 import { RelationSetup } from "./relation-cell";
 import { useRelations } from "./relation-context";
-import type { Property, PropertyType, RelationInput, SelectOption } from "./types";
+import type { DerivedInput, Property, PropertyType, RelationInput, SelectOption } from "./types";
 
 /** Name + type picker used by the table "+" header and the row page "Add property". */
 export function AddPropertyPanel({
   onCreate,
   onDone,
 }: {
-  onCreate: (name: string, type: PropertyType, relation?: RelationInput) => void | Promise<unknown>;
+  onCreate: (name: string, type: PropertyType, relation?: RelationInput, derived?: DerivedInput) => void | Promise<unknown>;
   onDone: () => void;
 }) {
   const t = useTranslations("database.propertyMenu");
   const typeLabel = usePropertyTypeLabel();
   const [name, setName] = useState("");
-  const [step, setStep] = useState<"type" | "relation">("type");
+  const [step, setStep] = useState<"type" | "relation" | "formula">("type");
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
   // A new property without a name is named after its type, in the user's language.
   const nameFor = (type: PropertyType) => name.trim() || typeLabel(type);
   const create = (type: PropertyType) => {
-    if (type === "relation") {
-      setStep("relation");
+    if (type === "relation" || type === "formula") {
+      setStep(type);
       return;
     }
     void onCreate(nameFor(type), type);
     onDone();
   };
+  if (step === "formula") {
+    return (
+      <FormulaEditor
+        prop={null}
+        name={nameFor("formula")}
+        onBack={() => setStep("type")}
+        onSave={(expression) => {
+          void onCreate(nameFor("formula"), "formula", undefined, { formula: { expression } });
+          onDone();
+        }}
+      />
+    );
+  }
   if (step === "relation") {
     return (
       <RelationSetup
@@ -79,6 +93,8 @@ export type PropertyMenuActions = {
   sort?: (direction: "asc" | "desc") => void;
   hide?: () => void;
   setOptions?: (options: SelectOption[]) => void;
+  /** Formulas: saves a new expression (with property ids, see FormulaEditor). */
+  setFormula?: (expression: string) => void;
   remove?: () => void;
 };
 
@@ -95,7 +111,7 @@ export function PropertyMenu({
   const t = useTranslations("database.propertyMenu");
   const tc = useTranslations("common");
   const typeLabel = usePropertyTypeLabel();
-  const [page, setPage] = useState<"main" | "options" | "confirm">("main");
+  const [page, setPage] = useState<"main" | "options" | "confirm" | "formula">("main");
   const [name, setName] = useState(prop?.name ?? "");
   const saved = useRef(prop?.name ?? "");
   const commitName = () => {
@@ -112,6 +128,20 @@ export function PropertyMenu({
 
   if (page === "options" && prop && actions.setOptions) {
     return <OptionsEditor prop={prop} onChange={actions.setOptions} onBack={() => setPage("main")} />;
+  }
+
+  if (page === "formula" && prop && actions.setFormula) {
+    return (
+      <FormulaEditor
+        prop={prop}
+        name={prop.name}
+        onBack={() => setPage("main")}
+        onSave={(expression) => {
+          actions.setFormula?.(expression);
+          onDone();
+        }}
+      />
+    );
   }
 
   if (page === "confirm" && prop && actions.remove) {
@@ -166,6 +196,7 @@ export function PropertyMenu({
           </div>
           {prop.type === "relation" && <RelationInfo prop={prop} />}
           {isComputed(prop.type) && <div className="px-2 pb-1 text-xs text-fg-faint">{t("readOnlyHint")}</div>}
+          {isDerived(prop.type) && <div className="px-2 pb-1 text-xs text-fg-faint">{t("formulaHint")}</div>}
           <MenuSeparator />
         </>
       )}
@@ -200,6 +231,11 @@ export function PropertyMenu({
           }}
         >
           {t("hide")}
+        </MenuItem>
+      )}
+      {prop?.type === "formula" && actions.setFormula && (
+        <MenuItem icon={<Sigma className="h-3.5 w-3.5" />} onClick={() => setPage("formula")}>
+          {t("editFormula")}
         </MenuItem>
       )}
       {selectType && actions.setOptions && (

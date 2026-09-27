@@ -37,6 +37,7 @@ import {
   RELATIVE_DATE_RANGES,
   rangeNeedsDays,
 } from "@/lib/filters";
+import { valueType } from "@/lib/derived";
 import { pageLabel } from "@/lib/labels";
 import {
   boardGroupProperty,
@@ -221,10 +222,11 @@ function ViewTab({
 
 type Column = { id: string; name: string; type: Property["type"] | "title"; prop: Property | null };
 
+/** Columns filters and sorts offer; a formula is offered as a property of its result type. */
 function columnsOf(properties: Property[], titleName: string): Column[] {
   return [
     { id: TITLE, name: titleName, type: "title", prop: null },
-    ...properties.map((p) => ({ id: p.id, name: p.name, type: p.type, prop: p })),
+    ...properties.map((p) => ({ id: p.id, name: p.name, type: valueType(p), prop: p })),
   ];
 }
 

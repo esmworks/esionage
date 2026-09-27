@@ -22,8 +22,9 @@ import {
 import { archivePageAction, renamePageAction } from "@/app/actions/pages";
 import { useChannel, useChannels } from "@/components/collab/use-channel";
 import type { PropertyType, SelectOption, ViewConfig, ViewType } from "@/db/schema/app";
+import { compileFormulas, evaluateFormulas } from "@/lib/derived";
 import { movePersonValue } from "@/lib/properties";
-import type { DatabaseSnapshot, Property, RelationInput, Row, View } from "./types";
+import type { DatabaseSnapshot, DerivedInput, Property, RelationInput, Row, View } from "./types";
 import { TITLE } from "./types";
 
 type Pending = { rowId: string; key: string; value: unknown; version: number };
@@ -99,9 +100,13 @@ export function useDatabase(databaseId: string) {
 
   const report = useCallback((e: unknown) => setError(message(e)), [message]);
 
+  // Formulas of a row the user just edited are worked out here right away, with the same code the
+  // server uses, so the row doesn't show stale results until the refetch.
+  const formulas = useMemo(() => (snapshot ? compileFormulas(snapshot.properties) : new Map()), [snapshot?.properties]);
   const rows: Row[] = useMemo(() => {
     if (!snapshot) return [];
     const overlays = Object.values(pending);
+    const context = { now: new Date(), people: snapshot.people, relations: snapshot.relations };
     return snapshot.rows
       .filter((r) => !removed.has(r.id))
       .map((row) => {
@@ -113,9 +118,10 @@ export function useDatabase(databaseId: string) {
           else if (p.value === null || p.value === undefined) delete next.properties[p.key];
           else next.properties[p.key] = p.value;
         }
+        if (formulas.size) Object.assign(next.properties, evaluateFormulas(snapshot.properties, formulas, next, context));
         return next;
       });
-  }, [snapshot, pending, removed]);
+  }, [snapshot, pending, removed, formulas]);
 
   const withPending = useCallback(
     async (rowId: string, key: string, value: unknown, write: () => Promise<unknown>) => {
@@ -288,8 +294,16 @@ export function useDatabase(databaseId: string) {
         return mutateSchema((s) => s, () => moveRowAction(rowId, move));
       },
 
-      addProperty(name: string, type: PropertyType, options?: string[], relation?: RelationInput) {
-        return mutateSchema((s) => s, () => addPropertyAction(databaseId, { name, type, options, relation }));
+      addProperty(name: string, type: PropertyType, options?: string[], relation?: RelationInput, derived?: DerivedInput) {
+        return mutateSchema((s) => s, () => addPropertyAction(databaseId, { name, type, options, relation, ...derived }));
+      },
+
+      /** Saves a formula's expression (with property ids); the server checks it again. */
+      setFormula(prop: Property, expression: string) {
+        return mutateSchema(
+          patchProperty(prop.id, { options: { ...prop.options, formula: { ...prop.options.formula, expression } } }),
+          () => updatePropertyAction(prop.id, { formula: { expression } }),
+        );
       },
 
       /** Adds a row to another (related) database; returns its id. */

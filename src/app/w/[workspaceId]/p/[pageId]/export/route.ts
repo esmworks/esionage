@@ -1,4 +1,5 @@
 import { toCsv } from "@/lib/csv";
+import { isErrorValue } from "@/lib/derived";
 import { asChecklist, displayValue } from "@/lib/properties";
 import { holdsPeople } from "@/lib/property-types";
 import { AccessError } from "@/server/access";
@@ -70,11 +71,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
         ["Name", ...snapshot.properties.map((p) => p.name)],
         ...rows.map((row) => [
           row.title,
-          ...snapshot.properties.map((p) =>
-            p.type === "checklist"
-              ? checklist(row.properties[p.id])
-              : cell(displayValue(p, row.properties[p.id]), holdsPeople(p.type) ? nameOf : titleOf),
-          ),
+          ...snapshot.properties.map((p) => {
+            const value = row.properties[p.id];
+            // A formula that fails on this row says why.
+            if (isErrorValue(value)) return `#ERROR: ${value.error.message}`;
+            return p.type === "checklist"
+              ? checklist(value)
+              : cell(displayValue(p, value), holdsPeople(p.type) ? nameOf : titleOf);
+          }),
         ]),
       ]);
       return download(csv, "text/csv", fileName(target.title, "csv"));
