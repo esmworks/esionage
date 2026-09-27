@@ -24,5 +24,6 @@
   "name": "Ad",
   "noRows": "Gösterilecek satır yok.",
   "readOnly": "Salt okunur",
-  "home": "Esionage'a git"
+  "home": "Esionage'a git",
+  "embedUnavailable": "Bu veritabanı bu sayfayla birlikte yayımlanmadı."
 }

@@ -1,10 +1,14 @@
+import { getTranslations } from "next-intl/server";
 import { toCsv } from "@/lib/csv";
 import { isErrorValue } from "@/lib/derived";
+import { mapReferenceLines, markdownReferences } from "@/lib/embed-blocks";
+import { pageLabel } from "@/lib/labels";
 import { asChecklist, displayValue } from "@/lib/properties";
 import { holdsPeople } from "@/lib/property-types";
 import { AccessError } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 import { getDatabaseSnapshot, MAX_BULK_ROWS } from "@/server/databases";
+import { resolveEmbeds } from "@/server/embeds";
 import { getPage } from "@/server/pages";
 import { getSession } from "@/server/session";
 
@@ -85,12 +89,29 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
     }
     const content = await getCollab().readPage(pageId);
     const title = content.title || target.title;
-    const markdown = `${title ? `# ${title}\n\n` : ""}${content.markdown.trim()}\n`;
+    const body = await linkEmbeds(session.user.id, content.markdown.trim());
+    const markdown = `${title ? `# ${title}\n\n` : ""}${body}\n`;
     return download(markdown, "text/markdown", fileName(title, "md"));
   } catch (error) {
     if (error instanceof AccessError) return new Response("Not found", { status: 404 });
     throw error;
   }
+}
+
+/**
+ * Database blocks as links to their database, for readers who can see it; a note otherwise, which
+ * names nothing (see lib/embed-blocks).
+ */
+async function linkEmbeds(userId: string, markdown: string) {
+  const embeds = await resolveEmbeds(userId, markdownReferences(markdown));
+  if (!embeds.length) return markdown;
+  const [t, tc] = await Promise.all([getTranslations("page.embed"), getTranslations("common")]);
+  const byId = new Map(embeds.map((e) => [e.databaseId, e.database]));
+  return mapReferenceLines(markdown, (ref) => {
+    const database = byId.get(ref.databaseId);
+    if (!database) return `*${t("unavailable")}*`;
+    return `[${pageLabel(database.title, tc("untitled")).replace(/[[\]]/g, "\\$&")}](/w/${database.workspaceId}/p/${database.id})`;
+  });
 }
 
 /** Exports the selected rows of a database: a POST, since a large selection would not fit in a URL. */

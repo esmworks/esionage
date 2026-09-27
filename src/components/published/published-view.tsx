@@ -4,7 +4,7 @@ import { PropertyDisplay } from "@/components/database/property-cell";
 import { PropertyTypeIcon } from "@/components/database/property-icons";
 import { PageIcon } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
-import type { PublishedPage } from "@/server/publication";
+import type { PublishedDatabase, PublishedPage } from "@/server/publication";
 import styles from "./published-body.module.css";
 
 // `cn` from components/ui is a client export; server components join classes themselves.
@@ -82,15 +82,36 @@ export async function PublishedView({ data }: { data: PublishedPage }) {
           </dl>
         )}
 
-        {data.bodyHtml && (
-          <div
-            className={cn(styles.body, "mt-6 px-4 sm:px-[54px]")}
-            // Serialized by BlockNote from our own document with unsafe URLs removed; see published-body.ts.
-            dangerouslySetInnerHTML={{ __html: data.bodyHtml }}
-          />
+        {data.body.length > 0 && (
+          <div className="mt-6">
+            {data.body.map((block, i) =>
+              block.kind === "html" ? (
+                <div
+                  key={i}
+                  className={cn(styles.body, "px-4 sm:px-[54px]")}
+                  // Serialized by BlockNote from our own document with unsafe URLs removed; see published-body.ts.
+                  dangerouslySetInnerHTML={{ __html: block.html }}
+                />
+              ) : block.database ? (
+                <section key={i} className="my-4">
+                  <h2 className="px-4 text-base font-semibold sm:px-[54px]">
+                    <Link href={href(block.database.id)} className="inline-flex items-center gap-1.5 hover:underline">
+                      <PageIcon icon={block.database.icon} kind="database" className="text-base" />
+                      {pageLabel(block.database.title, untitled)}
+                    </Link>
+                  </h2>
+                  <PublishedTable table={block.database.table} href={href} className="mt-2 px-4 sm:px-[54px]" />
+                </section>
+              ) : (
+                <p key={i} className="mx-4 my-4 rounded-md border border-border px-3 py-2 text-sm text-fg-faint sm:mx-[54px]">
+                  {t("embedUnavailable")}
+                </p>
+              ),
+            )}
+          </div>
         )}
 
-        {data.database && <PublishedTable data={data} href={href} />}
+        {data.database && <PublishedTable table={data.database} href={href} className="page-gutter mt-6" />}
 
         {data.children.length > 0 && (
           <section className="mt-10 px-4 sm:px-[54px]">
@@ -117,11 +138,19 @@ export async function PublishedView({ data }: { data: PublishedPage }) {
   );
 }
 
-async function PublishedTable({ data, href }: { data: PublishedPage; href: (id: string) => string }) {
+async function PublishedTable({
+  table,
+  href,
+  className,
+}: {
+  table: PublishedDatabase;
+  href: (id: string) => string;
+  className?: string;
+}) {
   const [t, tc] = await Promise.all([getTranslations("publish"), getTranslations("common")]);
-  const { properties, rows } = data.database!;
+  const { properties, rows } = table;
   return (
-    <div className="page-gutter mt-6 overflow-x-auto pb-3 [color-scheme:light_dark]">
+    <div className={cn("overflow-x-auto pb-3 [color-scheme:light_dark]", className)}>
       <table className="w-full min-w-max border-collapse text-sm">
         <thead>
           <tr>

@@ -1,6 +1,7 @@
-import { ServerBlockNoteEditor } from "@blocknote/server-util";
 import * as Y from "yjs";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { isEmbedBlockType, parseLinkedView, type EmbedBlockType, type LinkedView } from "@/lib/embed-blocks";
+import { serverEditor as editor, type PageBlock } from "@/server/blocknote";
 
 /**
  * Turns a stored page body (Yjs state) into HTML for the public, read-only view of a published page.
@@ -9,9 +10,10 @@ import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
  * attribute values are escaped by the DOM serializer; nothing from the document is passed through
  * as raw HTML. Links and media URLs are still whatever an editor typed, so `sanitizeBlocks` keeps
  * only http(s)/mailto links and http(s) or same-origin media before serializing.
+ *
+ * Database blocks are not serialized: the body comes back as HTML parts with the database blocks
+ * between them, and the publication decides for each whether its database may be shown.
  */
-
-const editor = ServerBlockNoteEditor.create();
 
 type Json = unknown;
 
@@ -71,15 +73,65 @@ export function sanitizeBlocks<T>(blocks: T[]): T[] {
   return blocks.map((block) => sanitizeValue(block) as T);
 }
 
-export async function bodyHtmlFromYdoc(state: Uint8Array | null): Promise<string> {
-  if (!state || state.byteLength === 0) return "";
+/** A run of ordinary blocks as HTML, or a database block the page shows at that point. */
+export type BodySegment =
+  | { kind: "html"; html: string }
+  | { kind: "embed"; type: EmbedBlockType; databaseId: string; view: LinkedView | null };
+
+/** A database block nested in another block (e.g. under a list item) is shown after that block. */
+function withoutNestedEmbeds(block: PageBlock, found: PageBlock[]): PageBlock {
+  if (!block.children?.length) return block;
+  const children: PageBlock[] = [];
+  for (const child of block.children) {
+    if (isEmbedBlockType(child.type)) found.push(child);
+    else children.push(withoutNestedEmbeds(child, found));
+  }
+  return { ...block, children } as PageBlock;
+}
+
+export async function bodySegmentsFromYdoc(state: Uint8Array | null): Promise<BodySegment[]> {
+  if (!state || state.byteLength === 0) return [];
   const doc = new Y.Doc();
   try {
     Y.applyUpdate(doc, state);
     const blocks = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
-    if (!blocks.length) return "";
-    return await editor.blocksToHTMLLossy(sanitizeBlocks(blocks));
+    const segments: BodySegment[] = [];
+    let run: PageBlock[] = [];
+    const flush = async () => {
+      if (!run.length) return;
+      const html = await editor.blocksToHTMLLossy(sanitizeBlocks(run));
+      run = [];
+      if (html) segments.push({ kind: "html", html });
+    };
+    const embed = async (block: PageBlock) => {
+      const props = block.props as { databaseId?: unknown; view?: unknown };
+      if (typeof props.databaseId !== "string" || !props.databaseId || !isEmbedBlockType(block.type)) return;
+      await flush();
+      segments.push({
+        kind: "embed",
+        type: block.type,
+        databaseId: props.databaseId,
+        view: block.type === "linkedView" ? parseLinkedView(props.view) : null,
+      });
+    };
+    for (const block of blocks) {
+      if (isEmbedBlockType(block.type)) {
+        await embed(block);
+        continue;
+      }
+      const nested: PageBlock[] = [];
+      run.push(withoutNestedEmbeds(block, nested));
+      for (const inner of nested) await embed(inner);
+    }
+    await flush();
+    return segments;
   } finally {
     doc.destroy();
   }
+}
+
+/** The body as one HTML string, leaving database blocks out. */
+export async function bodyHtmlFromYdoc(state: Uint8Array | null): Promise<string> {
+  const segments = await bodySegmentsFromYdoc(state);
+  return segments.map((s) => (s.kind === "html" ? s.html : "")).join("");
 }

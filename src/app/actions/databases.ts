@@ -44,8 +44,8 @@ async function run<T>(fn: (userId: string) => Promise<T>): Promise<ActionResult<
   }
 }
 
-export async function loadDatabaseAction(databaseId: string) {
-  return run((userId) => databases.getDatabaseSnapshot(userId, databaseId));
+export async function loadDatabaseAction(databaseId: string, options: { covers?: boolean } = {}) {
+  return run((userId) => databases.getDatabaseSnapshot(userId, databaseId, { covers: options.covers === true }));
 }
 
 export async function loadRowAction(rowId: string) {

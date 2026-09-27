@@ -1145,9 +1145,14 @@ async function rowCovers(rows: { id: string; updatedAt: Date; hasImage?: boolean
  * Everything the database UI needs in one round trip. Rows are unfiltered and in manual order
  * (views are applied client-side so switching views and optimistic edits are instant).
  */
-export async function getDatabaseSnapshot(userId: string, databaseId: string) {
+export async function getDatabaseSnapshot(
+  userId: string,
+  databaseId: string,
+  /** `covers`: a gallery that isn't one of the database's views (a linked view) shows row images. */
+  { covers: coversWanted = false }: { covers?: boolean } = {},
+) {
   const { database, properties, views } = await getDatabase(userId, databaseId);
-  const withCovers = views.some((v) => v.type === "gallery" && galleryCover(v.config) === "first_image");
+  const withCovers = coversWanted || views.some((v) => v.type === "gallery" && galleryCover(v.config) === "first_image");
   const stored = await db
     .select({
       id: page.id,

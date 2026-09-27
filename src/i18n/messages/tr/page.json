@@ -119,5 +119,35 @@
       "invitesRestricted": "Bu çalışma alanında sayfaları dışarıdan kişilerle paylaşma izniniz yok. Bir sahipten isteyin.",
       "generic": "Paylaşım güncellenemedi."
     }
+  },
+  "embed": {
+    "label": "Veritabanı",
+    "linkedLabel": "Bir veritabanının bağlı görünümü",
+    "unavailable": "Bu veritabanı kullanılamıyor. Silinmiş olabilir ya da erişiminiz yok.",
+    "inTrash": "Bu veritabanı çöp kutusunda.",
+    "creating": "Veritabanı oluşturuluyor…",
+    "createFailed": "Veritabanı oluşturulamadı: {error}",
+    "open": "Sayfa olarak aç",
+    "linked": "Bağlı görünüm",
+    "layout": "Düzen",
+    "viewOnly": "Bu görünümü yalnızca bu sayfayı düzenleyebilenler değiştirebilir.",
+    "picker": {
+      "title": "Bir veritabanı seçin",
+      "search": "Veritabanlarında ara",
+      "empty": "Veritabanı bulunamadı.",
+      "failed": "Veritabanları yüklenemedi."
+    },
+    "slash": {
+      "database": {
+        "title": "Veritabanı",
+        "subtext": "Bu sayfanın içinde yeni bir veritabanı",
+        "aliases": "database db inline table veritabanı veritabani tablo satır içi"
+      },
+      "linkedView": {
+        "title": "Veritabanının bağlı görünümü",
+        "subtext": "Var olan bir veritabanını kendi görünümüyle göster",
+        "aliases": "linked view database db bağlı görünüm bagli gorunum veritabanı veritabani"
+      }
+    }
   }
 }
