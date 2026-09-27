@@ -3,7 +3,8 @@
  * only get a user id (see access.ts, which holds sessions to the workspace's two-step policy).
  *
  * Null outside a Next request (the collab server, scripts, tests), for requests that authenticate
- * with a bearer token (MCP: OAuth tokens are outside the policy) and without a sign-in. Looked up
+ * with a bearer token (MCP's OAuth tokens and the REST API's personal access tokens are outside the
+ * policy) and without a sign-in. Looked up
  * once per request.
  */
 export type RequestSession = {

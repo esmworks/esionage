@@ -4,6 +4,24 @@
 
 ### Added
 
+- **REST API with personal access tokens:** `/api/v1` offers workspaces, pages (read with the
+  whole Markdown body, create, update title, icon and body, move, trash, restore, sub-pages),
+  search, databases (schema, queries with filters, sorts, saved views and cursor pagination),
+  rows (add, add up to 100 at once, update one or many, read) and comments (list, start a thread,
+  reply). It shares its service layer with the MCP server (`src/server/operations.ts`), so both
+  check input and access alike and save page history before every body change. Tokens are
+  created in Settings → Connected apps: read only or read and write, optionally limited to one
+  workspace, expiring after 7, 30, 90 or 365 days or never; the secret (`esi_` plus 40 letters
+  and digits, easy for secret scanners to match) is shown once and stored as a SHA-256 hash; the
+  list shows when each token was last used, and revoking takes effect at once. Pages the user
+  can't see, or outside a token's workspace, answer 404; errors are JSON with a code; each token
+  may make 180 requests a minute (`API_RATE_LIMIT`), bodies are limited to 5 MB, only tokens
+  authenticate (never the session cookie) and CORS stays off unless `API_CORS_ORIGINS` is set.
+  Like MCP's OAuth tokens, API tokens are outside the workspace two-step verification policy.
+  An OpenAPI 3.1 document is served at `/api/v1/openapi.json` and rendered at `/docs/api`.
+  Claiming an account through an email-verified sign-in also revokes its tokens (migration
+  `0020_api_tokens`).
+
 - **Workspace site and Duplicate for published pages:** owners set up a site in Settings → Site: a
   slug (lowercase letters, digits and hyphens, 3–40 characters, unique, a few reserved), a title
   and a home page picked among published pages. `/s/<slug>` opens the home page with a navigation

@@ -41,7 +41,8 @@ export async function blockedByTwoFactorPolicy(session: Session, workspaceId: st
  * For the pages under /w/[workspaceId] (the layout and each page, as Next renders them in
  * parallel): a session the workspace's two-step policy turns away goes to the page where they set
  * it up. Server actions and API routes get TwoFactorRequiredError from the access checks instead
- * (see access.ts). Connected apps (MCP) reach data with OAuth tokens and aren't affected.
+ * (see access.ts). Connected apps (MCP) and REST API tokens reach data with bearer tokens and aren't
+ * affected.
  */
 export async function requireWorkspaceSession(workspaceId: string) {
   const session = await requireSession();

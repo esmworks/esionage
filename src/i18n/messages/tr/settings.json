@@ -167,7 +167,7 @@
     "authenticationHeading": "Kimlik doğrulama",
     "requireTwoFactor": {
       "title": "İki adımlı doğrulamayı zorunlu kıl",
-      "description": "Bu çalışma alanını açmak için herkesin bir doğrulama uygulaması kullanması veya passkey ile giriş yapması gerekir. İkisi de olmayanlardan önce birini kurmaları istenir. MCP ile bağlı uygulamalar etkilenmez.",
+      "description": "Bu çalışma alanını açmak için herkesin bir doğrulama uygulaması kullanması veya passkey ile giriş yapması gerekir. İkisi de olmayanlardan önce birini kurmaları istenir. MCP ile bağlı uygulamalar ve REST API anahtarları etkilenmez.",
       "setUpFirst": "Önce kendi hesabınız için iki adımlı doğrulamayı açın.",
       "withoutCount": "{count, plural, other {Burada # kişi henüz kurmadı.}}"
     },

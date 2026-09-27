@@ -12,6 +12,7 @@ import {
   signUpTokenOf,
   socialAuthOptions,
 } from "@/lib/auth-options";
+import { revokeAllApiTokens } from "@/server/api/tokens";
 import { revokeAllConnectedApps } from "@/server/mcp/grants";
 import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetEmail, sendMail } from "@/server/mail";
 import { acceptInvitation, createPersonalWorkspace, invitationAllowsSignUp, joinWithLink } from "@/server/workspaces";
@@ -80,7 +81,13 @@ export const auth = betterAuth({
       },
     },
     account: {
-      create: { after: claimOnEmailLink(revokeAllConnectedApps) },
+      // Claiming an account by email also ends what was granted before: app grants and API tokens.
+      create: {
+        after: claimOnEmailLink(async (userId) => {
+          await revokeAllConnectedApps(userId);
+          await revokeAllApiTokens(userId);
+        }),
+      },
     },
     session: {
       // How the session was signed in: a passkey sign-in passes "require two-step verification".

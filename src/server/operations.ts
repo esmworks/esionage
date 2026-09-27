@@ -1,0 +1,734 @@
+/**
+ * What the MCP tools (mcp/tools.ts) and the REST API (api/) both do with pages, databases, rows
+ * and comments: input schemas, checks and output. Each operation acts as `ctx.userId` with that
+ * user's own page access (see access.ts); the caller checks what its credentials allow (OAuth or
+ * token scopes, a token's workspace) before calling. Outputs use snake_case keys and carry an app
+ * `url` for everything they name.
+ */
+import * as z from "zod";
+import { commentText, MAX_COMMENT_LENGTH } from "@/lib/comments";
+import { markdownReferences } from "@/lib/embed-blocks";
+import { env } from "@/lib/env";
+import { FILTER_COMBINATORS, MAX_FILTER_DEPTH, MAX_RELATIVE_DAYS, RELATIVE_DATE_RANGES } from "@/lib/filters";
+import { pageLabel } from "@/lib/labels";
+import { getCollab, type WriteActor } from "@/server/collab/bridge";
+import * as comments from "@/server/comments";
+import * as databases from "@/server/databases";
+import { resolveEmbeds } from "@/server/embeds";
+import * as forms from "@/server/forms";
+import { labelPageLinks, listBacklinks } from "@/server/mentions";
+import * as pages from "@/server/pages";
+import * as templates from "@/server/templates";
+import { isBuiltinTemplateKey } from "@/lib/builtin-templates";
+import { pageUrl, sliceText, ToolInputError } from "./mcp/format";
+import {
+  describeChartSeries,
+  describeProperty,
+  describeViewConfig,
+  displayProperties,
+  FILTER_OPS,
+  toFilterEntries,
+  toSortRule,
+  type PropertyDef,
+} from "./mcp/query";
+
+/** Who an operation acts for: their user id, and how their writes are attributed. */
+export type OperationContext = { userId: string; actor: WriteActor };
+
+export const MAX_BULK_ROWS = 100;
+
+// ---------------------------------------------------------------------------- input schemas
+
+export const id = (what: string) => z.string().min(1).describe(`The ${what} id (a UUID from another tool's output).`);
+
+const checklistItem = z.object({ text: z.string(), checked: z.boolean().optional() });
+const fileItem = z.object({ url: z.string(), name: z.string().optional() });
+export const rowValue = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.array(z.union([z.string(), checklistItem, fileItem])),
+  z.null(),
+]);
+export const rowProperties = z
+  .record(z.string(), rowValue)
+  .describe(
+    'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select / status (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an email address for email, a phone number for phone, an array of item texts or {text, checked} objects for checklist, an array of row ids (or exact row titles) of the related database for relation, an array of user ids, emails, names or "me" for person, an array of files already uploaded to this workspace (their /api/files/<id> paths or urls, or the {name, url} objects query_database returns; upload new ones with attach_file and its property option) for files, and null to clear a value. Setting a relation, person, checklist or files replaces its values. created_by, created_time, last_edited_by, last_edited_time and formula properties are read-only. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"], "Assignee": ["me"]}',
+  );
+
+const filterRuleInput = z.object({
+  property: z.string().min(1).describe("Property name or id, or title / created_at / updated_at."),
+  op: z.enum(FILTER_OPS),
+  value: z
+    .union([z.string(), z.number(), z.boolean()])
+    .optional()
+    .describe(`Comparison value; omit for is_empty / is_not_empty. For is_within: ${RELATIVE_DATE_RANGES.join(", ")}.`),
+  days: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_RELATIVE_DAYS)
+    .optional()
+    .describe("is_within with past_n_days / next_n_days only: how many days back or ahead of today."),
+});
+const combinatorInput = z.enum(FILTER_COMBINATORS);
+const filterGroupInput = <T extends z.ZodType>(rules: T) =>
+  z.object({
+    type: z.literal("group"),
+    combinator: combinatorInput.default("and").describe("How the group's rules combine."),
+    rules: z.array(rules).min(1),
+  });
+/**
+ * A rule or a group. When neither fits, the error names what is wrong with the one the input was
+ * meant to be (a plain union only says "Invalid input"), e.g. an unknown op.
+ */
+const ruleOrGroup = <G extends z.ZodType>(group: G) =>
+  z.union([filterRuleInput, group], {
+    error: (issue) => {
+      if (issue.code !== "invalid_union" || !issue.errors.length) return undefined;
+      const input = issue.input as { type?: unknown } | null | undefined;
+      const branch = issue.errors[input?.type === "group" ? 1 : 0] ?? [];
+      return branch.map((e) => `${e.path.length ? `${e.path.join(".")}: ` : ""}${e.message}`).join("; ") || undefined;
+    },
+  });
+// Spelled out level by level (instead of a recursive schema) so every MCP client can read it. A
+// group nested deeper than MAX_FILTER_DEPTH still parses at the innermost level and is then
+// rejected by toFilterEntries with a message saying so.
+const deepestGroup = z.object({ type: z.literal("group") }).loose();
+export const filtersInput = z
+  .array(ruleOrGroup(filterGroupInput(ruleOrGroup(filterGroupInput(ruleOrGroup(deepestGroup))))))
+  .describe(
+    `Filter rules and groups. A rule is {property, op, value}; a group is {type: "group", combinator: "and" | "or", rules: [...]}; groups may hold groups, at most ${MAX_FILTER_DEPTH} levels deep. A plain list of rules keeps working.`,
+  );
+export const filterCombinatorInput = combinatorInput
+  .optional()
+  .describe('How the top-level filters combine: "and" (default, all must match) or "or" (any may match).');
+export const sortsInput = z.array(
+  z.object({ property: z.string().min(1), direction: z.enum(["asc", "desc"]).default("asc") }),
+);
+
+/** Arguments of each shared operation, as the MCP tools take them (REST puts ids in the path). */
+export const inputs = {
+  search: z.object({
+    query: z.string().min(1).describe("Words to look for."),
+    workspace_id: z.string().optional().describe("Only search this workspace."),
+    limit: z.number().int().min(1).max(50).default(10).describe("Maximum results (1-50, default 10)."),
+  }),
+  listPages: z.object({
+    workspace_id: id("workspace"),
+    parent_id: z.string().optional().describe("Parent page id. Omit for the workspace's top-level pages."),
+  }),
+  getPage: z.object({
+    page_id: id("page"),
+    offset: z.number().int().min(0).default(0).describe("Character offset into the Markdown body, for long pages."),
+  }),
+  createPage: z.object({
+    workspace_id: z.string().optional().describe("Workspace for a top-level page. Ignored when parent_id is set."),
+    parent_id: z.string().optional().describe("Page to nest the new page under."),
+    title: z
+      .string()
+      .min(1)
+      .max(500)
+      .optional()
+      .describe("Page title. Required unless template_id is given (the template's title is used then)."),
+    markdown: z.string().optional().describe("Initial page body in Markdown. With template_id it replaces the template's body."),
+    icon: z.string().max(16).optional().describe("A single emoji used as the page icon."),
+    template_id: z
+      .string()
+      .optional()
+      .describe('A page template of the workspace, or a built-in one ("builtin:<key>"), from list_templates.'),
+  }),
+  updatePage: z.object({
+    page_id: id("page"),
+    title: z.string().min(1).max(500).optional().describe("New title."),
+    markdown: z.string().optional().describe("Markdown to write into the body."),
+    mode: z
+      .enum(["replace", "append"])
+      .default("replace")
+      .describe('"replace" (default) overwrites the body; "append" adds to the end.'),
+  }),
+  pageId: z.object({ page_id: id("page") }),
+  movePage: z.object({
+    page_id: id("page"),
+    parent_id: z.string().min(1).nullable().describe("New parent page id, or null for the workspace's top level."),
+  }),
+  databaseId: z.object({ database_id: id("database") }),
+  queryDatabase: z.object({
+    database_id: id("database"),
+    filters: filtersInput.optional(),
+    filter_combinator: filterCombinatorInput,
+    sorts: sortsInput.optional(),
+    view_id: z
+      .string()
+      .optional()
+      .describe("Apply a saved view's filters and sorts first (ids from get_database); rows must match both the view's filters and yours."),
+    limit: z.number().int().min(1).max(200).default(50).describe("Maximum rows to return (1-200, default 50)."),
+  }),
+  createDatabaseRow: z.object({
+    database_id: id("database"),
+    title: z.string().min(1).max(500).describe("Row title."),
+    properties: rowProperties.optional(),
+    markdown: z.string().optional().describe("Optional Markdown body for the row's page. With a template it replaces the template's body."),
+    template_id: z
+      .string()
+      .optional()
+      .describe('A row template of this database from list_templates, or "none" for a blank row even when the database has a default template.'),
+  }),
+  createDatabaseRows: z.object({
+    database_id: id("database"),
+    rows: z
+      .array(
+        z.object({
+          title: z.string().min(1).max(500).describe("Row title."),
+          properties: rowProperties.optional(),
+          markdown: z.string().optional().describe("Optional Markdown body for the row's page."),
+        }),
+      )
+      .min(1)
+      .max(MAX_BULK_ROWS)
+      .describe(`The rows to add (1-${MAX_BULK_ROWS}).`),
+  }),
+  updateDatabaseRow: z.object({
+    row_id: id("row"),
+    title: z.string().min(1).max(500).optional().describe("New row title."),
+    properties: rowProperties.optional(),
+  }),
+  updateDatabaseRows: z.object({
+    database_id: id("database"),
+    row_ids: z.array(z.string().min(1)).min(1).max(MAX_BULK_ROWS).describe(`Ids of the rows to change (1-${MAX_BULK_ROWS}).`),
+    properties: rowProperties,
+  }),
+  listComments: z.object({
+    page_id: id("page"),
+    include_resolved: z.boolean().default(false).describe("Also list resolved threads."),
+  }),
+  addComment: z.object({
+    page_id: id("page"),
+    text: z.string().min(1).max(MAX_COMMENT_LENGTH).describe("The comment."),
+    quote: z.string().min(1).max(1000).optional().describe("Start a new thread on this exact text of the page."),
+    thread_id: z.string().min(1).optional().describe("Reply in this thread instead."),
+  }),
+};
+
+type Args<K extends keyof typeof inputs> = z.infer<(typeof inputs)[K]>;
+
+// ---------------------------------------------------------------------------- helpers
+
+/** Loads a page with its parent, when the user can see it, and its database, if it is a row. */
+export async function loadPage(ctx: OperationContext, pageId: string) {
+  const page = await pages.getPage(ctx.userId, pageId);
+  const parent = page.parentId ? await pages.getPage(ctx.userId, page.parentId).catch(() => null) : null;
+  return { page, parent, parentDatabase: parent?.kind === "database" ? parent : null };
+}
+
+export async function rowOutput(ctx: OperationContext, databaseId: string, rowId: string) {
+  const { userId } = ctx;
+  const [{ database, properties }, row] = await Promise.all([databases.getDatabase(userId, databaseId), pages.getPage(userId, rowId)]);
+  return {
+    id: row.id,
+    title: pageLabel(row.title),
+    database_id: databaseId,
+    properties: displayProperties(
+      properties,
+      await databases.rowValues(userId, row, properties),
+      await databases.getLookups(userId, properties),
+      env.appUrl,
+    ),
+    url: pageUrl(database.workspaceId, row.id),
+  };
+}
+
+/** Where a new page goes: under `parentId` when given, else at the top of `workspaceId`. */
+export async function resolveLocation(ctx: OperationContext, workspaceId?: string, parentId?: string) {
+  if (parentId) {
+    const parent = await pages.getPage(ctx.userId, parentId);
+    if (parent.archivedAt) throw new ToolInputError("The parent page is in the trash. Choose another parent.");
+    return { workspaceId: parent.workspaceId, parentId, parentKind: parent.kind };
+  }
+  if (!workspaceId) {
+    throw new ToolInputError("Provide workspace_id (to create at the top level) or parent_id (to nest under a page).");
+  }
+  return { workspaceId, parentId: null, parentKind: null };
+}
+
+// ---------------------------------------------------------------------------- operations
+
+export async function listWorkspaces(ctx: OperationContext) {
+  const workspaces = await pages.listWorkspaces(ctx.userId);
+  return { workspaces: workspaces.map((w) => ({ id: w.id, name: w.name, role: w.role })) };
+}
+
+export async function search(ctx: OperationContext, { query, workspace_id, limit }: Args<"search">) {
+  const hits = await pages.searchPages(ctx.userId, query, { workspaceId: workspace_id, limit });
+  return {
+    results: hits.map((h) => ({
+      id: h.id,
+      title: pageLabel(h.title),
+      kind: h.kind,
+      workspace_id: h.workspaceId,
+      parent_id: h.parentId,
+      snippet: h.snippet,
+      updated_at: h.updatedAt.toISOString(),
+      url: pageUrl(h.workspaceId, h.id),
+    })),
+  };
+}
+
+export async function listPages(ctx: OperationContext, { workspace_id, parent_id }: Args<"listPages">) {
+  const children = await pages.listChildren(ctx.userId, workspace_id, parent_id ?? null);
+  return {
+    pages: children.map((c) => ({
+      id: c.id,
+      title: pageLabel(c.title),
+      kind: c.kind,
+      icon: c.icon,
+      updated_at: c.updatedAt.toISOString(),
+      url: pageUrl(workspace_id, c.id),
+    })),
+  };
+}
+
+/** `maxMarkdownChars` bounds the body returned (MCP keeps it to what a model reads at once). */
+export async function getPage(
+  ctx: OperationContext,
+  { page_id, offset }: Args<"getPage">,
+  { maxMarkdownChars }: { maxMarkdownChars?: number } = {},
+) {
+  const { userId } = ctx;
+  const { page, parent, parentDatabase } = await loadPage(ctx, page_id);
+  const [crumbs, content, workspaces] = await Promise.all([
+    pages.getBreadcrumbs(userId, page_id),
+    getCollab().readPage(page_id),
+    pages.listWorkspaces(userId),
+  ]);
+  const workspace = workspaces.find((w) => w.id === page.workspaceId);
+  // Mentioned pages read as their current title, as far as the user can see them.
+  const body = sliceText(await labelPageLinks(userId, content.markdown), offset, maxMarkdownChars);
+  const out: Record<string, unknown> = {
+    id: page.id,
+    title: pageLabel(content.title || page.title),
+    kind: page.kind,
+    icon: page.icon,
+    workspace_id: page.workspaceId,
+    // A parent they can't see stays unnamed, id included.
+    parent_id: parent?.id ?? null,
+    path: [workspace?.name ?? "Workspace", ...crumbs.map((c) => pageLabel(c.title))].join(" / "),
+    in_trash: Boolean(page.archivedAt),
+    updated_at: page.updatedAt.toISOString(),
+    url: pageUrl(page.workspaceId, page.id),
+  };
+  if (page.isTemplate) out.template = parentDatabase ? "row_template" : "page_template";
+  else if (page.inTemplate) out.template = "inside_template";
+  if (parentDatabase) {
+    const { properties } = await databases.getDatabase(userId, parentDatabase.id);
+    out.database_id = parentDatabase.id;
+    out.properties = displayProperties(
+      properties,
+      await databases.rowValues(userId, page, properties),
+      await databases.getLookups(userId, properties),
+      env.appUrl,
+    );
+  }
+  if (page.kind === "database") {
+    const { properties } = await databases.getDatabase(userId, page.id);
+    const lookups = await databases.getLookups(userId, properties);
+    out.database_properties = properties.map((p) => describeProperty(p, lookups, properties));
+    out.note = "This is a database. Use query_database to list its rows and get_database for its full schema.";
+  } else {
+    out.markdown = body.text;
+    if (body.truncated) {
+      out.markdown_truncated = true;
+      out.markdown_total_chars = body.totalChars;
+      if ("note" in body) out.note = body.note;
+    }
+    const embeds = await resolveEmbeds(userId, markdownReferences(content.markdown));
+    if (embeds.length) {
+      out.embedded_databases = embeds.map((e) => ({
+        database_id: e.databaseId,
+        kind: e.type === "database" ? "inline_database" : "linked_view",
+        // Seeing the page doesn't mean seeing the database: its title stays private then.
+        title: e.database ? pageLabel(e.database.title) : null,
+        accessible: Boolean(e.database),
+        in_trash: e.database?.inTrash ?? false,
+        url: e.database ? pageUrl(e.database.workspaceId, e.database.id) : null,
+      }));
+    }
+    const children = await pages.listChildren(userId, page.workspaceId, page.id);
+    out.child_pages = children.slice(0, 100).map((c) => ({ id: c.id, title: pageLabel(c.title), kind: c.kind }));
+    if (children.length > 100) out.child_pages_truncated = children.length;
+    const backlinks = await listBacklinks(userId, page.id);
+    if (backlinks.length) {
+      out.linked_from = backlinks.map((b) => ({ id: b.id, title: pageLabel(b.title), url: pageUrl(b.workspaceId, b.id) }));
+    }
+  }
+  return out;
+}
+
+export async function createPage(
+  ctx: OperationContext,
+  { workspace_id, parent_id, title, markdown, icon, template_id }: Args<"createPage">,
+) {
+  const { userId, actor } = ctx;
+  const location = await resolveLocation(ctx, workspace_id, parent_id);
+  if (location.parentKind === "database") {
+    throw new ToolInputError("parent_id is a database. Use create_database_row to add rows to it.");
+  }
+  if (template_id) {
+    let createdId: string;
+    if (template_id.startsWith("builtin:")) {
+      const key = template_id.slice("builtin:".length);
+      if (!isBuiltinTemplateKey(key)) throw new ToolInputError(`Unknown built-in template "${key}". Call list_templates for the keys.`);
+      createdId = (await templates.createFromBuiltin(actor, location.workspaceId, key, { parentId: location.parentId })).id;
+    } else {
+      const template = await pages.getPage(userId, template_id);
+      if (!template.isTemplate || template.parentId) {
+        throw new ToolInputError("template_id is not a page template. Call list_templates; row templates go to create_database_row.");
+      }
+      createdId = (await templates.createFromTemplate(actor, template_id, { parentId: location.parentId })).id;
+    }
+    if (title !== undefined) await pages.renamePage(actor, createdId, title);
+    if (icon !== undefined) await pages.setPageIcon(userId, createdId, icon);
+    if (markdown !== undefined) await getCollab().replaceContent(createdId, markdown, actor);
+    const created = await pages.getPage(userId, createdId);
+    return {
+      id: created.id,
+      title: pageLabel(created.title),
+      workspace_id: created.workspaceId,
+      parent_id: created.parentId,
+      from_template: template_id,
+      url: pageUrl(created.workspaceId, created.id),
+    };
+  }
+  if (title === undefined) throw new ToolInputError("Provide title (or template_id).");
+  const created = await pages.createPage(actor, {
+    workspaceId: location.workspaceId,
+    parentId: location.parentId,
+    title,
+    icon: icon ?? null,
+    markdown,
+  });
+  return {
+    id: created.id,
+    title: pageLabel(created.title),
+    workspace_id: created.workspaceId,
+    parent_id: created.parentId,
+    url: pageUrl(created.workspaceId, created.id),
+  };
+}
+
+/** `icon` (null clears it) is REST only: the MCP tool doesn't take it. */
+export async function updatePage(
+  ctx: OperationContext,
+  { page_id, title, markdown, mode, icon }: Args<"updatePage"> & { icon?: string | null },
+) {
+  const { userId, actor } = ctx;
+  if (title === undefined && markdown === undefined && icon === undefined) {
+    throw new ToolInputError("Provide title and/or markdown.");
+  }
+  const { page } = await loadPage(ctx, page_id);
+  if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in Esionage before editing.");
+  const changed: string[] = [];
+  if (markdown !== undefined) {
+    if (page.kind === "database") {
+      throw new ToolInputError("Databases have no text body. Use create_database_row or update_database_row.");
+    }
+    const collab = getCollab();
+    if (mode === "append") await collab.appendContent(page_id, markdown, actor, true);
+    else await collab.replaceContent(page_id, markdown, actor, true);
+    changed.push(mode === "append" ? "body (appended)" : "body (replaced)");
+  }
+  if (title !== undefined) {
+    await pages.renamePage(actor, page_id, title);
+    changed.push("title");
+  }
+  if (icon !== undefined) {
+    await pages.setPageIcon(userId, page_id, icon);
+    changed.push("icon");
+  }
+  return {
+    id: page.id,
+    changed,
+    ...(markdown !== undefined ? { snapshot: "Saved the previous version to page history before writing." } : {}),
+    url: pageUrl(page.workspaceId, page.id),
+  };
+}
+
+export async function archivePage(ctx: OperationContext, { page_id }: Args<"pageId">) {
+  const page = await pages.getPage(ctx.userId, page_id);
+  if (!page.archivedAt) await pages.archivePage(ctx.userId, page_id);
+  return {
+    id: page.id,
+    title: pageLabel(page.title),
+    in_trash: true,
+    note: page.archivedAt
+      ? "The page was already in the trash."
+      : "Moved to the trash with its sub-pages. It can be restored from the trash in Esionage.",
+  };
+}
+
+export async function restorePage(ctx: OperationContext, { page_id }: Args<"pageId">) {
+  const before = await pages.getPage(ctx.userId, page_id);
+  if (before.archivedAt) await pages.restorePage(ctx.userId, page_id);
+  const after = before.archivedAt ? await pages.getPage(ctx.userId, page_id) : before;
+  return {
+    id: after.id,
+    title: pageLabel(after.title),
+    parent_id: after.parentId,
+    in_trash: false,
+    ...(before.archivedAt
+      ? after.parentId !== before.parentId
+        ? { note: "Its old parent is still in the trash, so it was restored to the top level." }
+        : {}
+      : { note: "The page was not in the trash." }),
+    url: pageUrl(after.workspaceId, after.id),
+  };
+}
+
+export async function movePage(ctx: OperationContext, { page_id, parent_id }: Args<"movePage">) {
+  const { userId } = ctx;
+  const { page, parentDatabase } = await loadPage(ctx, page_id);
+  if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it with restore_page first.");
+  const parent = parent_id ? await pages.getPage(userId, parent_id) : null;
+  if (parent) {
+    if (parent.archivedAt) throw new ToolInputError("The new parent is in the trash. Choose another parent.");
+    if (parent.workspaceId !== page.workspaceId) throw new ToolInputError("Pages cannot be moved to another workspace.");
+    if (parent.kind === "database" && page.kind === "database") {
+      throw new ToolInputError("A database cannot be moved into another database.");
+    }
+    const ancestors = await pages.getBreadcrumbs(userId, parent.id);
+    if (ancestors.some((a) => a.id === page.id)) {
+      throw new ToolInputError("A page cannot be moved inside itself or one of its sub-pages.");
+    }
+  }
+  if ((parent?.id ?? null) !== page.parentId) await pages.movePage(userId, page_id, parent?.id ?? null);
+  const note =
+    parent?.kind === "database" && parentDatabase?.id !== parent.id
+      ? "The page is now a row of this database; set its properties with update_database_row."
+      : parentDatabase && parent?.id !== parentDatabase.id
+        ? "The page is no longer a database row."
+        : undefined;
+  return {
+    id: page.id,
+    title: pageLabel(page.title),
+    parent_id: parent?.id ?? null,
+    ...(note ? { note } : {}),
+    url: pageUrl(page.workspaceId, page.id),
+  };
+}
+
+export async function getDatabase(ctx: OperationContext, { database_id }: Args<"databaseId">) {
+  const { userId } = ctx;
+  const [{ database, properties, views }, rows] = await Promise.all([
+    databases.getDatabase(userId, database_id),
+    databases.listRows(userId, database_id),
+  ]);
+  const lookups = await databases.getLookups(userId, properties);
+  const links = await forms.formPublicationsOf(views.filter((v) => v.type === "form").map((v) => v.id));
+  return {
+    id: database.id,
+    title: pageLabel(database.title),
+    workspace_id: database.workspaceId,
+    in_trash: Boolean(database.archivedAt),
+    row_count: rows.length,
+    properties: [
+      { name: "title", type: "title", note: 'Every row\'s title; filter and sort on it with property "title".' },
+      ...properties.map((p) => describeProperty(p, lookups, properties)),
+    ],
+    views: views.map((v) => ({
+      id: v.id,
+      name: v.name,
+      type: v.type,
+      ...describeViewConfig(properties, v.config, lookups, v.type),
+      ...formLinkOutput(v.type, links.get(v.id)),
+    })),
+    url: pageUrl(database.workspaceId, database.id),
+  };
+}
+
+/** How a form view is shared, for tool output. */
+export function formLinkOutput(type: string, link: { url: string; anonymous: boolean } | null | undefined) {
+  if (type !== "form") return {};
+  return link ? { public_url: `${env.appUrl}${link.url}`, anonymous: link.anonymous } : { public_url: null };
+}
+
+/**
+ * Rows matching the filters, `limit` of them from `offset` on (REST pages through them; MCP reads
+ * the first ones). A chart view also returns what it plots, over every matching row.
+ */
+export async function queryDatabase(
+  ctx: OperationContext,
+  { database_id, filters, filter_combinator, sorts, view_id, limit }: Args<"queryDatabase">,
+  { offset = 0 }: { offset?: number } = {},
+) {
+  const { userId } = ctx;
+  const { database, properties, views } = await databases.getDatabase(userId, database_id);
+  const props: PropertyDef[] = properties;
+  const lookups = await databases.getLookups(userId, properties);
+  const view = view_id ? views.find((v) => v.id === view_id) : undefined;
+  if (view_id && !view) throw new ToolInputError(`No view with id "${view_id}" in this database.`);
+  // The view's filters and the caller's each keep their own combinator; rows must match both.
+  const own = { type: "group", combinator: filter_combinator ?? "and", rules: toFilterEntries(props, filters ?? [], lookups) } as const;
+  const saved = { type: "group", combinator: view?.config.filterCombinator ?? "and", rules: view?.config.filters ?? [] } as const;
+  const rows = await databases.listRows(userId, database_id, {
+    filters: [saved, own].filter((g) => g.rules.length),
+    sorts: sorts?.length ? sorts.map((s) => toSortRule(props, s)) : (view?.config.sorts ?? []),
+  });
+  const window = rows.slice(offset, offset + limit);
+  return {
+    database_id: database.id,
+    title: pageLabel(database.title),
+    total: rows.length,
+    returned: window.length,
+    rows: window.map((r) => ({
+      id: r.id,
+      title: pageLabel(r.title),
+      properties: displayProperties(props, r.properties, lookups, env.appUrl),
+      url: pageUrl(database.workspaceId, r.id),
+    })),
+    ...(rows.length > offset + limit ? { note: `Only the first ${limit} rows are shown; narrow the filters or raise limit.` } : {}),
+    ...(view?.type === "chart"
+      ? {
+          chart: {
+            ...describeViewConfig(props, { ...view.config, filters: undefined, sorts: undefined }, lookups, "chart"),
+            ...describeChartSeries(props, view.config, rows, lookups),
+          },
+        }
+      : {}),
+  };
+}
+
+export async function createDatabaseRow(
+  ctx: OperationContext,
+  { database_id, title, properties, markdown, template_id }: Args<"createDatabaseRow">,
+) {
+  const { userId, actor } = ctx;
+  const { database } = await databases.getDatabase(userId, database_id);
+  if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
+  const blank = template_id === "none";
+  const noValues = !Object.keys(properties ?? {}).length && markdown === undefined;
+  if (!blank && (template_id || noValues)) {
+    const created = await templates.createRow(actor, database.id, {
+      title,
+      properties: properties ?? {},
+      templateId: template_id ?? null,
+      useDefault: noValues,
+    });
+    if (markdown !== undefined) await getCollab().replaceContent(created.id, markdown, actor);
+    const output = await rowOutput(ctx, database.id, created.id);
+    return created.templateId ? { ...output, from_template: created.templateId } : output;
+  }
+  const created = await pages.createPage(actor, {
+    workspaceId: database.workspaceId,
+    parentId: database.id,
+    title,
+    properties: properties ?? {},
+    markdown,
+  });
+  return rowOutput(ctx, database.id, created.id);
+}
+
+export async function createDatabaseRows(ctx: OperationContext, { database_id, rows }: Args<"createDatabaseRows">) {
+  const { userId, actor } = ctx;
+  const { database } = await databases.getDatabase(userId, database_id);
+  if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
+  const created = await databases.createRows(userId, database.id, rows);
+  const collab = getCollab();
+  for (const [i, row] of created.entries()) {
+    const markdown = rows[i].markdown;
+    if (markdown?.trim()) await collab.replaceContent(row.id, markdown, actor);
+  }
+  return {
+    database_id: database.id,
+    created: created.length,
+    rows: created.map((r) => ({ id: r.id, title: pageLabel(r.title), url: pageUrl(database.workspaceId, r.id) })),
+    url: pageUrl(database.workspaceId, database.id),
+  };
+}
+
+/** A database row with its property values (REST only; MCP reads rows with get_page). */
+export async function getDatabaseRow(ctx: OperationContext, { row_id }: { row_id: string }) {
+  const { parentDatabase } = await loadPage(ctx, row_id);
+  if (!parentDatabase) throw new ToolInputError("This page is not a database row.");
+  return rowOutput(ctx, parentDatabase.id, row_id);
+}
+
+export async function updateDatabaseRow(ctx: OperationContext, { row_id, title, properties }: Args<"updateDatabaseRow">) {
+  const { userId, actor } = ctx;
+  if (title === undefined && !properties) throw new ToolInputError("Provide title and/or properties.");
+  const { page, parentDatabase } = await loadPage(ctx, row_id);
+  if (!parentDatabase) throw new ToolInputError("This page is not a database row. Use update_page for regular pages.");
+  if (page.archivedAt) throw new ToolInputError("This row is in the trash.");
+  if (properties && Object.keys(properties).length) await databases.updateRowProperties(userId, row_id, properties);
+  if (title !== undefined) await pages.renamePage(actor, row_id, title);
+  const out = await rowOutput(ctx, parentDatabase.id, row_id);
+  // The rename lands in the live document first; report the new title right away.
+  return title !== undefined ? { ...out, title } : out;
+}
+
+export async function updateDatabaseRows(
+  ctx: OperationContext,
+  { database_id, row_ids, properties }: Args<"updateDatabaseRows">,
+) {
+  if (!Object.keys(properties).length) throw new ToolInputError("Provide at least one property value.");
+  const { database } = await databases.getDatabase(ctx.userId, database_id);
+  if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
+  const { done, skipped } = await databases.updateRowsProperties(ctx.userId, database.id, row_ids, properties);
+  return {
+    database_id: database.id,
+    updated: done.length,
+    ...(skipped.length ? { skipped_row_ids: skipped } : {}),
+    url: pageUrl(database.workspaceId, database.id),
+  };
+}
+
+export async function listComments(ctx: OperationContext, { page_id, include_resolved }: Args<"listComments">) {
+  const { userId } = ctx;
+  const page = await pages.getPage(userId, page_id);
+  const threads = (await comments.listComments(userId, page_id)).filter((t) => include_resolved || !t.resolved);
+  const people = await comments.commentUsers(
+    userId,
+    page_id,
+    threads.flatMap((t) => t.comments.map((c) => c.userId)),
+  );
+  const names = new Map(people.map((p) => [p.id, p.username]));
+  return {
+    page_id: page.id,
+    title: pageLabel(page.title),
+    threads: threads.map((t) => ({
+      id: t.id,
+      quote: t.quote ?? null,
+      resolved: t.resolved,
+      comments: t.comments.map((c) => ({
+        id: c.id,
+        author: names.get(c.userId) ?? "Unknown",
+        author_id: c.userId,
+        created_at: c.createdAt,
+        ...(c.updatedAt !== c.createdAt ? { edited_at: c.updatedAt } : {}),
+        text: commentText(c.body),
+        ...(c.reactions.length ? { reactions: c.reactions.map((r) => ({ emoji: r.emoji, count: r.userIds.length })) } : {}),
+      })),
+    })),
+    url: pageUrl(page.workspaceId, page.id),
+  };
+}
+
+export async function addComment(ctx: OperationContext, { page_id, text, quote, thread_id }: Args<"addComment">) {
+  const { userId } = ctx;
+  if (!quote === !thread_id) throw new ToolInputError("Pass either quote (to start a thread) or thread_id (to reply), not both.");
+  const page = await pages.getPage(userId, page_id);
+  const result = thread_id
+    ? await comments.changeComments(userId, page_id, { type: "addComment", threadId: thread_id, body: text })
+    : await comments.changeComments(userId, page_id, { type: "createThread", body: text, anchor: { quote: quote! } }).catch((error) => {
+        if (error instanceof Error && error.message.includes("quoted text")) {
+          throw new ToolInputError(
+            "The page doesn't have that exact text within one paragraph. Copy a short passage from get_page's markdown, without formatting characters.",
+          );
+        }
+        throw error;
+      });
+  return {
+    thread_id: result.thread?.id,
+    comment_id: result.comment?.id,
+    url: pageUrl(page.workspaceId, page.id),
+  };
+}
