@@ -832,7 +832,7 @@ export type RelationTargetRow = { id: string; title: string; icon: string | null
 export type RelationTarget = {
   /** Null when the related database was deleted or is in the trash. */
   database: { id: string; title: string; icon: string | null } | null;
-  /** Name of the paired property on the related database, for two-way relations. */
+  /** Name of the paired property on the related database, for two-way relations; null when hidden. */
   pairedName: string | null;
   /** Live rows of the related database, in manual order: link candidates and display titles. */
   rows: RelationTargetRow[];
@@ -876,7 +876,8 @@ export async function getRelationTargets(
     const pairedId = prop.options.relation?.pairedPropertyId;
     out[prop.id] = {
       database,
-      pairedName: (pairedId && paired.find((p) => p.id === pairedId)?.name) || null,
+      // The paired property lives on the related database: named only for those who can see it.
+      pairedName: (database && pairedId && paired.find((p) => p.id === pairedId)?.name) || null,
       rows: database
         ? rows.filter((r) => r.parentId === targetId).map(({ id, title, icon }) => ({ id, title, icon }))
         : [],

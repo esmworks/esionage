@@ -151,11 +151,11 @@ export function createMcpServer(principal: McpPrincipal) {
     }
   };
 
-  /** Loads a page with its database parent, if it is a row. */
+  /** Loads a page with its parent, when the user can see it, and its database, if it is a row. */
   const loadPage = async (pageId: string) => {
     const page = await pages.getPage(userId, pageId);
     const parent = page.parentId ? await pages.getPage(userId, page.parentId).catch(() => null) : null;
-    return { page, parentDatabase: parent?.kind === "database" ? parent : null };
+    return { page, parent, parentDatabase: parent?.kind === "database" ? parent : null };
   };
 
   const rowOutput = async (databaseId: string, rowId: string) => {
@@ -275,7 +275,7 @@ export function createMcpServer(principal: McpPrincipal) {
     },
     ({ page_id, offset }) =>
       runTool(async () => {
-        const { page, parentDatabase } = await loadPage(page_id);
+        const { page, parent, parentDatabase } = await loadPage(page_id);
         const [crumbs, content, workspaces] = await Promise.all([
           pages.getBreadcrumbs(userId, page_id),
           getCollab().readPage(page_id),
@@ -289,7 +289,8 @@ export function createMcpServer(principal: McpPrincipal) {
           kind: page.kind,
           icon: page.icon,
           workspace_id: page.workspaceId,
-          parent_id: page.parentId,
+          // A parent they can't see stays unnamed, id included.
+          parent_id: parent?.id ?? null,
           path: [workspace?.name ?? "Workspace", ...crumbs.map((c) => pageLabel(c.title))].join(" / "),
           in_trash: Boolean(page.archivedAt),
           updated_at: page.updatedAt.toISOString(),

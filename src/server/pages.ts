@@ -381,11 +381,15 @@ export async function searchPages(
     updated_at: Date;
     rank: number;
   }>(sql`
-    select p.id, p.workspace_id, p.parent_id, p.kind, p.title, p.icon, p.content_text, p.updated_at,
+    select p.id, p.workspace_id,
+      -- A parent they can't see isn't named, not even by id.
+      case when p.parent_id is not null and ${pageVisibleTo(userId, "parent")} then p.parent_id end as parent_id,
+      p.kind, p.title, p.icon, p.content_text, p.updated_at,
       (case when p.title ilike ${like} then 2 else 0 end)
       + ts_rank(to_tsvector('simple', coalesce(p.title, '') || ' ' || coalesce(p.content_text, '')),
                 plainto_tsquery('simple', ${q})) as rank
     from ${page} p
+    left join ${page} parent on parent.id = p.parent_id
     where p.archived_at is null
       and ${pageVisibleTo(userId, "p")}
       ${workspaceId ? sql`and p.workspace_id = ${workspaceId}` : sql``}

@@ -2,8 +2,9 @@
  * End-to-end check of page permissions against the database: defaults, inheritance, widening and
  * narrowing on subpages, visibility in lists, shared pages showing up as top-level pages, and the
  * guard that keeps someone with full access on every page, what guests can and can't see, rows
- * restricted inside a database, moving pages, what a publication exposes, and sharing by email. Creates its own users and workspace
- * and deletes them afterwards.
+ * restricted inside a database, moving pages, what a publication exposes, sharing by email, and
+ * every read path (UI, MCP tools, collab) keeping a restricted page out of sight. Creates its own
+ * users and workspace and deletes them afterwards.
  *
  *   pnpm tsx scripts/access-e2e.ts
  *
@@ -18,17 +19,34 @@ try {
 // Imported after .env is loaded: the database client reads DATABASE_URL when it is created.
 const { inArray } = await import("drizzle-orm");
 const { db } = await import("@/db");
-const { page, pageInvitation, pagePublication, user, workspace, workspaceInvitation, workspaceMember } = await import(
-  "@/db/schema"
-);
+const { page, pageInvitation, pagePublication, pageSnapshot, user, workspace, workspaceInvitation, workspaceMember } =
+  await import("@/db/schema");
+const { InMemoryTransport } = await import("@modelcontextprotocol/server");
+const { authorizeCollab } = await import("@/server/collab/authorize");
+const { createMcpServer } = await import("@/server/mcp/tools");
+const { READ_SCOPE } = await import("@/server/mcp/principal");
+const { getPageHeaderInfo, listFavorites, setFavorite } = await import("@/server/page-meta");
 const { registerCollab } = await import("@/server/collab/bridge");
-const { listRows } = await import("@/server/databases");
+const { addProperty, getDatabaseSnapshot, getRow, listRows, listWorkspaceDatabases, updateRowProperties } = await import(
+  "@/server/databases"
+);
 const { duplicatePage } = await import("@/server/duplicate");
 const { getPublishedPage } = await import("@/server/publication");
 const { AccessError, getMembership, requirePageAccess, resolvePageAccess } = await import("@/server/access");
-const { createPage, getBreadcrumbs, getTree, listChildren, movePage, recentPages, searchPages } = await import(
-  "@/server/pages"
-);
+const {
+  archivePage,
+  createPage,
+  getBreadcrumbs,
+  getPage,
+  getSnapshot,
+  getTree,
+  listChildren,
+  listSnapshots,
+  listTrash,
+  movePage,
+  recentPages,
+  searchPages,
+} = await import("@/server/pages");
 const {
   acceptInvitation,
   canInviteGuests,
@@ -51,7 +69,14 @@ const {
 const RUN = `access-e2e-${Date.now().toString(36)}`;
 
 // Writes notify open editors through the collab service, which only runs inside the app server.
-registerCollab({ broadcast() {}, async setTitle() {}, async disconnectUser() {} } as unknown as Parameters<typeof registerCollab>[0]);
+registerCollab({
+  broadcast() {},
+  async setTitle() {},
+  async disconnectUser() {},
+  async readPage() {
+    return { title: "", markdown: "", text: "" };
+  },
+} as unknown as Parameters<typeof registerCollab>[0]);
 
 let passed = 0;
 function check(condition: unknown, label: string, detail?: unknown): asserts condition {
@@ -76,6 +101,36 @@ async function rejects(fn: () => Promise<unknown>, test: (error: unknown) => boo
 
 const isCode = (code: string) => (error: unknown) => error instanceof PermissionError && error.code === code;
 const isAccessError = (error: unknown) => error instanceof AccessError;
+
+/** Calls an MCP tool as `userId` with read access, the way a connected AI app would. */
+async function callTool(userId: string, name: string, args: Record<string, unknown>) {
+  const server = createMcpServer({ userId, clientId: `${RUN}-client`, scopes: [READ_SCOPE] });
+  const [client, serverSide] = InMemoryTransport.createLinkedPair();
+  const inbox: { id?: unknown; result?: { isError?: boolean; content: { text: string }[] } }[] = [];
+  client.onmessage = (m) => void inbox.push(m as (typeof inbox)[number]);
+  await server.connect(serverSide);
+  await client.start();
+  const waitFor = async (id: number) => {
+    for (let i = 0; i < 400; i++) {
+      const hit = inbox.find((m) => m.id === id);
+      if (hit) return hit;
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    throw new Error(`no MCP response for ${name}`);
+  };
+  await client.send({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "access-e2e", version: "1" } },
+  });
+  await waitFor(1);
+  await client.send({ jsonrpc: "2.0", method: "notifications/initialized" });
+  await client.send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name, arguments: args } });
+  const result = (await waitFor(2)).result!;
+  await server.close();
+  return { isError: Boolean(result.isError), text: result.content[0].text };
+}
 
 async function levels(pageId: string, ...userIds: string[]) {
   return Promise.all(userIds.map(async (id) => (await resolvePageAccess(id, pageId)).level));
@@ -364,6 +419,142 @@ try {
   await removePagePermission(alice, G, owner);
   await removePagePermission(owner, G, null);
   check((await levels(G, bob))[0] === "view", "removing an entry restores the inherited level");
+
+  // Leak points: a page kept to the owner stays out of every read path, for a member without
+  // access and for a guest. Its words must not show up in anything they can read.
+  const SECRETS = ["zebracorn", "Secret", "Hidden row", "Back to visible"];
+  const [S, S1, S2, S3] = ["S", "S1", "S2", "S3"].map((name) => `${RUN}-${name}`);
+  await db
+    .insert(page)
+    .values({ ...P("S", null, 9), title: "Secret zebracorn", contentText: "the zebracorn plan", contentMarkdown: "the zebracorn plan" });
+  await db.insert(page).values([
+    { ...P("S1", "S", 1), title: "Secret child", contentText: "zebracorn details" },
+    { ...P("S2", "S", 2), title: "Secret trashed" },
+    { ...P("S3", "S", 3), title: "Open page" },
+  ]);
+  await setFavorite(bob, S, true); // starred while it was still open to members
+  await setPagePermission(owner, S, owner, "full");
+  await setPagePermission(owner, S, null, "none");
+  await setPagePermission(owner, S3, bob, "view");
+  await setPagePermission(owner, S3, guest, "view");
+  await archivePage(owner, S2);
+  const [snap] = await db
+    .insert(pageSnapshot)
+    .values({ pageId: S, title: "Secret zebracorn", ydoc: Buffer.alloc(0), contentMarkdown: "zebracorn", reason: "manual" })
+    .returning();
+  const SD = (await createPage({ userId: owner }, { workspaceId, parentId: S, kind: "database", title: "Secret db" })).id;
+  const SD1 = (await createPage({ userId: owner }, { workspaceId, parentId: SD, title: "Hidden row" })).id;
+  const VD = (await createPage({ userId: owner }, { workspaceId, kind: "database", title: "Visible db" })).id;
+  await setPagePermission(owner, VD, guest, "edit");
+  await addProperty(owner, VD, {
+    name: "Links",
+    type: "relation",
+    relation: { databaseId: SD, twoWay: true, pairedName: "Back to visible" },
+  });
+  const VR = (await createPage({ userId: owner }, { workspaceId, parentId: VD, title: "Visible row" })).id;
+  await updateRowProperties(owner, VR, { Links: [SD1] });
+  check(
+    JSON.stringify(await getDatabaseSnapshot(owner, VD)).includes("Hidden row"),
+    "the owner sees the linked row (the test setup works)",
+  );
+  const hidden = [S, S1, S2, SD, SD1];
+
+  for (const [who, u] of [["member", bob], ["guest", guest]] as const) {
+    const idsOf = (list: { id: string }[]) => list.map((p) => p.id);
+    const leaked = (value: unknown) => {
+      const text = typeof value === "string" ? value : JSON.stringify(value);
+      return [...SECRETS, ...hidden.map((id) => JSON.stringify(id))].filter((needle) => text.includes(needle));
+    };
+    const reads = {
+      search: await searchPages(u, "zebracorn", { workspaceId }),
+      searchTitle: await searchPages(u, "Secret", { workspaceId }),
+      tree: await getTree(u, workspaceId),
+      top: await listChildren(u, workspaceId, null),
+      recent: await recentPages(u, workspaceId, 50),
+      favorites: await listFavorites(u, workspaceId),
+      trash: await listTrash(u, workspaceId),
+      databases: await listWorkspaceDatabases(u, workspaceId),
+      breadcrumbs: await getBreadcrumbs(u, S3),
+      openPage: await getPage(u, S3),
+      visibleDb: await getDatabaseSnapshot(u, VD),
+      visibleRows: await listRows(u, VD),
+      visibleRow: await getRow(u, VR),
+    };
+    // Ids without titles are allowed in two places: the page itself names its real parent (moving
+    // it decides from that whether access changes), and a row's relation values keep links to rows
+    // they can't see (so editing the cell keeps them), as does the schema the related database.
+    const idsAllowed = new Set(["openPage", "visibleDb", "visibleRows", "visibleRow"]);
+    for (const [name, value] of Object.entries(reads)) {
+      const found = idsAllowed.has(name) ? SECRETS.filter((w) => JSON.stringify(value).includes(w)) : leaked(value);
+      check(!found.length, `${who}: ${name} shows nothing restricted`, found);
+    }
+    check(idsOf(reads.search).length === 0, `${who}: search finds no restricted text`);
+    const openHit = (await searchPages(u, "Open page", { workspaceId })).find((h) => h.id === S3);
+    check(openHit?.parentId === null, `${who}: a search hit doesn't name a parent they can't see`, openHit);
+    const relation = Object.values(reads.visibleDb.relations)[0];
+    check(
+      relation?.database === null && relation.rows.length === 0 && relation.pairedName === null,
+      `${who}: a relation to a database they can't see names neither it nor its rows`,
+      relation,
+    );
+    await rejects(
+      () => updateRowProperties(u, VR, { Links: ["Hidden row"] }),
+      (error) => (error as { code?: string }).code === "invalidRelation",
+      `${who}: a hidden row can't be found by its title`,
+    );
+
+    for (const [name, read] of [
+      ["page", () => getPage(u, S)],
+      ["subpage", () => getPage(u, S1)],
+      ["breadcrumbs", () => getBreadcrumbs(u, S1)],
+      ["subpages", () => listChildren(u, workspaceId, S)],
+      ["page history", () => listSnapshots(u, S)],
+      ["a version", () => getSnapshot(u, snap.id)],
+      ["page header", () => getPageHeaderInfo(u, S)],
+      ["sharing", () => listPagePermissions(u, S)],
+      ["database", () => getDatabaseSnapshot(u, SD)],
+      ["database rows", () => listRows(u, SD)],
+      ["row", () => getRow(u, SD1)],
+      ["live page", () => authorizeCollab(u, { kind: "page", id: S })],
+      ["live database", () => authorizeCollab(u, { kind: "db", id: SD })],
+    ] as const) {
+      await rejects(read, isAccessError, `${who}: ${name} is refused`);
+    }
+    check((await authorizeCollab(u, { kind: "page", id: S3 })).readOnly, `${who}: a page they may view opens read-only`);
+
+    // The same through the MCP tools an AI app uses
+    const tools: [string, Record<string, unknown>][] = [
+      ["search", { query: "zebracorn" }],
+      ["search", { query: "Secret" }],
+      ["list_pages", { workspace_id: workspaceId }],
+      ["list_recent_pages", { workspace_id: workspaceId }],
+      ["list_trash", { workspace_id: workspaceId }],
+      ["get_page", { page_id: S3 }],
+      ["get_database", { database_id: VD }],
+      ["query_database", { database_id: VD }],
+      ["get_page", { page_id: VR }],
+    ];
+    for (const [tool, args] of tools) {
+      const r = await callTool(u, tool, args);
+      check(!r.isError && !leaked(r.text).length, `${who}: MCP ${tool} ${JSON.stringify(args)} shows nothing restricted`, r.text);
+    }
+    for (const [tool, args] of [
+      ["get_page", { page_id: S }],
+      ["list_pages", { workspace_id: workspaceId, parent_id: S }],
+      ["list_page_history", { page_id: S }],
+      ["get_page_version", { version_id: snap.id }],
+      ["query_database", { database_id: SD }],
+    ] as const) {
+      const r = await callTool(u, tool, args);
+      check(r.isError && !leaked(r.text).length, `${who}: MCP ${tool} on a restricted page is refused`, r.text);
+    }
+  }
+  check((await callTool(guest, "list_users", { workspace_id: workspaceId })).isError, "guest: MCP list_users is refused");
+  await rejects(
+    () => authorizeCollab(`${RUN}-nobody`, { kind: "ws", id: workspaceId }),
+    isAccessError,
+    "someone outside the workspace gets none of its live signals",
+  );
 
   // Ownership goes to members only
   await rejects(

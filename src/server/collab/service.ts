@@ -7,7 +7,8 @@ import { page, pageSnapshot, type SnapshotReason } from "@/db/schema";
 import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { migrateDocTitle, readDocTitle, writeDocTitle } from "@/lib/collab-title";
-import { AccessError, hasLevel, requireMembership, resolvePageAccess } from "@/server/access";
+import { AccessError } from "@/server/access";
+import { authorizeCollab, parseDocName as parseName } from "./authorize";
 import type { Channel, CollabService, PageContent, WriteActor } from "./bridge";
 import { verifyCollabToken } from "./token";
 
@@ -17,11 +18,6 @@ const AUTO_SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
 const debug = process.env.COLLAB_DEBUG ? (...args: unknown[]) => console.log("[collab]", ...args) : () => {};
 
 const editor = ServerBlockNoteEditor.create();
-
-function parseName(name: string): { kind: "page" | "ws" | "db"; id: string } | null {
-  const match = /^(page|ws|db):([\w-]+)$/.exec(name);
-  return match ? { kind: match[1] as "page" | "ws" | "db", id: match[2] } : null;
-}
 
 const pageDocName = (pageId: string) => `page:${pageId}`;
 
@@ -106,13 +102,9 @@ export function createCollab() {
       const target = parseName(documentName);
       if (!user || !target) throw new Error("unauthorized");
       try {
-        if (target.kind === "ws") await requireMembership(user.userId, target.id);
-        else {
-          const { level } = await resolvePageAccess(user.userId, target.id);
-          if (!hasLevel(level, "view")) throw new AccessError();
-          // People who may only read get the live document but their edits are dropped.
-          connectionConfig.readOnly = !hasLevel(level, "edit");
-        }
+        // People who may only read get the live document but their edits are dropped.
+        const { readOnly } = await authorizeCollab(user.userId, target);
+        if (readOnly) connectionConfig.readOnly = true;
       } catch (error) {
         if (error instanceof AccessError) throw new Error("forbidden");
         throw error;

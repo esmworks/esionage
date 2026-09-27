@@ -224,7 +224,8 @@ export function describeProperty(prop: PropertyDef, lookups: Lookups = NO_LOOKUP
       : {}),
     ...(relation
       ? {
-          related_database_id: relation.databaseId,
+          // A related database they can't see isn't named, not even by id.
+          ...(target && !target.database ? {} : { related_database_id: relation.databaseId }),
           ...(target?.database ? { related_database: pageLabel(target.database.title) } : {}),
           two_way: Boolean(relation.pairedPropertyId),
           ...(target?.pairedName ? { paired_property: target.pairedName } : {}),
