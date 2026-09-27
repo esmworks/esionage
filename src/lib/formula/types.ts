@@ -43,6 +43,11 @@ export const FORMULA_ERROR_CODES = [
   "invalidDate",
   "notFinite",
   "resultTooLong",
+  // Rollups whose settings no longer work (see lib/rollup), shown in every row like a broken formula.
+  "rollupRelation",
+  "rollupTarget",
+  "rollupFunction",
+  "rollupDepth",
 ] as const;
 export type FormulaErrorCode = (typeof FORMULA_ERROR_CODES)[number];
 

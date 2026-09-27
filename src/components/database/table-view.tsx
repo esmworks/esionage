@@ -235,6 +235,7 @@ export function TableView({
                   hide: () => setConfig({ ...view.config, hidden: [...(view.config.hidden ?? []), p.id] }),
                   setOptions: locked ? undefined : (options) => api.setOptions(p, options),
                   setFormula: locked ? undefined : (expression) => api.setFormula(p, expression),
+                  setRollup: locked ? undefined : (rollup) => api.setRollup(p, rollup),
                   remove: locked ? undefined : () => api.deleteProperty(p.id),
                 }}
               />

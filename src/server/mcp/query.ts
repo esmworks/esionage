@@ -29,7 +29,7 @@ import {
   TITLE_KEY,
   UPDATED_KEY,
 } from "@/lib/properties";
-import { derivedType, formulaForEditing, valueType } from "@/lib/derived";
+import { derivedType, formulaForEditing, rollupFormat, TITLE_FIELD, valueType } from "@/lib/derived";
 import { holdsOptions, holdsPeople, holdsTimestamp, isDerived, isReadOnlyType, PERSON_ME, STATUS_GROUPS } from "@/lib/property-types";
 
 export type PropertyDef = { id: string; name: string; type: PropertyType; options: PropertyOptions };
@@ -37,7 +37,13 @@ export type PropertyDef = { id: string; name: string; type: PropertyType; option
 /** Related database and its live rows per relation property id (see databases.getRelationTargets). */
 export type RelationTargets = Record<
   string,
-  { database: { id: string; title: string } | null; pairedName?: string | null; rows: { id: string; title: string }[] }
+  {
+    database: { id: string; title: string } | null;
+    pairedName?: string | null;
+    rows: { id: string; title: string }[];
+    /** The related database's properties (rollups name the one they read). */
+    properties?: PropertyDef[];
+  }
 >;
 
 /** People person properties can show and hold (see databases.getPeople). */
@@ -346,6 +352,7 @@ export function describeProperty(prop: PropertyDef, lookups: Lookups = NO_LOOKUP
     ...(prop.type === "formula"
       ? { formula: formulaForEditing(prop.options.formula?.expression ?? "", props), result_type: derivedType(prop) }
       : {}),
+    ...(prop.type === "rollup" ? { rollup: describeRollup(prop, lookups, props) } : {}),
     ...(holdsOptions(prop.type) ? { options: (prop.options.options ?? []).map((o) => o.name) } : {}),
     ...(prop.type === "status" ? { status_groups: statusGroups(prop) } : {}),
     ...(relation
@@ -365,6 +372,29 @@ export function describeProperty(prop: PropertyDef, lookups: Lookups = NO_LOOKUP
         }
       : {}),
     ...(isReadOnlyType(prop.type) ? { read_only: true } : {}),
+  };
+}
+
+/**
+ * What a rollup calculates, by names: its relation, the related database's property ("title"
+ * for the related rows' titles; null when gone or hidden), the function and what values it gives.
+ */
+function describeRollup(prop: PropertyDef, lookups: Lookups, props: PropertyDef[]) {
+  const config = prop.options.rollup;
+  const relation = props.find((p) => p.id === config?.relationPropertyId && p.type === "relation");
+  const target =
+    config?.targetPropertyId === TITLE_FIELD
+      ? TITLE_FIELD
+      : (relation && lookups.relations[relation.id]?.properties?.find((p) => p.id === config?.targetPropertyId)?.name) || null;
+  const format = rollupFormat(config?.function);
+  return {
+    relation: relation?.name ?? null,
+    property: target,
+    function: config?.function ?? null,
+    result_type: derivedType(prop),
+    // Percentages are fractions (0.25 = 25%) in values; filters compare percent points (25).
+    format,
+    ...(format === "percent" ? { display: config?.display ?? "number" } : {}),
   };
 }
 

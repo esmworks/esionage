@@ -22,7 +22,7 @@ import {
   requiredFilterRules,
   valueDay,
 } from "./filters";
-import { derivedType, isErrorValue } from "./derived";
+import { derivedType, isErrorValue, rollupFormat } from "./derived";
 import {
   holdsOptions,
   holdsPeople,
@@ -68,6 +68,7 @@ export const DATABASE_ERROR_CODES = [
   "unsupportedViewType",
   "tooManyRows",
   "invalidFormula",
+  "invalidRollup",
 ] as const;
 export type DatabaseErrorCode = (typeof DATABASE_ERROR_CODES)[number];
 export type DatabaseErrorParams = Record<string, string>;
@@ -395,7 +396,10 @@ function liveValue(row: RowLike, key: string, prop: PropertyDef | undefined): un
   if (prop && holdsTimestamp(prop.type)) return localDay(v);
   if (prop && isDerived(prop.type)) {
     const plain = derivedSortValue(v);
-    return derivedType(prop) === "date" ? valueDay(plain) : plain;
+    if (derivedType(prop) === "date") return valueDay(plain);
+    // Rollup percentages are fractions (0.25); filters compare the percent people see (25).
+    const percent = prop.type === "rollup" && rollupFormat(prop.options.rollup?.function) === "percent";
+    return percent && typeof plain === "number" ? plain * 100 : plain;
   }
   if (!prop || !holdsOptions(prop.type)) return v;
   const known = (id: unknown) => (prop.options.options ?? []).some((o) => o.id === id);
@@ -626,6 +630,7 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
         { op: "is_empty", label: "isUnchecked" },
       ];
     case "formula":
+    case "rollup":
       // Callers pass a derived property's result type (see lib/derived valueType); text is the fallback.
       return filterOperators("text");
   }

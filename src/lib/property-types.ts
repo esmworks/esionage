@@ -18,6 +18,7 @@ export const PROPERTY_TYPES = [
   "last_edited_by",
   "last_edited_time",
   "formula",
+  "rollup",
 ] as const;
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
 
@@ -40,9 +41,12 @@ export function isComputed(type: string) {
   return type === "created_by" || type === "created_time" || type === "last_edited_by" || type === "last_edited_time";
 }
 
-/** Types whose values are worked out from other values of the row when it is read: never stored, never written. */
+/**
+ * Types whose values are worked out when rows are read, never stored or written: formulas from
+ * the row's other values, rollups from the rows it links to.
+ */
 export function isDerived(type: string) {
-  return type === "formula";
+  return type === "formula" || type === "rollup";
 }
 
 /** Types nobody writes: system values and derived values. */

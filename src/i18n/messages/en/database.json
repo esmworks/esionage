@@ -18,7 +18,8 @@
     "createdTime": "Created time",
     "lastEditedBy": "Last edited by",
     "lastEditedTime": "Last edited time",
-    "formula": "Formula"
+    "formula": "Formula",
+    "rollup": "Rollup"
   },
   "views": {
     "table": "Table",
@@ -313,7 +314,9 @@
     "addToGroup": "Add an option to {group}",
     "readOnlyHint": "Filled in automatically",
     "editFormula": "Edit formula",
-    "formulaHint": "Calculated by a formula"
+    "formulaHint": "Calculated by a formula",
+    "editRollup": "Edit rollup",
+    "rollupHint": "Calculated from related rows"
   },
   "rowProperties": {
     "noProperties": "No properties",
@@ -441,7 +444,8 @@
     "tooManyRows": "You can change at most {max} rows at once.",
     "invalidFormula": "The formula for “{property}” has an error: {message}",
     "invalidViewConfig": "These view settings can’t be saved. Reload the page and try again.",
-    "unsupportedViewType": "Unsupported view type “{type}”."
+    "unsupportedViewType": "Unsupported view type “{type}”.",
+    "invalidRollup": "The rollup “{property}” can’t be saved: {message}"
   },
   "formula": {
     "title": "Formula",
@@ -499,7 +503,11 @@
       "notANumber": "“{value}” is not a number.",
       "invalidDate": "“{value}” is not a date (use YYYY-MM-DD).",
       "notFinite": "The result is not a finite number.",
-      "resultTooLong": "The text is longer than {max} characters."
+      "resultTooLong": "The text is longer than {max} characters.",
+      "rollupRelation": "The relation this rollup uses no longer exists.",
+      "rollupTarget": "The property this rollup uses no longer exists.",
+      "rollupFunction": "This rollup can’t calculate that for “{property}”.",
+      "rollupDepth": "Rollups of rollups go too deep here."
     }
   },
   "group": {
@@ -523,5 +531,26 @@
     "rowCount": "{count, plural, one {# row} other {# rows}}",
     "actions": "Group actions",
     "addRow": "Add a row to {name}"
+  },
+  "rollup": {
+    "title": "Rollup",
+    "titleFor": "Rollup for {name}",
+    "relation": "Relation",
+    "property": "Property",
+    "function": "Calculate",
+    "display": "Show as",
+    "choose": "Choose…",
+    "noRelations": "Add a relation property first: a rollup calculates over the rows a relation links to.",
+    "hiddenDatabase": "You can’t see the related database, so its properties can’t be listed.",
+    "showOriginal": "Show original",
+    "displays": {
+      "number": "Number",
+      "bar": "Bar",
+      "ring": "Ring"
+    },
+    "save": "Save rollup",
+    "create": "Add rollup",
+    "back": "Back",
+    "summary": "{function} of {property} in {relation}"
   }
 }

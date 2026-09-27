@@ -24,7 +24,8 @@ import { useChannel, useChannels } from "@/components/collab/use-channel";
 import type { PropertyType, SelectOption, ViewConfig, ViewType } from "@/db/schema/app";
 import { compileFormulas, evaluateFormulas } from "@/lib/derived";
 import { moveGroupValue } from "@/lib/grouping";
-import type { DatabaseSnapshot, DerivedInput, Property, RelationInput, Row, View } from "./types";
+import type { RollupConfig } from "@/db/schema/app";
+import type { DatabaseSnapshot, DerivedInput, Property, RelationInput, RollupInput, Row, View } from "./types";
 import { TITLE } from "./types";
 
 type Pending = { rowId: string; key: string; value: unknown; version: number };
@@ -336,6 +337,13 @@ export function useDatabase(databaseId: string) {
           patchProperty(prop.id, { options: { ...prop.options, formula: { ...prop.options.formula, expression } } }),
           () => updatePropertyAction(prop.id, { formula: { expression } }),
         );
+      },
+
+      /** Saves a rollup's settings; the server checks them and works out the values again. */
+      setRollup(prop: Property, rollup: RollupInput) {
+        const { display, ...rest } = rollup;
+        const options = { ...prop.options, rollup: { ...rest, ...(display ? { display } : {}) } as RollupConfig };
+        return mutateSchema(patchProperty(prop.id, { options }), () => updatePropertyAction(prop.id, { rollup }));
       },
 
       /** Adds a row to another (related) database; returns its id. */

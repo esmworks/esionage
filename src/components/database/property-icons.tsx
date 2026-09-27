@@ -6,6 +6,7 @@ import {
   ChartGantt,
   CircleChevronDown,
   CircleDotDashed,
+  Combine,
   Clock,
   Hash,
   History,
@@ -50,6 +51,7 @@ export const PROPERTY_TYPE_META = {
   last_edited_by: { label: "lastEditedBy", icon: UserRoundCog },
   last_edited_time: { label: "lastEditedTime", icon: History },
   formula: { label: "formula", icon: Sigma },
+  rollup: { label: "rollup", icon: Combine },
 } as const satisfies Record<PropertyType, { label: string; icon: LucideIcon }>;
 
 /** Translated display name of a property type. */

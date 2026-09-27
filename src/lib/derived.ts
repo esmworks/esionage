@@ -16,13 +16,15 @@ import {
   type Node,
   type Value,
 } from "./formula";
+import type { RollupFn } from "./aggregate";
 import { holdsPeople } from "./property-types";
 
 /**
- * Derived properties: values worked out from the rest of the row whenever rows are read, never
- * stored. Formulas compute from the row's own values. Pure and client-safe: the server fills
- * them in for every read (app, MCP, CSV, published pages), and the browser recomputes a row's
- * formulas right away when the user edits it, with the same code.
+ * Derived properties: values worked out whenever rows are read, never stored. Rollups calculate
+ * over the rows a row links to (the server works them out, see server/derived and lib/rollup);
+ * formulas then compute from the row's own values, rollups included. Pure and client-safe: the
+ * server fills them in for every read (app, MCP, CSV, published pages), and the browser
+ * recomputes a row's formulas right away when the user edits it, with the same code.
  */
 
 type Prop = { id: string; name: string; type: PropertyType; options: PropertyOptions };
@@ -37,9 +39,38 @@ export function isErrorValue(value: unknown): value is ErrorValue {
   return typeof value === "object" && value !== null && !Array.isArray(value) && "error" in value;
 }
 
+/**
+ * What a rollup's values are: a calculation's format (a percentage is a fraction, 0.25 = 25%; a
+ * date range a number of days), or the related values themselves as a list of texts.
+ */
+export type RollupFormat = "number" | "percent" | "days" | "date" | "list";
+
+export function rollupFormat(fn: RollupFn | undefined): RollupFormat {
+  switch (fn) {
+    case "show_original":
+      return "list";
+    case "percent_empty":
+    case "percent_not_empty":
+    case "percent_checked":
+    case "percent_unchecked":
+      return "percent";
+    case "date_range":
+      return "days";
+    case "earliest_date":
+    case "latest_date":
+      return "date";
+    default:
+      return "number";
+  }
+}
+
 /** How a formula sees a property's values. */
-function baseType(type: PropertyType): FormulaType | null {
-  switch (type) {
+function baseType(prop: { type: PropertyType; options: PropertyOptions }): FormulaType | null {
+  if (prop.type === "rollup") {
+    const format = rollupFormat(prop.options.rollup?.function);
+    return format === "list" ? "list" : format === "date" ? "date" : "number";
+  }
+  switch (prop.type) {
     case "text":
     case "url":
     case "email":
@@ -73,6 +104,11 @@ function baseType(type: PropertyType): FormulaType | null {
  */
 export function derivedType(prop: { type: PropertyType; options: PropertyOptions }): FormulaResultType | null {
   if (prop.type === "formula") return prop.options.formula?.type ?? "text";
+  if (prop.type === "rollup") {
+    // A rollup listing the related values filters and sorts like text.
+    const type = baseType(prop);
+    return type === "list" ? "text" : type;
+  }
   return null;
 }
 
@@ -156,7 +192,7 @@ export function compileFormulas(props: Prop[]): Map<string, CompiledFormula> {
           const compiled = compile(target);
           return { name: target.name, type: compiled.error ? null : fieldType(compiled.type) };
         }
-        const type = baseType(target.type);
+        const type = baseType(target);
         return type ? { name: target.name, type } : undefined;
       };
       const { type, error } = checkFormula(formula, fields);
@@ -213,8 +249,17 @@ function ids(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : [];
 }
 
-/** A stored value as a formula reads it. */
+/**
+ * A value as a formula reads it (also what a rollup showing the original values lists). Other
+ * derived values must already be worked out: formulas read the stored result, rollups theirs.
+ */
+export function readPropertyValue(prop: Prop, value: unknown, ctx: FormulaContext): Value {
+  let peopleNames: Map<string, string> | undefined;
+  return readValue(prop, value, ctx, () => (peopleNames ??= new Map((ctx.people ?? []).map((p) => [p.id, p.name]))));
+}
+
 function readValue(prop: Prop, value: unknown, ctx: FormulaContext, names: () => Map<string, string>): Value {
+  if (isErrorValue(value)) return null;
   switch (prop.type) {
     case "text":
     case "url":
@@ -248,6 +293,16 @@ function readValue(prop: Prop, value: unknown, ctx: FormulaContext, names: () =>
     case "last_edited_by": {
       const byId = names();
       return ids(value).flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+    }
+    case "rollup":
+    case "formula": {
+      // The worked-out value, read by its type.
+      const type = prop.type === "rollup" ? baseType(prop) : derivedType(prop);
+      if (type === "list") return ids(value);
+      if (type === "date") return toDateValue(value);
+      if (type === "number") return typeof value === "number" && Number.isFinite(value) ? value : null;
+      if (type === "checkbox") return value === true;
+      return typeof value === "string" ? value : "";
     }
     default:
       return null;
@@ -298,7 +353,10 @@ export function evaluateFormulas(
       // Other formulas see a list result as the text it is stored as.
       return Array.isArray(result.raw) ? formatValue(result.raw) : result.raw;
     }
-    return readValue(target, row.properties[target.id], ctx, names);
+    const stored = row.properties[target.id];
+    // A rollup that couldn't be worked out for this row.
+    if (isErrorValue(stored)) return fail("referenceError", `"${target.name}" has an error`, { name: target.name });
+    return readValue(target, stored, ctx, names);
   }
 
   const out: Record<string, unknown> = {};

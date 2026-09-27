@@ -18,7 +18,8 @@
     "createdTime": "Oluşturulma zamanı",
     "lastEditedBy": "Son düzenleyen",
     "lastEditedTime": "Son düzenlenme zamanı",
-    "formula": "Formül"
+    "formula": "Formül",
+    "rollup": "Toplama"
   },
   "views": {
     "table": "Tablo",
@@ -313,7 +314,9 @@
     "addToGroup": "{group} grubuna seçenek ekle",
     "readOnlyHint": "Otomatik doldurulur",
     "editFormula": "Formülü düzenle",
-    "formulaHint": "Bir formülle hesaplanır"
+    "formulaHint": "Bir formülle hesaplanır",
+    "editRollup": "Toplamayı düzenle",
+    "rollupHint": "İlişkili satırlardan hesaplanır"
   },
   "rowProperties": {
     "noProperties": "Özellik yok",
@@ -441,7 +444,8 @@
     "tooManyRows": "Tek seferde en fazla {max} satır değiştirilebilir.",
     "invalidFormula": "“{property}” formülünde bir hata var: {message}",
     "invalidViewConfig": "Bu görünüm ayarları kaydedilemedi. Sayfayı yenileyip tekrar deneyin.",
-    "unsupportedViewType": "Desteklenmeyen görünüm türü: “{type}”."
+    "unsupportedViewType": "Desteklenmeyen görünüm türü: “{type}”.",
+    "invalidRollup": "“{property}” toplaması kaydedilemiyor: {message}"
   },
   "formula": {
     "title": "Formül",
@@ -499,7 +503,11 @@
       "notANumber": "“{value}” bir sayı değil.",
       "invalidDate": "“{value}” bir tarih değil (YYYY-AA-GG kullanın).",
       "notFinite": "Sonuç sonlu bir sayı değil.",
-      "resultTooLong": "Metin {max} karakterden uzun."
+      "resultTooLong": "Metin {max} karakterden uzun.",
+      "rollupRelation": "Bu toplamanın kullandığı ilişki artık yok.",
+      "rollupTarget": "Bu toplamanın kullandığı özellik artık yok.",
+      "rollupFunction": "Bu toplama “{property}” için bunu hesaplayamaz.",
+      "rollupDepth": "Toplamaların toplamaları burada çok derine iniyor."
     }
   },
   "group": {
@@ -523,5 +531,26 @@
     "rowCount": "{count, plural, other {# satır}}",
     "actions": "Grup işlemleri",
     "addRow": "{name} grubuna satır ekle"
+  },
+  "rollup": {
+    "title": "Toplama",
+    "titleFor": "{name} toplaması",
+    "relation": "İlişki",
+    "property": "Özellik",
+    "function": "Hesapla",
+    "display": "Gösterim",
+    "choose": "Seçin…",
+    "noRelations": "Önce bir ilişki özelliği ekleyin: toplama, bir ilişkinin bağladığı satırlar üzerinden hesaplanır.",
+    "hiddenDatabase": "İlişkili veritabanını göremediğiniz için özellikleri listelenemiyor.",
+    "showOriginal": "Değerleri göster",
+    "displays": {
+      "number": "Sayı",
+      "bar": "Çubuk",
+      "ring": "Halka"
+    },
+    "save": "Toplamayı kaydet",
+    "create": "Toplama ekle",
+    "back": "Geri",
+    "summary": "{relation} içindeki {property}: {function}"
   }
 }

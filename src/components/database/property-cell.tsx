@@ -14,7 +14,7 @@ import {
   sortStatusOptions,
   statusGroupOf,
 } from "@/lib/properties";
-import { derivedType, isErrorValue } from "@/lib/derived";
+import { derivedType, isErrorValue, rollupFormat } from "@/lib/derived";
 import { holdsPeople, isDerived, isReadOnlyType } from "@/lib/property-types";
 import { Floating } from "./floating";
 import { useFormulaErrorMessage } from "./formula-editor";
@@ -165,6 +165,7 @@ export function PropertyDisplay({ prop, value, wrap }: { prop: Property; value: 
     case "last_edited_by":
       return <PersonChips value={value} wrap={wrap} />;
     case "formula":
+    case "rollup":
       return <DerivedDisplay prop={prop} value={value} wrap={wrap} />;
     case "select":
     case "multi_select":
@@ -204,6 +205,7 @@ function DerivedDisplay({ prop, value, wrap }: { prop: Property; value: unknown;
   if (Array.isArray(value)) {
     return <span className={cn(wrap ? "whitespace-pre-wrap break-words" : "truncate")}>{value.map(String).join(", ")}</span>;
   }
+  if (prop.type === "rollup" && typeof value === "number") return <RollupNumber prop={prop} value={value} />;
   switch (derivedType(prop)) {
     case "number":
       return <span className="tabular-nums">{typeof value === "number" ? formatNumber(value) : String(value)}</span>;
@@ -216,6 +218,59 @@ function DerivedDisplay({ prop, value, wrap }: { prop: Property; value: unknown;
     default:
       return <span className={cn(wrap ? "whitespace-pre-wrap break-words" : "truncate")}>{String(value)}</span>;
   }
+}
+
+/**
+ * A rollup's number: a count or sum, a length of time in days, or a percentage shown as a
+ * number, a bar or a ring (the rollup's display setting).
+ */
+function RollupNumber({ prop, value }: { prop: Property; value: number }) {
+  const t = useTranslations("database.calculate");
+  const format = useFormatter();
+  const config = prop.options.rollup;
+  const kind = rollupFormat(config?.function);
+  if (kind === "days") return <span className="tabular-nums">{t("days", { count: value })}</span>;
+  if (kind !== "percent") {
+    // Averages and medians rarely end evenly; two decimals are plenty, as in table footers.
+    const rounded = config?.function === "average" || config?.function === "median";
+    return <span className="tabular-nums">{format.number(value, { maximumFractionDigits: rounded ? 2 : 10 })}</span>;
+  }
+  const text = format.number(value, { style: "percent", maximumFractionDigits: 1 });
+  const share = Math.min(1, Math.max(0, value));
+  const label = <span className="text-xs text-fg-muted tabular-nums">{text}</span>;
+  if (config?.display === "bar") {
+    return (
+      <span className="flex min-w-0 items-center gap-2" title={text}>
+        <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-bg-active">
+          <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.round(share * 100)}%` }} />
+        </span>
+        {label}
+      </span>
+    );
+  }
+  if (config?.display === "ring") {
+    const r = 6;
+    const length = 2 * Math.PI * r;
+    return (
+      <span className="flex min-w-0 items-center gap-1.5" title={text}>
+        <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 -rotate-90" aria-hidden>
+          <circle cx="8" cy="8" r={r} fill="none" strokeWidth="2.5" className="stroke-bg-active" />
+          <circle
+            cx="8"
+            cy="8"
+            r={r}
+            fill="none"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            className="stroke-accent"
+            strokeDasharray={`${share * length} ${length}`}
+          />
+        </svg>
+        {label}
+      </span>
+    );
+  }
+  return <span className="tabular-nums">{text}</span>;
 }
 
 /** A checklist's progress as a bar and "2/5"; wrapped (row panels, published pages) with its items. */

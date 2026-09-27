@@ -7,15 +7,25 @@ import type {
   RelationInput,
   RelationTarget,
   RelationTargetRow,
+  RollupInput,
 } from "@/server/databases";
 
 export type Property = DatabaseProperty;
 export type View = DatabaseView;
 export type Row = DatabaseRowWithPosition;
-export type { ChecklistItem, PersonRef, PropertyType, RelationInput, RelationTarget, RelationTargetRow, SelectOption };
+export type {
+  ChecklistItem,
+  PersonRef,
+  PropertyType,
+  RelationInput,
+  RelationTarget,
+  RelationTargetRow,
+  RollupInput,
+  SelectOption,
+};
 
-/** Settings of a derived property being added: a formula's expression (with property ids). */
-export type DerivedInput = { formula?: { expression: string } };
+/** Settings of a derived property being added: a formula's expression (with property ids), a rollup's settings. */
+export type DerivedInput = { formula?: { expression: string }; rollup?: RollupInput };
 
 export type DatabaseSnapshot = {
   database: { id: string; workspaceId: string; title: string; icon: string | null; archived: boolean; locked: boolean };

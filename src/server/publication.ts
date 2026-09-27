@@ -292,11 +292,12 @@ async function databaseProperties(databaseId: string) {
   return withFormulaTypes(properties);
 }
 
-const PRIVATE_TYPES = new Set<string>(["relation", "person", "created_by", "last_edited_by"]);
+const PRIVATE_TYPES = new Set<string>(["relation", "rollup", "person", "created_by", "last_edited_by"]);
 
 /**
  * The properties a published page shows: all but relations, whose values point at pages that may
- * not be published, and people, who didn't agree to have their names on a public page.
+ * not be published (rollups, which calculate over them, go too), and people, who didn't agree to
+ * have their names on a public page.
  */
 function publicProperties(properties: DatabaseProperty[]) {
   return properties.filter((p) => !PRIVATE_TYPES.has(p.type));
@@ -307,7 +308,7 @@ function publicProperties(properties: DatabaseProperty[]) {
  * rows get no names or titles, so nothing private reaches the page through them.
  */
 function publicValues<R extends { title: string; properties: Record<string, unknown> }>(rows: R[], properties: DatabaseProperty[]) {
-  return computeDerived(rows, properties, { lookups: async () => ({}) });
+  return computeDerived(rows, properties, { lookups: async () => ({}), viewerId: null });
 }
 
 /**

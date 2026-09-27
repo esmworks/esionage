@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowLeft, ArrowUp, EyeOff, Plus, Settings2, Sigma, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Combine, EyeOff, Plus, Settings2, Sigma, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem, MenuSeparator } from "@/components/ui";
@@ -8,11 +8,12 @@ import { isComputed, isDerived, PROPERTY_TYPES, STATUS_GROUPS, type StatusGroup 
 import { pageLabel } from "@/lib/labels";
 import { SELECT_COLORS, sortStatusOptions, statusColor, statusGroupOf } from "@/lib/properties";
 import { FormulaEditor } from "./formula-editor";
+import { RollupEditor } from "./rollup-editor";
 import { OptionChip } from "./property-cell";
 import { PropertyTypeIcon, usePropertyTypeLabel } from "./property-icons";
 import { RelationSetup } from "./relation-cell";
 import { useRelations } from "./relation-context";
-import type { DerivedInput, Property, PropertyType, RelationInput, SelectOption } from "./types";
+import type { DerivedInput, Property, PropertyType, RelationInput, RollupInput, SelectOption } from "./types";
 
 /** Name + type picker used by the table "+" header and the row page "Add property". */
 export function AddPropertyPanel({
@@ -25,13 +26,13 @@ export function AddPropertyPanel({
   const t = useTranslations("database.propertyMenu");
   const typeLabel = usePropertyTypeLabel();
   const [name, setName] = useState("");
-  const [step, setStep] = useState<"type" | "relation" | "formula">("type");
+  const [step, setStep] = useState<"type" | "relation" | "formula" | "rollup">("type");
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
   // A new property without a name is named after its type, in the user's language.
   const nameFor = (type: PropertyType) => name.trim() || typeLabel(type);
   const create = (type: PropertyType) => {
-    if (type === "relation" || type === "formula") {
+    if (type === "relation" || type === "formula" || type === "rollup") {
       setStep(type);
       return;
     }
@@ -46,6 +47,19 @@ export function AddPropertyPanel({
         onBack={() => setStep("type")}
         onSave={(expression) => {
           void onCreate(nameFor("formula"), "formula", undefined, { formula: { expression } });
+          onDone();
+        }}
+      />
+    );
+  }
+  if (step === "rollup") {
+    return (
+      <RollupEditor
+        prop={null}
+        name={nameFor("rollup")}
+        onBack={() => setStep("type")}
+        onSave={(rollup) => {
+          void onCreate(nameFor("rollup"), "rollup", undefined, { rollup });
           onDone();
         }}
       />
@@ -95,6 +109,8 @@ export type PropertyMenuActions = {
   setOptions?: (options: SelectOption[]) => void;
   /** Formulas: saves a new expression (with property ids, see FormulaEditor). */
   setFormula?: (expression: string) => void;
+  /** Rollups: saves new settings. */
+  setRollup?: (rollup: RollupInput) => void;
   remove?: () => void;
 };
 
@@ -111,7 +127,7 @@ export function PropertyMenu({
   const t = useTranslations("database.propertyMenu");
   const tc = useTranslations("common");
   const typeLabel = usePropertyTypeLabel();
-  const [page, setPage] = useState<"main" | "options" | "confirm" | "formula">("main");
+  const [page, setPage] = useState<"main" | "options" | "confirm" | "formula" | "rollup">("main");
   const [name, setName] = useState(prop?.name ?? "");
   const saved = useRef(prop?.name ?? "");
   const commitName = () => {
@@ -138,6 +154,20 @@ export function PropertyMenu({
         onBack={() => setPage("main")}
         onSave={(expression) => {
           actions.setFormula?.(expression);
+          onDone();
+        }}
+      />
+    );
+  }
+
+  if (page === "rollup" && prop && actions.setRollup) {
+    return (
+      <RollupEditor
+        prop={prop}
+        name={prop.name}
+        onBack={() => setPage("main")}
+        onSave={(rollup) => {
+          actions.setRollup?.(rollup);
           onDone();
         }}
       />
@@ -196,7 +226,9 @@ export function PropertyMenu({
           </div>
           {prop.type === "relation" && <RelationInfo prop={prop} />}
           {isComputed(prop.type) && <div className="px-2 pb-1 text-xs text-fg-faint">{t("readOnlyHint")}</div>}
-          {isDerived(prop.type) && <div className="px-2 pb-1 text-xs text-fg-faint">{t("formulaHint")}</div>}
+          {isDerived(prop.type) && (
+            <div className="px-2 pb-1 text-xs text-fg-faint">{t(prop.type === "rollup" ? "rollupHint" : "formulaHint")}</div>
+          )}
           <MenuSeparator />
         </>
       )}
@@ -236,6 +268,11 @@ export function PropertyMenu({
       {prop?.type === "formula" && actions.setFormula && (
         <MenuItem icon={<Sigma className="h-3.5 w-3.5" />} onClick={() => setPage("formula")}>
           {t("editFormula")}
+        </MenuItem>
+      )}
+      {prop?.type === "rollup" && actions.setRollup && (
+        <MenuItem icon={<Combine className="h-3.5 w-3.5" />} onClick={() => setPage("rollup")}>
+          {t("editRollup")}
         </MenuItem>
       )}
       {selectType && actions.setOptions && (

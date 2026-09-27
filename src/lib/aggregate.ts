@@ -241,6 +241,41 @@ export function aggregateValues(values: unknown[], fn: AggregateFn, column: Aggr
   return null;
 }
 
+/**
+ * What a rollup does with the values of the rows a row links to: any calculation a column of
+ * the target property offers, or "show_original" to list the values themselves.
+ */
+export type RollupFn = AggregateFn | "show_original";
+export const ROLLUP_DISPLAYS = ["number", "bar", "ring"] as const;
+/** How a rollup shows a percentage. */
+export type RollupDisplay = (typeof ROLLUP_DISPLAYS)[number];
+
+export function isRollupFn(fn: unknown): fn is RollupFn {
+  return fn === "show_original" || isAggregateFn(fn);
+}
+
+/** The rollup functions a target property type (or "title") offers, "show_original" first. */
+export function rollupFunctions(type: string): RollupFn[] {
+  return ["show_original", ...aggregateFunctions(type)];
+}
+
+export type RollupResult = AggregateResult | { format: "list"; value: string[] };
+
+/**
+ * A rollup over the related rows' values of one column: the calculation, or for "show_original"
+ * every value as text, in row order (lists such as tags or people flattened, empty values left
+ * out). `label` turns a value into its texts (option names, people names, titles…).
+ */
+export function rollupValues(
+  values: unknown[],
+  fn: RollupFn,
+  column: AggregateColumn,
+  label: (value: unknown) => string[],
+): RollupResult | null {
+  if (fn !== "show_original") return aggregateValues(values, fn, column);
+  return { format: "list", value: values.flatMap((v) => label(v)).filter((text) => text !== "") };
+}
+
 /** A row's value in a column: a property id or one of the special keys (title, created/updated time). */
 export function columnValue(row: RowLike, columnKey: string): unknown {
   if (columnKey === TITLE_KEY) return row.title;

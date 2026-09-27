@@ -11,7 +11,7 @@ import {
   uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
-import type { AggregateFn } from "../../lib/aggregate";
+import type { AggregateFn, RollupDisplay, RollupFn } from "../../lib/aggregate";
 import type { FormulaResultType } from "../../lib/formula/types";
 import { PROPERTY_TYPES, type PropertyType, type StatusGroup } from "../../lib/property-types";
 import { user } from "./auth";
@@ -164,7 +164,24 @@ export type FormulaConfig = {
   /** What the formula evaluates to. Worked out whenever properties are read; never stored. */
   type?: FormulaResultType;
 };
-export type PropertyOptions = { options?: SelectOption[]; relation?: RelationConfig; formula?: FormulaConfig };
+/**
+ * A rollup: `function` over the values of `targetPropertyId` (a property of the related
+ * database, or "title") in the rows this row links to through `relationPropertyId`.
+ * "show_original" lists the values instead of calculating one. `display` shows a percentage as
+ * a number (the default), a bar or a ring.
+ */
+export type RollupConfig = {
+  relationPropertyId: string;
+  targetPropertyId: string;
+  function: RollupFn;
+  display?: RollupDisplay;
+};
+export type PropertyOptions = {
+  options?: SelectOption[];
+  relation?: RelationConfig;
+  formula?: FormulaConfig;
+  rollup?: RollupConfig;
+};
 
 export const databaseProperty = pgTable(
   "database_property",

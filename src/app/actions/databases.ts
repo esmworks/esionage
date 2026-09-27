@@ -102,6 +102,7 @@ export async function addPropertyAction(
     options?: databases.OptionInput[];
     relation?: databases.RelationInput;
     formula?: { expression: string };
+    rollup?: databases.RollupInput;
   },
 ) {
   return run(async (userId) => {
@@ -120,7 +121,13 @@ export async function listDatabasesAction(workspaceId: string) {
 
 export async function updatePropertyAction(
   propertyId: string,
-  patch: { name?: string; options?: SelectOption[]; position?: number; formula?: { expression: string } },
+  patch: {
+    name?: string;
+    options?: SelectOption[];
+    position?: number;
+    formula?: { expression: string };
+    rollup?: Partial<databases.RollupInput>;
+  },
 ) {
   return run((userId) => databases.updateProperty(userId, propertyId, patch));
 }

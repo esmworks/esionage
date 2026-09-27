@@ -10,13 +10,15 @@ import {
   type PropertyOptions,
   type PropertyType,
   type RelationConfig,
+  type RollupConfig,
   type SelectOption,
   type ViewConfig,
   type ViewType,
 } from "@/db/schema";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { firstImageInYdoc, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
-import { compileFormulas, formulaForStorage, withFormulaTypes } from "@/lib/derived";
+import { isApplicable, isRollupFn, ROLLUP_DISPLAYS, type RollupDisplay } from "@/lib/aggregate";
+import { compileFormulas, formulaForStorage, TITLE_FIELD, valueType, withFormulaTypes } from "@/lib/derived";
 import { filterConfigError, filterRules, mapFilterRules } from "@/lib/filters";
 import { DEFAULT_VIEW_NAMES, galleryCover, isViewType, layoutConfigError } from "@/lib/views";
 import { holdsOptions, holdsPeople, isComputed, PERSON_ME, type StatusGroup } from "@/lib/property-types";
@@ -46,7 +48,7 @@ import {
   type RequiredLevel,
 } from "@/server/access";
 import { scheduleAssignmentEmails } from "@/server/assignments";
-import { computeDerived } from "@/server/derived";
+import { computeDerived, loadProperties } from "@/server/derived";
 import { recordAssignments } from "@/server/notifications";
 import { getCollab } from "@/server/collab/bridge";
 import { workspacePeople, type WorkspacePerson } from "@/server/workspaces";
@@ -98,6 +100,7 @@ async function withValues<T extends StoredRow>(
   lookups?: DatabaseLookups,
 ) {
   return computeDerived(withComputed(rows, properties), properties, {
+    viewerId: userId,
     lookups: (props) => (lookups && props === properties ? Promise.resolve(lookups) : getLookups(userId, props)),
   });
 }
@@ -650,6 +653,57 @@ function formulaConfig(expression: string, properties: DatabaseProperty[], self:
   return { expression: stored };
 }
 
+/** A rollup's settings as given: property ids (or "title" for the related rows' titles). */
+export type RollupInput = {
+  relationPropertyId: string;
+  targetPropertyId: string;
+  function: string;
+  display?: string;
+};
+
+/**
+ * A rollup as stored, checked against the database's properties (`self` is the rollup itself):
+ * the relation must be one of them, the target a property of the related database (which the
+ * user must see) or its titles, and the function one a column of the target offers.
+ */
+async function rollupConfig(
+  userId: string,
+  input: Partial<RollupInput> | undefined,
+  properties: DatabaseProperty[],
+  self: { id: string; name: string },
+): Promise<RollupConfig> {
+  const invalid = (message: string) =>
+    new PropertyValueError(`Invalid rollup for "${self.name}": ${message}`, "invalidRollup", { property: self.name, message });
+  const relation = properties.find((p) => p.id === input?.relationPropertyId && p.type === "relation");
+  const databaseId = relation?.options.relation?.databaseId;
+  if (!input || !databaseId) throw invalid("choose one of the database's relation properties");
+  const visible = await requireDatabase(userId, databaseId, "view").then(
+    (d) => !d.archivedAt,
+    () => false,
+  );
+  if (!visible) throw invalid("the related database can't be read");
+  const targetProps = (await loadProperties([databaseId])).get(databaseId) ?? [];
+  const target =
+    input.targetPropertyId === TITLE_FIELD ? TITLE_FIELD : targetProps.find((p) => p.id === input.targetPropertyId);
+  if (!target) throw invalid("choose a property of the related database");
+  if (target !== TITLE_FIELD && target.id === self.id) throw invalid("a rollup can't roll up itself");
+  const fn = input.function;
+  if (!isRollupFn(fn)) throw invalid(`unknown function "${String(fn)}"`);
+  if (fn !== "show_original" && !isApplicable(fn, target === TITLE_FIELD ? TITLE_FIELD : valueType(target))) {
+    throw invalid(`"${fn}" doesn't apply to ${target === TITLE_FIELD ? "titles" : `"${target.name}"`}`);
+  }
+  if (input.display !== undefined && !ROLLUP_DISPLAYS.includes(input.display as RollupDisplay)) {
+    throw invalid(`unknown display "${input.display}"`);
+  }
+  const display = input.display as RollupDisplay | undefined;
+  return {
+    relationPropertyId: relation!.id,
+    targetPropertyId: target === TITLE_FIELD ? TITLE_FIELD : target.id,
+    function: fn,
+    ...(display && display !== "number" ? { display } : {}),
+  };
+}
+
 export async function addProperty(
   userId: string,
   databaseId: string,
@@ -660,6 +714,8 @@ export async function addProperty(
     relation?: RelationInput;
     /** Formulas: the expression, with property names or ids in `prop("…")`. */
     formula?: { expression: string };
+    /** Rollups: what to calculate over which relation. */
+    rollup?: RollupInput;
   },
 ) {
   const database = await requireDatabase(userId, databaseId, "edit");
@@ -671,6 +727,10 @@ export async function addProperty(
   const formula =
     input.type === "formula"
       ? formulaConfig(input.formula?.expression ?? "", await getProperties(databaseId), { id: "\u0000new", name })
+      : undefined;
+  const rollup =
+    input.type === "rollup"
+      ? await rollupConfig(userId, input.rollup, await getProperties(databaseId), { id: "\u0000new", name })
       : undefined;
   let target: typeof database | null = null;
   if (input.type === "relation") {
@@ -702,7 +762,9 @@ export async function addProperty(
           ? { relation: { databaseId: target.id } }
           : formula
             ? { formula }
-            : {};
+            : rollup
+              ? { rollup }
+              : {};
   const created = await db.transaction(async (tx) => {
     const [created] = await tx
       .insert(databaseProperty)
@@ -776,12 +838,26 @@ async function requireProperty(userId: string, propertyId: string, { cellEdit = 
 export async function updateProperty(
   userId: string,
   propertyId: string,
-  patch: { name?: string; options?: SelectOption[]; position?: number; formula?: { expression: string } },
+  patch: {
+    name?: string;
+    options?: SelectOption[];
+    position?: number;
+    formula?: { expression: string };
+    /** Rollups: settings to change; the others stay. */
+    rollup?: Partial<RollupInput>;
+  },
 ) {
   const prop = await requireProperty(userId, propertyId);
   const formula =
     patch.formula && prop.type === "formula"
       ? formulaConfig(patch.formula.expression, await getProperties(prop.databaseId), {
+          id: prop.id,
+          name: patch.name?.trim() || prop.name,
+        })
+      : undefined;
+  const rollup =
+    patch.rollup && prop.type === "rollup"
+      ? await rollupConfig(userId, { ...prop.options.rollup, ...patch.rollup }, await getProperties(prop.databaseId), {
           id: prop.id,
           name: patch.name?.trim() || prop.name,
         })
@@ -799,6 +875,7 @@ export async function updateProperty(
         ...(patch.name !== undefined ? { name: patch.name.trim() || prop.name } : {}),
         ...(patch.options !== undefined ? { options: { ...prop.options, options: patch.options } } : {}),
         ...(formula ? { options: { ...prop.options, formula } } : {}),
+        ...(rollup ? { options: { ...prop.options, rollup } } : {}),
         ...(patch.position !== undefined ? { position: patch.position } : {}),
       })
       .where(eq(databaseProperty.id, propertyId));
@@ -1128,7 +1205,10 @@ export type RelationTarget = {
   pairedName: string | null;
   /** Live rows of the related database, in manual order: link candidates and display titles. */
   rows: RelationTargetRow[];
+  /** Properties of the related database, for choosing what a rollup reads; empty when hidden. */
+  properties: RelationTargetProperty[];
 };
+export type RelationTargetProperty = Pick<DatabaseProperty, "id" | "name" | "type" | "options">;
 
 /**
  * The related database and its rows for every relation property, keyed by property id, limited
@@ -1143,7 +1223,7 @@ export async function getRelationTargets(
   ];
   if (!targetIds.length) return {};
   const pairedIds = properties.flatMap((p) => (p.options.relation?.pairedPropertyId ? [p.options.relation.pairedPropertyId] : []));
-  const [databases, rows, paired] = await Promise.all([
+  const [databases, rows, paired, targetProperties] = await Promise.all([
     db
       .select({ id: page.id, title: page.title, icon: page.icon })
       .from(page)
@@ -1159,6 +1239,7 @@ export async function getRelationTargets(
           .from(databaseProperty)
           .where(inArray(databaseProperty.id, pairedIds))
       : Promise.resolve([]),
+    loadProperties(targetIds),
   ]);
   const out: Record<string, RelationTarget> = {};
   for (const prop of properties) {
@@ -1172,6 +1253,9 @@ export async function getRelationTargets(
       pairedName: (database && pairedId && paired.find((p) => p.id === pairedId)?.name) || null,
       rows: database
         ? rows.filter((r) => r.parentId === targetId).map(({ id, title, icon }) => ({ id, title, icon }))
+        : [],
+      properties: database
+        ? (targetProperties.get(targetId) ?? []).map(({ id, name, type, options }) => ({ id, name, type, options }))
         : [],
     };
   }

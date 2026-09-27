@@ -81,6 +81,17 @@ export function planDuplicate(input: DuplicateInput, newId: () => string = () =>
     if (prop.type === "formula" && prop.options.formula) {
       options.formula = { expression: rewriteReferences(prop.options.formula.expression, (key) => propIds.get(key) ?? null) };
     }
+    // Rollups read through a relation of their own database, which is copied with them; the
+    // property they read is copied only when the related database is.
+    if (prop.type === "rollup" && prop.options.rollup) {
+      const rollup = prop.options.rollup;
+      const inside = relationInside(propsById.get(rollup.relationPropertyId));
+      options.rollup = {
+        ...rollup,
+        relationPropertyId: propIds.get(rollup.relationPropertyId) ?? rollup.relationPropertyId,
+        targetPropertyId: inside ? (propIds.get(rollup.targetPropertyId) ?? rollup.targetPropertyId) : rollup.targetPropertyId,
+      };
+    }
     return { ...prop, id: propIds.get(prop.id)!, databaseId: pageIds.get(prop.databaseId)!, options };
   });
 
