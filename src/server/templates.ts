@@ -17,7 +17,7 @@ import {
   withCode,
 } from "@/server/databases";
 import { copyPageTree } from "@/server/duplicate";
-import { createPage } from "@/server/pages";
+import { createPage, removeOrphanFiles } from "@/server/pages";
 import { requireTopLevel } from "@/server/workspaces";
 
 /**
@@ -304,6 +304,7 @@ export async function deleteTemplate(userId: string, templateId: string) {
   const template = await requirePageAccess(userId, templateId, "full");
   if (!template.isTemplate) throw withCode(new AccessError("Not a template"), "notATemplate");
   await db.delete(page).where(eq(page.id, templateId));
+  await removeOrphanFiles(template.workspaceId);
   const collab = getCollab();
   if (template.parentId) collab.broadcast(`db:${template.parentId}`, "rows");
   else collab.broadcast(`ws:${template.workspaceId}`, "templates");

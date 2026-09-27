@@ -11,6 +11,7 @@ const collab = vi.hoisted(() => ({
   readPage: vi.fn(),
   replaceContent: vi.fn(),
   appendContent: vi.fn(),
+  appendBlocks: vi.fn(),
   setTitle: vi.fn(),
   restoreSnapshot: vi.fn(),
   broadcast: vi.fn(),
@@ -60,6 +61,19 @@ vi.mock("@/server/workspaces", () => workspaces);
 
 const notifications = vi.hoisted(() => ({ listNotifications: vi.fn() }));
 vi.mock("@/server/notifications", () => notifications);
+
+const files = vi.hoisted(() => {
+  class FileError extends Error {
+    constructor(
+      message: string,
+      readonly code: string,
+    ) {
+      super(message);
+    }
+  }
+  return { FileError, uploadFile: vi.fn(), uploadFromUrl: vi.fn() };
+});
+vi.mock("@/server/files", () => files);
 
 const page = {
   id: "page-1",
@@ -865,5 +879,66 @@ describe("list_notifications", () => {
     expect(isError).toBe(true);
     expect(text).toMatch(/notifications:read/);
     expect(notifications.listNotifications).not.toHaveBeenCalled();
+  });
+});
+
+describe("attach_file", () => {
+  const filer: McpPrincipal = { ...writer, scopes: ["pages:read", "pages:write", "files:write"] };
+  const stored = {
+    id: "AbCdEfGhIjKlMnOpQrStUv_-",
+    url: "/api/files/AbCdEfGhIjKlMnOpQrStUv_-",
+    name: "chart.png",
+    contentType: "image/png",
+    size: 4,
+    pageId: "page-1",
+    workspaceId: "ws-1",
+  };
+
+  it("needs the files:write scope", async () => {
+    const { isError, text } = await callTool(writer, "attach_file", { page_id: "page-1", url: "https://example.com/a.png" });
+    expect(isError).toBe(true);
+    expect(text).toMatch(/files:write/);
+    expect(files.uploadFromUrl).not.toHaveBeenCalled();
+  });
+
+  it("uploads base64 data and appends an image block", async () => {
+    pages.getPage.mockResolvedValue(page);
+    files.uploadFile.mockResolvedValue(stored);
+    const { isError, data } = await callTool(filer, "attach_file", {
+      page_id: "page-1",
+      base64: "data:image/png;base64,iVBORw==",
+      name: "chart.png",
+      caption: "Q3",
+    });
+    expect(isError).toBe(false);
+    expect(files.uploadFile).toHaveBeenCalledWith("user-1", "page-1", expect.objectContaining({ name: "chart.png", contentType: "image/png", declaredSize: 4 }));
+    expect(collab.appendBlocks).toHaveBeenCalledWith(
+      "page-1",
+      [{ type: "image", props: { url: stored.url, name: "chart.png", caption: "Q3" } }],
+      { userId: "user-1", oauthClientId: "client-1" },
+      true,
+    );
+    expect(data).toMatchObject({ id: stored.id, block: "image", path: stored.url, appended: true });
+    expect(data.url).toMatch(/\/api\/files\/AbCdEfGhIjKlMnOpQrStUv_-$/);
+  });
+
+  it("fetches a URL and, without append, returns Markdown to place it", async () => {
+    pages.getPage.mockResolvedValue(page);
+    files.uploadFromUrl.mockResolvedValue({ ...stored, name: "report.pdf", contentType: "application/pdf" });
+    const { isError, data } = await callTool(filer, "attach_file", { page_id: "page-1", url: "https://example.com/report.pdf", append: false });
+    expect(isError).toBe(false);
+    expect(files.uploadFromUrl).toHaveBeenCalledWith("user-1", "page-1", "https://example.com/report.pdf", { name: undefined, contentType: undefined });
+    expect(collab.appendBlocks).not.toHaveBeenCalled();
+    expect(data).toMatchObject({ block: "file", appended: false, markdown: `[report.pdf](${stored.url})` });
+  });
+
+  it("wants exactly one source, and passes on upload errors", async () => {
+    pages.getPage.mockResolvedValue(page);
+    expect((await callTool(filer, "attach_file", { page_id: "page-1" })).text).toMatch(/url or base64/);
+    expect((await callTool(filer, "attach_file", { page_id: "page-1", base64: "!!!", name: "x.bin" })).text).toMatch(/valid base64/);
+    files.uploadFromUrl.mockRejectedValue(new files.FileError("Couldn't fetch the file: that address isn't public", "fetchFailed"));
+    const { isError, text } = await callTool(filer, "attach_file", { page_id: "page-1", url: "http://127.0.0.1/x" });
+    expect(isError).toBe(true);
+    expect(text).toMatch(/isn't public/);
   });
 });

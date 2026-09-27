@@ -294,5 +294,10 @@
       "tooManyRedirects": "The page redirects too many times.",
       "httpError": "The page answered with an error."
     }
+  },
+  "upload": {
+    "tooLarge": "{name} is too large. Files can be at most {limit}.",
+    "quotaExceeded": "{name} wasn't uploaded: this workspace has used its {limit} of file storage.",
+    "failed": "Couldn't upload {name}."
   }
 }

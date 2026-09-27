@@ -294,5 +294,10 @@
       "tooManyRedirects": "Sayfa çok fazla yönlendirme yapıyor.",
       "httpError": "Sayfa bir hata döndürdü."
     }
+  },
+  "upload": {
+    "tooLarge": "{name} çok büyük. Dosyalar en fazla {limit} olabilir.",
+    "quotaExceeded": "{name} yüklenmedi: bu çalışma alanı {limit} dosya depolama alanının tamamını kullandı.",
+    "failed": "{name} yüklenemedi."
   }
 }

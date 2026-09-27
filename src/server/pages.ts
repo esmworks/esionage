@@ -350,6 +350,20 @@ export async function deletePagePermanently(userId: string, pageId: string) {
   if (!p.archivedAt) throw new Error("Move the page to the trash before deleting it");
   await db.delete(page).where(eq(page.id, pageId));
   getCollab().broadcast(`ws:${p.workspaceId}`, "tree");
+  await removeOrphanFiles(p.workspaceId);
+}
+
+/**
+ * Removes the uploads of pages just deleted for good that no other page shows (see
+ * server/files.ts). A failure only leaves them to the hourly cleanup.
+ */
+export async function removeOrphanFiles(workspaceId: string) {
+  try {
+    const { purgeOrphanFiles } = await import("@/server/files");
+    await purgeOrphanFiles(workspaceId);
+  } catch (error) {
+    console.error("[files] cleanup after deleting pages failed", error);
+  }
 }
 
 export async function listTrash(userId: string, workspaceId: string) {

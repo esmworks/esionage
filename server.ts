@@ -23,6 +23,11 @@ const { registerCollab } = await import("./src/server/collab/bridge");
 const { describeMailSetup } = await import("./src/server/mail");
 const { startAssignmentEmails } = await import("./src/server/assignments");
 const { startShareEmails } = await import("./src/server/share-emails");
+const { startFileCleanup } = await import("./src/server/files");
+const { getStorage } = await import("./src/server/storage");
+
+// Fails fast on a half-configured S3 setup instead of at the first upload.
+console.log(`file storage: ${getStorage().kind}`);
 
 const { hocuspocus, service } = createCollab();
 registerCollab(service);
@@ -80,6 +85,7 @@ server.listen(port, hostname, () => {
   if (dev) fetch(`http://127.0.0.1:${port}/`, { redirect: "manual" }).catch(() => {});
   startAssignmentEmails();
   startShareEmails();
+  startFileCleanup();
 });
 
 let shuttingDown = false;
