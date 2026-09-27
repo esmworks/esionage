@@ -30,6 +30,7 @@ import { cn, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, Popover }
 import type { PageKind } from "@/db/schema/app";
 import { authClient } from "@/lib/auth-client";
 import { FAVORITES_EVENT } from "@/lib/favorites-event";
+import { INBOX_PREFERENCES_EVENT } from "@/lib/inbox-event";
 import type { TreeNode } from "@/server/pages";
 import { InboxDialog } from "./inbox-dialog";
 import { NewWorkspaceDialog } from "./new-workspace-dialog";
@@ -119,7 +120,11 @@ export function Sidebar({
   useEffect(() => {
     refreshInbox();
     window.addEventListener("focus", refreshInbox);
-    return () => window.removeEventListener("focus", refreshInbox);
+    window.addEventListener(INBOX_PREFERENCES_EVENT, refreshInbox);
+    return () => {
+      window.removeEventListener("focus", refreshInbox);
+      window.removeEventListener(INBOX_PREFERENCES_EVENT, refreshInbox);
+    };
   }, [refreshInbox]);
   useEffect(() => {
     window.addEventListener(FAVORITES_EVENT, refreshFavorites);

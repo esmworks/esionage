@@ -188,8 +188,15 @@
   },
   "notifications": {
     "heading": "Bildirimler",
-    "assignmentTitle": "Atama e-postaları",
-    "assignmentDescription": "Biri sizi bir veritabanı satırındaki kişi alanına atadığında e-posta alırsınız.",
+    "description": "Gelen kutunuzda neyin görüneceğini ve neyin e-postayla da geleceğini seçin.",
+    "inbox": "Gelen kutusu",
+    "email": "E-posta",
+    "assignmentTitle": "Atamalar",
+    "assignmentDescription": "Biri sizi bir veritabanı satırındaki kişi alanına atar.",
+    "assignmentChannel": "Atamalar: {channel}",
+    "shareTitle": "Sizinle paylaşılan sayfalar",
+    "shareDescription": "Biri size bir sayfaya erişim verir.",
+    "shareChannel": "Sizinle paylaşılan sayfalar: {channel}",
     "mailOff": "Bu sunucuda e-posta gönderimi kapalı olduğu için şu an e-posta gitmiyor."
   }
 }

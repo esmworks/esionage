@@ -1,8 +1,9 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { pageInvitation, pagePermission, type PageLevel, user, workspaceInvitation, workspaceMember } from "@/db/schema";
+import { PAGE_LEVELS, pageInvitation, pagePermission, type PageLevel, user, workspaceInvitation, workspaceMember } from "@/db/schema";
 import { isEmail, normalizeEmail } from "@/lib/emails";
 import { AccessError, getMembership, hasLevel, requirePageAccess, resolvePageAccess } from "@/server/access";
+import { recordShare, withdrawShare } from "@/server/notifications";
 import { addGuest, canInviteGuests, type InvitationDelivery, inviteGuest } from "@/server/workspaces";
 
 /**
@@ -166,12 +167,22 @@ export async function removePageInvitation(actorId: string, pageId: string, emai
   });
 }
 
-/** Sets what `principal` (a member's id, or null for everyone) gets on the page. Needs full access. */
+/**
+ * Sets what `principal` (a member's id, or null for everyone) gets on the page. Needs full access.
+ * A member whose own entry is new or raised hears about it in their inbox; setting it to "none"
+ * takes that back while it is unread.
+ */
 export async function setPagePermission(actorId: string, pageId: string, principal: string | null, level: PageLevel) {
   const target = await requirePageAccess(actorId, pageId, "full");
   if (principal && !(await getMembership(principal, target.workspaceId))) {
     throw new PermissionError("notMember", "Pages can only be shared with workspace members");
   }
+  const [previous] = principal
+    ? await db
+        .select({ level: pagePermission.level })
+        .from(pagePermission)
+        .where(and(eq(pagePermission.pageId, pageId), eq(pagePermission.userId, principal)))
+    : [];
   await changePermissions(target.workspaceId, pageId, async (tx) => {
     await tx
       .insert(pagePermission)
@@ -181,9 +192,14 @@ export async function setPagePermission(actorId: string, pageId: string, princip
         set: { level, createdBy: actorId, createdAt: new Date() },
       });
   });
+  if (!principal) return;
+  if (level === "none") await withdrawShare(target.workspaceId, principal, pageId);
+  else if (!previous || PAGE_LEVELS.indexOf(level) > PAGE_LEVELS.indexOf(previous.level)) {
+    await recordShare(actorId, target.workspaceId, principal, pageId);
+  }
 }
 
-/** Removes the page's own entry for `principal`, so it inherits again. Needs full access. */
+/** Removes the page's own entry for `principal`, so it inherits again, and its unread notification. Needs full access. */
 export async function removePagePermission(actorId: string, pageId: string, principal: string | null) {
   const target = await requirePageAccess(actorId, pageId, "full");
   await changePermissions(target.workspaceId, pageId, async (tx) => {
@@ -196,6 +212,7 @@ export async function removePagePermission(actorId: string, pageId: string, prin
         ),
       );
   });
+  if (principal) await withdrawShare(target.workspaceId, principal, pageId);
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];

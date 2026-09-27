@@ -32,5 +32,18 @@
     "action": "Open",
     "untitled": "Untitled",
     "optOut": "You can turn these emails off in Settings > Preferences."
+  },
+  "share": {
+    "subject": "{actor} shared “{page}” with you",
+    "heading": "{actor} shared a page with you",
+    "body": "You can now {level} “{page}” in {workspace}.",
+    "levels": {
+      "view": "view",
+      "edit": "edit",
+      "full": "view, edit and share"
+    },
+    "action": "Open page",
+    "untitled": "Untitled",
+    "optOut": "You can turn these emails off in Settings > Preferences."
   }
 }

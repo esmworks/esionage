@@ -1,10 +1,14 @@
 "use server";
 
-import { setAssignmentEmailsEnabled } from "@/server/assignments";
+import { NOTIFICATION_KINDS, type NotificationKind } from "@/db/schema";
+import { setNotificationPreference, type NotificationChannel } from "@/server/notification-preferences";
 import { requireUserId } from "@/server/session";
 
-/** Turns the signed-in user's assignment emails on or off, on every device. */
-export async function setAssignmentEmailsAction(on: boolean) {
+/** Turns one kind of notification on or off in the inbox or by email, on every device. */
+export async function setNotificationPreferenceAction(kind: NotificationKind, channel: NotificationChannel, on: boolean) {
   const userId = await requireUserId();
-  await setAssignmentEmailsEnabled(userId, on);
+  if (!NOTIFICATION_KINDS.includes(kind) || (channel !== "inbox" && channel !== "email") || typeof on !== "boolean") {
+    throw new Error("Unknown notification preference");
+  }
+  await setNotificationPreference(userId, kind, channel, on);
 }

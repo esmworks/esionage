@@ -21,6 +21,7 @@ const { createCollab } = await import("./src/server/collab/service");
 const { registerCollab } = await import("./src/server/collab/bridge");
 const { describeMailSetup } = await import("./src/server/mail");
 const { startAssignmentEmails } = await import("./src/server/assignments");
+const { startShareEmails } = await import("./src/server/share-emails");
 
 const { hocuspocus, service } = createCollab();
 registerCollab(service);
@@ -69,6 +70,7 @@ server.listen(port, hostname, () => {
   console.log(`esionage ready on http://localhost:${port} (${dev ? "dev" : "production"})`);
   console.log(describeMailSetup());
   startAssignmentEmails();
+  startShareEmails();
 });
 
 let shuttingDown = false;

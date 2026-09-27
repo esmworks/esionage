@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { MailConfigError, readMailConfig } from "./config";
-import { assignmentEmail, invitationEmail, PASSWORD_RESET_MINUTES, passwordResetEmail, renderEmail, testEmail } from "./templates";
+import {
+  assignmentEmail,
+  invitationEmail,
+  PASSWORD_RESET_MINUTES,
+  passwordResetEmail,
+  renderEmail,
+  shareEmail,
+  testEmail,
+} from "./templates";
 
 const FROM = "Esionage <no-reply@example.com>";
 
@@ -142,5 +150,27 @@ describe("assignmentEmail", () => {
     const en = assignmentEmail("en", assignment);
     expect(en.subject).toBe("Erhan assigned you to “Teklif <hazırla>”");
     expect(en.text).toContain("Erhan added you to “Sorumlu” in İşlerim.");
+  });
+});
+
+describe("shareEmail", () => {
+  const share = {
+    actorName: "Erhan",
+    pageTitle: "Yol <haritası>",
+    workspaceName: "Ekip",
+    level: "edit" as const,
+    link: "https://notes.example.com/w/ws/p/page1",
+  };
+
+  it("names who shared which page and what the reader can do with it", () => {
+    const tr = shareEmail("tr", share);
+    expect(tr.subject).toBe("Erhan “Yol <haritası>” sayfasını sizinle paylaştı");
+    expect(tr.text).toContain("Ekip içindeki “Yol <haritası>” sayfasını artık düzenleyebilirsiniz.");
+    expect(tr.text).toContain("Sayfayı aç: https://notes.example.com/w/ws/p/page1");
+    expect(tr.html).toContain("Yol &lt;haritası&gt;");
+
+    const en = shareEmail("en", { ...share, level: "full" });
+    expect(en.subject).toBe("Erhan shared “Yol <haritası>” with you");
+    expect(en.text).toContain("You can now view, edit and share “Yol <haritası>” in Ekip.");
   });
 });

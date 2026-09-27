@@ -2,6 +2,7 @@ import type { AuthInfo } from "@modelcontextprotocol/server";
 
 export const READ_SCOPE = "pages:read";
 export const WRITE_SCOPE = "pages:write";
+export const NOTIFICATIONS_SCOPE = "notifications:read";
 
 /** The user and OAuth client an MCP request acts for. */
 export type McpPrincipal = { userId: string; clientId: string; scopes: string[] };
