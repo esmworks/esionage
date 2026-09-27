@@ -9,9 +9,10 @@ import {
   type ViewType,
 } from "@/db/schema/app";
 import { FILTER_COMBINATORS, MAX_FILTER_DEPTH, MAX_RELATIVE_DAYS, RELATIVE_DATE_RANGES } from "@/lib/filters";
+import { GROUP_DATE_BY } from "@/lib/grouping";
 import { pageLabel } from "@/lib/labels";
 import { computedValues, isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
-import { holdsOptions, STATUS_GROUPS } from "@/lib/property-types";
+import { holdsOptions, holdsTimestamp, STATUS_GROUPS } from "@/lib/property-types";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import * as databases from "@/server/databases";
 import * as notifications from "@/server/notifications";
@@ -166,26 +167,61 @@ function editOptions(
 }
 
 type ViewInput = {
-  group_by?: string;
+  group_by?: string | null;
+  group_date_by?: (typeof GROUP_DATE_BY)[number];
+  group_status_by?: "option" | "group";
+  hide_empty_groups?: boolean;
   date_by?: string;
   filters?: FilterEntryInput[];
   filter_combinator?: FilterCombinator;
   sorts?: SortInput[];
 };
 
+/** How a board or table groups, besides the property it groups by. */
+const groupSettingsInput = {
+  group_date_by: z
+    .enum(GROUP_DATE_BY)
+    .optional()
+    .describe("Grouping by a date, created_time or last_edited_time: one group per day, week (Monday to Sunday), month (the default) or year."),
+  group_status_by: z
+    .enum(["option", "group"])
+    .optional()
+    .describe('Grouping by a status: one group per option (the default) or per status group ("group": todo, in_progress, done).'),
+  hide_empty_groups: z.boolean().optional().describe("Leave out groups without rows."),
+};
+
 /** The view settings the caller asked to change, converted from names to stored ids. */
 function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput, lookups: Lookups): ViewConfig {
   const patch: ViewConfig = {};
+  const grouped = type === "board" || type === "table";
   if (input.group_by !== undefined) {
-    if (type !== "board") throw new ToolInputError("group_by only applies to board views.");
-    const prop = requireProperty(props, input.group_by);
-    if (!isGroupable(prop.type)) {
-      throw new ToolInputError(
-        `Boards group by a select, status, person, created_by or last_edited_by property; "${prop.name}" is ${prop.type}.`,
-      );
+    if (!grouped) throw new ToolInputError("group_by only applies to board and table views.");
+    if (input.group_by === null) {
+      if (type === "board") throw new ToolInputError("Boards always group their cards; pass a property to group by.");
+      patch.groupBy = undefined;
+    } else {
+      const prop = requireProperty(props, input.group_by);
+      if (!isGroupable(prop.type)) {
+        throw new ToolInputError(
+          `Views group by a select, status, multi_select, person, created_by, last_edited_by, checkbox, date, created_time, last_edited_time or relation property; "${prop.name}" is ${prop.type}.`,
+        );
+      }
+      patch.groupBy = prop.id;
+      if (input.group_date_by && prop.type !== "date" && !holdsTimestamp(prop.type)) {
+        throw new ToolInputError(`group_date_by only applies when grouping by a date; "${prop.name}" is ${prop.type}.`);
+      }
+      if (input.group_status_by && prop.type !== "status") {
+        throw new ToolInputError(`group_status_by only applies when grouping by a status; "${prop.name}" is ${prop.type}.`);
+      }
     }
-    patch.groupBy = prop.id;
   }
+  const groupSettings = input.group_date_by ?? input.group_status_by ?? input.hide_empty_groups;
+  if (groupSettings !== undefined && !grouped) {
+    throw new ToolInputError("group_date_by, group_status_by and hide_empty_groups only apply to board and table views.");
+  }
+  if (input.group_date_by) patch.groupDateBy = input.group_date_by;
+  if (input.group_status_by) patch.groupStatusBy = input.group_status_by === "group" ? "group" : undefined;
+  if (input.hide_empty_groups !== undefined) patch.hideEmptyGroups = input.hide_empty_groups || undefined;
   if (input.date_by !== undefined) {
     if (type !== "calendar") throw new ToolInputError("date_by only applies to calendar views.");
     const prop = requireProperty(props, input.date_by);
@@ -586,7 +622,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Get a database schema",
       description:
-        "Get a database's schema: its properties (name, type, option names for select / multi_select / status with the status groups, and the people a person property can hold), its views with their filters and sorts, and the row count. Call this before querying or writing rows.",
+        "Get a database's schema: its properties (name, type, option names for select / multi_select / status with the status groups, and the people a person property can hold), its views with their filters, sorts and grouping, and the row count. Call this before querying or writing rows.",
       inputSchema: z.object({ database_id: id("database") }),
       annotations: READ,
     },
@@ -972,7 +1008,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a database view",
       description:
-        'Add a saved view to a database: a "table", a "board" (cards grouped by a select, status or person property; a card assigned to several people shows under each) or a "calendar" (rows placed on the days of a date property). Filters (with groups and filter_combinator) and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows, and is_within date filters count from the day the view is opened.',
+        'Add a saved view to a database: a "table" (optionally grouped into collapsible sections with group_by), a "board" (cards in columns by group_by) or a "calendar" (rows placed on the days of a date property). Views group by a select, status (per option, or per todo / in_progress / done with group_status_by "group"), multi_select, person, created_by, last_edited_by, checkbox (unchecked / checked), date, created_time or last_edited_time (per day, week from Monday, month or year with group_date_by, month by default) or relation (one group per linked row); a row with several tags, people or links shows in each of their groups. Filters (with groups and filter_combinator) and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows, and is_within date filters count from the day the view is opened.',
       inputSchema: z.object({
         database_id: id("database"),
         name: z.string().min(1).max(100).describe("View name."),
@@ -980,7 +1016,10 @@ export function createMcpServer(principal: McpPrincipal) {
         group_by: z
           .string()
           .optional()
-          .describe("Board only: the select, status or people property to group cards by. Defaults to the first select or status property."),
+          .describe(
+            "Board or table: the property to group rows by. Boards default to the first select or status property; tables are not grouped unless given.",
+          ),
+        ...groupSettingsInput,
         date_by: z.string().optional().describe("Calendar only: the date property that places rows on days. Defaults to the first date property."),
         filters: filtersInput.optional(),
         filter_combinator: filterCombinatorInput,
@@ -989,14 +1028,19 @@ export function createMcpServer(principal: McpPrincipal) {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, name, type, group_by, date_by, filters, filter_combinator, sorts }) =>
+    ({ database_id, name, type, group_by, group_date_by, group_status_by, hide_empty_groups, date_by, filters, filter_combinator, sorts }) =>
       runTool(async () => {
         assertWrite();
         const { database, properties } = await databases.getDatabase(userId, database_id);
         if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
         const lookups = await databases.getLookups(userId, properties);
         // Validate before creating so a bad filter does not leave a half-configured view behind.
-        const patch = viewConfigPatch(properties, type, { group_by, date_by, filters, filter_combinator, sorts }, lookups);
+        const patch = viewConfigPatch(
+          properties,
+          type,
+          { group_by, group_date_by, group_status_by, hide_empty_groups, date_by, filters, filter_combinator, sorts },
+          lookups,
+        );
         const created = await databases.addView(userId, database_id, { name, type });
         const config = { ...created.config, ...patch };
         if (Object.keys(patch).length) await databases.updateView(userId, created.id, { config });
@@ -1009,12 +1053,17 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Update a database view",
       description:
-        "Rename a saved view or change its filters, sorts, board grouping or calendar date property (view ids from get_database). filters and sorts replace the view's current ones (filters with filter_combinator, \"and\" unless given); pass an empty array to clear them. filter_combinator alone switches how the current filters combine. Settings you leave out keep their values.",
+        "Rename a saved view or change its filters, sorts, grouping (boards and tables, see create_database_view) or calendar date property (view ids from get_database). filters and sorts replace the view's current ones (filters with filter_combinator, \"and\" unless given); pass an empty array to clear them. filter_combinator alone switches how the current filters combine. Settings you leave out keep their values.",
       inputSchema: z.object({
         database_id: id("database"),
         view_id: id("view"),
         name: z.string().min(1).max(100).optional().describe("New view name."),
-        group_by: z.string().optional().describe("Board only: the select, status or people property to group cards by."),
+        group_by: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("Board or table: the property to group rows by; null removes a table's grouping."),
+        ...groupSettingsInput,
         date_by: z.string().optional().describe("Calendar only: the date property that places rows on days."),
         filters: filtersInput.optional(),
         filter_combinator: filterCombinatorInput,
@@ -1023,16 +1072,35 @@ export function createMcpServer(principal: McpPrincipal) {
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, view_id, name, group_by, date_by, filters, filter_combinator, sorts }) =>
+    ({
+      database_id,
+      view_id,
+      name,
+      group_by,
+      group_date_by,
+      group_status_by,
+      hide_empty_groups,
+      date_by,
+      filters,
+      filter_combinator,
+      sorts,
+    }) =>
       runTool(async () => {
         assertWrite();
         const { database, properties, views } = await databases.getDatabase(userId, database_id);
         const view = views.find((v) => v.id === view_id);
         if (!view) throw new ToolInputError(`No view with id "${view_id}" in this database. Call get_database for view ids.`);
         const lookups = await databases.getLookups(userId, properties);
-        const patch = viewConfigPatch(properties, view.type, { group_by, date_by, filters, filter_combinator, sorts }, lookups);
+        const patch = viewConfigPatch(
+          properties,
+          view.type,
+          { group_by, group_date_by, group_status_by, hide_empty_groups, date_by, filters, filter_combinator, sorts },
+          lookups,
+        );
         if (name === undefined && !Object.keys(patch).length) {
-          throw new ToolInputError("Nothing to change: provide name, group_by, date_by, filters, filter_combinator or sorts.");
+          throw new ToolInputError(
+            "Nothing to change: provide name, group_by, group_date_by, group_status_by, hide_empty_groups, date_by, filters, filter_combinator or sorts.",
+          );
         }
         const config = { ...view.config, ...patch };
         await databases.updateView(userId, view_id, {

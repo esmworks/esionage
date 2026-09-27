@@ -421,8 +421,48 @@ describe("update_database_rows", () => {
 describe("database views", () => {
   it("validates board grouping before creating the view", async () => {
     const r = await callTool(writer, "create_database_view", { database_id: "db-1", name: "By notes", type: "board", group_by: "Notes" });
-    expect(r.text).toMatch(/select, status, person, created_by or last_edited_by property/);
+    expect(r.text).toMatch(/Views group by a select, status, multi_select, .* or relation property; "Notes" is text/);
     expect(databases.addView).not.toHaveBeenCalled();
+  });
+
+  it("groups tables by date with a bucket size, and ungroups them", async () => {
+    const due = { id: "prop-due", name: "Due", type: "date", options: {} };
+    databases.getDatabase.mockResolvedValue({ ...database, properties: [status, notes, due] });
+    const onCalendar = await callTool(writer, "create_database_view", { database_id: "db-1", name: "C", type: "calendar", group_by: "Due" });
+    expect(onCalendar.text).toMatch(/only applies to board and table/);
+    const wrongProp = await callTool(writer, "create_database_view", {
+      database_id: "db-1",
+      name: "T",
+      group_by: "Status",
+      group_date_by: "week",
+    });
+    expect(wrongProp.text).toMatch(/group_date_by only applies when grouping by a date/);
+    const ungroupBoard = await callTool(writer, "create_database_view", { database_id: "db-1", name: "B", type: "board", group_by: null });
+    expect(ungroupBoard.isError).toBe(true);
+    expect(databases.addView).not.toHaveBeenCalled();
+
+    databases.addView.mockResolvedValue({ id: "view-4", name: "By week", type: "table", config: {} });
+    const r = await callTool(writer, "create_database_view", {
+      database_id: "db-1",
+      name: "By week",
+      group_by: "Due",
+      group_date_by: "week",
+      hide_empty_groups: true,
+    });
+    expect(databases.updateView).toHaveBeenCalledWith("user-1", "view-4", {
+      config: { groupBy: "prop-due", groupDateBy: "week", hideEmptyGroups: true },
+    });
+    expect(r.data).toMatchObject({ type: "table", group_by: "Due", group_date_by: "week", hide_empty_groups: true });
+
+    databases.getDatabase.mockResolvedValue({
+      ...database,
+      properties: [status, notes, due],
+      views: [{ id: "view-4", name: "By week", type: "table", config: { groupBy: "prop-due", groupDateBy: "week" } }],
+    });
+    const cleared = await callTool(writer, "update_database_view", { database_id: "db-1", view_id: "view-4", group_by: null });
+    expect(cleared.isError).toBe(false);
+    expect(cleared.data.group_by).toBeUndefined();
+    expect(databases.updateView).toHaveBeenLastCalledWith("user-1", "view-4", { config: { groupDateBy: "week" } });
   });
 
   it("creates a view with filters stored as option ids", async () => {

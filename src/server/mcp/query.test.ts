@@ -121,6 +121,24 @@ describe("display helpers", () => {
       sorts: [{ property: "title", direction: "asc" }],
     });
   });
+
+  it("describes the grouping settings that apply to the grouping property", () => {
+    const due: PropertyDef = { id: "p_due", name: "Due", type: "date", options: {} };
+    const stage: PropertyDef = { id: "p_stage", name: "Stage", type: "status", options: { options: [] } };
+    const all = [...props, due, stage];
+    expect(describeViewConfig(all, { groupBy: "p_due" })).toEqual({ group_by: "Due", group_date_by: "month" });
+    expect(describeViewConfig(all, { groupBy: "p_due", groupDateBy: "year", hideEmptyGroups: true })).toEqual({
+      group_by: "Due",
+      group_date_by: "year",
+      hide_empty_groups: true,
+    });
+    expect(describeViewConfig(all, { groupBy: "p_stage", groupStatusBy: "group" })).toEqual({
+      group_by: "Stage",
+      group_status_by: "group",
+    });
+    // Settings for another kind of grouping don't show.
+    expect(describeViewConfig(all, { groupBy: "p_ok", groupDateBy: "week", groupStatusBy: "group" })).toEqual({ group_by: "Approved" });
+  });
 });
 
 describe("relations", () => {
