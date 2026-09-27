@@ -17,7 +17,7 @@ import {
   AccessError,
   type AccessLevel,
   accessRank,
-  enforceTwoFactorPolicy,
+  enforceWorkspacePolicy,
   levelFromRank,
   pageIdColumn,
   pageVisibleTo,
@@ -539,7 +539,7 @@ export async function searchPages(
 ): Promise<SearchHit[]> {
   const q = query.trim();
   if (!q) return [];
-  if (workspaceId) await enforceTwoFactorPolicy(userId, workspaceId);
+  if (workspaceId) await enforceWorkspacePolicy(userId, workspaceId);
   const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   const rows = await db.execute<{
     id: string;

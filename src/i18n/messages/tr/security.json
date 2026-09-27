@@ -82,5 +82,14 @@
     "signedInAs": "{email} olarak giriş yapıldı.",
     "signOut": "Çıkış yap",
     "otherWorkspaces": "Diğer çalışma alanlarınız"
+  },
+  "ssoGate": {
+    "metaTitle": "Çoklu oturum açma gerekli",
+    "title": "{workspace} çoklu oturum açma istiyor",
+    "body": "Bu çalışma alanının üyeleri kuruluşlarının kimlik sağlayıcısı üzerinden giriş yapar. Çalışma alanını açmak için onunla devam edin.",
+    "continue": "SSO ile devam et",
+    "signedInAs": "{email} olarak giriş yapıldı.",
+    "signOut": "Çıkış yap",
+    "otherWorkspaces": "Diğer çalışma alanlarınız"
   }
 }

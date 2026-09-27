@@ -52,21 +52,28 @@ export async function getAccountSecurity(userId: string): Promise<AccountSecurit
 }
 
 /**
- * Whether the session a collab token was issued to passes a "require two-step verification" policy
- * (isStrongSession), checked when the websocket connects. A session that is gone counts by the
- * user alone: turning two-step verification on replaces the session, and tokens outlive it.
+ * What the workspace policies look at in the session a collab token was issued to, checked when the
+ * websocket connects: whether it passes "require two-step verification" (isStrongSession) and the
+ * SSO provider it came through. A session that is gone counts by the user alone: turning two-step
+ * verification on replaces the session, and tokens outlive it.
  */
-export async function sessionPassesTwoFactor(sessionId: string | null, userId: string): Promise<boolean> {
+export async function collabSessionFacts(
+  sessionId: string | null,
+  userId: string,
+): Promise<{ strong: boolean; ssoProviderId: string | null }> {
   const [[account], [current]] = await Promise.all([
     db.select({ twoFactorEnabled: user.twoFactorEnabled }).from(user).where(eq(user.id, userId)).limit(1),
     sessionId
       ? db
-          .select({ authMethod: session.authMethod })
+          .select({ authMethod: session.authMethod, ssoProviderId: session.ssoProviderId })
           .from(session)
           .where(and(eq(session.id, sessionId), eq(session.userId, userId), gt(session.expiresAt, new Date())))
           .limit(1)
       : Promise.resolve([]),
   ]);
-  if (!account) return false;
-  return isStrongSession({ user: account, session: { authMethod: current?.authMethod ?? null } });
+  if (!account) return { strong: false, ssoProviderId: null };
+  return {
+    strong: isStrongSession({ user: account, session: { authMethod: current?.authMethod ?? null } }),
+    ssoProviderId: current?.ssoProviderId ?? null,
+  };
 }

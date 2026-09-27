@@ -13,13 +13,20 @@ import { verifyTotp } from "@/lib/totp";
 export const APP_NAME = "Esionage";
 
 /** How a session was signed in, kept on the session row (`session.auth_method`). */
-export type AuthMethod = "password" | "social" | "passkey" | "totp" | "recovery-code";
+export type AuthMethod = "password" | "social" | "sso" | "passkey" | "totp" | "recovery-code";
+
+/** The endpoints where a single sign-on (OIDC callback, SAML assertion consumer) signs someone in. */
+export const SSO_SIGN_IN_PATHS = ["/sso/callback/:providerId", "/sso/saml2/sp/acs/:providerId"] as const;
+export const isSsoSignInPath = (path: string | undefined) =>
+  (SSO_SIGN_IN_PATHS as readonly (string | undefined)[]).includes(path);
 
 const AUTH_METHOD_BY_PATH: Record<string, AuthMethod> = {
   "/sign-in/email": "password",
   "/sign-up/email": "password",
   "/sign-in/social": "social",
   "/callback/:id": "social",
+  "/sso/callback/:providerId": "sso",
+  "/sso/saml2/sp/acs/:providerId": "sso",
   "/passkey/verify-authentication": "passkey",
   "/two-factor/verify-totp": "totp",
   "/two-factor/verify-backup-code": "recovery-code",
@@ -30,19 +37,73 @@ export function authMethodOf(path: string | undefined): AuthMethod | null {
   return (path && Object.hasOwn(AUTH_METHOD_BY_PATH, path) && AUTH_METHOD_BY_PATH[path]) || null;
 }
 
-type SessionHookContext = { path?: string; context?: object } | null | undefined;
+type SessionHookContext =
+  | {
+      path?: string;
+      params?: unknown;
+      context?: object;
+      getSignedCookie?: (name: string, secret: string) => Promise<string | null | false | undefined>;
+    }
+  | null
+  | undefined;
 
 /**
- * `databaseHooks.session.create.before`: records how the session was signed in. A session
- * recreated from another keeps the original: turning two-step verification on or off copies the
- * old session, and changing the password with "sign out other sessions" replaces the current one
- * from within that request (its session is on the context), so a passkey sign-in stays one.
+ * Cookie that carries a single sign-on across the two-step code: the provider and user of an SSO
+ * sign-in held back for a code, so the session the code creates still counts as that single
+ * sign-on (a workspace's "SSO only" policy asks for it). Signed, short-lived like the code step.
+ */
+export const SSO_PENDING_COOKIE = "esionage.sso_pending";
+export const SSO_PENDING_MAX_AGE = 600;
+
+const CODE_STEP_PATHS = new Set(["/two-factor/verify-totp", "/two-factor/verify-backup-code"]);
+
+/** The SSO provider behind a code step's pending sign-in, when it was one and is this user's. */
+async function ssoPendingOf(ctx: SessionHookContext, userId: unknown, secret: string | undefined) {
+  if (!ctx?.getSignedCookie || !secret || !CODE_STEP_PATHS.has(ctx.path ?? "")) return null;
+  const value = await ctx.getSignedCookie(SSO_PENDING_COOKIE, secret).catch(() => null);
+  return typeof value === "string" ? ssoPendingProvider(value, userId) : null;
+}
+
+/** `<provider id>!<user id>` → the provider, when the user matches. */
+export function ssoPendingProvider(value: string, userId: unknown) {
+  const cut = value.lastIndexOf("!");
+  if (cut < 1 || typeof userId !== "string" || value.slice(cut + 1) !== userId) return null;
+  return value.slice(0, cut);
+}
+
+/** The provider an SSO endpoint signed in with (`/sso/callback/:providerId`), else null. */
+function ssoProviderOf(ctx: SessionHookContext) {
+  if (!isSsoSignInPath(ctx?.path)) return null;
+  const id = (ctx?.params as { providerId?: unknown } | undefined)?.providerId;
+  return typeof id === "string" && id ? id : null;
+}
+
+/**
+ * `databaseHooks.session.create.before`: records how the session was signed in and, for a single
+ * sign-on, with which provider. A session recreated from another keeps the original: turning
+ * two-step verification on or off copies the old session, and changing the password with "sign
+ * out other sessions" replaces the current one from within that request (its session is on the
+ * context), so a passkey sign-in stays one. The code step after a single sign-on keeps its
+ * provider (SSO_PENDING_COOKIE), though the method becomes the code.
  */
 export async function recordAuthMethod<S extends Record<string, unknown>>(session: S, ctx: SessionHookContext) {
   const existing = (session as { authMethod?: string | null }).authMethod;
-  const context = ctx?.context as { session?: { session?: { authMethod?: string | null } | null } | null } | undefined;
-  const current = context?.session?.session?.authMethod ?? null;
-  return { data: { ...session, authMethod: existing ?? authMethodOf(ctx?.path) ?? current } };
+  const context = ctx?.context as
+    | {
+        session?: { session?: { authMethod?: string | null; ssoProviderId?: string | null } | null } | null;
+        secret?: string;
+      }
+    | undefined;
+  const current = context?.session?.session;
+  const named = authMethodOf(ctx?.path);
+  if (existing != null) {
+    const sso = (session as { ssoProviderId?: string | null }).ssoProviderId ?? null;
+    return { data: { ...session, authMethod: existing, ssoProviderId: sso } };
+  }
+  const sso = named
+    ? (ssoProviderOf(ctx) ?? (await ssoPendingOf(ctx, (session as { userId?: unknown }).userId, context?.secret)))
+    : (current?.ssoProviderId ?? null);
+  return { data: { ...session, authMethod: named ?? current?.authMethod ?? null, ssoProviderId: sso } };
 }
 
 /**
@@ -122,7 +183,11 @@ export function twoFactorPlugin() {
       ...plugin.hooks,
       after: [
         {
-          matcher: (ctx) => challenge.matcher(ctx) || ctx.path === "/callback/:id" || ctx.path === "/sign-in/social",
+          matcher: (ctx) =>
+            challenge.matcher(ctx) ||
+            ctx.path === "/callback/:id" ||
+            ctx.path === "/sign-in/social" ||
+            isSsoSignInPath(ctx.path),
           handler: challenge.handler,
         },
       ],
@@ -155,11 +220,26 @@ export function socialTwoFactorRedirect(appUrl: string) {
       ],
       after: [
         {
-          matcher: (ctx) => ctx.path === "/callback/:id",
+          matcher: (ctx) => ctx.path === "/callback/:id" || isSsoSignInPath(ctx.path),
           handler: createAuthMiddleware(async (ctx) => {
             const returned = ctx.context.returned as { twoFactorRedirect?: boolean } | undefined;
             if (!returned || typeof returned !== "object" || returned.twoFactorRedirect !== true) return;
             const next = sameOriginPath(ctx.context.responseHeaders?.get("location"), appUrl);
+            if (isSsoSignInPath(ctx.path)) {
+              // The session the code creates should still count as this single sign-on.
+              const providerId = (ctx.params as { providerId?: string } | undefined)?.providerId;
+              const userId = await pendingTwoFactorUser(ctx);
+              if (providerId && userId) {
+                await ctx.setSignedCookie(SSO_PENDING_COOKIE, `${providerId}!${userId}`, ctx.context.secret, {
+                  httpOnly: true,
+                  sameSite: "lax",
+                  secure: appUrl.startsWith("https:"),
+                  path: "/",
+                  maxAge: SSO_PENDING_MAX_AGE,
+                });
+              }
+              throw ctx.redirect(twoFactorStepUrl(next));
+            }
             const oauthQuery = (await getOAuthState())?.serverContext?.[OAUTH_QUERY_KEY];
             throw ctx.redirect(twoFactorStepUrl(next, typeof oauthQuery === "string" ? oauthQuery : null));
           }),
@@ -167,6 +247,25 @@ export function socialTwoFactorRedirect(appUrl: string) {
       ],
     },
   } satisfies BetterAuthPlugin;
+}
+
+type HookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
+
+/**
+ * Whose sign-in the two-factor plugin has just held back in this response: it set the pending
+ * sign-in cookie (`two_factor`, signed, naming a verification row that holds the user id).
+ */
+async function pendingTwoFactorUser(ctx: HookContext): Promise<string | null> {
+  const name = ctx.context.createAuthCookie("two_factor").name;
+  const header = ctx.context.responseHeaders?.get("set-cookie") ?? "";
+  const start = header.indexOf(`${name}=`);
+  if (start < 0) return null;
+  const raw = header.slice(start + name.length + 1).split(";")[0];
+  const signed = decodeURIComponent(raw);
+  const cut = signed.lastIndexOf(".");
+  if (cut < 1) return null;
+  const row = await ctx.context.internalAdapter.findVerificationValue(signed.slice(0, cut));
+  return row?.value ?? null;
 }
 
 export function passkeyPlugin(appUrl: string) {

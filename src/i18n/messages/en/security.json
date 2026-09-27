@@ -82,5 +82,14 @@
     "signedInAs": "Signed in as {email}.",
     "signOut": "Sign out",
     "otherWorkspaces": "Your other workspaces"
+  },
+  "ssoGate": {
+    "metaTitle": "Single sign-on required",
+    "title": "{workspace} requires single sign-on",
+    "body": "Members of this workspace sign in through their organization's identity provider. Continue with it to open the workspace.",
+    "continue": "Continue with SSO",
+    "signedInAs": "Signed in as {email}.",
+    "signOut": "Sign out",
+    "otherWorkspaces": "Your other workspaces"
   }
 }

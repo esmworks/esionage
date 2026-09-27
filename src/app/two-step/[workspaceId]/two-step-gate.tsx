@@ -15,12 +15,15 @@ export function TwoStepGate({
   workspaceName,
   hasPassword,
   hasPasskeys,
+  passkeyAllowed = true,
   email,
 }: {
   workspaceId: string;
   workspaceName: string;
   hasPassword: boolean;
   hasPasskeys: boolean;
+  /** False when the workspace also requires single sign-on, which a passkey sign-in isn't. */
+  passkeyAllowed?: boolean;
   email: string;
 }) {
   const t = useTranslations("security.gate");
@@ -77,11 +80,13 @@ export function TwoStepGate({
           <Smartphone className="h-4 w-4" aria-hidden />
           {t("useApp")}
         </Button>
-        <Button className="w-full gap-2" onClick={continueWithPasskey} disabled={pending || supported === false}>
-          <KeyRound className="h-4 w-4" aria-hidden />
-          {hasPasskeys ? t("usePasskey") : t("addPasskey")}
-        </Button>
-        {supported === false && <p className="text-xs text-fg-muted">{t("passkeyUnsupported")}</p>}
+        {passkeyAllowed && (
+          <Button className="w-full gap-2" onClick={continueWithPasskey} disabled={pending || supported === false}>
+            <KeyRound className="h-4 w-4" aria-hidden />
+            {hasPasskeys ? t("usePasskey") : t("addPasskey")}
+          </Button>
+        )}
+        {passkeyAllowed && supported === false && <p className="text-xs text-fg-muted">{t("passkeyUnsupported")}</p>}
       </div>
       {error && <p className="text-sm text-danger">{error}</p>}
       <p className="border-t border-border pt-4 text-xs text-fg-muted">

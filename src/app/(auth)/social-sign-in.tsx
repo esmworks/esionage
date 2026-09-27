@@ -35,6 +35,9 @@ const SOCIAL_ERROR_KEYS = {
   account_not_linked: "socialNotLinked",
   email_not_found: "socialNoEmail",
   access_denied: "socialCancelled",
+  // Single sign-on (see server/sso.ts and the SSO plugin's callback).
+  sso_sign_up_not_allowed: "ssoSignUpNotAllowed",
+  unable_to_link_account: "socialNotLinked",
 } as const;
 
 export function socialErrorKey(code: string) {

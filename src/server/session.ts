@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { isStrongSession } from "@/lib/auth-security";
-import { twoFactorPolicyApplies } from "@/server/access";
+import { policyHoldFor, type PolicyHold } from "@/server/access";
 
 export const getSession = cache(async () => auth.api.getSession({ headers: await headers() }));
 
@@ -28,29 +28,46 @@ export async function requireUser() {
 
 type Session = NonNullable<Awaited<ReturnType<typeof getSession>>>;
 
+/** What the workspace policies look at in a session (see SessionFacts in access.ts). */
+export function sessionFacts(session: Session) {
+  return {
+    strong: isStrongSession(session),
+    ssoProviderId: (session.session as { ssoProviderId?: string | null }).ssoProviderId ?? null,
+  };
+}
+
 /**
- * Whether the workspace requires two-step verification and this member's session doesn't pass it
- * (see isStrongSession). Non-members get false: their own access checks turn them away, without
- * learning the workspace's policy.
+ * Which of the workspace's sign-in policies holds back this session: two-step verification
+ * (isStrongSession) or "SSO only". Non-members get null: their own access checks turn them away,
+ * without learning the workspace's policy.
  */
-export async function blockedByTwoFactorPolicy(session: Session, workspaceId: string) {
-  return !isStrongSession(session) && (await twoFactorPolicyApplies(session.user.id, workspaceId));
+export async function blockedByWorkspacePolicy(session: Session, workspaceId: string): Promise<PolicyHold | null> {
+  return policyHoldFor(session.user.id, workspaceId, sessionFacts(session));
 }
 
 /**
  * For the pages under /w/[workspaceId] (the layout and each page, as Next renders them in
- * parallel): a session the workspace's two-step policy turns away goes to the page where they set
- * it up. Server actions and API routes get TwoFactorRequiredError from the access checks instead
- * (see access.ts). Connected apps (MCP) and REST API tokens reach data with bearer tokens and aren't
- * affected.
+ * parallel): a session a workspace policy turns away goes to the page where it can meet it. Server
+ * actions and API routes get a WorkspacePolicyError from the access checks instead (see access.ts).
+ * Connected apps (MCP) and REST API tokens reach data with bearer tokens and aren't affected.
  */
 export async function requireWorkspaceSession(workspaceId: string) {
   const session = await requireSession();
-  if (await blockedByTwoFactorPolicy(session, workspaceId)) redirect(twoStepPath(workspaceId));
+  const hold = await blockedByWorkspacePolicy(session, workspaceId);
+  if (hold) redirect(policyGatePath(workspaceId, hold));
   return session;
 }
 
 export const twoStepPath = (workspaceId: string) => `/two-step/${encodeURIComponent(workspaceId)}`;
+export const ssoRequiredPath = (workspaceId: string) => `/sso-required/${encodeURIComponent(workspaceId)}`;
+
+/** The 403 body of routes that answer a held-back session without a page. */
+export const policyRefusal = (hold: PolicyHold) =>
+  hold === "sso" ? "Single sign-on required" : "Two-step verification required";
+
+/** Where a session held back by `hold` goes to meet the policy. */
+export const policyGatePath = (workspaceId: string, hold: PolicyHold) =>
+  hold === "sso" ? ssoRequiredPath(workspaceId) : twoStepPath(workspaceId);
 
 /** For server actions: throws instead of redirecting. */
 export async function requireUserId() {

@@ -16,7 +16,7 @@ import {
 } from "@/server/export";
 import { exportLabels } from "@/server/export-labels";
 import { getPage } from "@/server/pages";
-import { blockedByTwoFactorPolicy, getSession } from "@/server/session";
+import { blockedByWorkspacePolicy, getSession, policyRefusal } from "@/server/session";
 
 function download(body: string, type: string, disposition: string) {
   return new Response(body, {
@@ -53,9 +53,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
   const query = new URL(request.url).searchParams;
   try {
     const target = await getPage(userId, pageId);
-    if (await blockedByTwoFactorPolicy(session, target.workspaceId)) {
-      return new Response("Two-step verification required", { status: 403 });
-    }
+    const hold = await blockedByWorkspacePolicy(session, target.workspaceId);
+    if (hold) return new Response(policyRefusal(hold), { status: 403 });
     const labels = await exportLabels();
     if (request.method === "GET" && query.get("subpages") === "1") {
       if (query.get("check") === "1") {

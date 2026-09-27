@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
+import { ssoSignInAvailable } from "@/server/sso";
 import { AuthForm } from "../auth-form";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -19,6 +20,7 @@ export default async function SignInPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { next, step } = await searchParams;
+  const instance = env.instanceOidc;
   return (
     <AuthForm
       mode="sign-in"
@@ -26,6 +28,7 @@ export default async function SignInPage({
       signUpEnabled={!env.signUpDisabled}
       next={safeNext(next)}
       socialProviders={env.enabledSocialProviders}
+      sso={{ instanceName: instance?.name ?? null, byEmail: await ssoSignInAvailable() }}
     />
   );
 }

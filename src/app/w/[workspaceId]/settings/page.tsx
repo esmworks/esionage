@@ -14,6 +14,12 @@ import {
   RequireTwoFactorSetting,
 } from "@/components/settings/security-settings";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
+import {
+  LoginMethodSetting,
+  ScimSettings,
+  SsoConnectionForm,
+  SsoSetupDetails,
+} from "@/components/settings/sso-settings";
 import { SitePages, SiteSettings } from "@/components/settings/site-settings";
 import { TeamspacesPanel } from "@/components/settings/teamspaces-panel";
 import { WorkspaceExport } from "@/components/settings/workspace-export";
@@ -22,6 +28,8 @@ import { isStrongSession } from "@/lib/auth-security";
 import { AccessError, isGuest } from "@/server/access";
 import { listWorkspaceFormPublications } from "@/server/forms";
 import { listWorkspacePublications } from "@/server/publication";
+import { listScimTokens, scimManagedCount } from "@/server/scim";
+import { getSsoConnection, ssoSetupInfo } from "@/server/sso";
 import { getSession, requireWorkspaceSession } from "@/server/session";
 import { getSite } from "@/server/site";
 import { canCreateTeamspace, listTeamspaces, teamspacesByMember } from "@/server/teamspaces";
@@ -33,6 +41,7 @@ import {
   lastEdits,
   listInvitations,
   listMembers,
+  ssoAvailable,
 } from "@/server/workspaces";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -149,14 +158,20 @@ export default async function SettingsPage({
 }
 
 async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
-  const [settings, publications, forms, session, withoutTwoFactor, t] = await Promise.all([
-    getWorkspaceSettings(userId, workspaceId),
-    isOwner ? listWorkspacePublications(userId, workspaceId) : null,
-    isOwner ? listWorkspaceFormPublications(userId, workspaceId) : null,
-    getSession(),
-    isOwner ? countMembersWithoutTwoFactor(userId, workspaceId) : 0,
-    getTranslations("settings"),
-  ]);
+  const [settings, publications, forms, session, withoutTwoFactor, canUseSso, connection, scimTokens, scimManaged, t] =
+    await Promise.all([
+      getWorkspaceSettings(userId, workspaceId),
+      isOwner ? listWorkspacePublications(userId, workspaceId) : null,
+      isOwner ? listWorkspaceFormPublications(userId, workspaceId) : null,
+      getSession(),
+      isOwner ? countMembersWithoutTwoFactor(userId, workspaceId) : 0,
+      ssoAvailable(workspaceId),
+      isOwner ? getSsoConnection(userId, workspaceId) : null,
+      isOwner ? listScimTokens(userId, workspaceId) : [],
+      isOwner ? scimManagedCount(workspaceId) : 0,
+      getTranslations("settings"),
+    ]);
+  const setup = ssoSetupInfo(workspaceId);
   return (
     <div className="space-y-10">
       <div>
@@ -169,8 +184,31 @@ async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: stri
             ownSessionPasses={Boolean(session && isStrongSession(session))}
             withoutTwoFactor={withoutTwoFactor}
           />
+          <LoginMethodSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} available={canUseSso} />
         </SettingsGroup>
       </div>
+      {isOwner && (
+        <SettingsGroup title={t("security.sso.title")} description={t("security.sso.description")}>
+          <SsoSetupDetails info={setup} />
+          <SsoConnectionForm workspaceId={workspaceId} connection={connection} />
+        </SettingsGroup>
+      )}
+      {isOwner && (
+        <SettingsGroup title={t("security.scim.title")} description={t("security.scim.description")}>
+          <ScimSettings
+            workspaceId={workspaceId}
+            baseUrl={setup.scimBaseUrl}
+            managed={scimManaged}
+            tokens={scimTokens.map((token) => ({
+              id: token.id,
+              name: token.name,
+              prefix: token.prefix,
+              createdAt: token.createdAt.toISOString(),
+              lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
+            }))}
+          />
+        </SettingsGroup>
+      )}
       <div>
         <SettingsGroup title={t("security.guestsHeading")}>
           <GuestInviteSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />

@@ -54,6 +54,13 @@ export type WorkspaceSettings = {
   requireTwoFactor: boolean;
   /** Who may create teamspaces. Guests never can. */
   teamspaceCreation: "owners" | "members";
+  /**
+   * How members may sign in to open the workspace: any way, or only through its single sign-on
+   * (its own connection, or the instance's provider). Owners keep their other ways in, so a broken
+   * identity provider can't lock the workspace; guests are outside it. Like two-step verification,
+   * it doesn't apply to connected apps (MCP) or API tokens.
+   */
+  loginMethod: "any" | "sso";
 };
 
 export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
@@ -62,6 +69,7 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   publishing: "members",
   requireTwoFactor: false,
   teamspaceCreation: "members",
+  loginMethod: "any",
 };
 
 export const workspace = pgTable("workspace", {

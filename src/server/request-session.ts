@@ -1,6 +1,6 @@
 /**
  * The browser session behind the request being served, for the checks deep in the data layer that
- * only get a user id (see access.ts, which holds sessions to the workspace's two-step policy).
+ * only get a user id (see access.ts, which holds sessions to the workspaces' sign-in policies).
  *
  * Null outside a Next request (the collab server, scripts, tests), for requests that authenticate
  * with a bearer token (MCP's OAuth tokens and the REST API's personal access tokens are outside the
@@ -11,8 +11,10 @@ export type RequestSession = {
   userId: string;
   /** Passes a "require two-step verification" policy (see isStrongSession). */
   strong: boolean;
-  /** Per workspace id: whether its policy holds this session back. Filled by access.ts. */
-  heldBack: Map<string, Promise<boolean>>;
+  /** The SSO provider it was signed in through, for "SSO only" workspaces. */
+  ssoProviderId: string | null;
+  /** Per workspace id: which of its policies holds this session back, if any. Filled by access.ts. */
+  heldBack: Map<string, Promise<"two-factor" | "sso" | null>>;
 };
 
 const byRequest = new WeakMap<object, Promise<RequestSession | null>>();
@@ -42,5 +44,10 @@ async function lookUp(requestHeaders: Headers): Promise<RequestSession | null> {
   const [{ auth }, { isStrongSession }] = await Promise.all([import("@/lib/auth"), import("@/lib/auth-security")]);
   const session = await auth.api.getSession({ headers: requestHeaders }).catch(() => null);
   if (!session) return null;
-  return { userId: session.user.id, strong: isStrongSession(session), heldBack: new Map() };
+  return {
+    userId: session.user.id,
+    strong: isStrongSession(session),
+    ssoProviderId: (session.session as { ssoProviderId?: string | null }).ssoProviderId ?? null,
+    heldBack: new Map(),
+  };
 }

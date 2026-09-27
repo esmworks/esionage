@@ -23,6 +23,8 @@ export const USER_MARKER = "esionage-user";
 export const COLLAB_FORBIDDEN = "forbidden";
 /** The workspace wants two-step verification first; the page itself is still theirs. */
 export const COLLAB_TWO_STEP = "two-step";
+/** Members must sign in with the workspace's single sign-on first; the page is still theirs. */
+export const COLLAB_SSO = "sso";
 /** No valid collab token (e.g. the session expired). */
 export const COLLAB_UNAUTHORIZED = "unauthorized";
 

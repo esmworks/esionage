@@ -220,7 +220,8 @@
     "joinLinkInvalid": "This join link is invalid or was turned off.",
     "transferToSelf": "Choose someone else to make owner.",
     "transferToGuest": "Make them a member before making them owner.",
-    "twoFactorFirst": "Turn on two-step verification for your own account first, or sign in with a passkey."
+    "twoFactorFirst": "Turn on two-step verification for your own account first, or sign in with a passkey.",
+    "ssoFirst": "Set up single sign-on and verify its domains first."
   },
   "security": {
     "description": "Decide how people sign in, who can bring people into this workspace, what guests can do and who can publish pages to the web. Only owners can change these settings.",
@@ -277,7 +278,112 @@
       "confirm": "Turn off this form's public link? It stops working for everyone.",
       "stale": "Takes no answers: whoever opened it lost access"
     },
-    "ownersOnly": "Only owners can change this."
+    "ownersOnly": "Only owners can change this.",
+    "loginMethod": {
+      "title": "How members sign in",
+      "description": "With single sign-on only, members must sign in through the identity provider to open this workspace. Owners and guests can still use any method, so a broken identity provider can't lock you out.",
+      "setUpFirst": "Set up single sign-on below first.",
+      "any": "Any method",
+      "sso": "Single sign-on only"
+    },
+    "sso": {
+      "title": "Single sign-on (SSO)",
+      "description": "Connect your organization's identity provider over OpenID Connect or SAML. People with an address in its verified domains can sign in with it; the first time, their account is created and they join as members.",
+      "setup": {
+        "workspaceId": "Workspace ID",
+        "oidcRedirectUri": "OIDC redirect URI",
+        "oidcRedirectUriHint": "Add this as an allowed redirect (callback) URL of the client at your identity provider.",
+        "samlEntityId": "SAML entity ID (audience)",
+        "samlAcsUrl": "SAML ACS URL",
+        "samlMetadataUrl": "SAML service provider metadata"
+      },
+      "connection": {
+        "oidc": "OpenID Connect",
+        "saml": "SAML 2.0",
+        "active": "Active",
+        "unverified": "Domains not verified yet",
+        "domains": "Domains: {domains}"
+      },
+      "dns": {
+        "body": "To prove these domains are yours, add a TXT record for each at your DNS provider, then verify. Nobody can sign in with this connection until then.",
+        "name": "Name",
+        "value": "Value",
+        "verify": "Verify domains",
+        "verifying": "Checking DNS…",
+        "verified": "Domains verified. Single sign-on is on."
+      },
+      "form": {
+        "protocol": "Protocol",
+        "issuer": "Issuer URL",
+        "issuerHint": "The address its OpenID configuration is served under (…/.well-known/openid-configuration).",
+        "clientId": "Client ID",
+        "clientSecret": "Client secret",
+        "secretKept": "Unchanged",
+        "samlSource": "Identity provider details",
+        "metadata": "Metadata XML",
+        "manual": "Enter manually",
+        "metadataXml": "Identity provider metadata XML",
+        "metadataKept": "Leave empty to keep the stored metadata",
+        "entryPoint": "SSO URL",
+        "idpEntityId": "Identity provider entity ID",
+        "certificate": "Signing certificate",
+        "certificateKept": "Leave empty to keep the stored certificate",
+        "domains": "Email domains",
+        "domainsHint": "Separated by commas, for example example.com, example.org. Subdomains are included.",
+        "save": "Save",
+        "saving": "Saving…"
+      },
+      "saved": "Saved.",
+      "edit": "Edit",
+      "remove": "Remove",
+      "confirmRemove": "Remove single sign-on",
+      "errors": {
+        "invalidDomain": "{detail} can't be used: enter your organization's own email domains (not public mail services like gmail.com).",
+        "noDomains": "Add at least one email domain.",
+        "invalidIssuer": "The issuer must be an https address.",
+        "discoveryFailed": "Couldn't read the provider's OpenID configuration at {detail}. Check the issuer address.",
+        "clientIdRequired": "Enter the client ID.",
+        "secretRequired": "Enter the client secret.",
+        "invalidSaml": "Paste the identity provider's metadata XML, or enter its SSO URL, entity ID and signing certificate.",
+        "noConnection": "Set up single sign-on first.",
+        "dnsMismatch": "The TXT record for {detail} wasn't found or has a different value. DNS changes can take a while to show up.",
+        "domainTaken": "{detail} is already used for single sign-on elsewhere on this server.",
+        "name": "Give the token a name of at most 100 characters.",
+        "limit": "A workspace can have at most 20 SCIM tokens. Revoke one first.",
+        "ownersOnly": "Only workspace owners can do this.",
+        "generic": "Something went wrong. Please try again."
+      }
+    },
+    "scim": {
+      "title": "User provisioning (SCIM)",
+      "description": "Let your identity provider add, update and remove members over SCIM 2.0. Groups aren't supported yet.",
+      "baseUrl": "SCIM base URL",
+      "managed": "{count, plural, =0 {No one is managed over SCIM yet.} one {# person is managed over SCIM.} other {# people are managed over SCIM.}}",
+      "tokens": "Tokens",
+      "tokensDescription": "The identity provider sends one as a bearer token. Each works only for this workspace.",
+      "empty": "No tokens yet.",
+      "lastUsed": "Last used {date, date, medium}",
+      "neverUsed": "Never used",
+      "create": "New token",
+      "revoke": "Revoke",
+      "confirmRevoke": "Revoke {name}",
+      "form": {
+        "title": "New SCIM token",
+        "name": "Name",
+        "namePlaceholder": "For example: Okta",
+        "submit": "Create token"
+      },
+      "created": {
+        "title": "Copy your token",
+        "body": "Paste it into your identity provider now. It won't be shown again.",
+        "done": "Done"
+      },
+      "errors": {
+        "name": "Give the token a name of at most 100 characters.",
+        "limit": "A workspace can have at most 20 SCIM tokens. Revoke one first.",
+        "generic": "Something went wrong. Please try again."
+      }
+    }
   },
   "notifications": {
     "heading": "Notifications",

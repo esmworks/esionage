@@ -10,9 +10,11 @@ import {
   socialTwoFactorRedirect,
   twoFactorPlugin,
 } from "@/lib/auth-security";
+import { sso, type SSOOptions } from "@better-auth/sso";
 import { cleanName } from "@/lib/account";
 import { env, mcpResource } from "@/lib/env";
 import type { SocialCredentials, SocialProvider } from "@/lib/social-providers";
+import { INSTANCE_SSO_PROVIDER_ID, SSO_SCOPES, type InstanceOidc } from "@/lib/sso-config";
 
 export const MCP_SCOPES = ["pages:read", "pages:write", "notifications:read", "files:write"] as const;
 const OAUTH_SCOPES = ["openid", "profile", "email", "offline_access", ...MCP_SCOPES];
@@ -141,8 +143,93 @@ export function socialAuthOptions(providers: Partial<Record<SocialProvider, Soci
   } satisfies BetterAuthOptions;
 }
 
-export function baseAuthOptions({ invitationAllowsSignUp }: { invitationAllowsSignUp?: InvitationCheck } = {}) {
+/**
+ * The SSO plugin's own provider management (register, update, list, domain verification) works
+ * per user or per organization; workspaces manage their one connection through server/sso.ts,
+ * owners only, so those endpoints are off. What stays: starting a sign-in, the OIDC callback, and
+ * SAML's assertion consumer and metadata.
+ */
+export const SSO_DISABLED_PATHS = [
+  "/sso/register",
+  "/sso/providers",
+  "/sso/get-provider",
+  "/sso/update-provider",
+  "/sso/delete-provider",
+  "/sso/request-domain-verification",
+  "/sso/verify-domain",
+  "/sso/saml2/sp/slo/:providerId",
+  "/sso/saml2/logout/:providerId",
+];
+
+export type SsoCallbacks = {
+  /** Picks the provider for an email typed on the sign-in page ("Continue with SSO"). */
+  resolveProvider?: (email: string) => Promise<string | null>;
+  /** After each SSO sign-in: joins the workspace whose connection it came through. */
+  provisionUser?: SSOOptions["provisionUser"];
+};
+
+/**
+ * Single sign-on with OIDC and SAML (Better Auth's SSO plugin). The instance provider comes from
+ * the environment (`defaultSSO`, id "oidc"); workspace connections are rows of `sso_provider`.
+ * Domain verification is on: a workspace connection signs people in only once its email domains
+ * are proven by DNS, so nobody can route someone else's domain to their own identity provider.
+ */
+export function ssoPlugin(instance: InstanceOidc | null, callbacks: SsoCallbacks = {}) {
+  return sso({
+    defaultSSO: instance
+      ? [
+          {
+            providerId: INSTANCE_SSO_PROVIDER_ID,
+            domain: instance.domains.join(","),
+            oidcConfig: {
+              issuer: instance.issuer,
+              clientId: instance.clientId,
+              clientSecret: instance.clientSecret,
+              pkce: true,
+              discoveryEndpoint: `${instance.issuer}/.well-known/openid-configuration`,
+              scopes: SSO_SCOPES,
+            },
+          },
+        ]
+      : undefined,
+    domainVerification: { enabled: true, tokenPrefix: "esionage-sso" },
+    providersLimit: 0,
+    provisionUser: callbacks.provisionUser,
+    provisionUserOnEveryLogin: true,
+    saml: { requireTimestamps: true },
+  });
+}
+
+/**
+ * `hooks.before` for `/sign-in/sso`: the sign-in page sends the email typed there, and the server
+ * picks the provider (the instance's for its domains, else the workspace connection that has
+ * verified that domain). The plugin's own lookups by domain or organization are not used.
+ */
+export async function routeSsoSignIn(body: unknown, resolve: SsoCallbacks["resolveProvider"]) {
+  const input = (body ?? {}) as Record<string, unknown>;
+  if (input.domain !== undefined || input.organizationSlug !== undefined) {
+    throw APIError.from("BAD_REQUEST", { message: "Sign in with an email address", code: "SSO_NOT_FOUND" });
+  }
+  if (typeof input.providerId === "string" && input.providerId) return null;
+  const email = typeof input.email === "string" ? input.email.trim() : "";
+  const providerId = email && resolve ? await resolve(email) : null;
+  if (!providerId) {
+    throw APIError.from("NOT_FOUND", { message: "No single sign-on for this email address", code: "SSO_NOT_FOUND" });
+  }
+  return { ...input, email, providerId };
+}
+
+export function baseAuthOptions({
+  invitationAllowsSignUp,
+  instanceOidc = null,
+  sso: ssoCallbacks = {},
+}: { invitationAllowsSignUp?: InvitationCheck; instanceOidc?: InstanceOidc | null; sso?: SsoCallbacks } = {}) {
   const before = createAuthMiddleware(async (ctx) => {
+    if (ctx.path === "/sign-in/sso") {
+      const body = await routeSsoSignIn(ctx.body, ssoCallbacks.resolveProvider);
+      if (body) return { context: { body } };
+      return;
+    }
     if (ctx.path === "/two-factor/disable") await requireCodeToDisable(ctx);
     if (ctx.path === "/update-user") guardUpdateUser(ctx.body);
     if (ctx.path === "/sign-up/email" && env.signUpDisabled) {
@@ -183,8 +270,11 @@ export function baseAuthOptions({ invitationAllowsSignUp }: { invitationAllowsSi
       additionalFields: {
         // How the session was signed in (see authMethodOf); a passkey session counts as two-step.
         authMethod: { type: "string", required: false, input: false },
+        // The SSO provider it came through, for a workspace's "SSO only" policy.
+        ssoProviderId: { type: "string", required: false, input: false },
       },
     },
+    disabledPaths: SSO_DISABLED_PATHS,
     hooks: { before },
     plugins: [
       // Before mcp(): its after-hook continues an OAuth authorization as soon as a sign-in sets a
@@ -209,6 +299,7 @@ export function baseAuthOptions({ invitationAllowsSignUp }: { invitationAllowsSi
         fetchClientMetadataResource,
         metadataProfile: "mcp-2026-07-28",
       }),
+      ssoPlugin(instanceOidc, ssoCallbacks),
     ],
   } satisfies BetterAuthOptions;
 }
