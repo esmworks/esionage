@@ -69,6 +69,9 @@ jobs:
       - name: Database edits end-to-end
         run: pnpm tsx scripts/database-e2e.ts
 
+      - name: Database filters end-to-end
+        run: pnpm tsx scripts/filters-e2e.ts
+
       # Assignment emails are captured by the script, never sent.
       - name: Person properties end-to-end
         run: pnpm tsx scripts/person-e2e.ts

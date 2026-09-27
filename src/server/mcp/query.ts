@@ -1,4 +1,23 @@
-import type { FilterOp, FilterRule, PropertyOptions, PropertyType, SortRule, ViewConfig } from "@/db/schema/app";
+import type {
+  FilterCombinator,
+  FilterEntry,
+  FilterOp,
+  FilterRule,
+  PropertyOptions,
+  PropertyType,
+  SortRule,
+  ViewConfig,
+} from "@/db/schema/app";
+import {
+  isDayCount,
+  isFilterGroup,
+  isRelativeDateRange,
+  MAX_FILTER_DEPTH,
+  MAX_FILTER_RULES,
+  MAX_RELATIVE_DAYS,
+  RELATIVE_DATE_RANGES,
+  rangeNeedsDays,
+} from "@/lib/filters";
 import { pageLabel } from "@/lib/labels";
 import { CREATED_KEY, displayValue, isSortable, PropertyValueError, TITLE_KEY, UPDATED_KEY } from "@/lib/properties";
 import { holdsPeople, PERSON_ME } from "@/lib/property-types";
@@ -56,7 +75,7 @@ function personId(prop: PropertyDef, people: PersonLookup[], value: unknown): st
   return found.id;
 }
 
-export const FILTER_OPS = ["contains", "equals", "not_equals", "is_empty", "is_not_empty", "gt", "lt"] as const satisfies readonly FilterOp[];
+export { FILTER_OPS } from "@/lib/filters";
 
 const SPECIAL_KEYS: Record<string, string> = {
   title: TITLE_KEY,
@@ -64,7 +83,12 @@ const SPECIAL_KEYS: Record<string, string> = {
   updated_at: UPDATED_KEY,
 };
 
-const VALUE_OPS = new Set<FilterOp>(["contains", "equals", "not_equals", "gt", "lt"]);
+const VALUE_OPS = new Set<FilterOp>(["contains", "equals", "not_equals", "gt", "lt", "is_within"]);
+
+/** Whether a property (or built-in key) holds dates that relative date filters apply to. */
+function holdsDates(key: string, prop: PropertyDef | undefined) {
+  return prop ? prop.type === "date" : key === CREATED_KEY || key === UPDATED_KEY;
+}
 
 function available(props: PropertyDef[]) {
   return ["title", "created_at", "updated_at", ...props.map((p) => `${p.name} (${p.type})`)].join(", ");
@@ -94,16 +118,22 @@ function optionId(prop: PropertyDef, value: unknown): string {
   return option.id;
 }
 
-export type FilterInput = { property: string; op: FilterOp; value?: unknown };
+export type FilterInput = { property: string; op: FilterOp; value?: unknown; days?: number };
+export type FilterGroupInput = { type: "group"; combinator?: FilterCombinator; rules: FilterEntryInput[] };
+export type FilterEntryInput = FilterInput | FilterGroupInput;
 export type SortInput = { property: string; direction?: "asc" | "desc" };
 
 /** Converts an agent-facing filter (names, option names) to a stored FilterRule (ids). */
 export function toFilterRule(props: PropertyDef[], input: FilterInput, lookups: Lookups = NO_LOOKUPS): FilterRule {
   const { key, prop } = resolvePropertyKey(props, input.property);
+  if (input.days !== undefined && input.op !== "is_within") {
+    throw new PropertyValueError(`"days" only applies to is_within filters (on "${input.property}")`);
+  }
   if (!VALUE_OPS.has(input.op)) return { propertyId: key, op: input.op };
   if (input.value === undefined || input.value === null || input.value === "") {
     throw new PropertyValueError(`Filter "${input.op}" on "${input.property}" needs a value`);
   }
+  if (input.op === "is_within") return relativeDateRule(key, prop, input);
   let value: unknown = input.value;
   if (prop?.type === "relation") {
     if (input.op !== "contains" && input.op !== "not_equals") {
@@ -133,6 +163,48 @@ export function toFilterRule(props: PropertyDef[], input: FilterInput, lookups: 
     value = n;
   }
   return { propertyId: key, op: input.op, value };
+}
+
+/** An is_within rule: a relative range on a date, plus a day count for past / next N days. */
+function relativeDateRule(key: string, prop: PropertyDef | undefined, input: FilterInput): FilterRule {
+  if (!holdsDates(key, prop)) {
+    throw new PropertyValueError(
+      `is_within only applies to date properties and created_at / updated_at; "${input.property}" is ${prop?.type ?? "text"}`,
+    );
+  }
+  const range = String(input.value).trim().toLowerCase();
+  if (!isRelativeDateRange(range)) {
+    throw new PropertyValueError(`is_within takes one of: ${RELATIVE_DATE_RANGES.join(", ")} (got "${String(input.value)}")`);
+  }
+  if (!rangeNeedsDays(range)) {
+    if (input.days !== undefined) throw new PropertyValueError(`"days" only applies to past_n_days and next_n_days`);
+    return { propertyId: key, op: "is_within", value: range };
+  }
+  if (!isDayCount(input.days)) {
+    throw new PropertyValueError(`${range} needs "days", a whole number from 1 to ${MAX_RELATIVE_DAYS}`);
+  }
+  return { propertyId: key, op: "is_within", value: range, days: input.days };
+}
+
+/**
+ * Converts agent-facing filters (rules and groups, see toFilterRule) to a stored filter tree.
+ * Groups may nest MAX_FILTER_DEPTH levels; a group's combinator defaults to "and".
+ */
+export function toFilterEntries(props: PropertyDef[], inputs: FilterEntryInput[], lookups: Lookups = NO_LOOKUPS): FilterEntry[] {
+  let count = 0;
+  const convert = (entries: FilterEntryInput[], depth: number): FilterEntry[] =>
+    entries.map((entry) => {
+      if ("type" in entry && entry.type === "group") {
+        if (depth >= MAX_FILTER_DEPTH) {
+          throw new PropertyValueError(`Filter groups can be nested at most ${MAX_FILTER_DEPTH} levels deep`);
+        }
+        if (!entry.rules.length) throw new PropertyValueError("A filter group needs at least one rule");
+        return { type: "group", combinator: entry.combinator ?? "and", rules: convert(entry.rules, depth + 1) };
+      }
+      if (++count > MAX_FILTER_RULES) throw new PropertyValueError(`A view can have at most ${MAX_FILTER_RULES} filter rules`);
+      return toFilterRule(props, entry as FilterInput, lookups);
+    });
+  return convert(inputs, 0);
 }
 
 export function toSortRule(props: PropertyDef[], input: SortInput): SortRule {
@@ -188,6 +260,17 @@ function keyName(props: PropertyDef[], key: string) {
 /** A view's stored config with property and option names, for get_database output. */
 export function describeViewConfig(props: PropertyDef[], config: ViewConfig, lookups: Lookups = NO_LOOKUPS) {
   const byId = new Map(props.map((p) => [p.id, p]));
+  const describeEntry = (f: FilterEntry): object => {
+    if (isFilterGroup(f)) return { type: "group", combinator: f.combinator, rules: f.rules.map(describeEntry) };
+    const prop = byId.get(f.propertyId);
+    const value = prop && f.value !== undefined && f.op !== "is_within" ? filterValue(prop, f.value) : f.value;
+    return {
+      property: keyName(props, f.propertyId),
+      op: f.op,
+      ...(value !== undefined ? { value } : {}),
+      ...(f.days !== undefined ? { days: f.days } : {}),
+    };
+  };
   const filterValue = (prop: PropertyDef, value: unknown) => {
     if (holdsPeople(prop.type)) return lookups.people.find((p) => p.id === value)?.name ?? value;
     if (prop.type !== "relation") return displayValue(prop, value) ?? value;
@@ -197,15 +280,8 @@ export function describeViewConfig(props: PropertyDef[], config: ViewConfig, loo
   return {
     ...(config.groupBy ? { group_by: keyName(props, config.groupBy) } : {}),
     ...(config.dateBy ? { date_by: keyName(props, config.dateBy) } : {}),
-    ...(config.filters?.length
-      ? {
-          filters: config.filters.map((f) => {
-            const prop = byId.get(f.propertyId);
-            const value = prop && f.value !== undefined ? filterValue(prop, f.value) : f.value;
-            return { property: keyName(props, f.propertyId), op: f.op, ...(value !== undefined ? { value } : {}) };
-          }),
-        }
-      : {}),
+    ...(config.filters?.length ? { filters: config.filters.map(describeEntry) } : {}),
+    ...(config.filters?.length && config.filterCombinator === "or" ? { filter_combinator: "or" } : {}),
     ...(config.sorts?.length
       ? { sorts: config.sorts.map((s) => ({ property: keyName(props, s.propertyId), direction: s.direction })) }
       : {}),

@@ -170,14 +170,24 @@ export const databaseProperty = pgTable(
 
 export type ViewType = "table" | "board" | "calendar";
 export type SortRule = { propertyId: string; direction: "asc" | "desc" };
-export type FilterOp = "contains" | "equals" | "not_equals" | "is_empty" | "is_not_empty" | "gt" | "lt";
-export type FilterRule = { propertyId: string; op: FilterOp; value?: unknown };
+export type FilterOp = "contains" | "equals" | "not_equals" | "is_empty" | "is_not_empty" | "gt" | "lt" | "is_within";
+/** Values of an `is_within` rule: date ranges relative to the day the view is looked at. */
+export type RelativeDateRange = "today" | "this_week" | "this_month" | "past_n_days" | "next_n_days";
+/** `days` is only used by `is_within` rules with a `past_n_days` / `next_n_days` value. */
+export type FilterRule = { propertyId: string; op: FilterOp; value?: unknown; days?: number };
+export type FilterCombinator = "and" | "or";
+/** Rules combined with their own and/or; groups nest at most MAX_FILTER_DEPTH levels (see lib/filters). */
+export type FilterGroup = { type: "group"; combinator: FilterCombinator; rules: FilterEntry[] };
+export type FilterEntry = FilterRule | FilterGroup;
 export type ViewConfig = {
   groupBy?: string;
   /** Calendar views: the date property that places rows on days. */
   dateBy?: string;
   sorts?: SortRule[];
-  filters?: FilterRule[];
+  /** Rules and groups; plain rule lists from before groups existed are still valid. */
+  filters?: FilterEntry[];
+  /** How the top-level filters combine; missing means "and". */
+  filterCombinator?: FilterCombinator;
   hidden?: string[];
   /** Properties shown although their type starts hidden in this kind of view (see `isHiddenInView`). */
   shown?: string[];

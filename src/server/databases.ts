@@ -13,6 +13,7 @@ import {
   type ViewConfig,
   type ViewType,
 } from "@/db/schema";
+import { filterConfigError, filterRules, mapFilterRules } from "@/lib/filters";
 import { holdsPeople, PERSON_ME } from "@/lib/property-types";
 import {
   applyView,
@@ -658,7 +659,7 @@ export async function deleteProperty(userId: string, propertyId: string) {
             groupBy: c.groupBy === propertyId ? undefined : c.groupBy,
             dateBy: c.dateBy === propertyId ? undefined : c.dateBy,
             sorts: c.sorts?.filter((s) => s.propertyId !== propertyId),
-            filters: c.filters?.filter((f) => f.propertyId !== propertyId),
+            filters: c.filters && mapFilterRules(c.filters, (f) => (f.propertyId === propertyId ? null : f)),
             hidden: c.hidden?.filter((h) => h !== propertyId),
             shown: c.shown?.filter((h) => h !== propertyId),
           },
@@ -709,6 +710,9 @@ async function requireView(userId: string, viewId: string) {
 }
 
 export async function updateView(userId: string, viewId: string, patch: { name?: string; config?: ViewConfig }) {
+  // Configs come from the client and from MCP; a malformed filter tree would break every viewer.
+  const filterError = patch.config && filterConfigError(patch.config);
+  if (filterError) throw new PropertyValueError(filterError, "invalidFilter");
   const view = await requireView(userId, viewId);
   // Filters, sorts and layout stay adjustable on a locked database; renaming doesn't.
   if (patch.name !== undefined) assertUnlocked(view);
@@ -923,7 +927,7 @@ export async function getPeople(userId: string, properties: DatabaseProperty[]):
     for (const prop of personProps) for (const id of asIds(values[prop.id])) referenced.add(id);
   }
   for (const view of views) {
-    for (const rule of view.config.filters ?? []) {
+    for (const rule of filterRules(view.config.filters)) {
       const person = personProps.some((p) => p.id === rule.propertyId);
       if (person && typeof rule.value === "string" && rule.value !== PERSON_ME) referenced.add(rule.value);
     }

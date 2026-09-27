@@ -196,4 +196,31 @@ describe("remapViewConfig", () => {
       shown: ["date2", "gone"],
     });
   });
+
+  it("maps filter rules inside groups and keeps the combinators", () => {
+    const ids = new Map([
+      ["status", "status2"],
+      ["link", "link2"],
+    ]);
+    const rows = new Map([["r1", "r1copy"]]);
+    expect(
+      remapViewConfig(
+        {
+          filterCombinator: "or",
+          filters: [
+            { propertyId: "status", op: "equals", value: "o1" },
+            { type: "group", combinator: "and", rules: [{ propertyId: "link", op: "contains", value: "r1" }] },
+          ],
+        },
+        ids,
+        (id) => (id === "link" ? rows : null),
+      ),
+    ).toEqual({
+      filterCombinator: "or",
+      filters: [
+        { propertyId: "status2", op: "equals", value: "o1" },
+        { type: "group", combinator: "and", rules: [{ propertyId: "link2", op: "contains", value: "r1copy" }] },
+      ],
+    });
+  });
 });

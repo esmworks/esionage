@@ -77,7 +77,8 @@
     "filterWithValue": "{property} {operator} {value}",
     "filterWithoutValue": "{property} {operator}",
     "sortedAscending": "{property}, artan",
-    "sortedDescending": "{property}, azalan"
+    "sortedDescending": "{property}, azalan",
+    "filterWithin": "{property} {range} içinde"
   },
   "filter": {
     "empty": "Bu görünüme filtre uygulanmadı",
@@ -86,7 +87,7 @@
     "value": "Değer",
     "choose": "Seçin…",
     "remove": "Filtreyi kaldır",
-    "add": "Filtre ekle",
+    "add": "Filtre kuralı ekle",
     "clearAll": "Tümünü temizle",
     "ops": {
       "contains": "İçerir",
@@ -102,9 +103,27 @@
       "isBefore": "Şundan önce",
       "isAfter": "Şundan sonra",
       "isChecked": "İşaretli",
-      "isUnchecked": "İşaretsiz"
+      "isUnchecked": "İşaretsiz",
+      "isWithin": "Şu süre içinde"
     },
-    "me": "Ben"
+    "me": "Ben",
+    "addGroup": "Filtre grubu ekle",
+    "removeGroup": "Filtre grubunu kaldır",
+    "where": "Koşul",
+    "combinator": "Kuralları birleştirme",
+    "and": "Ve",
+    "or": "Veya",
+    "range": "Tarih aralığı",
+    "days": "Gün sayısı",
+    "relative": {
+      "today": "Bugün",
+      "thisWeek": "Bu hafta",
+      "thisMonth": "Bu ay",
+      "pastNDays": "Son N gün",
+      "nextNDays": "Önümüzdeki N gün",
+      "pastDays": "Son {count} gün",
+      "nextDays": "Önümüzdeki {count} gün"
+    }
   },
   "sort": {
     "empty": "Bu görünüme sıralama uygulanmadı",
@@ -257,6 +276,7 @@
     "relationTargetReadOnly": "O veritabanını yalnızca görüntüleyebiliyorsun, bu yüzden bağlantı orada gösterilemez. O seçeneğin işaretini kaldır ya da düzenleme izni iste.",
     "databaseLocked": "Veritabanı kilitli. Özellikleri ve görünümleri değiştirmek için önce kilidi açın.",
     "invalidPerson": "“{property}” yalnızca bu çalışma alanındaki kişileri içerebilir.",
-    "readOnlyProperty": "“{property}” otomatik doldurulur, değiştirilemez."
+    "readOnlyProperty": "“{property}” otomatik doldurulur, değiştirilemez.",
+    "invalidFilter": "Bu filtre kaydedilemedi. Sayfayı yenileyip tekrar deneyin."
   }
 }

@@ -77,7 +77,8 @@
     "filterWithValue": "{property} {operator} {value}",
     "filterWithoutValue": "{property} {operator}",
     "sortedAscending": "{property}, ascending",
-    "sortedDescending": "{property}, descending"
+    "sortedDescending": "{property}, descending",
+    "filterWithin": "{property} is within {range}"
   },
   "filter": {
     "empty": "No filters applied to this view",
@@ -86,7 +87,7 @@
     "value": "Value",
     "choose": "Choose…",
     "remove": "Remove filter",
-    "add": "Add filter",
+    "add": "Add filter rule",
     "clearAll": "Clear all",
     "ops": {
       "contains": "Contains",
@@ -102,9 +103,27 @@
       "isBefore": "Is before",
       "isAfter": "Is after",
       "isChecked": "Is checked",
-      "isUnchecked": "Is unchecked"
+      "isUnchecked": "Is unchecked",
+      "isWithin": "Is within"
     },
-    "me": "Me"
+    "me": "Me",
+    "addGroup": "Add filter group",
+    "removeGroup": "Remove filter group",
+    "where": "Where",
+    "combinator": "Combine rules with",
+    "and": "And",
+    "or": "Or",
+    "range": "Date range",
+    "days": "Number of days",
+    "relative": {
+      "today": "Today",
+      "thisWeek": "This week",
+      "thisMonth": "This month",
+      "pastNDays": "Past N days",
+      "nextNDays": "Next N days",
+      "pastDays": "{count, plural, one {Past day} other {Past # days}}",
+      "nextDays": "{count, plural, one {Next day} other {Next # days}}"
+    }
   },
   "sort": {
     "empty": "No sorts applied to this view",
@@ -257,6 +276,7 @@
     "relationTargetReadOnly": "You can only view that database, so the link can’t be shown there too. Untick that option or ask for edit access.",
     "databaseLocked": "This database is locked. Unlock it to change its properties and views.",
     "invalidPerson": "“{property}” can only hold people of this workspace.",
-    "readOnlyProperty": "“{property}” is filled in automatically and can’t be changed."
+    "readOnlyProperty": "“{property}” is filled in automatically and can’t be changed.",
+    "invalidFilter": "This filter can’t be saved. Reload the page and try again."
   }
 }

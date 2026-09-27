@@ -1,4 +1,6 @@
 import type {
+  FilterCombinator,
+  FilterEntry,
   FilterOp,
   FilterRule,
   PropertyOptions,
@@ -8,6 +10,17 @@ import type {
   ViewConfig,
   ViewType,
 } from "@/db/schema/app";
+import {
+  compileFilters,
+  dayString,
+  isDayCount,
+  isRelativeDateRange,
+  pruneFilters,
+  rangeNeedsDays,
+  relativeDateRange,
+  requiredFilterRules,
+  valueDay,
+} from "./filters";
 import { holdsPeople, PERSON_ME } from "./property-types";
 
 export const SELECT_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
@@ -36,6 +49,7 @@ export const DATABASE_ERROR_CODES = [
   "readOnlyProperty",
   "relationTargetReadOnly",
   "databaseLocked",
+  "invalidFilter",
 ] as const;
 export type DatabaseErrorCode = (typeof DATABASE_ERROR_CODES)[number];
 export type DatabaseErrorParams = Record<string, string>;
@@ -203,9 +217,14 @@ function liveValue(row: RowLike, key: string, prop: PropertyDef | undefined): un
   return known(v) ? v : null;
 }
 
-function matches(row: RowLike, rule: FilterRule, prop?: PropertyDef): boolean {
+function matches(row: RowLike, rule: FilterRule, prop: PropertyDef | undefined, now: Date): boolean {
   const v = liveValue(row, rule.propertyId, prop);
   switch (rule.op) {
+    case "is_within": {
+      const day = valueDay(v);
+      const range = relativeDateRange(rule.value, rule.days, now);
+      return Boolean(day && range && day >= range.start && day <= range.end);
+    }
     case "is_empty":
       return isEmpty(v);
     case "is_not_empty":
@@ -245,14 +264,18 @@ function compare(a: unknown, b: unknown): number {
  * consumer (app, published page, MCP) shows the same rows while the user is still picking.
  */
 export function isIncompleteFilter(rule: FilterRule) {
+  if (rule.op === "is_within") {
+    return !isRelativeDateRange(rule.value) || (rangeNeedsDays(rule.value) && !isDayCount(rule.days));
+  }
   return filterNeedsValue(rule.op) && (rule.value === undefined || rule.value === null || rule.value === "");
 }
 
 /**
- * Who is looking at a view (person filters on "me" match their rows) and the names of the people
- * rows hold, which person sorts order by.
+ * Who is looking at a view (person filters on "me" match their rows), the names of the people
+ * rows hold, which person sorts order by, and when: relative date filters ("this week") count
+ * from `now`'s local day, the current time when left out.
  */
-export type ViewViewer = { viewerId?: string | null; people?: { id: string; name: string }[] };
+export type ViewViewer = { viewerId?: string | null; people?: { id: string; name: string }[]; now?: Date };
 
 /**
  * A person rule's value with "me" swapped for the viewer's id. Without a viewer (a published
@@ -265,9 +288,13 @@ function resolveViewer(rule: FilterRule, prop: PropertyDef | undefined, viewerId
 
 export function applyView<T extends RowLike>(
   rows: T[],
-  { filters = [], sorts = [] }: { filters?: FilterRule[]; sorts?: SortRule[] },
+  {
+    filters = [],
+    filterCombinator,
+    sorts = [],
+  }: { filters?: FilterEntry[]; filterCombinator?: FilterCombinator; sorts?: SortRule[] },
   props: PropertyDef[] = [],
-  { viewerId, people = [] }: ViewViewer = {},
+  { viewerId, people = [], now = new Date() }: ViewViewer = {},
 ): T[] {
   const byId = new Map(props.map((p) => [p.id, p]));
   const nameOf = new Map(people.map((p) => [p.id, p.name]));
@@ -295,10 +322,16 @@ export function applyView<T extends RowLike>(
     }
     return v;
   };
-  const active = filters
-    .filter((rule) => !isIncompleteFilter(rule))
-    .map((rule) => resolveViewer(rule, byId.get(rule.propertyId), viewerId));
-  const filtered = rows.filter((row) => active.every((rule) => matches(row, rule, byId.get(rule.propertyId))));
+  const test = compileFilters<T>(
+    pruneFilters(filters, (rule) => !isIncompleteFilter(rule)),
+    filterCombinator,
+    (rule) => {
+      const prop = byId.get(rule.propertyId);
+      const resolved = resolveViewer(rule, prop, viewerId);
+      return (row) => matches(row, resolved, prop, now);
+    },
+  );
+  const filtered = test ? rows.filter(test) : rows;
   if (!sorts.length) return filtered;
   return [...filtered].sort((a, b) => {
     for (const s of sorts) {
@@ -327,7 +360,8 @@ export type FilterOpLabel =
   | "isBefore"
   | "isAfter"
   | "isChecked"
-  | "isUnchecked";
+  | "isUnchecked"
+  | "isWithin";
 
 /**
  * Filter operators offered per property type (`title` is the implicit Name column). `label` is a
@@ -368,6 +402,7 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
         { op: "equals", label: "is" },
         { op: "lt", label: "isBefore" },
         { op: "gt", label: "isAfter" },
+        { op: "is_within", label: "isWithin" },
         ...empty,
       ];
     case "checkbox":
@@ -381,12 +416,24 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
 
 /**
  * Values a new row needs so the view's filters keep showing it (Notion does the same): "Status is
- * Done" makes the row Done, "Tags contains X" tags it X, "Done is checked" ticks it. Rules that
- * can't be satisfied by one value (not equals, before/after, empty…) are left alone.
+ * Done" makes the row Done, "Tags contains X" tags it X, "Done is checked" ticks it, "Due is
+ * within this week" dates it today (every relative range includes today). Rules that can't be
+ * satisfied by one value (not equals, before/after, empty…) are left alone.
+ *
+ * Only rules every visible row must satisfy count, i.e. those joined by "and". Rules inside an
+ * "or" are skipped rather than taking its first branch: an "or" names alternatives, and writing
+ * one of them into the row would be a value the user never asked for (the row may well match
+ * another branch through its other values).
  */
-export function defaultsFromFilters(filters: FilterRule[] = [], props: PropertyDef[] = [], { viewerId }: ViewViewer = {}) {
+export function defaultsFromFilters(
+  filters: FilterEntry[] = [],
+  props: PropertyDef[] = [],
+  { viewerId, now = new Date() }: ViewViewer = {},
+  filterCombinator?: FilterCombinator,
+) {
   const out: Record<string, unknown> = {};
-  for (const rule of filters) {
+  const active = pruneFilters(filters, (rule) => !isIncompleteFilter(rule));
+  for (const rule of requiredFilterRules(active, filterCombinator)) {
     const prop = props.find((p) => p.id === rule.propertyId);
     if (!prop || prop.id in out) continue;
     if (prop.type === "checkbox") {
@@ -395,6 +442,7 @@ export function defaultsFromFilters(filters: FilterRule[] = [], props: PropertyD
     }
     if (isIncompleteFilter(rule)) continue;
     if (rule.op === "equals" && ["select", "text", "number", "date"].includes(prop.type)) out[prop.id] = rule.value;
+    else if (rule.op === "is_within" && prop.type === "date") out[prop.id] = dayString(now);
     else if (rule.op === "contains" && prop.type === "multi_select") out[prop.id] = [rule.value];
     else if (rule.op === "contains" && prop.type === "text") out[prop.id] = rule.value;
     else if (rule.op === "contains" && prop.type === "person") {

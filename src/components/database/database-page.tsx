@@ -74,7 +74,12 @@ export function DatabasePage({
   const viewApi = useMemo(() => {
     const defaults =
       view && snapshot
-        ? defaultsFromFilters(view.config.filters, snapshot.properties, { viewerId: snapshot.viewerId })
+        ? defaultsFromFilters(
+            view.config.filters,
+            snapshot.properties,
+            { viewerId: snapshot.viewerId },
+            view.config.filterCombinator,
+          )
         : {};
     if (!Object.keys(defaults).length) return api;
     return {

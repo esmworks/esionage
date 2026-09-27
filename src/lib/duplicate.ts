@@ -1,4 +1,5 @@
 import type { PageKind, PropertyOptions, PropertyType, RowProperties, ViewConfig, ViewType } from "@/db/schema/app";
+import { mapFilterRules } from "./filters";
 
 /**
  * Pure planning for "Duplicate page": given the source subtree, decides every new id and rewrites
@@ -151,7 +152,7 @@ export function remapViewConfig(
   if (config.dateBy !== undefined) out.dateBy = map(config.dateBy);
   if (config.sorts) out.sorts = config.sorts.map((s) => ({ ...s, propertyId: map(s.propertyId) }));
   if (config.filters) {
-    out.filters = config.filters.map((f) => {
+    out.filters = mapFilterRules(config.filters, (f) => {
       const rowIds = rowIdsFor(f.propertyId);
       const value = rowIds && typeof f.value === "string" ? (rowIds.get(f.value) ?? f.value) : structuredClone(f.value);
       return { ...f, propertyId: map(f.propertyId), ...(f.value !== undefined ? { value } : {}) };

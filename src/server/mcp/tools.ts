@@ -1,6 +1,7 @@
 import { McpServer, type ScopeChallengeHandler } from "@modelcontextprotocol/server";
 import * as z from "zod";
-import { PROPERTY_TYPES, type SelectOption, type ViewConfig, type ViewType } from "@/db/schema/app";
+import { PROPERTY_TYPES, type FilterCombinator, type SelectOption, type ViewConfig, type ViewType } from "@/db/schema/app";
+import { FILTER_COMBINATORS, MAX_FILTER_DEPTH, MAX_RELATIVE_DAYS, RELATIVE_DATE_RANGES } from "@/lib/filters";
 import { pageLabel } from "@/lib/labels";
 import { computedValues, isGroupable } from "@/lib/properties";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
@@ -15,9 +16,9 @@ import {
   displayProperties,
   FILTER_OPS,
   resolvePropertyKey,
-  toFilterRule,
+  toFilterEntries,
   toSortRule,
-  type FilterInput,
+  type FilterEntryInput,
   type PropertyDef,
   type Lookups,
   type SortInput,
@@ -40,16 +41,53 @@ const rowProperties = z
     'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an array of row ids (or exact row titles) of the related database for relation, an array of user ids, emails, names or "me" for person, and null to clear a value. Setting a relation or person replaces its values. created_by properties are read-only. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"], "Assignee": ["me"]}',
   );
 
-const filtersInput = z.array(
+const filterRuleInput = z.object({
+  property: z.string().min(1).describe("Property name or id, or title / created_at / updated_at."),
+  op: z.enum(FILTER_OPS),
+  value: z
+    .union([z.string(), z.number(), z.boolean()])
+    .optional()
+    .describe(`Comparison value; omit for is_empty / is_not_empty. For is_within: ${RELATIVE_DATE_RANGES.join(", ")}.`),
+  days: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_RELATIVE_DAYS)
+    .optional()
+    .describe("is_within with past_n_days / next_n_days only: how many days back or ahead of today."),
+});
+const combinatorInput = z.enum(FILTER_COMBINATORS);
+const filterGroupInput = <T extends z.ZodType>(rules: T) =>
   z.object({
-    property: z.string().min(1).describe("Property name or id, or title / created_at / updated_at."),
-    op: z.enum(FILTER_OPS),
-    value: z
-      .union([z.string(), z.number(), z.boolean()])
-      .optional()
-      .describe("Comparison value; omit for is_empty / is_not_empty."),
-  }),
-);
+    type: z.literal("group"),
+    combinator: combinatorInput.default("and").describe("How the group's rules combine."),
+    rules: z.array(rules).min(1),
+  });
+/**
+ * A rule or a group. When neither fits, the error names what is wrong with the one the input was
+ * meant to be (a plain union only says "Invalid input"), e.g. an unknown op.
+ */
+const ruleOrGroup = <G extends z.ZodType>(group: G) =>
+  z.union([filterRuleInput, group], {
+    error: (issue) => {
+      if (issue.code !== "invalid_union" || !issue.errors.length) return undefined;
+      const input = issue.input as { type?: unknown } | null | undefined;
+      const branch = issue.errors[input?.type === "group" ? 1 : 0] ?? [];
+      return branch.map((e) => `${e.path.length ? `${e.path.join(".")}: ` : ""}${e.message}`).join("; ") || undefined;
+    },
+  });
+// Spelled out level by level (instead of a recursive schema) so every MCP client can read it. A
+// group nested deeper than MAX_FILTER_DEPTH still parses at the innermost level and is then
+// rejected by toFilterEntries with a message saying so.
+const deepestGroup = z.object({ type: z.literal("group") }).loose();
+const filtersInput = z
+  .array(ruleOrGroup(filterGroupInput(ruleOrGroup(filterGroupInput(ruleOrGroup(deepestGroup))))))
+  .describe(
+    `Filter rules and groups. A rule is {property, op, value}; a group is {type: "group", combinator: "and" | "or", rules: [...]}; groups may hold groups, at most ${MAX_FILTER_DEPTH} levels deep. A plain list of rules keeps working.`,
+  );
+const filterCombinatorInput = combinatorInput
+  .optional()
+  .describe('How the top-level filters combine: "and" (default, all must match) or "or" (any may match).');
 const sortsInput = z.array(z.object({ property: z.string().min(1), direction: z.enum(["asc", "desc"]).default("asc") }));
 
 /** Resolves a property by name or id; title / created_at / updated_at are not editable properties. */
@@ -89,7 +127,13 @@ function editOptions(
   return options;
 }
 
-type ViewInput = { group_by?: string; date_by?: string; filters?: FilterInput[]; sorts?: SortInput[] };
+type ViewInput = {
+  group_by?: string;
+  date_by?: string;
+  filters?: FilterEntryInput[];
+  filter_combinator?: FilterCombinator;
+  sorts?: SortInput[];
+};
 
 /** The view settings the caller asked to change, converted from names to stored ids. */
 function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput, lookups: Lookups): ViewConfig {
@@ -108,7 +152,11 @@ function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput,
     if (prop.type !== "date") throw new ToolInputError(`Calendars place rows by a date property; "${prop.name}" is ${prop.type}.`);
     patch.dateBy = prop.id;
   }
-  if (input.filters) patch.filters = input.filters.map((f) => toFilterRule(props, f, lookups));
+  if (input.filters) patch.filters = toFilterEntries(props, input.filters, lookups);
+  // New filters replace the old ones together with how they combine ("and" unless given).
+  if (input.filters || input.filter_combinator) {
+    patch.filterCombinator = input.filter_combinator === "or" ? "or" : undefined;
+  }
   if (input.sorts) patch.sorts = input.sorts.map((s) => toSortRule(props, s));
   return patch;
 }
@@ -475,25 +523,32 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Query database rows",
       description:
-        'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select option names as values; all filters must match. Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt. For a relation use contains / not_equals with a related row id or title; for a person or created_by, contains / not_equals with a user id, email, name or "me". Sorting by a person or created_by orders rows by name. Returns property values by name; relations as [{id, title}], people as [{id, name}].',
+        'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select option names as values; by default all filters must match, filter_combinator "or" lets any match, and groups ({type: "group", combinator, rules}) mix the two, e.g. Status is Done and (Assignee contains me or Priority is High). Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt, is_within. For a relation use contains / not_equals with a related row id or title; for a person or created_by, contains / not_equals with a user id, email, name or "me". For dates, is_within takes today, this_week (Monday to Sunday), this_month, or past_n_days / next_n_days with "days" (both include today), counted from the current date on the server. Sorting by a person or created_by orders rows by name. Returns property values by name; relations as [{id, title}], people as [{id, name}].',
       inputSchema: z.object({
         database_id: id("database"),
         filters: filtersInput.optional(),
+        filter_combinator: filterCombinatorInput,
         sorts: sortsInput.optional(),
-        view_id: z.string().optional().describe("Apply a saved view's filters and sorts first (ids from get_database)."),
+        view_id: z
+          .string()
+          .optional()
+          .describe("Apply a saved view's filters and sorts first (ids from get_database); rows must match both the view's filters and yours."),
         limit: z.number().int().min(1).max(200).default(50).describe("Maximum rows to return (1-200, default 50)."),
       }),
       annotations: READ,
     },
-    ({ database_id, filters, sorts, view_id, limit }) =>
+    ({ database_id, filters, filter_combinator, sorts, view_id, limit }) =>
       runTool(async () => {
         const { database, properties, views } = await databases.getDatabase(userId, database_id);
         const props: PropertyDef[] = properties;
         const lookups = await databases.getLookups(userId, properties);
         const view = view_id ? views.find((v) => v.id === view_id) : undefined;
         if (view_id && !view) throw new ToolInputError(`No view with id "${view_id}" in this database.`);
+        // The view's filters and the caller's each keep their own combinator; rows must match both.
+        const own = { type: "group", combinator: filter_combinator ?? "and", rules: toFilterEntries(props, filters ?? [], lookups) } as const;
+        const saved = { type: "group", combinator: view?.config.filterCombinator ?? "and", rules: view?.config.filters ?? [] } as const;
         const rows = await databases.listRows(userId, database_id, {
-          filters: [...(view?.config.filters ?? []), ...(filters ?? []).map((f) => toFilterRule(props, f, lookups))],
+          filters: [saved, own].filter((g) => g.rules.length),
           sorts: sorts?.length ? sorts.map((s) => toSortRule(props, s)) : (view?.config.sorts ?? []),
         });
         return {
@@ -780,7 +835,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a database view",
       description:
-        'Add a saved view to a database: a "table", a "board" (cards grouped by a select or person property; a card assigned to several people shows under each) or a "calendar" (rows placed on the days of a date property). Filters and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows.',
+        'Add a saved view to a database: a "table", a "board" (cards grouped by a select or person property; a card assigned to several people shows under each) or a "calendar" (rows placed on the days of a date property). Filters (with groups and filter_combinator) and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows, and is_within date filters count from the day the view is opened.',
       inputSchema: z.object({
         database_id: id("database"),
         name: z.string().min(1).max(100).describe("View name."),
@@ -788,19 +843,20 @@ export function createMcpServer(principal: McpPrincipal) {
         group_by: z.string().optional().describe("Board only: the select, person or created_by property to group cards by. Defaults to the first select property."),
         date_by: z.string().optional().describe("Calendar only: the date property that places rows on days. Defaults to the first date property."),
         filters: filtersInput.optional(),
+        filter_combinator: filterCombinatorInput,
         sorts: sortsInput.optional(),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, name, type, group_by, date_by, filters, sorts }) =>
+    ({ database_id, name, type, group_by, date_by, filters, filter_combinator, sorts }) =>
       runTool(async () => {
         assertWrite();
         const { database, properties } = await databases.getDatabase(userId, database_id);
         if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
         const lookups = await databases.getLookups(userId, properties);
         // Validate before creating so a bad filter does not leave a half-configured view behind.
-        const patch = viewConfigPatch(properties, type, { group_by, date_by, filters, sorts }, lookups);
+        const patch = viewConfigPatch(properties, type, { group_by, date_by, filters, filter_combinator, sorts }, lookups);
         const created = await databases.addView(userId, database_id, { name, type });
         const config = { ...created.config, ...patch };
         if (Object.keys(patch).length) await databases.updateView(userId, created.id, { config });
@@ -813,7 +869,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Update a database view",
       description:
-        "Rename a saved view or change its filters, sorts, board grouping or calendar date property (view ids from get_database). filters and sorts replace the view's current ones; pass an empty array to clear them. Settings you leave out keep their values.",
+        "Rename a saved view or change its filters, sorts, board grouping or calendar date property (view ids from get_database). filters and sorts replace the view's current ones (filters with filter_combinator, \"and\" unless given); pass an empty array to clear them. filter_combinator alone switches how the current filters combine. Settings you leave out keep their values.",
       inputSchema: z.object({
         database_id: id("database"),
         view_id: id("view"),
@@ -821,21 +877,22 @@ export function createMcpServer(principal: McpPrincipal) {
         group_by: z.string().optional().describe("Board only: the select, person or created_by property to group cards by."),
         date_by: z.string().optional().describe("Calendar only: the date property that places rows on days."),
         filters: filtersInput.optional(),
+        filter_combinator: filterCombinatorInput,
         sorts: sortsInput.optional(),
       }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, view_id, name, group_by, date_by, filters, sorts }) =>
+    ({ database_id, view_id, name, group_by, date_by, filters, filter_combinator, sorts }) =>
       runTool(async () => {
         assertWrite();
         const { database, properties, views } = await databases.getDatabase(userId, database_id);
         const view = views.find((v) => v.id === view_id);
         if (!view) throw new ToolInputError(`No view with id "${view_id}" in this database. Call get_database for view ids.`);
         const lookups = await databases.getLookups(userId, properties);
-        const patch = viewConfigPatch(properties, view.type, { group_by, date_by, filters, sorts }, lookups);
+        const patch = viewConfigPatch(properties, view.type, { group_by, date_by, filters, filter_combinator, sorts }, lookups);
         if (name === undefined && !Object.keys(patch).length) {
-          throw new ToolInputError("Nothing to change: provide name, group_by, date_by, filters or sorts.");
+          throw new ToolInputError("Nothing to change: provide name, group_by, date_by, filters, filter_combinator or sorts.");
         }
         const config = { ...view.config, ...patch };
         await databases.updateView(userId, view_id, {
