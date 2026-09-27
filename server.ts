@@ -74,6 +74,10 @@ server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
 server.listen(port, hostname, () => {
   console.log(`esionage ready on http://localhost:${port} (${dev ? "dev" : "production"})`);
   console.log(describeMailSetup());
+  // Next answers dev websocket upgrades (HMR) only after it has served a request. Browsers open one
+  // websocket per host at a time, so an open tab reconnecting to HMR after a restart would otherwise
+  // hang there and hold back its collab connection.
+  if (dev) fetch(`http://127.0.0.1:${port}/`, { redirect: "manual" }).catch(() => {});
   startAssignmentEmails();
   startShareEmails();
 });
