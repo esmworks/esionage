@@ -14,6 +14,7 @@ import { migrateDocTitle, readDocTitle, writeDocTitle } from "@/lib/collab-title
 import { requestLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
 import { AccessError } from "@/server/access";
+import { sessionPassesTwoFactor } from "@/server/account-security";
 import { blocksToMarkdown, markdownToBlocks, serverEditor as editor } from "@/server/blocknote";
 import { mentionablePeople, syncPageReferences } from "@/server/mentions";
 import { authorizeCollab, parseDocName as parseName } from "./authorize";
@@ -24,7 +25,14 @@ import { touchesThreads } from "./thread-guard";
 import { verifyCollabToken } from "./token";
 
 /** `locale`: the interface language of the browser that connected, for emails about its changes. */
-type Context = { userId?: string; userName?: string; oauthClientId?: string | null; locale?: string };
+type Context = {
+  userId?: string;
+  userName?: string;
+  oauthClientId?: string | null;
+  locale?: string;
+  /** The session passes a "require two-step verification" policy (see authorizeCollab). */
+  strong?: boolean;
+};
 
 const AUTO_SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
 const debug = process.env.COLLAB_DEBUG ? (...args: unknown[]) => console.log("[collab]", ...args) : () => {};
@@ -218,14 +226,15 @@ export function createCollab() {
       const target = parseName(documentName);
       if (!user || !target) throw new Error("unauthorized");
       try {
+        const strong = await sessionPassesTwoFactor(user.sessionId, user.userId);
         // People who may only read get the live document but their edits are dropped.
-        const { readOnly } = await authorizeCollab(user.userId, target);
+        const { readOnly } = await authorizeCollab(user.userId, target, { strong });
         if (readOnly) connectionConfig.readOnly = true;
+        return { userId: user.userId, userName: user.userName, locale: requestLocale(requestHeaders), strong } satisfies Context;
       } catch (error) {
         if (error instanceof AccessError) throw new Error("forbidden");
         throw error;
       }
-      return { userId: user.userId, userName: user.userName, locale: requestLocale(requestHeaders) } satisfies Context;
     },
 
     async onLoadDocument({ documentName, document }) {
@@ -460,33 +469,43 @@ export function createCollab() {
     broadcast,
 
     async disconnectUser(userId, workspaceId) {
-      const open = [...hocuspocus.documents.values()].filter((doc) =>
-        doc.getConnections().some((c) => (c.context as Context).userId === userId),
-      );
-      const pageIds = open.flatMap((doc) => {
-        const target = parseName(doc.name);
-        return target && target.kind !== "ws" ? [target.id] : [];
-      });
-      const inWorkspace = new Set(
-        pageIds.length
-          ? (
-              await db
-                .select({ id: page.id })
-                .from(page)
-                .where(and(eq(page.workspaceId, workspaceId), inArray(page.id, pageIds)))
-            ).map((r) => r.id)
-          : [],
-      );
-      for (const doc of open) {
-        const target = parseName(doc.name);
-        const affected = target?.kind === "ws" ? target.id === workspaceId : !!target && inWorkspace.has(target.id);
-        if (!affected) continue;
-        for (const connection of doc.getConnections()) {
-          if ((connection.context as Context).userId === userId) connection.close({ code: 4403, reason: "Forbidden" });
-        }
-      }
+      await closeConnections(workspaceId, (context) => context.userId === userId);
+    },
+
+    async disconnectHeldBack(workspaceId) {
+      // Browser connections only (they carry a user); the server's own have no session.
+      await closeConnections(workspaceId, (context) => context.userId !== undefined && context.strong !== true);
     },
   };
+
+  /** Closes the connections to the workspace's documents (signals, pages, databases) that match. */
+  async function closeConnections(workspaceId: string, matches: (context: Context) => boolean) {
+    const open = [...hocuspocus.documents.values()].filter((doc) =>
+      doc.getConnections().some((c) => matches(c.context as Context)),
+    );
+    const pageIds = open.flatMap((doc) => {
+      const target = parseName(doc.name);
+      return target && target.kind !== "ws" ? [target.id] : [];
+    });
+    const inWorkspace = new Set(
+      pageIds.length
+        ? (
+            await db
+              .select({ id: page.id })
+              .from(page)
+              .where(and(eq(page.workspaceId, workspaceId), inArray(page.id, pageIds)))
+          ).map((r) => r.id)
+        : [],
+    );
+    for (const doc of open) {
+      const target = parseName(doc.name);
+      const affected = target?.kind === "ws" ? target.id === workspaceId : !!target && inWorkspace.has(target.id);
+      if (!affected) continue;
+      for (const connection of doc.getConnections()) {
+        if (matches(connection.context as Context)) connection.close({ code: 4403, reason: "Forbidden" });
+      }
+    }
+  }
 
   return { hocuspocus, service };
 }

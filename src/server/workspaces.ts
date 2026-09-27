@@ -707,6 +707,8 @@ export async function updateWorkspaceSettings(
     .update(workspace)
     .set({ settings: sql`${workspace.settings} || ${JSON.stringify(clean)}::jsonb` })
     .where(eq(workspace.id, workspaceId));
+  // Open editors were let in before; the ones the policy now holds back reconnect and are refused.
+  if (clean.requireTwoFactor === true) await getCollab().disconnectHeldBack(workspaceId);
 }
 
 /**

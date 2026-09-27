@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
-import { getMembership } from "@/server/access";
+import { findMembership } from "@/server/access";
 import { getSession } from "@/server/session";
 import { findJoinLink } from "@/server/workspaces";
 import { AuthForm } from "../../auth-form";
@@ -34,7 +34,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
   const title = t("title", { workspace: link.workspaceName });
 
   if (session) {
-    if (await getMembership(session.user.id, link.workspaceId)) {
+    if (await findMembership(session.user.id, link.workspaceId)) {
       return <Notice title={title} body={t("alreadyMember")} href={`/w/${link.workspaceId}`} link={t("open")} />;
     }
     return <JoinWorkspace token={token} title={title} body={t("body")} />;

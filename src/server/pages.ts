@@ -13,15 +13,17 @@ import {
   type ViewType,
 } from "@/db/schema";
 import {
-  accessRank,
   AccessError,
   type AccessLevel,
+  accessRank,
+  enforceTwoFactorPolicy,
   levelFromRank,
   pageIdColumn,
   pageVisibleTo,
   requireMember,
   requireMembership,
   requirePageAccess,
+  workspacesHeldBack,
 } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import {
@@ -453,6 +455,7 @@ export async function searchPages(
 ): Promise<SearchHit[]> {
   const q = query.trim();
   if (!q) return [];
+  if (workspaceId) await enforceTwoFactorPolicy(userId, workspaceId);
   const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   const rows = await db.execute<{
     id: string;
@@ -486,7 +489,8 @@ export async function searchPages(
     order by rank desc, p.updated_at desc
     limit ${limit}
   `);
-  return rows.map((r) => ({
+  const heldBack = workspaceId ? new Set<string>() : await workspacesHeldBack(userId, rows.map((r) => r.workspace_id));
+  return rows.filter((r) => !heldBack.has(r.workspace_id)).map((r) => ({
     id: r.id,
     workspaceId: r.workspace_id,
     parentId: r.parent_id,

@@ -9,7 +9,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { file, fileReference, page } from "@/db/schema";
 import { cleanFileName, contentTypeFor, fileUrl, formatBytes, isFileId } from "@/lib/files";
-import { accessRank, requirePageAccess } from "@/server/access";
+import { accessRank, requirePageAccess, sessionHeldBack } from "@/server/access";
 import { anyPagePublished } from "@/server/publication";
 import { fetchRemoteFile, RemoteFetchError, type RemoteFetchOptions } from "@/server/remote-fetch";
 import { getStorage, uploadLimits } from "@/server/storage";
@@ -217,7 +217,8 @@ export async function fileForViewer(userId: string | null, fileId: string): Prom
   const [found] = await db.select().from(file).where(eq(file.id, fileId)).limit(1);
   if (!found) return null;
   const pages = await pagesShowing(found);
-  if (userId && pages.length) {
+  // A workspace whose two-step policy holds back this session shows only what it published.
+  if (userId && pages.length && !(await sessionHeldBack(userId, found.workspaceId))) {
     const [visible] = await db
       .select({ id: page.id })
       .from(page)

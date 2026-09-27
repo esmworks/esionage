@@ -41,7 +41,8 @@
 - **Two-step verification and passkeys** (Settings → Account security): an authenticator app
   (TOTP, QR code or typed key) with ten one-time recovery codes shown once to copy or download,
   new codes on demand, and "don't ask again on this device" for 30 days. Signing in with a
-  password or with GitHub/Google then asks for a code or a recovery code. Turning it off asks for
+  password or with GitHub/Google then asks for a code or a recovery code; signing in to connect
+  an MCP app continues to its consent page after the code, either way. Turning it off asks for
   the password, or a code on accounts without one. Passkeys can be added, renamed and removed,
   and "Sign in with a passkey" is on the sign-in page. Built on Better Auth's `twoFactor` plugin
   and `@better-auth/passkey`; migration `0018_two_factor_passkeys` adds the `two_factor` and
@@ -49,7 +50,9 @@
   in). `pnpm auth:reset-2fa <email>` resets an account that lost both its app and its codes.
 - **Require two-step verification** (workspace Settings → Security, owners): people whose session
   has neither the authenticator app nor a passkey sign-in are sent to a page where they set one
-  up before they can open the workspace. An owner can turn it on only from a session that
+  up before they can open the workspace. The access checks enforce it for server actions and API
+  routes too, and the live collaboration connection checks it when it connects (turning the
+  policy on closes the ones that don't pass). An owner can turn it on only from a session that
   passes, and the settings show how many people haven't set anything up yet. Apps connected over
   MCP are not affected.
 
