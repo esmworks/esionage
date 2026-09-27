@@ -66,6 +66,9 @@ approve them over OAuth.
   may invite guests.
 - **Email**: invitations, password reset, assignment and share notifications over SMTP (see [Email](#email)).
 - **Sign in with GitHub or Google**, optional (see [Social login](#social-login)).
+- **Two-step verification and passkeys**: an authenticator app with one-time recovery codes,
+  passkeys, and a workspace policy that requires one of them (see
+  [Two-step verification and passkeys](#two-step-verification-and-passkeys)).
 - **English and Turkish** interface.
 - **MCP server with OAuth 2.1**: remote MCP endpoint at `/mcp`.
   - Supports Client ID Metadata Documents and Dynamic Client Registration, with PKCE and a
@@ -185,6 +188,36 @@ For example, with `APP_URL=https://notes.example.com` the GitHub callback URL is
 - **Closed sign-up:** with `DISABLE_SIGNUP=true`, a provider signs in only people who already
   have an account, or who were invited with that email. It never creates other accounts.
 
+## Two-step verification and passkeys
+
+Everyone manages these in **Settings → Account security**:
+
+- **Authenticator app (TOTP):** scan a QR code (or type the key) into an app such as 1Password
+  or Google Authenticator and confirm with a code. Ten recovery codes are shown once, to copy or
+  download; each signs in once, and "New codes" replaces them. From then on, signing in with the
+  password *or* with GitHub/Google asks for a code; "Don't ask again on this device" skips it for
+  30 days. Turning it off asks for the password, or, for accounts without one, a code.
+- **Passkeys:** add, rename and remove them; "Sign in with a passkey" is on the sign-in page.
+  Passkeys are bound to the host name of `APP_URL`, so changing that host makes existing
+  passkeys stop working. Adding one needs a sign-in from the last 24 hours.
+
+Owners can turn on **Require two-step verification** in the workspace's **Settings → Security**.
+A session passes when the person has the authenticator app on, or signed in with a passkey;
+anyone else who opens the workspace is sent to a page where they set one of them up first
+(nobody is locked out, owners included). An owner can only turn the policy on from a session
+that passes it. The policy guards the app's pages and exports. Apps connected over MCP are not
+affected: they use OAuth tokens, not sign-in sessions, and keep working until someone revokes
+them under Connected apps.
+
+Someone who lost both their authenticator app and their recovery codes can be reset by whoever
+runs the server; this turns two-step verification off and signs them out (`--passkeys` also
+removes their passkeys):
+
+```bash
+pnpm auth:reset-2fa person@example.com
+# Docker: docker compose exec app pnpm auth:reset-2fa person@example.com
+```
+
 ## Deploy on Dokploy
 
 Run the database as a Dokploy database service and the app as an Application, so Dokploy
@@ -259,6 +292,7 @@ Useful scripts:
 | `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, presence, uploads); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
+| `pnpm tsx scripts/two-factor-e2e.ts` | End-to-end two-step verification check (sign-in challenge, recovery codes, workspace policy) against a running server |
 
 ## Architecture
 
@@ -269,8 +303,8 @@ Useful scripts:
   - The `/collab` connection is authenticated with a short-lived HMAC token.
 - The Yjs document is the source of truth for page content. On every save, the app also stores
   derived markdown and plain text in PostgreSQL for search and MCP reads.
-- Auth is Better Auth: email/password for people, and the OAuth provider, JWT, MCP and CIMD
-  plugins for apps. Data access uses Drizzle ORM on PostgreSQL 18.
+- Auth is Better Auth: email/password, GitHub/Google, two-factor and passkey plugins for people,
+  and the OAuth provider, JWT, MCP and CIMD plugins for apps. Data access uses Drizzle ORM on PostgreSQL 18.
 
 ## License
 

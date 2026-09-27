@@ -6,6 +6,7 @@ import {
   DEFAULT_WORKSPACE_SETTINGS,
   page,
   pageInvitation,
+  passkey,
   pagePermission,
   user,
   workspace,
@@ -47,6 +48,7 @@ export async function createPersonalWorkspace(userId: string, userName: string) 
 
 export type WorkspaceErrorCode =
   | "nameRequired"
+  | "twoFactorFirst"
   | "alreadyMember"
   | "notMember"
   | "lastOwner"
@@ -652,15 +654,47 @@ export async function getWorkspaceSettings(userId: string, workspaceId: string) 
   return workspaceSettings(workspaceId);
 }
 
+/**
+ * How many people in the workspace, guests included, have neither an authenticator app nor a
+ * passkey: the ones "require two-step verification" would send to set one up. Owners only.
+ */
+export async function countMembersWithoutTwoFactor(actorId: string, workspaceId: string) {
+  await requireMembership(actorId, workspaceId, "owner");
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(workspaceMember)
+    .innerJoin(user, eq(user.id, workspaceMember.userId))
+    .where(
+      and(
+        eq(workspaceMember.workspaceId, workspaceId),
+        sql`not (coalesce(${user.twoFactorEnabled}, false) or exists (select 1 from ${passkey} where ${passkey.userId} = ${user.id}))`,
+      ),
+    );
+  return row?.count ?? 0;
+}
+
 const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettings[K][] } = {
   guestInvites: ["owners", "members"],
   guestPrivatePages: [false, true],
   publishing: ["owners", "members"],
+  requireTwoFactor: [false, true],
 };
 
-/** Changes some policies, leaving the rest as they are. Owners only. */
-export async function updateWorkspaceSettings(actorId: string, workspaceId: string, patch: Partial<WorkspaceSettings>) {
+/**
+ * Changes some policies, leaving the rest as they are. Owners only. Requiring two-step
+ * verification also needs the owner's own session to pass it (`strongSession`, see
+ * isStrongSession), so turning it on can't shut the owner out of their workspace.
+ */
+export async function updateWorkspaceSettings(
+  actorId: string,
+  workspaceId: string,
+  patch: Partial<WorkspaceSettings>,
+  { strongSession = false }: { strongSession?: boolean } = {},
+) {
   await requireMembership(actorId, workspaceId, "owner");
+  if (patch.requireTwoFactor === true && !strongSession) {
+    throw new WorkspaceError("twoFactorFirst", "Turn on two-step verification for your own account first");
+  }
   const clean: Partial<WorkspaceSettings> = {};
   for (const [key, value] of Object.entries(patch)) {
     const allowed = Object.hasOwn(SETTING_VALUES, key)

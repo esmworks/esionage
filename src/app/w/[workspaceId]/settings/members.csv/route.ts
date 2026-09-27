@@ -1,6 +1,6 @@
 import { toCsv } from "@/lib/csv";
 import { AccessError, requireMembership } from "@/server/access";
-import { getSession } from "@/server/session";
+import { blockedByTwoFactorPolicy, getSession } from "@/server/session";
 import { lastEdits, listMembers } from "@/server/workspaces";
 
 /** Members as CSV, for owners. Anyone else gets 404 so the workspace's existence doesn't leak. */
@@ -8,6 +8,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ wor
   const session = await getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   const { workspaceId } = await params;
+  if (await blockedByTwoFactorPolicy(session, workspaceId)) return new Response("Two-step verification required", { status: 403 });
   try {
     await requireMembership(session.user.id, workspaceId, "owner");
     const [members, edits] = await Promise.all([

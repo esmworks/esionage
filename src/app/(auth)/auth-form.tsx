@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Button, Input } from "@/components/ui";
+import { usePasskeySupport } from "@/components/security/passkeys";
 import { authClient } from "@/lib/auth-client";
 import type { SocialProvider } from "@/lib/social-providers";
 import { SocialSignIn, socialErrorKey } from "./social-sign-in";
+import { PasskeySignIn, TwoFactorStep } from "./two-factor-step";
 
 type Mode = "sign-in" | "sign-up";
 
@@ -35,6 +37,7 @@ export function AuthForm({
   next = "/",
   title,
   socialProviders = [],
+  initialStep = "credentials",
 }: {
   mode: Mode;
   signUpEnabled?: boolean;
@@ -47,6 +50,8 @@ export function AuthForm({
   title?: string;
   /** Providers the server has credentials for; empty hides the buttons. */
   socialProviders?: SocialProvider[];
+  /** "two-factor" when a social sign-in came back needing a code (`?step=two-factor`). */
+  initialStep?: "credentials" | "two-factor";
 }) {
   const router = useRouter();
   const t = useTranslations("auth");
@@ -57,6 +62,9 @@ export function AuthForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [search, setSearch] = useState("");
+  const [step, setStep] = useState(mode === "sign-in" ? initialStep : "credentials");
+  const passkeySupported = usePasskeySupport();
+  const showPasskey = mode === "sign-in" && passkeySupported === true;
   useEffect(() => {
     // A social sign-in that failed comes back here with `?error=`.
     const params = new URLSearchParams(window.location.search);
@@ -96,13 +104,39 @@ export function AuthForm({
       else setError(tc("genericError"));
       return;
     }
-    const data = result.data as { url?: string; redirect?: boolean } | null;
+    const data = result.data as { url?: string; redirect?: boolean; twoFactorRedirect?: boolean } | null;
+    // Two-step verification is on: the password was right, now the code (same page, so an OAuth
+    // authorization in the URL carries on once the code is in).
+    if (data?.twoFactorRedirect) return setStep("two-factor");
+    signedIn(data);
+  }
+
+  /** Continue an OAuth authorization the server handed back, or open `next`. */
+  function signedIn(data: { url?: string } | null | undefined) {
     if (data?.url) {
       window.location.href = data.url;
       return;
     }
     router.push(next);
     router.refresh();
+  }
+
+  if (step === "two-factor") {
+    return (
+      <TwoFactorStep
+        onSignedIn={signedIn}
+        onRestart={() => {
+          setError(null);
+          setStep("credentials");
+          // Drop `?step=two-factor` so a reload shows the password form.
+          const params = new URLSearchParams(window.location.search);
+          if (params.has("step")) {
+            params.delete("step");
+            window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
+          }
+        }}
+      />
+    );
   }
 
   if (mode === "sign-up" && !signUpEnabled && !invite) {
@@ -160,16 +194,28 @@ export function AuthForm({
       <Button type="submit" variant="primary" className="w-full" disabled={pending}>
         {pending ? t("pending") : t(`${text}.submit`)}
       </Button>
-      {socialProviders.length > 0 && (
-        <SocialSignIn
-          providers={socialProviders}
-          // From an invitation or join link, an existing account comes back to accept it there;
-          // a new one has already joined (see the user-create hook in auth.ts).
-          callbackURL={linkPath ?? next}
-          newUserCallbackURL={linkPath ? next : undefined}
-          query={invite ? { invite: invite.token } : join ? { join } : undefined}
-          onError={setError}
-        />
+      {(showPasskey || socialProviders.length > 0) && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 text-xs text-fg-muted">
+            <span className="h-px flex-1 bg-border" />
+            {t("social.or")}
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <div className="space-y-2">
+            {showPasskey && <PasskeySignIn onSignedIn={signedIn} onError={setError} />}
+            {socialProviders.length > 0 && (
+              <SocialSignIn
+                providers={socialProviders}
+                // From an invitation or join link, an existing account comes back to accept it
+                // there; a new one has already joined (see the user-create hook in auth.ts).
+                callbackURL={linkPath ?? next}
+                newUserCallbackURL={linkPath ? next : undefined}
+                query={invite ? { invite: invite.token } : join ? { join } : undefined}
+                onError={setError}
+              />
+            )}
+          </div>
+        </div>
       )}
       {(mode === "sign-up" || signUpEnabled) && (
         <p className="text-center text-sm text-fg-muted">

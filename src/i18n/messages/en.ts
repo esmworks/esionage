@@ -10,7 +10,8 @@ import invite from "./en/invite.json";
 import join from "./en/join.json";
 import publish from "./en/publish.json";
 import form from "./en/form.json";
+import security from "./en/security.json";
 
-const messages = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish, form };
+const messages = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish, form, security };
 
 export default messages;

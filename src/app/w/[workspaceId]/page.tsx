@@ -5,12 +5,12 @@ import { PageIcon } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
 import { getMembership, isGuest } from "@/server/access";
 import { recentPages } from "@/server/pages";
-import { requireUser } from "@/server/session";
+import { requireWorkspaceSession } from "@/server/session";
 import { topLevelAccess } from "@/server/workspaces";
 
 export default async function WorkspaceHome({ params }: { params: Promise<{ workspaceId: string }> }) {
-  const user = await requireUser();
   const { workspaceId } = await params;
+  const { user } = await requireWorkspaceSession(workspaceId);
   const [pages, membership, topLevel] = await Promise.all([
     recentPages(user.id, workspaceId, 12),
     getMembership(user.id, workspaceId),

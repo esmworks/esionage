@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { updateWorkspaceSettingsAction } from "@/app/actions/workspaces";
@@ -111,6 +112,72 @@ export function GuestPrivatePagesSetting({
             setValue(next);
             run(async () => {
               const result = await updateWorkspaceSettingsAction(workspaceId, { guestPrivatePages: next });
+              if (!result.ok) setValue(!next);
+              return result;
+            });
+          }}
+        />
+      }
+    />
+  );
+}
+
+/**
+ * Whether everyone must use two-step verification to open the workspace. Turning it on needs the
+ * owner's own session to pass it, so they can't shut themselves out; the server checks it too.
+ */
+export function RequireTwoFactorSetting({
+  workspaceId,
+  settings,
+  canEdit,
+  ownSessionPasses,
+  withoutTwoFactor,
+}: {
+  workspaceId: string;
+  settings: WorkspaceSettings;
+  canEdit: boolean;
+  /** The owner's current session counts as two-step (authenticator app on, or a passkey sign-in). */
+  ownSessionPasses: boolean;
+  /** People in the workspace with neither an authenticator app nor a passkey (owners only). */
+  withoutTwoFactor: number;
+}) {
+  const t = useTranslations("settings.security.requireTwoFactor");
+  const ts = useTranslations("settings.security");
+  const [value, setValue] = useState(settings.requireTwoFactor);
+  const { pending, error, run } = useAction();
+  const blocked = !value && !ownSessionPasses;
+
+  return (
+    <SettingsRow
+      title={t("title")}
+      description={
+        error ? (
+          <span className="text-danger">{error}</span>
+        ) : (
+          <>
+            {t("description")}
+            {!canEdit && <> {ts("ownersOnly")}</>}
+            {canEdit && blocked && (
+              <>
+                {" "}
+                <Link href={`/w/${workspaceId}/settings?tab=accountSecurity`} className="text-accent hover:underline">
+                  {t("setUpFirst")}
+                </Link>
+              </>
+            )}
+            {canEdit && !blocked && withoutTwoFactor > 0 && <> {t("withoutCount", { count: withoutTwoFactor })}</>}
+          </>
+        )
+      }
+      control={
+        <Switch
+          checked={value}
+          label={t("title")}
+          disabled={!canEdit || pending || blocked}
+          onChange={(next) => {
+            setValue(next);
+            run(async () => {
+              const result = await updateWorkspaceSettingsAction(workspaceId, { requireTwoFactor: next });
               if (!result.ok) setValue(!next);
               return result;
             });

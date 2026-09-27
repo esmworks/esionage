@@ -1,4 +1,4 @@
-import { Plug, Settings, Shield, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
+import { KeyRound, Plug, Settings, Shield, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -12,17 +12,27 @@ import { MembersPanel } from "@/components/settings/members-panel";
 import { NotificationSettings } from "@/components/settings/notification-settings";
 import { PublicForms } from "@/components/settings/public-forms";
 import { PublishedPages } from "@/components/settings/published-pages";
-import { GuestInviteSetting, GuestPrivatePagesSetting, PublishingSetting } from "@/components/settings/security-settings";
+import { PasskeySettings } from "@/components/security/passkeys";
+import { TwoFactorSettings } from "@/components/security/two-factor";
+import {
+  GuestInviteSetting,
+  GuestPrivatePagesSetting,
+  PublishingSetting,
+  RequireTwoFactorSetting,
+} from "@/components/settings/security-settings";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
+import { isStrongSession } from "@/lib/auth-security";
+import { getAccountSecurity } from "@/server/account-security";
 import { AccessError, isGuest } from "@/server/access";
 import { listWorkspaceFormPublications } from "@/server/forms";
 import { mailStatus } from "@/server/mail";
 import { getNotificationPreferences } from "@/server/notification-preferences";
 import { listWorkspacePublications } from "@/server/publication";
-import { requireUser } from "@/server/session";
+import { getSession, requireWorkspaceSession } from "@/server/session";
 import {
+  countMembersWithoutTwoFactor,
   getJoinLink,
   getWorkspace,
   getWorkspaceSettings,
@@ -36,14 +46,15 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("metaTitle") };
 }
 
-const TABS = ["general", "members", "security", "preferences", "apps"] as const;
+const TABS = ["general", "members", "security", "preferences", "accountSecurity", "apps"] as const;
 type Tab = (typeof TABS)[number];
 const NAV: { group: "account" | "workspace"; tabs: Tab[] }[] = [
-  { group: "account", tabs: ["preferences", "apps"] },
+  { group: "account", tabs: ["preferences", "accountSecurity", "apps"] },
   { group: "workspace", tabs: ["general", "members", "security"] },
 ];
 const ICONS: Record<Tab, LucideIcon> = {
   preferences: SlidersHorizontal,
+  accountSecurity: KeyRound,
   apps: Plug,
   general: Settings,
   members: Users,
@@ -57,8 +68,8 @@ export default async function SettingsPage({
   params: Promise<{ workspaceId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const user = await requireUser();
   const [{ workspaceId }, query] = await Promise.all([params, searchParams]);
+  const { user } = await requireWorkspaceSession(workspaceId);
   const workspace = await getWorkspace(user.id, workspaceId).catch((error) => {
     if (error instanceof AccessError) return null;
     throw error;
@@ -123,6 +134,7 @@ export default async function SettingsPage({
           {tab === "preferences" && (
             <PreferencesTab workspaceId={workspaceId} userId={user.id} guest={isGuest(workspace.role)} />
           )}
+          {tab === "accountSecurity" && <AccountSecurityTab userId={user.id} />}
           {tab === "apps" && (
             <>
               <SettingsHeader title={t("nav.apps")} description={t("connectedApps.description")} />
@@ -138,17 +150,48 @@ export default async function SettingsPage({
   );
 }
 
+async function AccountSecurityTab({ userId }: { userId: string }) {
+  const [security, t] = await Promise.all([getAccountSecurity(userId), getTranslations("security")]);
+  return (
+    <>
+      <SettingsHeader title={t("title")} description={t("description")} />
+      <div className="space-y-10">
+        <SettingsGroup title={t("twoFactor.heading")} description={t("twoFactor.headingDescription")}>
+          <TwoFactorSettings enabled={security.twoFactorEnabled} hasPassword={security.hasPassword} />
+        </SettingsGroup>
+        <SettingsGroup title={t("passkeys.heading")} description={t("passkeys.headingDescription")}>
+          <PasskeySettings passkeys={security.passkeys} />
+        </SettingsGroup>
+        <p className="text-sm text-fg-muted">{t("connectedAppsNote")}</p>
+      </div>
+    </>
+  );
+}
+
 async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
-  const [settings, publications, forms, t] = await Promise.all([
+  const [settings, publications, forms, session, withoutTwoFactor, t] = await Promise.all([
     getWorkspaceSettings(userId, workspaceId),
     isOwner ? listWorkspacePublications(userId, workspaceId) : null,
     isOwner ? listWorkspaceFormPublications(userId, workspaceId) : null,
+    getSession(),
+    isOwner ? countMembersWithoutTwoFactor(userId, workspaceId) : 0,
     getTranslations("settings"),
   ]);
   return (
     <div className="space-y-10">
       <div>
         <SettingsHeader title={t("nav.security")} description={t("security.description")} />
+        <SettingsGroup title={t("security.authenticationHeading")}>
+          <RequireTwoFactorSetting
+            workspaceId={workspaceId}
+            settings={settings}
+            canEdit={isOwner}
+            ownSessionPasses={Boolean(session && isStrongSession(session))}
+            withoutTwoFactor={withoutTwoFactor}
+          />
+        </SettingsGroup>
+      </div>
+      <div>
         <SettingsGroup title={t("security.guestsHeading")}>
           <GuestInviteSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
           <GuestPrivatePagesSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />

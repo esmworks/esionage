@@ -13,7 +13,7 @@ import { getDatabaseSnapshot, MAX_BULK_ROWS } from "@/server/databases";
 import { resolveEmbeds } from "@/server/embeds";
 import { labelPageLinks } from "@/server/mentions";
 import { getPage } from "@/server/pages";
-import { getSession } from "@/server/session";
+import { blockedByTwoFactorPolicy, getSession } from "@/server/session";
 
 /** A file name without characters that trip up file systems or the Content-Disposition header. */
 function fileName(title: string, extension: string) {
@@ -52,6 +52,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
   const { pageId } = await params;
   try {
     const target = await getPage(session.user.id, pageId);
+    if (await blockedByTwoFactorPolicy(session, target.workspaceId)) {
+      return new Response("Two-step verification required", { status: 403 });
+    }
     const only = await requestedRows(request);
     if (target.kind === "database") {
       const snapshot = await getDatabaseSnapshot(session.user.id, pageId);

@@ -7,6 +7,7 @@
     "general": "General",
     "members": "Members",
     "preferences": "Preferences",
+    "accountSecurity": "Account security",
     "apps": "Connected apps",
     "security": "Security"
   },
@@ -150,10 +151,18 @@
     "tooManyEmails": "Add at most 50 people at a time.",
     "joinLinkInvalid": "This join link is invalid or was turned off.",
     "transferToSelf": "Choose someone else to make owner.",
-    "transferToGuest": "Make them a member before making them owner."
+    "transferToGuest": "Make them a member before making them owner.",
+    "twoFactorFirst": "Turn on two-step verification for your own account first, or sign in with a passkey."
   },
   "security": {
-    "description": "Decide who can bring people into this workspace, what guests can do and who can publish pages to the web. Only owners can change these settings.",
+    "description": "Decide how people sign in, who can bring people into this workspace, what guests can do and who can publish pages to the web. Only owners can change these settings.",
+    "authenticationHeading": "Authentication",
+    "requireTwoFactor": {
+      "title": "Require two-step verification",
+      "description": "Everyone must use an authenticator app or sign in with a passkey to open this workspace. People without either are asked to set one up first. Apps connected over MCP are not affected.",
+      "setUpFirst": "Turn on two-step verification for your own account first.",
+      "withoutCount": "{count, plural, one {# person here hasn't set it up yet.} other {# people here haven't set it up yet.}}"
+    },
     "guestsHeading": "Guests",
     "guestInvites": {
       "title": "Who can invite guests",

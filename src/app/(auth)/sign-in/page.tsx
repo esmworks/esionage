@@ -18,10 +18,11 @@ export default async function SignInPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { next } = await searchParams;
+  const { next, step } = await searchParams;
   return (
     <AuthForm
       mode="sign-in"
+      initialStep={step === "two-factor" ? "two-factor" : "credentials"}
       signUpEnabled={!env.signUpDisabled}
       next={safeNext(next)}
       socialProviders={env.enabledSocialProviders}

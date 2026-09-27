@@ -6,7 +6,7 @@ import { parseSidebarCookie, SIDEBAR_COOKIE } from "@/lib/sidebar-layout";
 import { getMembership } from "@/server/access";
 import { listFavorites } from "@/server/page-meta";
 import { getTree, listWorkspaces } from "@/server/pages";
-import { requireUser } from "@/server/session";
+import { requireSession, requireWorkspaceSession } from "@/server/session";
 import { topLevelAccess } from "@/server/workspaces";
 
 export default async function WorkspaceLayout({
@@ -16,9 +16,11 @@ export default async function WorkspaceLayout({
   children: React.ReactNode;
   params: Promise<{ workspaceId: string }>;
 }) {
-  const user = await requireUser();
+  const { user } = await requireSession();
   const { workspaceId } = await params;
   if (!(await getMembership(user.id, workspaceId))) notFound();
+  // After the membership check, so the redirect doesn't tell outsiders the workspace exists.
+  await requireWorkspaceSession(workspaceId);
   const [workspaces, tree, favorites, topLevel, cookieStore] = await Promise.all([
     listWorkspaces(user.id),
     getTree(user.id, workspaceId),
