@@ -192,6 +192,13 @@ export function flattenBlocks(blocks: readonly BlockInput[]): DiffBlock[] {
   const walk = (list: readonly BlockInput[], depth: number) => {
     let run = 0;
     for (const block of list) {
+      // Columns (lib/columns) only lay blocks out: their blocks are compared as if they followed
+      // one another.
+      if (block.type === "columnList" || block.type === "column") {
+        if (block.children?.length) walk(block.children, depth);
+        run = 0;
+        continue;
+      }
       const props = block.props ?? {};
       const str = (name: string) => (typeof props[name] === "string" ? (props[name] as string) : "");
       let text = contentText(block.content);

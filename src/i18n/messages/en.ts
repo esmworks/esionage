@@ -13,7 +13,8 @@ import form from "./en/form.json";
 import imports from "./en/import.json";
 import security from "./en/security.json";
 import teamspaces from "./en/teamspaces.json";
+import apiTokens from "./en/apiTokens.json";
 
-const messages = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish, form, import: imports, security, teamspaces };
+const messages = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish, form, import: imports, security, apiTokens, teamspaces };
 
 export default messages;

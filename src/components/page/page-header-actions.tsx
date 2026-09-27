@@ -13,6 +13,7 @@ import {
   Lock,
   MessageSquare,
   MoreHorizontal,
+  Printer,
   Search,
   Star,
   Trash2,
@@ -34,6 +35,7 @@ import { useZipExport } from "@/components/use-zip-export";
 import type { PageKind } from "@/db/schema/app";
 import { FAVORITES_EVENT } from "@/lib/favorites-event";
 import type { Presence } from "@/lib/presence";
+import { printPath } from "@/lib/print";
 import { relativeTime } from "@/lib/relative-time";
 import type { PageHeaderInfo } from "@/server/page-meta";
 import type { TreeNode } from "@/server/pages";
@@ -408,6 +410,19 @@ function PageMenu({
             >
               {zipExport.pending ? t("exportPreparing") : isDatabase ? t("exportZipDatabase") : t("exportZip")}
             </MenuItem>
+            {/* The print view in a new tab; it opens the browser's print dialog ("Save as PDF") once loaded. */}
+            <a
+              href={printPath(page.id, { auto: true })}
+              target="_blank"
+              rel="noopener"
+              onClick={() => close()}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover"
+            >
+              <span className="flex h-4 w-4 items-center justify-center text-fg-muted">
+                <Printer className="h-4 w-4" />
+              </span>
+              <span className="flex-1 truncate">{t("exportPdf")}</span>
+            </a>
             {page.hasBody && (
               <MenuItem
                 icon={<History className="h-4 w-4" />}

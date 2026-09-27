@@ -1,6 +1,7 @@
 import * as Y from "yjs";
 import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { COLUMN_BLOCK, COLUMN_LIST_BLOCK, columnWidth } from "@/lib/columns";
 import { BREADCRUMB_BLOCK, MERMAID_BLOCK, TOC_BLOCK } from "@/lib/content-blocks";
 import { plainText } from "@/lib/content-markdown";
 import { isEmbedBlockType, parseLinkedView, type EmbedBlockType, type LinkedView } from "@/lib/embed-blocks";
@@ -22,6 +23,8 @@ import { serverEditor as editor, type PageBlock } from "@/server/blocknote";
  * contents, breadcrumbs and Mermaid diagrams come back between the parts too, for the page to
  * draw, and so do bookmarks and embeds (an iframe only for an allowlisted provider, see
  * lib/web-blocks), and uploaded PDFs, which the page shows in place. Equations are serialized: KaTeX builds them on the server (see server/blocknote.ts).
+ * Columns come back as a segment holding each column's own segments, so everything above works
+ * inside them too.
  */
 
 type Json = unknown;
@@ -162,7 +165,12 @@ export type BodySegment =
   /** An embed of an allowlisted provider; any other URL comes back as a bookmark. */
   | { kind: "webEmbed"; url: string; embed: EmbedTarget }
   /** A file block holding an uploaded PDF, shown in place (see components/page/pdf-viewer.tsx). */
-  | { kind: "pdf"; fileId: string; name: string; caption: string };
+  | { kind: "pdf"; fileId: string; name: string; caption: string }
+  /** Columns side by side (stacked on narrow screens), each with its own segments. */
+  | { kind: "columns"; columns: PublishedColumn<BodySegment>[] };
+
+/** A column of a published page: its share of the row (see lib/columns) and what it shows. */
+export type PublishedColumn<S> = { width: number; segments: S[] };
 
 /** A bookmark card's details, every URL checked to be http(s). */
 export type PublishedBookmark = { url: string; title: string; description: string; image: string; favicon: string; siteName: string };
@@ -175,6 +183,7 @@ function pdfOf(block: PageBlock): string | null {
 }
 
 const isStandalone = (block: PageBlock) =>
+  block.type === COLUMN_LIST_BLOCK ||
   isEmbedBlockType(block.type) ||
   isWebBlockType(block.type) ||
   block.type === TOC_BLOCK ||
@@ -225,27 +234,46 @@ function runHeadings(blocks: PageBlock[], out: PageBlock[] = []): PageBlock[] {
   return out;
 }
 
-export async function bodySegmentsFromYdoc(
-  state: Uint8Array | null,
+export type BodyOptions = {
   /** How to show the pages the body mentions or links to; without it they are left out. */
-  { resolvePages }: { resolvePages?: (pageIds: string[]) => Promise<Map<string, PublishedPageRef>> } = {},
-): Promise<BodySegment[]> {
+  resolvePages?: (pageIds: string[]) => Promise<Map<string, PublishedPageRef>>;
+  /**
+   * Put before every heading anchor (`heading-3` → `p2-heading-3`), so several bodies can share one
+   * document (the print view with subpages) without their tables of contents mixing up. Callers
+   * pass a fixed ASCII prefix of their own.
+   */
+  anchorPrefix?: string;
+};
+
+export async function bodySegmentsFromYdoc(state: Uint8Array | null, options: BodyOptions = {}): Promise<BodySegment[]> {
   if (!state || state.byteLength === 0) return [];
   const doc = new Y.Doc();
   try {
     Y.applyUpdate(doc, state);
-    const blocks = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
-    const { pageIds } = bodyReferences(blocks);
-    const refs = pageIds.length && resolvePages ? await resolvePages(pageIds) : new Map<string, PublishedPageRef>();
+    return await bodySegmentsFromBlocks(editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT)), options);
+  } finally {
+    doc.destroy();
+  }
+}
+
+/** The same for a body already read as blocks (from the live document, see collab `readBlocks`). */
+export async function bodySegmentsFromBlocks(
+  blocks: PageBlock[],
+  { resolvePages, anchorPrefix = "" }: BodyOptions = {},
+): Promise<BodySegment[]> {
+  const { pageIds } = bodyReferences(blocks);
+  const refs = pageIds.length && resolvePages ? await resolvePages(pageIds) : new Map<string, PublishedPageRef>();
+  // Every heading of the page, filled in as the runs are written; tables of contents share it.
+  const headings: BodyHeading[] = [];
+  /** The segments of a list of blocks: the body, or a column's blocks. */
+  const segmentsOf = async (blocks: PageBlock[]): Promise<BodySegment[]> => {
     const segments: BodySegment[] = [];
-    // Every heading of the page, filled in as the runs are written; tables of contents share it.
-    const headings: BodyHeading[] = [];
     let run: PageBlock[] = [];
     const flush = async () => {
       if (!run.length) return;
       const inRun = runHeadings(run).map((block) => {
         const heading = {
-          anchor: `heading-${headings.length + 1}`,
+          anchor: `${anchorPrefix}heading-${headings.length + 1}`,
           level: Number((block.props as { level?: unknown }).level) || 1,
           text: blocksToPlainText([{ ...block, children: [] }]),
         };
@@ -264,6 +292,16 @@ export async function bodySegmentsFromYdoc(
       if (html) segments.push({ kind: "html", html });
     };
     const standalone = async (block: PageBlock) => {
+      if (block.type === COLUMN_LIST_BLOCK) {
+        await flush();
+        const columns: PublishedColumn<BodySegment>[] = [];
+        for (const column of block.children ?? []) {
+          if (column.type !== COLUMN_BLOCK) continue;
+          columns.push({ width: columnWidth((column.props as { width?: unknown }).width), segments: await segmentsOf(column.children ?? []) });
+        }
+        if (columns.length) segments.push({ kind: "columns", columns });
+        return;
+      }
       if (block.type === TOC_BLOCK || block.type === BREADCRUMB_BLOCK) {
         await flush();
         segments.push(block.type === TOC_BLOCK ? { kind: "toc", headings } : { kind: "breadcrumb" });
@@ -316,13 +354,15 @@ export async function bodySegmentsFromYdoc(
     }
     await flush();
     return segments;
-  } finally {
-    doc.destroy();
-  }
+  };
+  return await segmentsOf(blocks);
 }
 
-/** The body as one HTML string, leaving database blocks out. */
+/** The body as one HTML string, leaving database blocks out (columns' HTML one after another). */
 export async function bodyHtmlFromYdoc(state: Uint8Array | null): Promise<string> {
-  const segments = await bodySegmentsFromYdoc(state);
-  return segments.map((s) => (s.kind === "html" ? s.html : "")).join("");
+  const html = (segments: BodySegment[]): string =>
+    segments
+      .map((s) => (s.kind === "html" ? s.html : s.kind === "columns" ? s.columns.map((c) => html(c.segments)).join("") : ""))
+      .join("");
+  return html(await bodySegmentsFromYdoc(state));
 }

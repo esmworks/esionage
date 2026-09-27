@@ -28,6 +28,7 @@ import { formatBytes } from "@/lib/files";
 import { THREADS_MAP, type CommentAnchor } from "@/lib/comments";
 import { CommentsPanel } from "./comments-panel";
 import { CommentAuth, ServerThreadStore } from "./comment-store";
+import { useColumnSlashItems } from "./columns";
 import { PageTrailProvider, useContentSlashItems, type TrailCrumb } from "./content-blocks";
 import { LINKED_VIEW_BLOCK } from "@/lib/embed-blocks";
 import { PAGE_LINK_BLOCK } from "@/lib/mentions";
@@ -247,7 +248,7 @@ function selectionAnchor(editor: PageEditor): CommentAnchor | undefined {
   return { quote, blockId: typeof block.attrs.id === "string" ? block.attrs.id : undefined, offset: $from.parentOffset };
 }
 
-/** BlockNote's slash menu plus the database, content and page link blocks. */
+/** BlockNote's slash menu plus the database, content, column and page link blocks. */
 function SlashMenu({
   editor,
   onCreateError,
@@ -263,11 +264,15 @@ function SlashMenu({
   const contentItems = useContentSlashItems(editor);
   const webItems = useWebSlashItems(editor);
   const pageLinkItems = usePageLinkSlashItem(editor, onPickPage);
+  const columnItems = useColumnSlashItems(editor);
   return (
     <SuggestionMenuController
       triggerCharacter="/"
       getItems={async (query) =>
-        filterSuggestionItems(withEmbedItems(getDefaultReactSlashMenuItems(editor), [...embedItems(), ...contentItems, ...webItems, ...pageLinkItems]), query)
+        filterSuggestionItems(
+          withEmbedItems(getDefaultReactSlashMenuItems(editor), [...embedItems(), ...contentItems, ...columnItems(), ...webItems, ...pageLinkItems]),
+          query,
+        )
       }
     />
   );

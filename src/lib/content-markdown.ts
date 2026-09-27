@@ -11,6 +11,15 @@ import {
   TOC_BLOCK,
   type AlertKind,
 } from "./content-blocks";
+import {
+  COLUMN_BLOCK,
+  COLUMN_LIST_BLOCK,
+  columnMarkerBlock,
+  columnMarkerLine,
+  columnWidth,
+  parseColumnMarker,
+  type ColumnMarker,
+} from "./columns";
 import { BOOKMARK_BLOCK, markdownLinkDestination, markdownLinkText, parseWebUrl, WEB_EMBED_BLOCK } from "./web-blocks";
 import {
   EMPTY_MENTION,
@@ -45,6 +54,11 @@ import {
  *
  *   <!-- esionage:toc -->         a table of contents
  *   <!-- esionage:breadcrumb -->  a breadcrumb
+ *
+ *   <!-- esionage:columns -->     columns: each "column" line starts one, its blocks follow
+ *   <!-- esionage:column -->      (see lib/columns; groupColumns builds the lists after parsing)
+ *   …
+ *   <!-- esionage:/columns -->
  *
  *   [Title](https://…)                              a bookmark (reads back as a link, see
  *                                                   lib/web-blocks restoreBookmarks)
@@ -130,8 +144,21 @@ export function prepareMarkdownExport<B extends MdBlock>(
     });
   };
 
+  const marker = (m: ColumnMarker) => ({ type: "paragraph", content: blockToken(columnMarkerLine(m)), children: [] }) as unknown as B;
   const replace = (list: B[]): B[] =>
-    list.map((block): B => {
+    list.flatMap((block): B | B[] => {
+      // Columns become their blocks between marker lines (see lib/columns).
+      if (block.type === COLUMN_LIST_BLOCK) {
+        const columns = (block.children ?? []).filter((column) => column.type === COLUMN_BLOCK);
+        return [
+          marker({ kind: "columns" }),
+          ...columns.flatMap((column) => [
+            marker({ kind: "column", width: columnWidth(column.props?.width) }),
+            ...replace((column.children ?? []) as B[]),
+          ]),
+          marker({ kind: "end" }),
+        ];
+      }
       const children = block.children?.length ? replace(block.children as B[]) : (block.children ?? []);
       const paragraph = (text: string) => ({ type: "paragraph", content: text, children }) as unknown as B;
       switch (block.type) {
@@ -213,7 +240,8 @@ type Pending =
   | { type: typeof CALLOUT_BLOCK; kind: AlertKind; markdown: string }
   | { type: typeof BOOKMARK_BLOCK; url: string; title: string }
   | { type: typeof WEB_EMBED_BLOCK; url: string }
-  | { type: typeof PAGE_LINK_BLOCK; pageId: string };
+  | { type: typeof PAGE_LINK_BLOCK; pageId: string }
+  | { type: typeof COLUMN_BLOCK; marker: ColumnMarker };
 
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
 const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})\s*$/;
@@ -252,6 +280,11 @@ export function prepareMarkdownImport(markdown: string, nonce: string, { appUrl 
     if (opening) {
       fence = opening[1];
       out.push(line);
+      continue;
+    }
+    const columnMarker = parseColumnMarker(line);
+    if (columnMarker) {
+      blockLine({ type: COLUMN_BLOCK, marker: columnMarker });
       continue;
     }
     const marker = MARKER_LINE.exec(line);
@@ -367,7 +400,9 @@ function closingDollar(line: string, from: number, delimiter: string): number {
  * Turns the tokens left by prepareMarkdownImport back into blocks and inline equations, and code
  * blocks in the "mermaid" language into diagrams. `parse` reads a callout's own Markdown. Links to
  * pages of the app become page mentions, and `@Name` (for `people`) and `@YYYY-MM-DD` in text
- * become person and date mentions (without ids: see carryOverMentions).
+ * become person and date mentions (without ids: see carryOverMentions). Column markers come back
+ * as marker blocks, for lib/columns groupColumns to build the lists once the whole body is parsed
+ * (a database reference line inside a column splits the parsing).
  */
 export async function finishMarkdownImport<B extends MdBlock>(
   blocks: B[],
@@ -441,6 +476,8 @@ export async function finishMarkdownImport<B extends MdBlock>(
       }
       case PAGE_LINK_BLOCK:
         return { type: PAGE_LINK_BLOCK, props: { pageId: pending.pageId }, children: [] } as unknown as B;
+      case COLUMN_BLOCK:
+        return columnMarkerBlock<B>(pending.marker);
       case CALLOUT_BLOCK: {
         // The first paragraph is the callout's text; anything after it is nested under it.
         const inner = pending.markdown.trim() ? await parse(pending.markdown) : [];

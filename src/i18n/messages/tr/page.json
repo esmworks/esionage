@@ -27,6 +27,7 @@
     "exportCsv": "CSV olarak dışa aktar",
     "exportZip": "Alt sayfalarla dışa aktar",
     "exportZipDatabase": "Satırlarla dışa aktar",
+    "exportPdf": "PDF olarak dışa aktar",
     "exportPreparing": "Dışa aktarma hazırlanıyor…",
     "versionHistory": "Sürüm geçmişi",
     "lastEdited": "Son düzenleyen: {name}",
@@ -262,6 +263,23 @@
       "aliases": "breadcrumb sayfa yolu üst sayfalar konum",
       "label": "Sayfa yolu"
     },
+    "columns": {
+      "two": {
+        "title": "2 sütun",
+        "subtext": "Yan yana iki sütun blok",
+        "aliases": "sütun sütunlar kolon düzen yan yana columns 2 iki"
+      },
+      "three": {
+        "title": "3 sütun",
+        "subtext": "Yan yana üç sütun blok",
+        "aliases": "sütun sütunlar kolon düzen yan yana columns 3 üç"
+      },
+      "add": {
+        "title": "Sütun ekle",
+        "subtext": "Bu sütunun sağına yeni bir sütun (en fazla 5)",
+        "aliases": "sütun ekle yeni kolon column add"
+      }
+    },
     "pageLink": {
       "title": "Sayfa bağlantısı",
       "subtext": "Başka bir sayfaya, güncel başlığıyla bağlantı",
@@ -350,5 +368,16 @@
     "openInNewTab": "Yeni sekmede aç",
     "frameTitle": "PDF: {name}",
     "noPreview": "Bu tarayıcı PDF'leri burada gösteremiyor. Okumak için dosyayı açın."
+  },
+  "print": {
+    "print": "Yazdır veya PDF olarak kaydet",
+    "back": "Sayfaya dön",
+    "includeSubpages": "Alt sayfaları ekle",
+    "preparing": "Görseller ve diyagramlar yükleniyor…",
+    "hint": "Yazdırma penceresinde hedef olarak “PDF olarak kaydet”i seçin.",
+    "truncated": "Yalnızca ilk {count} sayfa eklendi.",
+    "lastUpdated": "Son güncelleme: {date}",
+    "subpages": "Sayfalar",
+    "embedUnavailable": "Bu veritabanına erişiminiz yok."
   }
 }

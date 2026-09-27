@@ -94,10 +94,10 @@ export function usePrefersDark() {
 /**
  * The drawing of `source`, redrawn a moment after it stops changing. `image` is the last diagram
  * that drew, so a typo while editing doesn't blank it; `error` says what's wrong with the current
- * source.
+ * source. `light` draws it in the light theme whatever the system's is (print).
  */
-export function useMermaid(source: string) {
-  const dark = usePrefersDark();
+export function useMermaid(source: string, { light = false }: { light?: boolean } = {}) {
+  const dark = usePrefersDark() && !light;
   const [state, setState] = useState<{ image: MermaidImage | null; error: string | null; pending: boolean }>({
     image: null,
     error: null,
@@ -142,19 +142,22 @@ export function MermaidImageView({ image, label }: { image: MermaidImage; label:
 
 /**
  * A diagram on a published page: its source as a code block until the diagram is drawn, and when
- * it can't be (no JavaScript, a mistake in the source).
+ * it can't be (no JavaScript, a mistake in the source). `light` for print (see useMermaid);
+ * `data-esionage-mermaid` is "pending" until it is drawn or has failed, so the print view knows
+ * when everything is ready.
  */
-export function PublishedMermaid({ source, label }: { source: string; label: string }) {
-  const { image, error } = useMermaid(source);
+export function PublishedMermaid({ source, label, light = false }: { source: string; label: string; light?: boolean }) {
+  const { image, error, pending } = useMermaid(source, { light });
+  const state = pending ? "pending" : "done";
   if (image && !error) {
     return (
-      <figure className="my-2 overflow-x-auto">
+      <figure className="my-2 overflow-x-auto" data-esionage-mermaid={state}>
         <MermaidImageView image={image} label={label} />
       </figure>
     );
   }
   return (
-    <pre>
+    <pre data-esionage-mermaid={state}>
       <code className="language-mermaid">{source}</code>
     </pre>
   );

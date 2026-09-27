@@ -4,6 +4,35 @@
 
 ### Added
 
+- **Export as PDF** (#47): "Export as PDF" in the page menu opens the page's print view
+  (`/print/<page id>`) in a new tab and the browser's print dialog once its images, fonts and
+  Mermaid diagrams have loaded ("Save as PDF"). The view draws the page like its published version
+  (shared with it: `components/published/published-body.tsx`), always in the light theme, with
+  print rules: `@page` margins, code blocks and tables wrapped to the page width, headings kept
+  with what follows, figures, callouts and table rows not split, backgrounds kept. Links to other
+  pages print as their titles ("No access" for pages hidden from the reader), PDFs and embedded
+  sites as a card naming them, toggles open. "Include subpages" adds the pages under it in sidebar
+  order (at most 100), each on a new sheet. Same access as opening the page (404 otherwise) and
+  the workspace's two-step policy; the body is read from the live document, so recent edits are
+  in. No new dependencies, no migration.
+- **REST API with personal access tokens:** `/api/v1` offers workspaces, pages (read with the
+  whole Markdown body, create, update title, icon and body, move, trash, restore, sub-pages),
+  search, databases (schema, queries with filters, sorts, saved views and cursor pagination),
+  rows (add, add up to 100 at once, update one or many, read) and comments (list, start a thread,
+  reply). It shares its service layer with the MCP server (`src/server/operations.ts`), so both
+  check input and access alike and save page history before every body change. Tokens are
+  created in Settings → Connected apps: read only or read and write, optionally limited to one
+  workspace, expiring after 7, 30, 90 or 365 days or never; the secret (`esi_` plus 40 letters
+  and digits, easy for secret scanners to match) is shown once and stored as a SHA-256 hash; the
+  list shows when each token was last used, and revoking takes effect at once. Pages the user
+  can't see, or outside a token's workspace, answer 404; errors are JSON with a code; each token
+  may make 180 requests a minute (`API_RATE_LIMIT`), bodies are limited to 5 MB, only tokens
+  authenticate (never the session cookie) and CORS stays off unless `API_CORS_ORIGINS` is set.
+  Like MCP's OAuth tokens, API tokens are outside the workspace two-step verification policy.
+  An OpenAPI 3.1 document is served at `/api/v1/openapi.json` and rendered at `/docs/api`.
+  Claiming an account through an email-verified sign-in also revokes its tokens (migration
+  `0020_api_tokens`).
+
 - **Workspace site and Duplicate for published pages:** owners set up a site in Settings → Site: a
   slug (lowercase letters, digits and hyphens, 3–40 characters, unique, a few reserved), a title
   and a home page picked among published pages. `/s/<slug>` opens the home page with a navigation
@@ -169,8 +198,19 @@
   All are in the slash menu and show on published pages. In Markdown (export, MCP) a callout is a
   GitHub alert (`> [!NOTE]`), equations are `$…$` and `$$…$$`, a diagram is a ```` ```mermaid ````
   fence, and the table of contents and breadcrumb are `<!-- esionage:toc -->` and
-  `<!-- esionage:breadcrumb -->` lines; all of them are read back into blocks. Columns are left out:
-  BlockNote's multi-column package is GPL-3.0.
+  `<!-- esionage:breadcrumb -->` lines; all of them are read back into blocks.
+- **Columns** (#16): "2 columns" and "3 columns" in the slash menu place blocks side by side;
+  inside a column the menu offers "Add column" instead (up to five). Blocks move into, out of and
+  between columns with the side menu's drag handle; a column whose last block is dragged away or
+  deleted goes, and a column list left with one column turns back into plain blocks.
+  Columns are equal by default and resized by dragging the line between them (stored as each
+  column's share, so it syncs, undoes and keeps its proportion at any width). On screens narrower
+  than 640px they stack, in the editor and on published pages, where tables of contents, diagrams,
+  embeds and databases inside columns show in place. In Markdown (export, MCP) columns are marker
+  lines around their blocks (`<!-- esionage:columns -->`, `<!-- esionage:column -->` before each
+  column, optionally `width=2`, and `<!-- esionage:/columns -->`), so plain Markdown readers see
+  the blocks in order and writing a body back keeps its columns. Built on BlockNote's own column
+  support in its core; its multi-column package (GPL-3.0 or commercial) is not used. No migration.
 - **"Can comment" access:** share a page so people can read and comment on it without editing it.
   Their comments mark the selected text on the server, so the page itself stays read-only for them.
 - **Comments on pages:** select text and choose Comment to start a thread; reply, react with emoji,

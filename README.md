@@ -7,11 +7,13 @@ approve them over OAuth.
 ## Features
 
 - **Pages**: nested pages, a block editor (BlockNote) with slash menu and markdown shortcuts,
-  icons, favorites, duplicate, move, trash with restore, export as Markdown (or, with subpages, as
-  a ZIP; owners can export the whole workspace, see [Export](#export)), and full-text search over
-  titles and content.
+  icons, favorites, duplicate, move, trash with restore, export as Markdown or PDF (or, with
+  subpages, as a ZIP; owners can export the whole workspace, see [Export](#export)), and full-text
+  search over titles and content.
 - **Rich blocks**: callouts, LaTeX equations (block and inline, KaTeX), Mermaid diagrams with a
-  live preview, a table of contents and a breadcrumb, also on published pages and in Markdown.
+  live preview, a table of contents and a breadcrumb, and columns (2 to 5, resizable, blocks
+  dragged in and out with the side menu, stacked on phones), also on published pages and in
+  Markdown.
 - **Web bookmarks and embeds**: link cards with the page's title, description and image (fetched
   once on the server behind an SSRF guard), and YouTube, Vimeo, Loom, Figma, Google Docs, CodePen,
   Spotify and Google Maps embeds in sandboxed iframes.
@@ -88,6 +90,8 @@ approve them over OAuth.
     consent screen.
   - Tokens are audience-bound. Apps can be read-only or read-write, and you can revoke them in
     Settings.
+- **REST API** under `/api/v1` with personal access tokens (read or read-write, optionally one
+  workspace, optional expiry) and an OpenAPI 3.1 document (see [REST API](#rest-api)).
 
 ## Quick start (Docker)
 
@@ -194,6 +198,22 @@ refused up front with a message:
 | `EXPORT_MAX_PAGES` | Most pages (rows and templates included) one export may hold. Default `10000`. |
 | `EXPORT_MAX_FILES_MB` | Most MB of uploaded files one export may hold. Default `2048` (at most about 3.5 GB). |
 
+### PDF
+
+"Export as PDF" in the page menu opens the page's print view (`/print/<page id>`) in a new tab
+and, once its images and diagrams have loaded, the browser's print dialog: choose "Save as PDF"
+as the destination. The print view draws the page the way published pages do (headings, tables,
+code, images, callouts, equations, Mermaid diagrams, database blocks) and is always light, also in
+dark mode. Code and tables wrap to the page width, headings stay with the text after them, and
+each page starts with its title. Links to other pages print as their titles. "Include subpages"
+in the view's bar adds the pages under it (up to 100), each starting on a new sheet; database
+rows print in their database's table. It shows what the person printing can see, like the page
+itself, and follows the workspace's two-step policy.
+
+The browser makes the PDF, so the server needs nothing extra (no headless browser in the image).
+Its own header and footer (date, address, page numbers) can be turned off under "More settings"
+in the print dialog.
+
 ## Email
 
 Email is needed for invitations and password reset. Set these in `.env`:
@@ -254,8 +274,9 @@ anyone else who opens the workspace is sent to a page where they set one of them
 that passes it. The policy covers everything a browser session reaches: the app's pages, exports,
 server actions, API routes (files, import) and the live collaboration connection, which is
 checked when it connects; turning the policy on closes the open connections of sessions that
-don't pass. Apps connected over MCP are not affected: they use OAuth tokens, not sign-in
-sessions, and keep working until someone revokes them under Connected apps.
+don't pass. Apps connected over MCP and REST API tokens are not affected: they use OAuth or
+personal access tokens, not sign-in sessions, and keep working until someone revokes them under
+Connected apps.
 
 Someone who lost both their authenticator app and their recovery codes can be reset by whoever
 runs the server; this turns two-step verification off and signs them out (`--passkeys` also
@@ -316,6 +337,47 @@ The client opens a browser window where you sign in and approve access. The tool
 An app only ever sees the pages its user can see. Read-only apps can't call the tools that
 change anything.
 
+## REST API
+
+Scripts and other programs can use the REST API under `<APP_URL>/api/v1` with a personal access
+token. The reference is at `<APP_URL>/docs/api`, generated from the OpenAPI 3.1 document at
+`<APP_URL>/api/v1/openapi.json` (import it into Postman, Insomnia or a client generator).
+
+Create a token in Settings → *Connected apps* → *Personal access tokens*: give it a name, choose
+**Read only** (`pages:read`) or **Read and write** (`pages:write` too), optionally limit it to one
+workspace, and pick when it expires (7, 30, 90 days, a year, or never). The token is shown once;
+Esionage keeps only its SHA-256 hash. Tokens look like `esi_` and 40 letters and digits, so secret
+scanners can match leaked ones with `esi_[A-Za-z0-9]{40}`. The list shows when each was last
+used; revoking one stops it at once.
+
+```bash
+curl http://localhost:3000/api/v1/workspaces -H "Authorization: Bearer $ESIONAGE_TOKEN"
+
+curl -X POST http://localhost:3000/api/v1/databases/<database_id>/query \
+  -H "Authorization: Bearer $ESIONAGE_TOKEN" -H "Content-Type: application/json" \
+  -d '{"filters": [{"property": "Status", "op": "equals", "value": "Done"}], "limit": 20}'
+```
+
+- **Account and workspaces:** `GET /me`, `GET /workspaces`, `GET /workspaces/{id}/pages`.
+- **Pages:** `GET /search`, `POST /pages`, `GET` and `PATCH /pages/{id}` (title, icon, Markdown
+  body replaced or appended), `GET /pages/{id}/children`, `POST /pages/{id}/move`,
+  `/archive` and `/restore`.
+- **Databases and rows:** `GET /databases/{id}` (schema), `POST /databases/{id}/query` (filters,
+  sorts, a saved view, cursor pagination), `POST /databases/{id}/rows`, `POST
+  /databases/{id}/rows/bulk` (up to 100), `PATCH /databases/{id}/rows` (same values on many rows),
+  `GET` and `PATCH /rows/{id}`.
+- **Comments:** `GET` and `POST /pages/{id}/comments`.
+
+The API and the MCP server share one service layer (`src/server/operations.ts`), so they check
+input, access and history the same way: a token acts as its user, with that user's own access to
+pages, and every body change is saved to page history first. Pages the user can't see (or outside
+a token's workspace) answer `404`. Errors are JSON, `{"error": {"code", "message", "details"}}`;
+lists page with `next_cursor`. Each token may make 180 requests a minute (`API_RATE_LIMIT`;
+`X-RateLimit-*` headers, `429` with `Retry-After` beyond it), and request bodies are limited to
+5 MB. Only tokens authenticate (never the browser session), and CORS is off unless
+`API_CORS_ORIGINS` lists origins. Like connected MCP apps, tokens are not held back by a
+workspace's "require two-step verification" policy: it guards browser sessions.
+
 ## Development
 
 Requirements: Node.js 24 and pnpm 11 (via `corepack enable`), plus Docker for PostgreSQL.
@@ -339,6 +401,7 @@ Useful scripts:
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
 | `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, sites and duplicating published pages, presence, uploads, import, export, and `roundtrip-e2e.ts` for an export imported again); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
+| `pnpm tsx scripts/api-e2e.ts` | End-to-end REST API check (tokens, every endpoint, access, rate limits, OpenAPI) against a running server |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
 | `pnpm tsx scripts/two-factor-e2e.ts` | End-to-end two-step verification check (sign-in challenge, recovery codes, workspace policy) against a running server |
 

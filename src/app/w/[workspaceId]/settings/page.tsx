@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { ApiTokens } from "@/components/settings/api-tokens";
 import { ConnectedApps } from "@/components/settings/connected-apps";
 import { LanguageSettings } from "@/components/settings/language-settings";
 import { LeaveWorkspaceRow } from "@/components/settings/leave-workspace";
@@ -158,6 +159,7 @@ export default async function SettingsPage({
               <div className="space-y-10">
                 <ConnectedApps />
                 <McpInstructions />
+                <ApiTokens />
               </div>
             </>
           )}

@@ -16,9 +16,6 @@ import {
   type ViewType,
 } from "@/db/schema/app";
 import { AGGREGATE_FNS, ROLLUP_DISPLAYS, type AggregateFn } from "@/lib/aggregate";
-import { commentText, MAX_COMMENT_LENGTH } from "@/lib/comments";
-import { markdownReferences } from "@/lib/embed-blocks";
-import { FILTER_COMBINATORS, MAX_FILTER_DEPTH, MAX_RELATIVE_DAYS, RELATIVE_DATE_RANGES } from "@/lib/filters";
 import {
   canStack,
   CHART_AGGREGATE_FNS,
@@ -51,29 +48,25 @@ import { isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
 import { holdsOptions, holdsTimestamp, STATUS_GROUPS } from "@/lib/property-types";
 import { CARD_SIZES, TIMELINE_ZOOMS, VIEW_TYPES } from "@/lib/views";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
-import * as comments from "@/server/comments";
 import * as databases from "@/server/databases";
 import * as files from "@/server/files";
 import { uploadLimits } from "@/server/storage";
 import { asFiles, blockTypeFor, formatBytes } from "@/lib/files";
-import { resolveEmbeds } from "@/server/embeds";
 import * as forms from "@/server/forms";
-import { labelPageLinks, listBacklinks } from "@/server/mentions";
+import { labelPageLinks } from "@/server/mentions";
 import * as notifications from "@/server/notifications";
 import * as pages from "@/server/pages";
 import * as templates from "@/server/templates";
-import { builtinTemplates, isBuiltinTemplateKey } from "@/lib/builtin-templates";
-import * as teamspaces from "@/server/teamspaces";
+import { builtinTemplates } from "@/lib/builtin-templates";
 import * as workspaces from "@/server/workspaces";
+import * as ops from "@/server/operations";
+import { filterCombinatorInput, filtersInput, id, rowValue, sortsInput } from "@/server/operations";
 import { MAX_MARKDOWN_CHARS, pageUrl, runTool, sliceText, ToolInputError } from "./format";
 import { env } from "@/lib/env";
 import { CONNECT_SCOPES, FILES_SCOPE, NOTIFICATIONS_SCOPE, WRITE_SCOPE, type McpPrincipal } from "./principal";
 import {
   describeProperty,
-  describeChartSeries,
   describeViewConfig,
-  displayProperties,
-  FILTER_OPS,
   resolvePropertyKey,
   toFilterEntries,
   toSortRule,
@@ -88,7 +81,7 @@ Pages form a tree inside a workspace. A database is a special page whose childre
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
 Teamspaces group a workspace's pages and people (list_teamspaces). A teamspace is default (everyone is in it), open (anyone can join; others can read), closed (only its members open its pages) or private (only its members know it). A top-level page belongs to a teamspace, or is private to the user who made it; pages under it follow it. create_page, create_database and move_page take a teamspace_id for top-level pages ("private" for the user's private pages); without one, new top-level pages are private.
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / diff_page_version / restore_page_version).
-Beyond plain Markdown, page bodies know a few block forms: a callout is a GitHub alert (\`> [!NOTE]\`, TIP, IMPORTANT, WARNING or CAUTION on its own line, then the \`> \` text; a leading emoji becomes its icon), \`$…$\` is an inline equation and a \`$$\` line pair wraps a block equation (LaTeX), a \`\`\`mermaid fence is a diagram, and the lines \`<!-- esionage:toc -->\` and \`<!-- esionage:breadcrumb -->\` are a table of contents and the page's breadcrumb. A web bookmark (a link card) reads as a link on a line of its own, \`[Title](url)\`, and stays a bookmark when you write the body back; to add a new one write \`[Title](url) <!-- esionage:bookmark -->\`. An embed (YouTube, Vimeo, Loom, Figma, published Google Docs/Sheets/Slides, CodePen, Spotify, Google Maps) is \`[url](url) <!-- esionage:embed -->\`. A dollar sign of the text itself is written \`\\$\`.
+Beyond plain Markdown, page bodies know a few block forms: a callout is a GitHub alert (\`> [!NOTE]\`, TIP, IMPORTANT, WARNING or CAUTION on its own line, then the \`> \` text; a leading emoji becomes its icon), \`$…$\` is an inline equation and a \`$$\` line pair wraps a block equation (LaTeX), a \`\`\`mermaid fence is a diagram, and the lines \`<!-- esionage:toc -->\` and \`<!-- esionage:breadcrumb -->\` are a table of contents and the page's breadcrumb. Columns (2 to 5, side by side) are written between marker lines: \`<!-- esionage:columns -->\`, then \`<!-- esionage:column -->\` before each column's blocks (\`<!-- esionage:column width=2 -->\` makes a column twice as wide as a width-1 one), then \`<!-- esionage:/columns -->\`; keep the markers when you write a body back, or the blocks leave their columns. A web bookmark (a link card) reads as a link on a line of its own, \`[Title](url)\`, and stays a bookmark when you write the body back; to add a new one write \`[Title](url) <!-- esionage:bookmark -->\`. An embed (YouTube, Vimeo, Loom, Figma, published Google Docs/Sheets/Slides, CodePen, Spotify, Google Maps) is \`[url](url) <!-- esionage:embed -->\`. A dollar sign of the text itself is written \`\\$\`.
 Mentions: a link to a page of this app (\`[Roadmap](/w/<workspace_id>/p/<page_id>)\`) is a page mention, which shows the page's live title (the link text you write is ignored; get_page shows the current title, or "No access" / "Deleted page"); that link alone on its line followed by \`<!-- esionage:page-link -->\` is a "Link to page" block. \`@Name\` with a person's name as list_users shows it mentions them (they are notified if they can open the page), and \`@YYYY-MM-DD\` is a date. Keep mentions as they are when you rewrite a page: people aren't notified twice and reminders set on dates stay. get_page lists the pages linking to a page under linked_from.
 People discuss pages in comment threads anchored to text of the page: list_comments reads them, add_comment starts a thread on quoted text or replies to one.
 list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them, new comments in their threads, mentions of them and reminders they set on dates.
@@ -96,27 +89,8 @@ attach_file adds an image, video, audio or other file to a page, from a URL or b
 Templates are starting points for new pages and rows: list_templates lists a workspace's page templates (and the built-in gallery) or a database's row templates; create_page and create_database_row take a template_id. A database's default row template is used by create_database_row when no properties or body are given. Templates don't show up in search or list_pages.
 Always share the returned url with the user when you create or change something.`;
 
-const MAX_BULK_ROWS = 100;
-
 const EMBED_NOTE =
   "Databases shown inside a page body appear in its Markdown as their own lines, `<!-- esionage:database <id> -->` (an inline database) or `<!-- esionage:linked-view <id> -->` (a linked view of a database); get_page lists them under embedded_databases.";
-
-const id = (what: string) => z.string().min(1).describe(`The ${what} id (a UUID from another tool's output).`);
-
-const checklistItem = z.object({ text: z.string(), checked: z.boolean().optional() });
-const fileItem = z.object({ url: z.string(), name: z.string().optional() });
-const rowValue = z.union([
-  z.string(),
-  z.number(),
-  z.boolean(),
-  z.array(z.union([z.string(), checklistItem, fileItem])),
-  z.null(),
-]);
-const rowProperties = z
-  .record(z.string(), rowValue)
-  .describe(
-    'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select / status (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an email address for email, a phone number for phone, an array of item texts or {text, checked} objects for checklist, an array of row ids (or exact row titles) of the related database for relation, an array of user ids, emails, names or "me" for person, an array of files already uploaded to this workspace (their /api/files/<id> paths or urls, or the {name, url} objects query_database returns; upload new ones with attach_file and its property option) for files, and null to clear a value. Setting a relation, person, checklist or files replaces its values. created_by, created_time, last_edited_by, last_edited_time and formula properties are read-only. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"], "Assignee": ["me"]}',
-  );
 
 /** How formulas are written, for tool descriptions. */
 const FORMULA_HELP =
@@ -132,55 +106,6 @@ const rollupInput = z.object({
   function: z.enum(["show_original", ...AGGREGATE_FNS]),
   display: z.enum(ROLLUP_DISPLAYS).optional(),
 });
-
-const filterRuleInput = z.object({
-  property: z.string().min(1).describe("Property name or id, or title / created_at / updated_at."),
-  op: z.enum(FILTER_OPS),
-  value: z
-    .union([z.string(), z.number(), z.boolean()])
-    .optional()
-    .describe(`Comparison value; omit for is_empty / is_not_empty. For is_within: ${RELATIVE_DATE_RANGES.join(", ")}.`),
-  days: z
-    .number()
-    .int()
-    .min(1)
-    .max(MAX_RELATIVE_DAYS)
-    .optional()
-    .describe("is_within with past_n_days / next_n_days only: how many days back or ahead of today."),
-});
-const combinatorInput = z.enum(FILTER_COMBINATORS);
-const filterGroupInput = <T extends z.ZodType>(rules: T) =>
-  z.object({
-    type: z.literal("group"),
-    combinator: combinatorInput.default("and").describe("How the group's rules combine."),
-    rules: z.array(rules).min(1),
-  });
-/**
- * A rule or a group. When neither fits, the error names what is wrong with the one the input was
- * meant to be (a plain union only says "Invalid input"), e.g. an unknown op.
- */
-const ruleOrGroup = <G extends z.ZodType>(group: G) =>
-  z.union([filterRuleInput, group], {
-    error: (issue) => {
-      if (issue.code !== "invalid_union" || !issue.errors.length) return undefined;
-      const input = issue.input as { type?: unknown } | null | undefined;
-      const branch = issue.errors[input?.type === "group" ? 1 : 0] ?? [];
-      return branch.map((e) => `${e.path.length ? `${e.path.join(".")}: ` : ""}${e.message}`).join("; ") || undefined;
-    },
-  });
-// Spelled out level by level (instead of a recursive schema) so every MCP client can read it. A
-// group nested deeper than MAX_FILTER_DEPTH still parses at the innermost level and is then
-// rejected by toFilterEntries with a message saying so.
-const deepestGroup = z.object({ type: z.literal("group") }).loose();
-const filtersInput = z
-  .array(ruleOrGroup(filterGroupInput(ruleOrGroup(filterGroupInput(ruleOrGroup(deepestGroup))))))
-  .describe(
-    `Filter rules and groups. A rule is {property, op, value}; a group is {type: "group", combinator: "and" | "or", rules: [...]}; groups may hold groups, at most ${MAX_FILTER_DEPTH} levels deep. A plain list of rules keeps working.`,
-  );
-const filterCombinatorInput = combinatorInput
-  .optional()
-  .describe('How the top-level filters combine: "and" (default, all must match) or "or" (any may match).');
-const sortsInput = z.array(z.object({ property: z.string().min(1), direction: z.enum(["asc", "desc"]).default("asc") }));
 
 /** Resolves a property by name or id; title / created_at / updated_at are not editable properties. */
 function requireProperty<P extends PropertyDef>(props: P[], ref: string): P {
@@ -645,12 +570,6 @@ async function applyFormLink(userId: string, viewId: string, input: FormInput) {
   return (await forms.formPublicationsOf([viewId])).get(viewId) ?? null;
 }
 
-/** How a form view is shared, for tool output. */
-function formLinkOutput(type: ViewType, link: { url: string; anonymous: boolean } | null | undefined) {
-  if (type !== "form") return {};
-  return link ? { public_url: `${env.appUrl}${link.url}`, anonymous: link.anonymous } : { public_url: null };
-}
-
 function viewOutput(
   database: { id: string; workspaceId: string },
   props: PropertyDef[],
@@ -715,63 +634,15 @@ export function createMcpServer(principal: McpPrincipal) {
     }
   };
 
-  /** Loads a page with its parent, when the user can see it, and its database, if it is a row. */
-  const loadPage = async (pageId: string) => {
-    const page = await pages.getPage(userId, pageId);
-    const parent = page.parentId ? await pages.getPage(userId, page.parentId).catch(() => null) : null;
-    return { page, parent, parentDatabase: parent?.kind === "database" ? parent : null };
-  };
-
-  const rowOutput = async (databaseId: string, rowId: string) => {
-    const [{ database, properties }, row] = await Promise.all([
-      databases.getDatabase(userId, databaseId),
-      pages.getPage(userId, rowId),
-    ]);
-    return {
-      id: row.id,
-      title: pageLabel(row.title),
-      database_id: databaseId,
-      properties: displayProperties(
-        properties,
-        await databases.rowValues(userId, row, properties),
-        await databases.getLookups(userId, properties),
-        env.appUrl,
-      ),
-      url: pageUrl(database.workspaceId, row.id),
-    };
-  };
-
-  /**
-   * Where a new page goes: under `parentId`, or at the top of `workspaceId`, in the teamspace
-   * `teamspaceId` names (see spaceOf; private when missing).
-   */
-  const resolveLocation = async (workspaceId?: string, parentId?: string, teamspaceId?: string) => {
-    if (parentId) {
-      const parent = await pages.getPage(userId, parentId);
-      if (parent.archivedAt) throw new ToolInputError("The parent page is in the trash. Choose another parent.");
-      return { workspaceId: parent.workspaceId, parentId, parentKind: parent.kind, teamspaceId: undefined };
-    }
-    const space = spaceOf(teamspaceId);
-    if (!workspaceId && space) {
-      const teamspace = await teamspaces.getTeamspace(userId, space).catch(() => null);
-      if (!teamspace) throw new ToolInputError("Unknown teamspace_id. Call list_teamspaces for the ids.");
-      workspaceId = teamspace.workspaceId;
-    }
-    if (!workspaceId) {
-      throw new ToolInputError("Provide workspace_id (to create at the top level) or parent_id (to nest under a page).");
-    }
-    return { workspaceId, parentId: null, parentKind: null, teamspaceId: space ?? null };
-  };
-
-  /** A teamspace_id argument: an id, or "private" (null) for the user's private pages. */
-  const spaceOf = (value?: string | null) => (value === undefined || value === null ? undefined : value === "private" ? null : value);
-
-  /** The teamspace a page is in, as tools show it: its id and name, or null for a private page. */
-  const teamspaceOf = async (teamspaceId: string | null) => {
-    if (!teamspaceId) return { teamspace_id: null, teamspace: "Private" };
-    const label = await teamspaces.teamspaceLabel(userId, teamspaceId);
-    return { teamspace_id: teamspaceId, teamspace: label?.name ?? null };
-  };
+  const ctx: ops.OperationContext = { userId, actor };
+  /** Runs a write tool: refused without pages:write, like every other write. */
+  const write =
+    <A,>(fn: (args: A) => Promise<unknown>) =>
+    (args: A) =>
+      runTool(async () => {
+        assertWrite();
+        return fn(args);
+      });
 
   server.registerTool(
     "list_workspaces",
@@ -782,11 +653,7 @@ export function createMcpServer(principal: McpPrincipal) {
       inputSchema: z.object({}),
       annotations: READ,
     },
-    () =>
-      runTool(async () => {
-        const workspaces = await pages.listWorkspaces(userId);
-        return { workspaces: workspaces.map((w) => ({ id: w.id, name: w.name, role: w.role })) };
-      }),
+    () => runTool(() => ops.listWorkspaces(ctx)),
   );
 
   server.registerTool(
@@ -795,32 +662,10 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "List teamspaces",
       description:
         'List the teamspaces of a workspace the user can see: all but private ones they aren\'t in. access is "default" (everyone is in it), "open" (anyone can join; others can read and comment), "closed" (only its members open its pages) or "private" (only its members know it). Pass an id as teamspace_id to create_page, create_database, move_page or list_pages; can_add_pages says whether the user may add top-level pages to it.',
-      inputSchema: z.object({
-        workspace_id: id("workspace"),
-        include_archived: z.boolean().default(false).describe("Also list archived teamspaces."),
-      }),
+      inputSchema: ops.inputs.listTeamspaces,
       annotations: READ,
     },
-    ({ workspace_id, include_archived }) =>
-      runTool(async () => {
-        const list = await teamspaces.listTeamspaces(userId, workspace_id, { archived: include_archived ? "all" : "active" });
-        return {
-          teamspaces: list.map((t) => ({
-            id: t.id,
-            name: t.name,
-            icon: t.icon,
-            description: t.description || undefined,
-            access: t.access,
-            archived: Boolean(t.archivedAt),
-            member_count: t.memberCount,
-            owners: t.owners.map((o) => o.name),
-            joined: t.joined,
-            role: t.role,
-            can_add_pages: t.joined && !t.archivedAt,
-          })),
-          note: 'Pages outside every teamspace are private: create_page / move_page with teamspace_id "private".',
-        };
-      }),
+    (args) => runTool(() => ops.listTeamspaces(ctx, args)),
   );
 
   server.registerTool(
@@ -884,30 +729,10 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "Search pages",
       description:
         "Full-text search over page titles and bodies (including database rows) across the user's workspaces, best matches first. Returns ids, titles, a text snippet and a link.",
-      inputSchema: z.object({
-        query: z.string().min(1).describe("Words to look for."),
-        workspace_id: z.string().optional().describe("Only search this workspace."),
-        limit: z.number().int().min(1).max(50).default(10).describe("Maximum results (1-50, default 10)."),
-      }),
+      inputSchema: ops.inputs.search,
       annotations: READ,
     },
-    ({ query, workspace_id, limit }) =>
-      runTool(async () => {
-        const hits = await pages.searchPages(userId, query, { workspaceId: workspace_id, limit });
-        return {
-          results: hits.map((h) => ({
-            id: h.id,
-            title: pageLabel(h.title),
-            kind: h.kind,
-            workspace_id: h.workspaceId,
-            teamspace_id: h.teamspaceId,
-            parent_id: h.parentId,
-            snippet: h.snippet,
-            updated_at: h.updatedAt.toISOString(),
-            url: pageUrl(h.workspaceId, h.id),
-          })),
-        };
-      }),
+    (args) => runTool(() => ops.search(ctx, args)),
   );
 
   server.registerTool(
@@ -916,31 +741,10 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "List pages",
       description:
         "List the pages directly under a parent page, or the top-level pages of a workspace when parent_id is omitted (of every teamspace the user can read, their private pages and pages shared with them; teamspace_id narrows it to one). Trashed pages are excluded. For database rows prefer query_database.",
-      inputSchema: z.object({
-        workspace_id: id("workspace"),
-        parent_id: z.string().optional().describe("Parent page id. Omit for the workspace's top-level pages."),
-        teamspace_id: z
-          .string()
-          .optional()
-          .describe('Top level only: just this teamspace\'s pages (from list_teamspaces), or "private" for the user\'s private pages.'),
-      }),
+      inputSchema: ops.inputs.listPages,
       annotations: READ,
     },
-    ({ workspace_id, parent_id, teamspace_id }) =>
-      runTool(async () => {
-        const children = await pages.listChildren(userId, workspace_id, parent_id ?? null, { teamspaceId: spaceOf(teamspace_id) });
-        return {
-          pages: children.map((c) => ({
-            id: c.id,
-            title: pageLabel(c.title),
-            kind: c.kind,
-            icon: c.icon,
-            teamspace_id: c.teamspaceId,
-            updated_at: c.updatedAt.toISOString(),
-            url: pageUrl(workspace_id, c.id),
-          })),
-        };
-      }),
+    (args) => runTool(() => ops.listPages(ctx, args)),
   );
 
   server.registerTool(
@@ -948,83 +752,10 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Read a page",
       description: `Read a page: title, breadcrumb path, Markdown body, sub-pages and a link. For database rows it also returns the row's properties; for databases it returns the schema summary (use query_database for rows). Long bodies are cut at ${MAX_MARKDOWN_CHARS} characters; pass offset to continue reading. ${EMBED_NOTE}`,
-      inputSchema: z.object({
-        page_id: id("page"),
-        offset: z.number().int().min(0).default(0).describe("Character offset into the Markdown body, for long pages."),
-      }),
+      inputSchema: ops.inputs.getPage,
       annotations: READ,
     },
-    ({ page_id, offset }) =>
-      runTool(async () => {
-        const { page, parent, parentDatabase } = await loadPage(page_id);
-        const [crumbs, content, workspaces] = await Promise.all([
-          pages.getBreadcrumbs(userId, page_id),
-          getCollab().readPage(page_id),
-          pages.listWorkspaces(userId),
-        ]);
-        const workspace = workspaces.find((w) => w.id === page.workspaceId);
-        // Mentioned pages read as their current title, as far as the user can see them.
-        const body = sliceText(await labelPageLinks(userId, content.markdown), offset);
-        const out: Record<string, unknown> = {
-          id: page.id,
-          title: pageLabel(content.title || page.title),
-          kind: page.kind,
-          icon: page.icon,
-          workspace_id: page.workspaceId,
-          ...(await teamspaceOf(page.teamspaceId)),
-          // A parent they can't see stays unnamed, id included.
-          parent_id: parent?.id ?? null,
-          path: [workspace?.name ?? "Workspace", ...crumbs.map((c) => pageLabel(c.title))].join(" / "),
-          in_trash: Boolean(page.archivedAt),
-          updated_at: page.updatedAt.toISOString(),
-          url: pageUrl(page.workspaceId, page.id),
-        };
-        if (page.isTemplate) out.template = parentDatabase ? "row_template" : "page_template";
-        else if (page.inTemplate) out.template = "inside_template";
-        if (parentDatabase) {
-          const { properties } = await databases.getDatabase(userId, parentDatabase.id);
-          out.database_id = parentDatabase.id;
-          out.properties = displayProperties(
-            properties,
-            await databases.rowValues(userId, page, properties),
-            await databases.getLookups(userId, properties),
-            env.appUrl,
-          );
-        }
-        if (page.kind === "database") {
-          const { properties } = await databases.getDatabase(userId, page.id);
-          const lookups = await databases.getLookups(userId, properties);
-          out.database_properties = properties.map((p) => describeProperty(p, lookups, properties));
-          out.note = "This is a database. Use query_database to list its rows and get_database for its full schema.";
-        } else {
-          out.markdown = body.text;
-          if (body.truncated) {
-            out.markdown_truncated = true;
-            out.markdown_total_chars = body.totalChars;
-            if ("note" in body) out.note = body.note;
-          }
-          const embeds = await resolveEmbeds(userId, markdownReferences(content.markdown));
-          if (embeds.length) {
-            out.embedded_databases = embeds.map((e) => ({
-              database_id: e.databaseId,
-              kind: e.type === "database" ? "inline_database" : "linked_view",
-              // Seeing the page doesn't mean seeing the database: its title stays private then.
-              title: e.database ? pageLabel(e.database.title) : null,
-              accessible: Boolean(e.database),
-              in_trash: e.database?.inTrash ?? false,
-              url: e.database ? pageUrl(e.database.workspaceId, e.database.id) : null,
-            }));
-          }
-          const children = await pages.listChildren(userId, page.workspaceId, page.id);
-          out.child_pages = children.slice(0, 100).map((c) => ({ id: c.id, title: pageLabel(c.title), kind: c.kind }));
-          if (children.length > 100) out.child_pages_truncated = children.length;
-          const backlinks = await listBacklinks(userId, page.id);
-          if (backlinks.length) {
-            out.linked_from = backlinks.map((b) => ({ id: b.id, title: pageLabel(b.title), url: pageUrl(b.workspaceId, b.id) }));
-          }
-        }
-        return out;
-      }),
+    (args) => runTool(() => ops.getPage(ctx, args)),
   );
 
   server.registerTool(
@@ -1075,85 +806,11 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "Create a page",
       description:
         "Create a new page at the top level of a workspace (workspace_id, in a teamspace given by teamspace_id, else private to the user) or nested under another page (parent_id; it then belongs to the parent's teamspace), with an optional Markdown body, or copy a template (template_id from list_templates) with its sub-pages. To add a row to a database use create_database_row instead.",
-      inputSchema: z.object({
-        workspace_id: z.string().optional().describe("Workspace for a top-level page. Ignored when parent_id is set."),
-        parent_id: z.string().optional().describe("Page to nest the new page under."),
-        teamspace_id: z
-          .string()
-          .optional()
-          .describe(
-            'Top-level pages: the teamspace to add it to (from list_teamspaces; the user must be in it), or "private" (the default) for a page only the user sees. Ignored when parent_id is set.',
-          ),
-        title: z.string().min(1).max(500).optional().describe("Page title. Required unless template_id is given (the template's title is used then)."),
-        markdown: z.string().optional().describe("Initial page body in Markdown. With template_id it replaces the template's body."),
-        icon: z.string().max(16).optional().describe("A single emoji used as the page icon."),
-        template_id: z
-          .string()
-          .optional()
-          .describe('A page template of the workspace, or a built-in one ("builtin:<key>"), from list_templates.'),
-      }),
+      inputSchema: ops.inputs.createPage,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ workspace_id, parent_id, teamspace_id, title, markdown, icon, template_id }) =>
-      runTool(async () => {
-        assertWrite();
-        const location = await resolveLocation(workspace_id, parent_id, teamspace_id);
-        if (location.parentKind === "database") {
-          throw new ToolInputError("parent_id is a database. Use create_database_row to add rows to it.");
-        }
-        if (template_id) {
-          let createdId: string;
-          if (template_id.startsWith("builtin:")) {
-            const key = template_id.slice("builtin:".length);
-            if (!isBuiltinTemplateKey(key)) throw new ToolInputError(`Unknown built-in template "${key}". Call list_templates for the keys.`);
-            createdId = (
-              await templates.createFromBuiltin(actor, location.workspaceId, key, {
-                parentId: location.parentId,
-                teamspaceId: location.teamspaceId,
-              })
-            ).id;
-          } else {
-            const template = await pages.getPage(userId, template_id);
-            if (!template.isTemplate || template.parentId) {
-              throw new ToolInputError("template_id is not a page template. Call list_templates; row templates go to create_database_row.");
-            }
-            createdId = (
-              await templates.createFromTemplate(actor, template_id, { parentId: location.parentId, teamspaceId: location.teamspaceId })
-            ).id;
-          }
-          if (title !== undefined) await pages.renamePage(actor, createdId, title);
-          if (icon !== undefined) await pages.setPageIcon(userId, createdId, icon);
-          if (markdown !== undefined) await getCollab().replaceContent(createdId, markdown, actor);
-          const created = await pages.getPage(userId, createdId);
-          return {
-            id: created.id,
-            title: pageLabel(created.title),
-            workspace_id: created.workspaceId,
-            ...(await teamspaceOf(created.teamspaceId)),
-            parent_id: created.parentId,
-            from_template: template_id,
-            url: pageUrl(created.workspaceId, created.id),
-          };
-        }
-        if (title === undefined) throw new ToolInputError("Provide title (or template_id).");
-        const created = await pages.createPage(actor, {
-          workspaceId: location.workspaceId,
-          parentId: location.parentId,
-          teamspaceId: location.teamspaceId,
-          title,
-          icon: icon ?? null,
-          markdown,
-        });
-        return {
-          id: created.id,
-          title: pageLabel(created.title),
-          workspace_id: created.workspaceId,
-          ...(await teamspaceOf(created.teamspaceId)),
-          parent_id: created.parentId,
-          url: pageUrl(created.workspaceId, created.id),
-        };
-      }),
+    write((args) => ops.createPage(ctx, args)),
   );
 
   server.registerTool(
@@ -1162,45 +819,11 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "Update a page",
       description:
         `Change a page's title and/or body. mode "replace" overwrites the whole body with the given Markdown; mode "append" adds it to the end. A history snapshot is saved before the body changes, and open editors update live. Works for database rows too (use update_database_row for their properties). ${EMBED_NOTE} Keep those lines where the databases should stay; a linked view whose line is left out is removed, while an inline database whose line is left out stays at the end of the page.`,
-      inputSchema: z.object({
-        page_id: id("page"),
-        title: z.string().min(1).max(500).optional().describe("New title."),
-        markdown: z.string().optional().describe("Markdown to write into the body."),
-        mode: z
-          .enum(["replace", "append"])
-          .default("replace")
-          .describe('"replace" (default) overwrites the body; "append" adds to the end.'),
-      }),
+      inputSchema: ops.inputs.updatePage,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ page_id, title, markdown, mode }) =>
-      runTool(async () => {
-        assertWrite();
-        if (title === undefined && markdown === undefined) throw new ToolInputError("Provide title and/or markdown.");
-        const { page } = await loadPage(page_id);
-        if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in Esionage before editing.");
-        const changed: string[] = [];
-        if (markdown !== undefined) {
-          if (page.kind === "database") {
-            throw new ToolInputError("Databases have no text body. Use create_database_row or update_database_row.");
-          }
-          const collab = getCollab();
-          if (mode === "append") await collab.appendContent(page_id, markdown, actor, true);
-          else await collab.replaceContent(page_id, markdown, actor, true);
-          changed.push(mode === "append" ? "body (appended)" : "body (replaced)");
-        }
-        if (title !== undefined) {
-          await pages.renamePage(actor, page_id, title);
-          changed.push("title");
-        }
-        return {
-          id: page.id,
-          changed,
-          ...(markdown !== undefined ? { snapshot: "Saved the previous version to page history before writing." } : {}),
-          url: pageUrl(page.workspaceId, page.id),
-        };
-      }),
+    write((args) => ops.updatePage(ctx, args)),
   );
 
   const maxFile = uploadLimits().maxFileBytes;
@@ -1238,7 +861,7 @@ export function createMcpServer(principal: McpPrincipal) {
           );
         }
         if ((url === undefined) === (base64 === undefined)) throw new ToolInputError("Give either url or base64, not both.");
-        const { page, parentDatabase } = await loadPage(page_id);
+        const { page, parentDatabase } = await ops.loadPage(ctx, page_id);
         if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in Esionage before adding files.");
         if (page.kind === "database") throw new ToolInputError("Databases have no body. Attach the file to one of its rows.");
         let filesProp: PropertyDef | null = null;
@@ -1278,7 +901,7 @@ export function createMcpServer(principal: McpPrincipal) {
             path: stored.url,
             url: `${env.appUrl}${stored.url}`,
             property: filesProp.name,
-            row: await rowOutput(parentDatabase!.id, page_id),
+            row: await ops.rowOutput(ctx, parentDatabase!.id, page_id),
           };
         }
         const type = blockTypeFor(stored.contentType);
@@ -1313,24 +936,11 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "Move a page to the trash",
       description:
         "Move a page (with all its sub-pages, or a database with its rows) to the trash. This is reversible: the user can restore it from the trash in Esionage.",
-      inputSchema: z.object({ page_id: id("page") }),
+      inputSchema: ops.inputs.pageId,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ page_id }) =>
-      runTool(async () => {
-        assertWrite();
-        const page = await pages.getPage(userId, page_id);
-        if (!page.archivedAt) await pages.archivePage(userId, page_id);
-        return {
-          id: page.id,
-          title: pageLabel(page.title),
-          in_trash: true,
-          note: page.archivedAt
-            ? "The page was already in the trash."
-            : "Moved to the trash with its sub-pages. It can be restored from the trash in Esionage.",
-        };
-      }),
+    write((args) => ops.archivePage(ctx, args)),
   );
 
   server.registerTool(
@@ -1339,37 +949,10 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "Get a database schema",
       description:
         "Get a database's schema: its properties (name, type, option names for select / multi_select / status with the status groups, and the people a person property can hold), its views with their type, settings (grouping, dates, timeline zoom, gallery cards, form questions and public link), filters and sorts, and the row count. Call this before querying or writing rows.",
-      inputSchema: z.object({ database_id: id("database") }),
+      inputSchema: ops.inputs.databaseId,
       annotations: READ,
     },
-    ({ database_id }) =>
-      runTool(async () => {
-        const [{ database, properties, views }, rows] = await Promise.all([
-          databases.getDatabase(userId, database_id),
-          databases.listRows(userId, database_id),
-        ]);
-        const lookups = await databases.getLookups(userId, properties);
-        const links = await forms.formPublicationsOf(views.filter((v) => v.type === "form").map((v) => v.id));
-        return {
-          id: database.id,
-          title: pageLabel(database.title),
-          workspace_id: database.workspaceId,
-          in_trash: Boolean(database.archivedAt),
-          row_count: rows.length,
-          properties: [
-            { name: "title", type: "title", note: "Every row's title; filter and sort on it with property \"title\"." },
-            ...properties.map((p) => describeProperty(p, lookups, properties)),
-          ],
-          views: views.map((v) => ({
-            id: v.id,
-            name: v.name,
-            type: v.type,
-            ...describeViewConfig(properties, v.config, lookups, v.type),
-            ...formLinkOutput(v.type, links.get(v.id)),
-          })),
-          url: pageUrl(database.workspaceId, database.id),
-        };
-      }),
+    (args) => runTool(() => ops.getDatabase(ctx, args)),
   );
 
   server.registerTool(
@@ -1378,56 +961,10 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "Query database rows",
       description:
         'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select / status option names as values; by default all filters must match, filter_combinator "or" lets any match, and groups ({type: "group", combinator, rules}) mix the two, e.g. Status is Done and (Assignee contains me or Priority is High). Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt, is_within. For a relation use contains / not_equals with a related row id or title; for a person, created_by or last_edited_by, contains / not_equals with a user id, email, name or "me". For dates, created_time and last_edited_time, equals (that day), gt (after) and lt (before) take a YYYY-MM-DD date, and is_within takes today, this_week (Monday to Sunday), this_month, or past_n_days / next_n_days with "days" (both include today), counted from the current date on the server. Checklists and files only support is_empty / is_not_empty. Sorting by a person orders rows by name, a status by its groups, a checklist by the share of ticked items, files by how many there are. Returns property values by name; relations as [{id, title}], people as [{id, name}], checklists as [{text, checked}], files as [{name, url}].',
-      inputSchema: z.object({
-        database_id: id("database"),
-        filters: filtersInput.optional(),
-        filter_combinator: filterCombinatorInput,
-        sorts: sortsInput.optional(),
-        view_id: z
-          .string()
-          .optional()
-          .describe("Apply a saved view's filters and sorts first (ids from get_database); rows must match both the view's filters and yours."),
-        limit: z.number().int().min(1).max(200).default(50).describe("Maximum rows to return (1-200, default 50)."),
-      }),
+      inputSchema: ops.inputs.queryDatabase,
       annotations: READ,
     },
-    ({ database_id, filters, filter_combinator, sorts, view_id, limit }) =>
-      runTool(async () => {
-        const { database, properties, views } = await databases.getDatabase(userId, database_id);
-        const props: PropertyDef[] = properties;
-        const lookups = await databases.getLookups(userId, properties);
-        const view = view_id ? views.find((v) => v.id === view_id) : undefined;
-        if (view_id && !view) throw new ToolInputError(`No view with id "${view_id}" in this database.`);
-        // The view's filters and the caller's each keep their own combinator; rows must match both.
-        const own = { type: "group", combinator: filter_combinator ?? "and", rules: toFilterEntries(props, filters ?? [], lookups) } as const;
-        const saved = { type: "group", combinator: view?.config.filterCombinator ?? "and", rules: view?.config.filters ?? [] } as const;
-        const rows = await databases.listRows(userId, database_id, {
-          filters: [saved, own].filter((g) => g.rules.length),
-          sorts: sorts?.length ? sorts.map((s) => toSortRule(props, s)) : (view?.config.sorts ?? []),
-        });
-        return {
-          database_id: database.id,
-          title: pageLabel(database.title),
-          total: rows.length,
-          returned: Math.min(rows.length, limit),
-          rows: rows.slice(0, limit).map((r) => ({
-            id: r.id,
-            title: pageLabel(r.title),
-            properties: displayProperties(props, r.properties, lookups, env.appUrl),
-            url: pageUrl(database.workspaceId, r.id),
-          })),
-          ...(rows.length > limit ? { note: `Only the first ${limit} rows are shown; narrow the filters or raise limit.` } : {}),
-          // A chart view also returns what it plots, over every matching row (not just the returned ones).
-          ...(view?.type === "chart"
-            ? {
-                chart: {
-                  ...describeViewConfig(props, { ...view.config, filters: undefined, sorts: undefined }, lookups, "chart"),
-                  ...describeChartSeries(props, view.config, rows, lookups),
-                },
-              }
-            : {}),
-        };
-      }),
+    (args) => runTool(() => ops.queryDatabase(ctx, args)),
   );
 
   server.registerTool(
@@ -1436,88 +973,23 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "Add a database row",
       description:
         "Add a row to a database with a title, property values (by property name, select options by name) and an optional Markdown body. Call get_database first to learn the property names and options. Without properties and markdown the row starts from the database's default row template, if it has one; template_id picks a row template (see list_templates), with the given properties set over its values.",
-      inputSchema: z.object({
-        database_id: id("database"),
-        title: z.string().min(1).max(500).describe("Row title."),
-        properties: rowProperties.optional(),
-        markdown: z.string().optional().describe("Optional Markdown body for the row's page. With a template it replaces the template's body."),
-        template_id: z
-          .string()
-          .optional()
-          .describe('A row template of this database from list_templates, or "none" for a blank row even when the database has a default template.'),
-      }),
+      inputSchema: ops.inputs.createDatabaseRow,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, title, properties, markdown, template_id }) =>
-      runTool(async () => {
-        assertWrite();
-        const { database } = await databases.getDatabase(userId, database_id);
-        if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
-        const blank = template_id === "none";
-        const noValues = !Object.keys(properties ?? {}).length && markdown === undefined;
-        if (!blank && (template_id || noValues)) {
-          const created = await templates.createRow(actor, database.id, {
-            title,
-            properties: properties ?? {},
-            templateId: template_id ?? null,
-            useDefault: noValues,
-          });
-          if (markdown !== undefined) await getCollab().replaceContent(created.id, markdown, actor);
-          const output = await rowOutput(database.id, created.id);
-          return created.templateId ? { ...output, from_template: created.templateId } : output;
-        }
-        const created = await pages.createPage(actor, {
-          workspaceId: database.workspaceId,
-          parentId: database.id,
-          title,
-          properties: properties ?? {},
-          markdown,
-        });
-        return rowOutput(database.id, created.id);
-      }),
+    write((args) => ops.createDatabaseRow(ctx, args)),
   );
 
   server.registerTool(
     "create_database_rows",
     {
       title: "Add many database rows",
-      description: `Add up to ${MAX_BULK_ROWS} rows to a database in one call, in the given order, each with a title, property values and an optional Markdown body (same format as create_database_row). All rows are checked first: if any value is invalid nothing is created and the error names the row. Use this to import or migrate data; split larger imports into batches.`,
-      inputSchema: z.object({
-        database_id: id("database"),
-        rows: z
-          .array(
-            z.object({
-              title: z.string().min(1).max(500).describe("Row title."),
-              properties: rowProperties.optional(),
-              markdown: z.string().optional().describe("Optional Markdown body for the row's page."),
-            }),
-          )
-          .min(1)
-          .max(MAX_BULK_ROWS)
-          .describe(`The rows to add (1-${MAX_BULK_ROWS}).`),
-      }),
+      description: `Add up to ${ops.MAX_BULK_ROWS} rows to a database in one call, in the given order, each with a title, property values and an optional Markdown body (same format as create_database_row). All rows are checked first: if any value is invalid nothing is created and the error names the row. Use this to import or migrate data; split larger imports into batches.`,
+      inputSchema: ops.inputs.createDatabaseRows,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, rows }) =>
-      runTool(async () => {
-        assertWrite();
-        const { database } = await databases.getDatabase(userId, database_id);
-        if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
-        const created = await databases.createRows(userId, database.id, rows);
-        const collab = getCollab();
-        for (const [i, row] of created.entries()) {
-          const markdown = rows[i].markdown;
-          if (markdown?.trim()) await collab.replaceContent(row.id, markdown, actor);
-        }
-        return {
-          database_id: database.id,
-          created: created.length,
-          rows: created.map((r) => ({ id: r.id, title: pageLabel(r.title), url: pageUrl(database.workspaceId, r.id) })),
-          url: pageUrl(database.workspaceId, database.id),
-        };
-      }),
+    write((args) => ops.createDatabaseRows(ctx, args)),
   );
 
   server.registerTool(
@@ -1526,56 +998,23 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "Update a database row",
       description:
         "Change a database row's title and/or property values (by property name, select options by name, null clears a value). Properties not mentioned keep their values. To change the row's body use update_page.",
-      inputSchema: z.object({
-        row_id: id("row"),
-        title: z.string().min(1).max(500).optional().describe("New row title."),
-        properties: rowProperties.optional(),
-      }),
+      inputSchema: ops.inputs.updateDatabaseRow,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ row_id, title, properties }) =>
-      runTool(async () => {
-        assertWrite();
-        if (title === undefined && !properties) throw new ToolInputError("Provide title and/or properties.");
-        const { page, parentDatabase } = await loadPage(row_id);
-        if (!parentDatabase) throw new ToolInputError("This page is not a database row. Use update_page for regular pages.");
-        if (page.archivedAt) throw new ToolInputError("This row is in the trash.");
-        if (properties && Object.keys(properties).length) await databases.updateRowProperties(userId, row_id, properties);
-        if (title !== undefined) await pages.renamePage(actor, row_id, title);
-        const out = await rowOutput(parentDatabase.id, row_id);
-        // The rename lands in the live document first; report the new title right away.
-        return title !== undefined ? { ...out, title } : out;
-      }),
+    write((args) => ops.updateDatabaseRow(ctx, args)),
   );
 
   server.registerTool(
     "update_database_rows",
     {
       title: "Update many database rows",
-      description: `Set the same property values on up to ${MAX_BULK_ROWS} rows of one database (same value format as update_database_row). Values are checked first: if one is invalid nothing changes. Rows the user can't edit are skipped and listed in skipped_row_ids.`,
-      inputSchema: z.object({
-        database_id: id("database"),
-        row_ids: z.array(z.string().min(1)).min(1).max(MAX_BULK_ROWS).describe(`Ids of the rows to change (1-${MAX_BULK_ROWS}).`),
-        properties: rowProperties,
-      }),
+      description: `Set the same property values on up to ${ops.MAX_BULK_ROWS} rows of one database (same value format as update_database_row). Values are checked first: if one is invalid nothing changes. Rows the user can't edit are skipped and listed in skipped_row_ids.`,
+      inputSchema: ops.inputs.updateDatabaseRows,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, row_ids, properties }) =>
-      runTool(async () => {
-        assertWrite();
-        if (!Object.keys(properties).length) throw new ToolInputError("Provide at least one property value.");
-        const { database } = await databases.getDatabase(userId, database_id);
-        if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
-        const { done, skipped } = await databases.updateRowsProperties(userId, database.id, row_ids, properties);
-        return {
-          database_id: database.id,
-          updated: done.length,
-          ...(skipped.length ? { skipped_row_ids: skipped } : {}),
-          url: pageUrl(database.workspaceId, database.id),
-        };
-      }),
+    write((args) => ops.updateDatabaseRows(ctx, args)),
   );
 
   server.registerTool(
@@ -1600,7 +1039,7 @@ export function createMcpServer(principal: McpPrincipal) {
     ({ workspace_id, parent_id, teamspace_id, title, icon }) =>
       runTool(async () => {
         assertWrite();
-        const location = await resolveLocation(workspace_id, parent_id, teamspace_id);
+        const location = await ops.resolveLocation(ctx, workspace_id, parent_id, teamspace_id);
         if (location.parentKind === "database") throw new ToolInputError("A database cannot be created inside another database.");
         const created = await pages.createPage(actor, {
           workspaceId: location.workspaceId,
@@ -1868,7 +1307,7 @@ export function createMcpServer(principal: McpPrincipal) {
           config = (await databases.updateView(userId, created.id, { config }))?.config ?? config;
         }
         const link = type === "form" ? await applyFormLink(userId, created.id, linkInput) : null;
-        return { ...viewOutput(database, properties, { ...created, config }, lookups), ...formLinkOutput(type, link) };
+        return { ...viewOutput(database, properties, { ...created, config }, lookups), ...ops.formLinkOutput(type, link) };
       }),
   );
 
@@ -1936,7 +1375,7 @@ export function createMcpServer(principal: McpPrincipal) {
               ? await applyFormLink(userId, view_id, linkInput)
               : ((await forms.formPublicationsOf([view_id])).get(view_id) ?? null);
         const saved = { ...view, name: name?.trim() || view.name, config };
-        return { ...viewOutput(database, properties, saved, lookups), ...formLinkOutput(view.type, link) };
+        return { ...viewOutput(database, properties, saved, lookups), ...ops.formLinkOutput(view.type, link) };
       }),
   );
 
@@ -1946,54 +1385,11 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "Move a page",
       description:
         "Move a page (with its sub-pages) under another page, or to the top level with parent_id null: of the teamspace teamspace_id names, of the user's private pages (\"private\"), or of the teamspace it is in now when teamspace_id is omitted. A page that lands in another teamspace (or among the private pages) takes the access of its new place; people it was shared with by name keep their access. Moving a page into a database makes it a row; moving a row out of its database turns it into a regular page. Pages cannot move between workspaces.",
-      inputSchema: z.object({
-        page_id: id("page"),
-        parent_id: z.string().min(1).nullable().describe("New parent page id, or null for the top level."),
-        teamspace_id: z
-          .string()
-          .optional()
-          .describe('With parent_id null: the teamspace to move it to (from list_teamspaces), or "private". Ignored under a parent.'),
-      }),
+      inputSchema: ops.inputs.movePage,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ page_id, parent_id, teamspace_id }) =>
-      runTool(async () => {
-        assertWrite();
-        const { page, parentDatabase } = await loadPage(page_id);
-        if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it with restore_page first.");
-        const parent = parent_id ? await pages.getPage(userId, parent_id) : null;
-        if (parent) {
-          if (parent.archivedAt) throw new ToolInputError("The new parent is in the trash. Choose another parent.");
-          if (parent.workspaceId !== page.workspaceId) throw new ToolInputError("Pages cannot be moved to another workspace.");
-          if (parent.kind === "database" && page.kind === "database") {
-            throw new ToolInputError("A database cannot be moved into another database.");
-          }
-          const ancestors = await pages.getBreadcrumbs(userId, parent.id);
-          if (ancestors.some((a) => a.id === page.id)) {
-            throw new ToolInputError("A page cannot be moved inside itself or one of its sub-pages.");
-          }
-        }
-        const space = parent ? undefined : spaceOf(teamspace_id);
-        if ((parent?.id ?? null) !== page.parentId || (space !== undefined && space !== page.teamspaceId)) {
-          await pages.movePage(userId, page_id, parent?.id ?? null, undefined, space);
-        }
-        const moved = await pages.getPage(userId, page_id).catch(() => null);
-        const note =
-          parent?.kind === "database" && parentDatabase?.id !== parent.id
-            ? "The page is now a row of this database; set its properties with update_database_row."
-            : parentDatabase && parent?.id !== parentDatabase.id
-              ? "The page is no longer a database row."
-              : undefined;
-        return {
-          id: page.id,
-          title: pageLabel(page.title),
-          parent_id: parent?.id ?? null,
-          ...(moved ? await teamspaceOf(moved.teamspaceId) : {}),
-          ...(note ? { note } : {}),
-          url: pageUrl(page.workspaceId, page.id),
-        };
-      }),
+    write((args) => ops.movePage(ctx, args)),
   );
 
   server.registerTool(
@@ -2070,29 +1466,11 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "Restore a page from the trash",
       description:
         "Bring a trashed page back with its sub-pages (ids from list_trash). If its old parent is still in the trash, it is restored to the workspace's top level.",
-      inputSchema: z.object({ page_id: id("page") }),
+      inputSchema: ops.inputs.pageId,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ page_id }) =>
-      runTool(async () => {
-        assertWrite();
-        const before = await pages.getPage(userId, page_id);
-        if (before.archivedAt) await pages.restorePage(userId, page_id);
-        const after = before.archivedAt ? await pages.getPage(userId, page_id) : before;
-        return {
-          id: after.id,
-          title: pageLabel(after.title),
-          parent_id: after.parentId,
-          in_trash: false,
-          ...(before.archivedAt
-            ? after.parentId !== before.parentId
-              ? { note: "Its old parent is still in the trash, so it was restored to the top level." }
-              : {}
-            : { note: "The page was not in the trash." }),
-          url: pageUrl(after.workspaceId, after.id),
-        };
-      }),
+    write((args) => ops.restorePage(ctx, args)),
   );
 
   server.registerTool(
@@ -2191,42 +1569,10 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "List comments on a page",
       description:
         "List a page's comment threads, oldest first: the text each thread is about (quote; null when that text was deleted), whether it's resolved, and its comments with author, time and text. Resolved threads are left out unless include_resolved is true.",
-      inputSchema: z.object({
-        page_id: id("page"),
-        include_resolved: z.boolean().default(false).describe("Also list resolved threads."),
-      }),
+      inputSchema: ops.inputs.listComments,
       annotations: READ,
     },
-    ({ page_id, include_resolved }) =>
-      runTool(async () => {
-        const page = await pages.getPage(userId, page_id);
-        const threads = (await comments.listComments(userId, page_id)).filter((t) => include_resolved || !t.resolved);
-        const people = await comments.commentUsers(
-          userId,
-          page_id,
-          threads.flatMap((t) => t.comments.map((c) => c.userId)),
-        );
-        const names = new Map(people.map((p) => [p.id, p.username]));
-        return {
-          page_id: page.id,
-          title: pageLabel(page.title),
-          threads: threads.map((t) => ({
-            id: t.id,
-            quote: t.quote ?? null,
-            resolved: t.resolved,
-            comments: t.comments.map((c) => ({
-              id: c.id,
-              author: names.get(c.userId) ?? "Unknown",
-              author_id: c.userId,
-              created_at: c.createdAt,
-              ...(c.updatedAt !== c.createdAt ? { edited_at: c.updatedAt } : {}),
-              text: commentText(c.body),
-              ...(c.reactions.length ? { reactions: c.reactions.map((r) => ({ emoji: r.emoji, count: r.userIds.length })) } : {}),
-            })),
-          })),
-          url: pageUrl(page.workspaceId, page.id),
-        };
-      }),
+    (args) => runTool(() => ops.listComments(ctx, args)),
   );
 
   server.registerTool(
@@ -2235,36 +1581,11 @@ export function createMcpServer(principal: McpPrincipal) {
       title: "Comment on a page",
       description:
         "Comment on a page as the user. To start a thread, pass quote: text copied exactly from the page body (get_page), within one paragraph; the comment is anchored to its first occurrence. To reply, pass thread_id from list_comments instead. People in the thread are notified. Comments are plain text; each line becomes a paragraph.",
-      inputSchema: z.object({
-        page_id: id("page"),
-        text: z.string().min(1).max(MAX_COMMENT_LENGTH).describe("The comment."),
-        quote: z.string().min(1).max(1000).optional().describe("Start a new thread on this exact text of the page."),
-        thread_id: z.string().min(1).optional().describe("Reply in this thread instead."),
-      }),
+      inputSchema: ops.inputs.addComment,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ page_id, text, quote, thread_id }) =>
-      runTool(async () => {
-        assertWrite();
-        if (!quote === !thread_id) throw new ToolInputError("Pass either quote (to start a thread) or thread_id (to reply), not both.");
-        const page = await pages.getPage(userId, page_id);
-        const result = thread_id
-          ? await comments.changeComments(userId, page_id, { type: "addComment", threadId: thread_id, body: text })
-          : await comments.changeComments(userId, page_id, { type: "createThread", body: text, anchor: { quote: quote! } }).catch((error) => {
-              if (error instanceof Error && error.message.includes("quoted text")) {
-                throw new ToolInputError(
-                  "The page doesn't have that exact text within one paragraph. Copy a short passage from get_page's markdown, without formatting characters.",
-                );
-              }
-              throw error;
-            });
-        return {
-          thread_id: result.thread?.id,
-          comment_id: result.comment?.id,
-          url: pageUrl(page.workspaceId, page.id),
-        };
-      }),
+    write((args) => ops.addComment(ctx, args)),
   );
 
   server.registerTool(

@@ -231,7 +231,7 @@
     "authenticationHeading": "Authentication",
     "requireTwoFactor": {
       "title": "Require two-step verification",
-      "description": "Everyone must use an authenticator app or sign in with a passkey to open this workspace. People without either are asked to set one up first. Apps connected over MCP are not affected.",
+      "description": "Everyone must use an authenticator app or sign in with a passkey to open this workspace. People without either are asked to set one up first. Apps connected over MCP and REST API tokens are not affected.",
       "setUpFirst": "Turn on two-step verification for your own account first.",
       "withoutCount": "{count, plural, one {# person here hasn't set it up yet.} other {# people here haven't set it up yet.}}"
     },
