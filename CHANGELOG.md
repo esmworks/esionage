@@ -169,8 +169,19 @@
   All are in the slash menu and show on published pages. In Markdown (export, MCP) a callout is a
   GitHub alert (`> [!NOTE]`), equations are `$…$` and `$$…$$`, a diagram is a ```` ```mermaid ````
   fence, and the table of contents and breadcrumb are `<!-- esionage:toc -->` and
-  `<!-- esionage:breadcrumb -->` lines; all of them are read back into blocks. Columns are left out:
-  BlockNote's multi-column package is GPL-3.0.
+  `<!-- esionage:breadcrumb -->` lines; all of them are read back into blocks.
+- **Columns** (#16): "2 columns" and "3 columns" in the slash menu place blocks side by side;
+  inside a column the menu offers "Add column" instead (up to five). Blocks move into, out of and
+  between columns with the side menu's drag handle; a column whose last block is dragged away or
+  deleted goes, and a column list left with one column turns back into plain blocks.
+  Columns are equal by default and resized by dragging the line between them (stored as each
+  column's share, so it syncs, undoes and keeps its proportion at any width). On screens narrower
+  than 640px they stack, in the editor and on published pages, where tables of contents, diagrams,
+  embeds and databases inside columns show in place. In Markdown (export, MCP) columns are marker
+  lines around their blocks (`<!-- esionage:columns -->`, `<!-- esionage:column -->` before each
+  column, optionally `width=2`, and `<!-- esionage:/columns -->`), so plain Markdown readers see
+  the blocks in order and writing a body back keeps its columns. Built on BlockNote's own column
+  support in its core; its multi-column package (GPL-3.0 or commercial) is not used. No migration.
 - **"Can comment" access:** share a page so people can read and comment on it without editing it.
   Their comments mark the selected text on the server, so the page itself stays read-only for them.
 - **Comments on pages:** select text and choose Comment to start a thread; reply, react with emoji,

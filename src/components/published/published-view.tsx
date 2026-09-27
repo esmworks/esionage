@@ -13,6 +13,7 @@ import { displayHost } from "@/lib/web-blocks";
 import { PageIcon } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
 import { publishedHref } from "@/lib/site";
+import type { PublishedBlock } from "@/server/publication";
 import { PublishedDatabaseView } from "./published-database";
 import { SiteNav } from "./site-nav";
 import styles from "./published-body.module.css";
@@ -69,6 +70,95 @@ export async function PublishedView({ loaded }: { loaded: LoadedPage }) {
       })}
     </nav>
   );
+
+  /**
+   * A part of the body. At the top level each part has the page's side padding; inside a column
+   * the columns' row has it instead.
+   */
+  const segment = (block: PublishedBlock, i: number, inColumn: boolean): React.ReactNode => {
+    const pad = inColumn ? "" : "px-4 sm:px-[54px]";
+    switch (block.kind) {
+      case "html":
+        return (
+          <div
+            key={i}
+            className={cn(styles.body, pad)}
+            // Serialized by BlockNote from our own document with unsafe URLs removed; see published-body.ts.
+            dangerouslySetInnerHTML={{ __html: block.html }}
+          />
+        );
+      case "columns":
+        return (
+          <div key={i} className={cn("my-2", pad)}>
+            <div className={styles.columns}>
+              {block.columns.map((column, c) => (
+                <div key={c} className={styles.column} style={{ flexGrow: column.width }}>
+                  {column.segments.map((inner, j) => segment(inner, j, true))}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case "toc":
+        return (
+          <div key={i} className={cn("my-2", pad)}>
+            <HeadingList
+              headings={block.headings.map((h) => ({ key: h.anchor, level: h.level, text: h.text }))}
+              label={tb("toc.label")}
+              empty={tb("toc.empty")}
+              untitled={untitled}
+              link={(anchor) => ({ href: `#${anchor}` })}
+            />
+          </div>
+        );
+      case "breadcrumb":
+        return (
+          <div key={i} className={cn("my-2", pad)}>
+            <Trail crumbs={data.crumbs} href={(id) => href(id)} label={tb("breadcrumb.label")} untitled={untitled} />
+          </div>
+        );
+      case "mermaid":
+        return (
+          <div key={i} className={cn(styles.body, "my-2", pad)}>
+            <PublishedMermaid source={block.source} label={tb("mermaid.label")} />
+          </div>
+        );
+      case "bookmark":
+        return (
+          <div key={i} className={cn("my-2", pad)}>
+            <BookmarkCard bookmark={block.bookmark} />
+          </div>
+        );
+      case "pdf":
+        return (
+          <div key={i} className={cn("my-2", pad)}>
+            <PdfViewer fileId={block.fileId} name={block.name} caption={block.caption} />
+          </div>
+        );
+      case "webEmbed":
+        return (
+          <div key={i} className={cn("my-2", pad)}>
+            <EmbedFrame url={block.url} embed={block.embed} title={tw("embed.frameTitle", { host: displayHost(block.url) })} />
+          </div>
+        );
+      case "embed":
+        return block.database ? (
+          <section key={i} className="my-4">
+            <h2 className={cn("text-base font-semibold", pad)}>
+              <Link href={href(block.database.id, block.database.title)} className="inline-flex items-center gap-1.5 hover:underline">
+                <PageIcon icon={block.database.icon} kind="database" className="text-base" />
+                {pageLabel(block.database.title, untitled)}
+              </Link>
+            </h2>
+            <PublishedDatabaseView table={block.database.table} links={data.links} className={cn("mt-2", pad)} />
+          </section>
+        ) : (
+          <p key={i} className={cn("my-4 rounded-md border border-border px-3 py-2 text-sm text-fg-faint", !inColumn && "mx-4 sm:mx-[54px]")}>
+            {t("embedUnavailable")}
+          </p>
+        );
+    }
+  };
 
   return (
     <div className="flex min-h-full flex-col bg-bg text-fg">
@@ -147,64 +237,7 @@ export async function PublishedView({ loaded }: { loaded: LoadedPage }) {
             </dl>
           )}
 
-          {data.body.length > 0 && (
-            <div className="mt-6">
-              {data.body.map((block, i) =>
-                block.kind === "html" ? (
-                  <div
-                    key={i}
-                    className={cn(styles.body, "px-4 sm:px-[54px]")}
-                    // Serialized by BlockNote from our own document with unsafe URLs removed; see published-body.ts.
-                    dangerouslySetInnerHTML={{ __html: block.html }}
-                  />
-                ) : block.kind === "toc" ? (
-                  <div key={i} className="my-2 px-4 sm:px-[54px]">
-                    <HeadingList
-                      headings={block.headings.map((h) => ({ key: h.anchor, level: h.level, text: h.text }))}
-                      label={tb("toc.label")}
-                      empty={tb("toc.empty")}
-                      untitled={untitled}
-                      link={(anchor) => ({ href: `#${anchor}` })}
-                    />
-                  </div>
-                ) : block.kind === "breadcrumb" ? (
-                  <div key={i} className="my-2 px-4 sm:px-[54px]">
-                    <Trail crumbs={data.crumbs} href={(id) => href(id)} label={tb("breadcrumb.label")} untitled={untitled} />
-                  </div>
-                ) : block.kind === "mermaid" ? (
-                  <div key={i} className={cn(styles.body, "my-2 px-4 sm:px-[54px]")}>
-                    <PublishedMermaid source={block.source} label={tb("mermaid.label")} />
-                  </div>
-                ) : block.kind === "bookmark" ? (
-                  <div key={i} className="my-2 px-4 sm:px-[54px]">
-                    <BookmarkCard bookmark={block.bookmark} />
-                  </div>
-                ) : block.kind === "pdf" ? (
-                  <div key={i} className="my-2 px-4 sm:px-[54px]">
-                    <PdfViewer fileId={block.fileId} name={block.name} caption={block.caption} />
-                  </div>
-                ) : block.kind === "webEmbed" ? (
-                  <div key={i} className="my-2 px-4 sm:px-[54px]">
-                    <EmbedFrame url={block.url} embed={block.embed} title={tw("embed.frameTitle", { host: displayHost(block.url) })} />
-                  </div>
-                ) : block.database ? (
-                  <section key={i} className="my-4">
-                    <h2 className="px-4 text-base font-semibold sm:px-[54px]">
-                      <Link href={href(block.database.id, block.database.title)} className="inline-flex items-center gap-1.5 hover:underline">
-                        <PageIcon icon={block.database.icon} kind="database" className="text-base" />
-                        {pageLabel(block.database.title, untitled)}
-                      </Link>
-                    </h2>
-                    <PublishedDatabaseView table={block.database.table} links={data.links} className="mt-2 px-4 sm:px-[54px]" />
-                  </section>
-                ) : (
-                  <p key={i} className="mx-4 my-4 rounded-md border border-border px-3 py-2 text-sm text-fg-faint sm:mx-[54px]">
-                    {t("embedUnavailable")}
-                  </p>
-                ),
-              )}
-            </div>
-          )}
+          {data.body.length > 0 && <div className="mt-6">{data.body.map((block, i) => segment(block, i, false))}</div>}
 
           {data.database && (
             <PublishedDatabaseView table={data.database} links={data.links} viewPath={href(data.id, data.title)} className="page-gutter mt-6" />

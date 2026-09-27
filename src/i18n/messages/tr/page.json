@@ -258,6 +258,23 @@
       "aliases": "breadcrumb sayfa yolu üst sayfalar konum",
       "label": "Sayfa yolu"
     },
+    "columns": {
+      "two": {
+        "title": "2 sütun",
+        "subtext": "Yan yana iki sütun blok",
+        "aliases": "sütun sütunlar kolon düzen yan yana columns 2 iki"
+      },
+      "three": {
+        "title": "3 sütun",
+        "subtext": "Yan yana üç sütun blok",
+        "aliases": "sütun sütunlar kolon düzen yan yana columns 3 üç"
+      },
+      "add": {
+        "title": "Sütun ekle",
+        "subtext": "Bu sütunun sağına yeni bir sütun (en fazla 5)",
+        "aliases": "sütun ekle yeni kolon column add"
+      }
+    },
     "pageLink": {
       "title": "Sayfa bağlantısı",
       "subtext": "Başka bir sayfaya, güncel başlığıyla bağlantı",
