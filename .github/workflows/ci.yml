@@ -66,6 +66,16 @@ jobs:
       - name: Page permissions end-to-end
         run: pnpm tsx scripts/access-e2e.ts
 
+      - name: Database edits end-to-end
+        run: pnpm tsx scripts/database-e2e.ts
+
+      # Assignment emails are captured by the script, never sent.
+      - name: Person properties end-to-end
+        run: pnpm tsx scripts/person-e2e.ts
+
+      - name: Trash end-to-end
+        run: pnpm tsx scripts/trash-e2e.ts
+
       - name: Start the server
         run: |
           pnpm start > "$RUNNER_TEMP/server.log" 2>&1 &
