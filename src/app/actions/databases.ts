@@ -78,9 +78,16 @@ export async function moveRowAction(
 
 export async function addPropertyAction(
   databaseId: string,
-  input: { name: string; type: PropertyType; options?: string[]; relation?: databases.RelationInput },
+  input: { name: string; type: PropertyType; options?: databases.OptionInput[]; relation?: databases.RelationInput },
 ) {
-  return run((userId) => databases.addProperty(userId, databaseId, input));
+  return run(async (userId) => {
+    // A new status starts with Not started / In progress / Done in the creator's language.
+    if (input.type === "status" && !input.options?.length) {
+      const t = await getTranslations("database.page.defaultGroupOptions");
+      input = { ...input, options: [t("notStarted"), t("inProgress"), t("done")] };
+    }
+    return databases.addProperty(userId, databaseId, input);
+  });
 }
 
 export async function listDatabasesAction(workspaceId: string) {

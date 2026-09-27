@@ -1,7 +1,15 @@
 import type { FilterOp, FilterRule, PropertyOptions, PropertyType, SortRule, ViewConfig } from "@/db/schema/app";
 import { pageLabel } from "@/lib/labels";
-import { CREATED_KEY, displayValue, isSortable, PropertyValueError, TITLE_KEY, UPDATED_KEY } from "@/lib/properties";
-import { holdsPeople, PERSON_ME } from "@/lib/property-types";
+import {
+  CREATED_KEY,
+  displayValue,
+  isSortable,
+  PropertyValueError,
+  sortStatusOptions,
+  TITLE_KEY,
+  UPDATED_KEY,
+} from "@/lib/properties";
+import { holdsOptions, holdsPeople, holdsTimestamp, isComputed, PERSON_ME, STATUS_GROUPS } from "@/lib/property-types";
 
 export type PropertyDef = { id: string; name: string; type: PropertyType; options: PropertyOptions };
 
@@ -66,6 +74,8 @@ const SPECIAL_KEYS: Record<string, string> = {
 
 const VALUE_OPS = new Set<FilterOp>(["contains", "equals", "not_equals", "gt", "lt"]);
 
+const PEOPLE_LABELS: Record<string, string> = { person: "Person", created_by: "Created by", last_edited_by: "Last edited by" };
+
 function available(props: PropertyDef[]) {
   return ["title", "created_at", "updated_at", ...props.map((p) => `${p.name} (${p.type})`)].join(", ");
 }
@@ -105,7 +115,18 @@ export function toFilterRule(props: PropertyDef[], input: FilterInput, lookups: 
     throw new PropertyValueError(`Filter "${input.op}" on "${input.property}" needs a value`);
   }
   let value: unknown = input.value;
-  if (prop?.type === "relation") {
+  if (prop?.type === "checklist") {
+    throw new PropertyValueError(`Checklist "${prop.name}" supports is_empty and is_not_empty`);
+  } else if (prop && holdsTimestamp(prop.type)) {
+    if (input.op !== "equals" && input.op !== "gt" && input.op !== "lt") {
+      throw new PropertyValueError(`"${prop.name}" supports equals (on the day), gt (after), lt (before), is_empty and is_not_empty`);
+    }
+    const day = String(value);
+    if (!/^\d{4}-\d{2}-\d{2}/.test(day) || Number.isNaN(Date.parse(day.slice(0, 10)))) {
+      throw new PropertyValueError(`"${prop.name}" filter value must be a date (YYYY-MM-DD)`);
+    }
+    value = day.slice(0, 10);
+  } else if (prop?.type === "relation") {
     if (input.op !== "contains" && input.op !== "not_equals") {
       throw new PropertyValueError(
         `Relation "${prop.name}" supports contains, not_equals (does not contain), is_empty and is_not_empty`,
@@ -115,11 +136,11 @@ export function toFilterRule(props: PropertyDef[], input: FilterInput, lookups: 
   } else if (prop && holdsPeople(prop.type)) {
     if (input.op !== "contains" && input.op !== "not_equals") {
       throw new PropertyValueError(
-        `${prop.type === "person" ? "Person" : "Created by"} "${prop.name}" supports contains, not_equals (does not contain), is_empty and is_not_empty`,
+        `${PEOPLE_LABELS[prop.type]} "${prop.name}" supports contains, not_equals (does not contain), is_empty and is_not_empty`,
       );
     }
     value = personId(prop, lookups.people, value);
-  } else if (prop?.type === "select" || prop?.type === "multi_select") {
+  } else if (prop && holdsOptions(prop.type)) {
     if (input.op === "gt" || input.op === "lt") {
       throw new PropertyValueError(`"${input.op}" is not supported on select property "${prop.name}"`);
     }
@@ -219,9 +240,8 @@ export function describeProperty(prop: PropertyDef, lookups: Lookups = NO_LOOKUP
     id: prop.id,
     name: prop.name,
     type: prop.type,
-    ...(prop.type === "select" || prop.type === "multi_select"
-      ? { options: (prop.options.options ?? []).map((o) => o.name) }
-      : {}),
+    ...(holdsOptions(prop.type) ? { options: (prop.options.options ?? []).map((o) => o.name) } : {}),
+    ...(prop.type === "status" ? { status_groups: statusGroups(prop) } : {}),
     ...(relation
       ? {
           // A related database they can't see isn't named, not even by id.
@@ -238,6 +258,12 @@ export function describeProperty(prop: PropertyDef, lookups: Lookups = NO_LOOKUP
             .map((p) => ({ id: p.id, name: p.name, ...(p.email ? { email: p.email } : {}) })),
         }
       : {}),
-    ...(prop.type === "created_by" ? { read_only: true } : {}),
+    ...(isComputed(prop.type) ? { read_only: true } : {}),
   };
+}
+
+/** Option names of a status property per group, in order. */
+function statusGroups(prop: PropertyDef) {
+  const options = sortStatusOptions(prop.options.options ?? []);
+  return Object.fromEntries(STATUS_GROUPS.map((group) => [group, options.filter((o) => o.group === group).map((o) => o.name)]));
 }

@@ -1,8 +1,9 @@
 import { McpServer, type ScopeChallengeHandler } from "@modelcontextprotocol/server";
 import * as z from "zod";
-import { PROPERTY_TYPES, type SelectOption, type ViewConfig, type ViewType } from "@/db/schema/app";
+import { PROPERTY_TYPES, type SelectOption, type StatusGroup, type ViewConfig, type ViewType } from "@/db/schema/app";
 import { pageLabel } from "@/lib/labels";
-import { computedValues, isGroupable } from "@/lib/properties";
+import { computedValues, isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
+import { holdsOptions, STATUS_GROUPS } from "@/lib/property-types";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import * as databases from "@/server/databases";
 import * as pages from "@/server/pages";
@@ -24,7 +25,7 @@ import {
 } from "./query";
 
 const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
-Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, date, checkbox, url, relation, person, created_by). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A created_by property shows who created each row; it is filled in automatically and can't be written.
+Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, status, date, checkbox, url, email, phone, checklist, relation, person, created_by, created_time, last_edited_by, last_edited_time). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A status is a select whose options belong to the groups todo, in_progress and done. A checklist holds items that can be ticked off. created_by, created_time, last_edited_by and last_edited_time show who created or last edited each row and when; they are filled in automatically and can't be written.
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / restore_page_version).
 Always share the returned url with the user when you create or change something.`;
@@ -33,11 +34,12 @@ const MAX_BULK_ROWS = 100;
 
 const id = (what: string) => z.string().min(1).describe(`The ${what} id (a UUID from another tool's output).`);
 
-const rowValue = z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]);
+const checklistItem = z.object({ text: z.string(), checked: z.boolean().optional() });
+const rowValue = z.union([z.string(), z.number(), z.boolean(), z.array(z.union([z.string(), checklistItem])), z.null()]);
 const rowProperties = z
   .record(z.string(), rowValue)
   .describe(
-    'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an array of row ids (or exact row titles) of the related database for relation, an array of user ids, emails, names or "me" for person, and null to clear a value. Setting a relation or person replaces its values. created_by properties are read-only. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"], "Assignee": ["me"]}',
+    'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select / status (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an email address for email, a phone number for phone, an array of item texts or {text, checked} objects for checklist, an array of row ids (or exact row titles) of the related database for relation, an array of user ids, emails, names or "me" for person, and null to clear a value. Setting a relation, person or checklist replaces its values. created_by, created_time, last_edited_by and last_edited_time properties are read-only. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"], "Assignee": ["me"]}',
   );
 
 const filtersInput = z.array(
@@ -59,12 +61,28 @@ function requireProperty<P extends PropertyDef>(props: P[], ref: string): P {
   return prop as P;
 }
 
-/** Applies option removals, renames and additions by name, in that order. */
+/** Option names, or for status properties names with the group they belong to. */
+const optionsInput = z
+  .array(z.union([z.string().min(1), z.object({ name: z.string().min(1), group: z.enum(STATUS_GROUPS) })]))
+  .max(100);
+type OptionEntry = z.infer<typeof optionsInput>[number];
+const optionName = (o: OptionEntry) => (typeof o === "string" ? o : o.name).trim();
+
+/**
+ * Applies option removals, renames, additions and (status only) group moves by name, in that
+ * order. New status options join the group given with them, or to do.
+ */
 function editOptions(
-  propName: string,
+  prop: { name: string; type: string },
   current: SelectOption[],
-  changes: { add: string[]; rename: { from: string; to: string }[]; remove: string[] },
+  changes: {
+    add: OptionEntry[];
+    rename: { from: string; to: string }[];
+    remove: string[];
+    groups?: { option: string; group: StatusGroup }[];
+  },
 ) {
+  const propName = prop.name;
   let options = [...current];
   const find = (name: string) => options.find((o) => o.name.trim().toLowerCase() === name.trim().toLowerCase());
   const missing = (name: string) =>
@@ -83,10 +101,21 @@ function editOptions(
     if (clash && clash.id !== option.id) throw new ToolInputError(`"${propName}" already has an option named "${clash.name}".`);
     options = options.map((o) => (o.id === option.id ? { ...o, name: to.trim() } : o));
   }
-  for (const name of changes.add) {
-    if (!find(name)) options.push(databases.makeOption(name, options.length));
+  for (const entry of changes.add) {
+    const name = optionName(entry);
+    if (find(name)) continue;
+    if (prop.type !== "status") options.push(databases.makeOption(name, options.length));
+    else {
+      const group = typeof entry === "string" ? "todo" : entry.group;
+      options.push({ ...databases.makeOption(name), color: statusColor(group), group });
+    }
   }
-  return options;
+  for (const { option: name, group } of changes.groups ?? []) {
+    const option = find(name);
+    if (!option) throw missing(name);
+    options = options.map((o) => (o.id === option.id ? { ...o, group } : o));
+  }
+  return prop.type === "status" ? sortStatusOptions(options) : options;
 }
 
 type ViewInput = { group_by?: string; date_by?: string; filters?: FilterInput[]; sorts?: SortInput[] };
@@ -98,7 +127,9 @@ function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput,
     if (type !== "board") throw new ToolInputError("group_by only applies to board views.");
     const prop = requireProperty(props, input.group_by);
     if (!isGroupable(prop.type)) {
-      throw new ToolInputError(`Boards group by a select, person or created_by property; "${prop.name}" is ${prop.type}.`);
+      throw new ToolInputError(
+        `Boards group by a select, status, person, created_by or last_edited_by property; "${prop.name}" is ${prop.type}.`,
+      );
     }
     patch.groupBy = prop.id;
   }
@@ -443,7 +474,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Get a database schema",
       description:
-        "Get a database's schema: its properties (name, type, option names for select / multi_select, and the people a person property can hold), its views with their filters and sorts, and the row count. Call this before querying or writing rows.",
+        "Get a database's schema: its properties (name, type, option names for select / multi_select / status with the status groups, and the people a person property can hold), its views with their filters and sorts, and the row count. Call this before querying or writing rows.",
       inputSchema: z.object({ database_id: id("database") }),
       annotations: READ,
     },
@@ -475,7 +506,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Query database rows",
       description:
-        'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select option names as values; all filters must match. Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt. For a relation use contains / not_equals with a related row id or title; for a person or created_by, contains / not_equals with a user id, email, name or "me". Sorting by a person or created_by orders rows by name. Returns property values by name; relations as [{id, title}], people as [{id, name}].',
+        'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select option names as values; all filters must match. Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt. For a relation use contains / not_equals with a related row id or title; for a person, created_by or last_edited_by, contains / not_equals with a user id, email, name or "me". created_time and last_edited_time take equals (that day), gt (after) and lt (before) with a YYYY-MM-DD date; checklists only is_empty / is_not_empty. Sorting by a person orders rows by name, a status by its groups, a checklist by the share of ticked items. Returns property values by name; relations as [{id, title}], people as [{id, name}], checklists as [{text, checked}].',
       inputSchema: z.object({
         database_id: id("database"),
         filters: filtersInput.optional(),
@@ -657,12 +688,12 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Add a database property",
       description:
-        "Add a property (column) to a database. For select and multi_select, pass the option names; other types ignore options. For a relation, pass related_database_id (a database in the same workspace, or this one); with two_way the related database also gets a property listing the links back. A created_by property fills itself in with each row's creator.",
+        "Add a property (column) to a database. For select and multi_select, pass the option names. For status, pass option names (spread over the groups: the first is todo, the last done, the ones between in_progress) or {name, group} objects; without options a status gets Not started, In progress and Done. Other types ignore options. For a relation, pass related_database_id (a database in the same workspace, or this one); with two_way the related database also gets a property listing the links back. created_by, created_time, last_edited_by and last_edited_time properties fill themselves in with who created or last edited each row and when.",
       inputSchema: z.object({
         database_id: id("database"),
         name: z.string().min(1).max(100).describe("Property name; must be unique within the database."),
         type: z.enum(PROPERTY_TYPES),
-        options: z.array(z.string().min(1)).max(100).optional().describe("Option names for select / multi_select."),
+        options: optionsInput.optional().describe("Option names for select / multi_select / status; {name, group} objects for status."),
         related_database_id: z.string().optional().describe("Relation only: the database whose rows this property links to."),
         two_way: z.boolean().default(false).describe("Relation only: also show the links on the related database."),
         paired_property_name: z
@@ -687,7 +718,9 @@ export function createMcpServer(principal: McpPrincipal) {
         if (needle === "title" || properties.some((p) => p.name.trim().toLowerCase() === needle)) {
           throw new ToolInputError(`A property named "${name}" already exists in this database.`);
         }
-        const unique = options ? [...new Map(options.map((o) => [o.trim().toLowerCase(), o.trim()])).values()] : undefined;
+        // Only status options carry a group; other types take the names.
+        const entry = (o: OptionEntry) => (type === "status" && typeof o !== "string" ? { ...o, name: optionName(o) } : optionName(o));
+        const unique = options ? [...new Map(options.map((o) => [optionName(o).toLowerCase(), entry(o)])).values()] : undefined;
         const created = await databases.addProperty(userId, database_id, {
           name,
           type,
@@ -706,23 +739,30 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Update a database property",
       description:
-        "Rename a database property and/or change the options of a select / multi_select property (add, rename or remove options by name). Renaming an option keeps it on every row that uses it; removing one clears it from those rows.",
+        "Rename a database property and/or change the options of a select / multi_select / status property (add, rename or remove options by name; for status also move options between the todo, in_progress and done groups). Renaming an option keeps it on every row that uses it; removing one clears it from those rows.",
       inputSchema: z.object({
         database_id: id("database"),
         property: z.string().min(1).describe("Current property name or id."),
         name: z.string().min(1).max(100).optional().describe("New property name."),
-        add_options: z.array(z.string().min(1)).max(100).optional().describe("Option names to add (existing names are skipped)."),
+        add_options: optionsInput
+          .optional()
+          .describe("Option names to add (existing names are skipped); for status, {name, group} objects (plain names join todo)."),
         rename_options: z
           .array(z.object({ from: z.string().min(1), to: z.string().min(1) }))
           .max(100)
           .optional()
           .describe("Options to rename, by current name."),
         remove_options: z.array(z.string().min(1)).max(100).optional().describe("Option names to remove."),
+        option_groups: z
+          .array(z.object({ option: z.string().min(1), group: z.enum(STATUS_GROUPS) }))
+          .max(100)
+          .optional()
+          .describe("Status only: options to move to another group, by name."),
       }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, property, name, add_options, rename_options, remove_options }) =>
+    ({ database_id, property, name, add_options, rename_options, remove_options, option_groups }) =>
       runTool(async () => {
         assertWrite();
         const { properties } = await databases.getDatabase(userId, database_id);
@@ -735,14 +775,18 @@ export function createMcpServer(principal: McpPrincipal) {
           }
           patch.name = name.trim();
         }
-        if (add_options?.length || rename_options?.length || remove_options?.length) {
-          if (prop.type !== "select" && prop.type !== "multi_select") {
-            throw new ToolInputError(`"${prop.name}" is a ${prop.type} property; only select and multi_select have options.`);
+        if (add_options?.length || rename_options?.length || remove_options?.length || option_groups?.length) {
+          if (!holdsOptions(prop.type)) {
+            throw new ToolInputError(`"${prop.name}" is a ${prop.type} property; only select, multi_select and status have options.`);
           }
-          patch.options = editOptions(prop.name, prop.options.options ?? [], {
+          if (option_groups?.length && prop.type !== "status") {
+            throw new ToolInputError(`"${prop.name}" is a ${prop.type} property; only status options belong to groups.`);
+          }
+          patch.options = editOptions(prop, prop.options.options ?? [], {
             add: add_options ?? [],
             rename: rename_options ?? [],
             remove: remove_options ?? [],
+            groups: option_groups,
           });
         }
         if (!patch.name && !patch.options) throw new ToolInputError("Nothing to change: provide name or option changes.");
@@ -780,12 +824,15 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a database view",
       description:
-        'Add a saved view to a database: a "table", a "board" (cards grouped by a select or person property; a card assigned to several people shows under each) or a "calendar" (rows placed on the days of a date property). Filters and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows.',
+        'Add a saved view to a database: a "table", a "board" (cards grouped by a select, status or person property; a card assigned to several people shows under each) or a "calendar" (rows placed on the days of a date property). Filters and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows.',
       inputSchema: z.object({
         database_id: id("database"),
         name: z.string().min(1).max(100).describe("View name."),
         type: z.enum(["table", "board", "calendar"]).default("table"),
-        group_by: z.string().optional().describe("Board only: the select, person or created_by property to group cards by. Defaults to the first select property."),
+        group_by: z
+          .string()
+          .optional()
+          .describe("Board only: the select, status or people property to group cards by. Defaults to the first select or status property."),
         date_by: z.string().optional().describe("Calendar only: the date property that places rows on days. Defaults to the first date property."),
         filters: filtersInput.optional(),
         sorts: sortsInput.optional(),
@@ -818,7 +865,7 @@ export function createMcpServer(principal: McpPrincipal) {
         database_id: id("database"),
         view_id: id("view"),
         name: z.string().min(1).max(100).optional().describe("New view name."),
-        group_by: z.string().optional().describe("Board only: the select, person or created_by property to group cards by."),
+        group_by: z.string().optional().describe("Board only: the select, status or people property to group cards by."),
         date_by: z.string().optional().describe("Calendar only: the date property that places rows on days."),
         filters: filtersInput.optional(),
         sorts: sortsInput.optional(),

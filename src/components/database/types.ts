@@ -1,4 +1,4 @@
-import type { PropertyType, SelectOption } from "@/db/schema/app";
+import type { ChecklistItem, PropertyType, SelectOption } from "@/db/schema/app";
 import type {
   DatabaseProperty,
   DatabaseRowWithPosition,
@@ -12,7 +12,7 @@ import type {
 export type Property = DatabaseProperty;
 export type View = DatabaseView;
 export type Row = DatabaseRowWithPosition;
-export type { PersonRef, PropertyType, RelationInput, RelationTarget, RelationTargetRow, SelectOption };
+export type { ChecklistItem, PersonRef, PropertyType, RelationInput, RelationTarget, RelationTargetRow, SelectOption };
 
 export type DatabaseSnapshot = {
   database: { id: string; workspaceId: string; title: string; icon: string | null; archived: boolean; locked: boolean };

@@ -477,7 +477,7 @@ async function main() {
   const boardUpdated = await mcp.ok("update_database_view", { database_id: dbPage.id, view_id: board.id, name: "Board", filters: [] });
   check(boardUpdated.name === "Board" && !boardUpdated.filters && boardUpdated.group_by === "Status", "update_database_view clears filters and keeps grouping", boardUpdated);
   const listView = await mcp.call("create_database_view", { database_id: dbPage.id, name: "Bad", type: "board", group_by: "Tags" });
-  check(listView.isError && listView.text.includes("select, person or created_by property"), "boards refuse grouping by anything but select or person", listView.text);
+  check(listView.isError && listView.text.includes("select, status, person, created_by or last_edited_by property"), "boards refuse grouping by anything but select, status or people", listView.text);
 
   // ---- "created by": filled in with each row's creator, filterable on "me", read-only
   await mcp.ok("add_database_property", { database_id: dbPage.id, name: "Created by", type: "created_by" });

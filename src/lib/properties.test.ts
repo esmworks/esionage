@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { FilterRule, PropertyOptions, PropertyType } from "@/db/schema/app";
+import type { ChecklistItem, FilterRule, PropertyOptions, PropertyType } from "@/db/schema/app";
 import {
   applyView,
   boardGroupProperty,
+  checklistProgress,
   computedValues,
+  isGroupable,
+  localDay,
+  makeStatusOptions,
+  phoneHref,
+  sortStatusOptions,
   groupRowsByPerson,
   movePersonValue,
   newAssignees,
@@ -465,6 +471,194 @@ describe("person boards", () => {
     expect(movePersonValue(undefined, null, "u1")).toEqual(["u1"]);
     expect(movePersonValue(["u2"], null, "u1")).toEqual(["u2", "u1"]);
     expect(movePersonValue(["u1", "u2"], "u1", null)).toEqual([]);
+  });
+});
+
+describe("created and last edited properties", () => {
+  const created = prop("created_time");
+  const edited = prop("last_edited_time");
+  const editor = prop("last_edited_by");
+  const props = [created, edited, editor];
+  // Local times, so the expected days hold in any time zone.
+  const at = (day: number, hour: number) => new Date(2026, 8, day, hour, 30);
+  const source = (day: number, hour: number, updatedBy: string | null) => ({
+    createdBy: "u1",
+    updatedBy,
+    createdAt: at(1, 9),
+    updatedAt: at(day, hour),
+  });
+  const rows = [
+    row("a", "A", computedValues(props, source(27, 23, "u2"))),
+    row("b", "B", computedValues(props, source(26, 8, "u1"))),
+    row("c", "C", computedValues(props, source(28, 0, null))),
+  ];
+
+  it("fills in when and by whom, never stored or written", () => {
+    expect(computedValues(props, source(27, 23, "u2"))).toEqual({
+      p_created_time: at(1, 9).toISOString(),
+      p_last_edited_time: at(27, 23).toISOString(),
+      p_last_edited_by: ["u2"],
+    });
+    // Sources without the columns (older callers) compute to empty.
+    expect(computedValues(props, { createdBy: "u1" })).toEqual({
+      p_created_time: null,
+      p_last_edited_time: null,
+      p_last_edited_by: null,
+    });
+    for (const p of props) expect(() => normalizeValue(p, "2026-01-01")).toThrow(/set automatically/);
+  });
+
+  it("filters timestamps by local day and sorts them by time", () => {
+    const on = (op: FilterRule["op"], value: string) =>
+      applyView(rows, { filters: [{ propertyId: "p_last_edited_time", op, value }] }, props).map((r) => r.id);
+    expect(on("equals", "2026-09-27")).toEqual(["a"]);
+    expect(on("lt", "2026-09-27")).toEqual(["b"]);
+    expect(on("gt", "2026-09-27")).toEqual(["c"]);
+    expect(
+      applyView(rows, { sorts: [{ propertyId: "p_last_edited_time", direction: "desc" }] }, props).map((r) => r.id),
+    ).toEqual(["c", "a", "b"]);
+    expect(filterOperators("created_time")).toEqual(filterOperators("date"));
+  });
+
+  it("treats last edited by like created by", () => {
+    const mine: FilterRule[] = [{ propertyId: "p_last_edited_by", op: "contains", value: "me" }];
+    expect(applyView(rows, { filters: mine }, props, { viewerId: "u1" }).map((r) => r.id)).toEqual(["b"]);
+    expect(filterOperators("last_edited_by")).toEqual(filterOperators("created_by"));
+    expect(boardGroupProperty([created, editor])).toBe(editor);
+    const people = [
+      { id: "u1", name: "Zeynep" },
+      { id: "u2", name: "Ahmet" },
+    ];
+    expect(
+      applyView(rows, { sorts: [{ propertyId: "p_last_edited_by", direction: "asc" }] }, props, { people }).map((r) => r.id),
+    ).toEqual(["a", "b", "c"]);
+  });
+
+  it("finds the local day of a timestamp", () => {
+    expect(localDay(at(27, 23).toISOString())).toBe("2026-09-27");
+    expect(localDay("nope")).toBeNull();
+    expect(localDay(null)).toBeNull();
+  });
+});
+
+describe("status properties", () => {
+  const ids = ["s1", "s2", "s3", "s4"];
+  const next = () => ids.shift()!;
+  const stage = { ...prop("status"), options: { options: makeStatusOptions(["Not started", "Doing", "Review", "Done"], next) } };
+
+  it("spreads named options over the groups and keeps them in group order", () => {
+    expect(stage.options.options.map((o) => [o.name, o.group, o.color])).toEqual([
+      ["Not started", "todo", "gray"],
+      ["Doing", "in_progress", "blue"],
+      ["Review", "in_progress", "blue"],
+      ["Done", "done", "green"],
+    ]);
+    expect(makeStatusOptions([], () => "x").map((o) => o.name)).toEqual(["Not started", "In progress", "Done"]);
+    expect(makeStatusOptions([{ name: "Blocked", group: "in_progress" }, "Idea"], () => "x").map((o) => o.group)).toEqual([
+      "in_progress",
+      "done",
+    ]);
+    expect(
+      sortStatusOptions([
+        { id: "d", name: "Done", color: "green", group: "done" },
+        { id: "n", name: "New", color: "gray" },
+        { id: "w", name: "Working", color: "blue", group: "in_progress" },
+      ]).map((o) => [o.id, o.group]),
+    ).toEqual([
+      ["n", "todo"],
+      ["w", "in_progress"],
+      ["d", "done"],
+    ]);
+  });
+
+  it("stores option ids and reads like a select", () => {
+    expect(normalizeValue(stage, "review")).toBe("s3");
+    expect(() => normalizeValue(stage, "Later")).toThrow(PropertyValueError);
+    expect(displayValue(stage, "s4")).toBe("Done");
+    expect(filterOperators("status")).toEqual(filterOperators("select"));
+    expect(defaultsFromFilters([{ propertyId: stage.id, op: "equals", value: "s2" }], [stage])).toEqual({ [stage.id]: "s2" });
+  });
+
+  it("sorts by group, filters by option and groups boards", () => {
+    // Stored out of order: sorting still follows the groups.
+    const shuffled = { ...stage, options: { options: [...stage.options.options].reverse() } };
+    const rows = [row("a", "A", { p_status: "s4" }), row("b", "B", { p_status: "s1" }), row("c", "C", { p_status: "s2" }), row("d", "D")];
+    expect(applyView(rows, { sorts: [{ propertyId: stage.id, direction: "asc" }] }, [shuffled]).map((r) => r.id)).toEqual([
+      "b",
+      "c",
+      "a",
+      "d",
+    ]);
+    expect(applyView(rows, { filters: [{ propertyId: stage.id, op: "equals", value: "s4" }] }, [stage]).map((r) => r.id)).toEqual([
+      "a",
+    ]);
+    expect(isGroupable("status")).toBe(true);
+    expect(boardGroupProperty([prop("person"), stage])).toBe(stage);
+    const groups = groupRows(rows, shuffled);
+    // Groups first, then the stored order within each group.
+    expect(groups.map((g) => g.option?.id ?? "")).toEqual(["", "s1", "s3", "s2", "s4"]);
+    expect(groups[0].rows.map((r) => r.id)).toEqual(["d"]);
+  });
+});
+
+describe("checklist properties", () => {
+  const list = prop("checklist");
+
+  it("accepts texts or items, keeps ids and drops blanks", () => {
+    const value = normalizeValue(list, ["Buy milk", { text: " Call  Bob ", checked: true, id: "i2" }, "  "]) as ChecklistItem[];
+    expect(value.map(({ text, checked }) => [text, checked])).toEqual([
+      ["Buy milk", false],
+      ["Call Bob", true],
+    ]);
+    expect(value[1].id).toBe("i2");
+    expect(value[0].id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(normalizeValue(list, [])).toBeNull();
+    expect(normalizeValue(list, ["  "])).toBeNull();
+    expect(() => normalizeValue(list, "Buy milk")).toThrow(PropertyValueError);
+    expect(() => normalizeValue(list, [{ text: "x", checked: "yes" }])).toThrow(PropertyValueError);
+    expect(() => normalizeValue(list, [42])).toThrow(PropertyValueError);
+  });
+
+  it("shows progress, displays items and sorts by completion", () => {
+    const half = [
+      { id: "1", text: "a", checked: true },
+      { id: "2", text: "b", checked: false },
+    ];
+    const done = [{ id: "3", text: "c", checked: true }];
+    const none = [{ id: "4", text: "d", checked: false }];
+    expect(checklistProgress(half)).toEqual({ done: 1, total: 2 });
+    expect(checklistProgress(undefined)).toBeNull();
+    expect(displayValue(list, half)).toEqual([
+      { text: "a", checked: true },
+      { text: "b", checked: false },
+    ]);
+    const rows = [row("h", "H", { p_checklist: half }), row("e", "E"), row("d", "D", { p_checklist: done }), row("n", "N", { p_checklist: none })];
+    expect(applyView(rows, { sorts: [{ propertyId: list.id, direction: "desc" }] }, [list]).map((r) => r.id)).toEqual([
+      "d",
+      "h",
+      "n",
+      "e",
+    ]);
+    expect(filterOperators("checklist").map((o) => o.op)).toEqual(["is_empty", "is_not_empty"]);
+    expect(applyView(rows, { filters: [{ propertyId: list.id, op: "is_empty" }] }, [list]).map((r) => r.id)).toEqual(["e"]);
+  });
+});
+
+describe("email and phone properties", () => {
+  it("validates emails loosely and drops mailto:", () => {
+    expect(normalizeValue(prop("email"), " mailto:Ada@Example.com ")).toBe("Ada@Example.com");
+    expect(() => normalizeValue(prop("email"), "ada@example")).toThrow(expect.objectContaining({ code: "invalidEmail" }));
+    expect(() => normalizeValue(prop("email"), "ada example.com")).toThrow(PropertyValueError);
+  });
+
+  it("validates phone numbers loosely and links them", () => {
+    expect(normalizeValue(prop("phone"), " +90 (212)  555-01-23 ")).toBe("+90 (212) 555-01-23");
+    expect(normalizeValue(prop("phone"), "555 0123 ext. 12")).toBe("555 0123 ext. 12");
+    expect(() => normalizeValue(prop("phone"), "call me")).toThrow(expect.objectContaining({ code: "invalidPhone" }));
+    expect(() => normalizeValue(prop("phone"), "12")).toThrow(PropertyValueError);
+    expect(phoneHref("+90 (212) 555-01-23")).toBe("tel:+902125550123");
+    expect(phoneHref("555 0123 x12")).toBe("tel:5550123");
+    expect(filterOperators("email")).toEqual(filterOperators("text"));
   });
 });
 

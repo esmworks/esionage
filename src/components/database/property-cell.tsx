@@ -3,13 +3,22 @@
 import { Check, ExternalLink, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/components/ui";
-import { holdsPeople } from "@/lib/property-types";
+import {
+  asChecklist,
+  checklistProgress,
+  isEmailAddress,
+  isPhoneNumber,
+  phoneHref,
+  sortStatusOptions,
+  statusGroupOf,
+} from "@/lib/properties";
+import { holdsPeople, isComputed } from "@/lib/property-types";
 import { Floating } from "./floating";
 import { PersonChips, PersonPicker } from "./person-cell";
 import { RelationChips, RelationPicker } from "./relation-cell";
-import type { Property, SelectOption } from "./types";
+import type { ChecklistItem, Property, SelectOption } from "./types";
 
 export type CreateOption = (propertyId: string, name: string) => Promise<SelectOption | null>;
 
@@ -17,10 +26,13 @@ export function OptionChip({
   option,
   onRemove,
   className,
+  dot,
 }: {
   option: SelectOption;
   onRemove?: () => void;
   className?: string;
+  /** Status options show a dot before the name. */
+  dot?: boolean;
 }) {
   const t = useTranslations("database.cell");
   const tc = useTranslations("common");
@@ -31,6 +43,7 @@ export function OptionChip({
         className,
       )}
     >
+      {dot && <span aria-hidden className="mr-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-70" />}
       <span className="truncate">{option.name || tc("untitled")}</span>
       {onRemove && (
         <button
@@ -72,6 +85,16 @@ export function useFormatDate() {
   };
 }
 
+/** Formats a timestamp (created or last edited time) as date and time in the viewer's locale and time zone. */
+export function useFormatDateTime() {
+  const format = useFormatter();
+  return (value: string) => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return format.dateTime(d, { dateStyle: "medium", timeStyle: "short" });
+  };
+}
+
 /** Formats a number value in the UI locale (grouping and decimal separator). */
 export function useFormatNumber() {
   const format = useFormatter();
@@ -81,8 +104,9 @@ export function useFormatNumber() {
 export function isEmptyValue(prop: Property, value: unknown) {
   if (value === null || value === undefined || value === "") return true;
   if (prop.type === "relation" || holdsPeople(prop.type)) return !Array.isArray(value) || value.length === 0;
+  if (prop.type === "checklist") return asChecklist(value).length === 0;
   if (Array.isArray(value)) return selectedOptions(prop, value).length === 0;
-  if (prop.type === "select") return selectedOptions(prop, value).length === 0;
+  if (prop.type === "select" || prop.type === "status") return selectedOptions(prop, value).length === 0;
   if (prop.type === "checkbox") return value !== true;
   return false;
 }
@@ -90,6 +114,7 @@ export function isEmptyValue(prop: Property, value: unknown) {
 /** Read-only rendering of a property value (board cards, read-only panels). */
 export function PropertyDisplay({ prop, value, wrap }: { prop: Property; value: unknown; wrap?: boolean }) {
   const formatDate = useFormatDate();
+  const formatDateTime = useFormatDateTime();
   const formatNumber = useFormatNumber();
   if (value === null || value === undefined || value === "") return null;
   switch (prop.type) {
@@ -109,28 +134,80 @@ export function PropertyDisplay({ prop, value, wrap }: { prop: Property; value: 
           {String(value).replace(/^https?:\/\//i, "")}
         </a>
       );
+    case "email":
+    case "phone":
+      return (
+        <a
+          href={prop.type === "email" ? `mailto:${String(value)}` : phoneHref(String(value))}
+          className="truncate text-fg underline decoration-border underline-offset-2 hover:decoration-fg-muted"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {String(value)}
+        </a>
+      );
     case "date":
       return <span>{formatDate(String(value))}</span>;
+    case "created_time":
+    case "last_edited_time":
+      return <span className="truncate">{formatDateTime(String(value))}</span>;
+    case "checklist":
+      return <ChecklistDisplay value={value} wrap={wrap} />;
     case "checkbox":
       return <CheckboxBox checked={value === true} />;
     case "relation":
       return <RelationChips prop={prop} value={value} wrap={wrap} />;
     case "person":
     case "created_by":
+    case "last_edited_by":
       return <PersonChips value={value} wrap={wrap} />;
     case "select":
-    case "multi_select": {
+    case "multi_select":
+    case "status": {
       const selected = selectedOptions(prop, value);
       if (!selected.length) return null;
       return (
         <span className={cn("flex min-w-0 gap-1", wrap ? "flex-wrap" : "overflow-hidden")}>
           {selected.map((o) => (
-            <OptionChip key={o.id} option={o} />
+            <OptionChip key={o.id} option={o} dot={prop.type === "status"} />
           ))}
         </span>
       );
     }
   }
+}
+
+/** A checklist's progress as a bar and "2/5"; wrapped (row panels, published pages) with its items. */
+function ChecklistDisplay({ value, wrap }: { value: unknown; wrap?: boolean }) {
+  const t = useTranslations("database.checklist");
+  const progress = checklistProgress(value);
+  if (!progress) return null;
+  const bar = (
+    <span className="flex min-w-0 items-center gap-2" title={t("progress", progress)}>
+      <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-bg-active">
+        <span
+          className="block h-full rounded-full bg-accent"
+          style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+        />
+      </span>
+      <span className="text-xs text-fg-muted tabular-nums">
+        {progress.done}/{progress.total}
+      </span>
+    </span>
+  );
+  if (!wrap) return bar;
+  return (
+    <span className="flex min-w-0 flex-col gap-1 py-0.5">
+      {bar}
+      {asChecklist(value).map((item) => (
+        <span key={item.id} className="flex min-w-0 items-start gap-2">
+          <span className="mt-0.5">
+            <CheckboxBox checked={item.checked} />
+          </span>
+          <span className={cn("break-words", item.checked && "text-fg-muted line-through")}>{item.text}</span>
+        </span>
+      ))}
+    </span>
+  );
 }
 
 function CheckboxBox({ checked }: { checked: boolean }) {
@@ -175,8 +252,8 @@ export function PropertyCell({
 }) {
   const t = useTranslations("database.cell");
   const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
-  // Who created a row is filled in by Esionage and never edited.
-  const readOnly = readOnlyProp || prop.type === "created_by";
+  // Who created or last edited a row, and when, is filled in by Esionage and never edited.
+  const readOnly = readOnlyProp || isComputed(prop.type);
   const [editing, setEditing] = useState(Boolean(autoEdit) && !readOnly);
 
   const base = cn(
@@ -261,11 +338,20 @@ function CellEditor({
     case "text":
     case "number":
     case "url":
+    case "email":
+    case "phone":
       return <TextEditor prop={prop} value={value} anchor={anchor} onChange={onChange} onClose={onClose} />;
+    case "checklist":
+      return (
+        <Floating open anchor={anchor} onClose={onClose} className="w-80 p-0">
+          <ChecklistEditor prop={prop} value={value} onChange={onChange} />
+        </Floating>
+      );
     case "date":
       return <DateEditor value={value} anchor={anchor} onChange={onChange} onClose={onClose} />;
     case "select":
     case "multi_select":
+    case "status":
       return (
         <Floating open anchor={anchor} onClose={onClose} className="w-72 p-0">
           <OptionPicker
@@ -335,6 +421,14 @@ export function parseInput(prop: Property, raw: string, locale?: string): unknow
     if (/^[^\s]+\.[^\s]+$/.test(s)) return `https://${s}`;
     return undefined;
   }
+  if (prop.type === "email") {
+    const email = s.replace(/^mailto:/i, "");
+    return isEmailAddress(email) ? email : undefined;
+  }
+  if (prop.type === "phone") {
+    const phone = s.replace(/^tel:/i, "").replace(/\s+/g, " ");
+    return isPhoneNumber(phone) ? phone : undefined;
+  }
   return raw;
 }
 
@@ -349,6 +443,21 @@ function editText(value: unknown, locale: string) {
   const s = String(value);
   return decimal === "," && !s.includes("e") ? s.replace(".", ",") : s;
 }
+
+/** Hint under a text editor whose draft can't be saved, per property type (`database.cell.*`). */
+const INVALID_INPUT: Partial<Record<Property["type"], "enterNumber" | "enterUrl" | "enterEmail" | "enterPhone">> = {
+  number: "enterNumber",
+  url: "enterUrl",
+  email: "enterEmail",
+  phone: "enterPhone",
+};
+
+/** Keyboard hints for touch devices. */
+const INPUT_MODE: Partial<Record<Property["type"], "decimal" | "email" | "tel">> = {
+  number: "decimal",
+  email: "email",
+  phone: "tel",
+};
 
 function TextEditor({
   prop,
@@ -405,7 +514,7 @@ function TextEditor({
         ref={input}
         rows={1}
         value={draft}
-        inputMode={prop.type === "number" ? "decimal" : undefined}
+        inputMode={INPUT_MODE[prop.type]}
         aria-label={prop.name}
         onChange={(e) => {
           setDraft(prop.type === "text" ? e.target.value : e.target.value.replace(/\n/g, ""));
@@ -424,7 +533,7 @@ function TextEditor({
       />
       {invalid && (
         <div className="border-t border-border px-2 py-1 text-xs text-danger">
-          {prop.type === "number" ? t("enterNumber") : t("enterUrl")}
+          {t(INVALID_INPUT[prop.type] ?? "enterUrl")}
         </div>
       )}
     </Floating>
@@ -489,7 +598,134 @@ function DateEditor({
   );
 }
 
-/** Search/select/create options for select and multi-select values. */
+/**
+ * Edits a checklist in place: tick items off, rename them (saved on Enter or leaving the field),
+ * remove them and add new ones at the end. Every change is saved right away; typing that is
+ * still in progress is saved when the editor closes.
+ */
+function ChecklistEditor({ prop, value, onChange }: { prop: Property; value: unknown; onChange: (value: unknown) => void }) {
+  const t = useTranslations("database.checklist");
+  // Local list so quick successive edits build on each other instead of on the last server state.
+  const [items, setItems] = useState<ChecklistItem[]>(() => asChecklist(value));
+  const latest = useRef(items);
+  const [draft, setDraft] = useState("");
+  // Tracked outside the DOM: closing by clicking outside unmounts the editor before blur fires.
+  const pending = useRef<{ draft: string; renames: Record<string, string> }>({ draft: "", renames: {} });
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => input.current?.focus(), []);
+
+  const update = (fn: (list: ChecklistItem[]) => ChecklistItem[]) => {
+    const next = fn(latest.current);
+    if (next === latest.current) return;
+    latest.current = next;
+    setItems(next);
+    onChange(next.length ? next : null);
+  };
+  const withPending = (list: ChecklistItem[]) => {
+    const { draft: text, renames } = pending.current;
+    pending.current = { draft: "", renames: {} };
+    let next = list.map((x) => (renames[x.id]?.trim() && renames[x.id].trim() !== x.text ? { ...x, text: renames[x.id].trim() } : x));
+    if (next.every((x, i) => x === list[i])) next = list;
+    return text.trim() ? [...next, { id: crypto.randomUUID(), text: text.trim(), checked: false }] : next;
+  };
+  const flush = () => update(withPending);
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
+  useEffect(() => () => flushRef.current(), []);
+
+  const add = () => {
+    flush();
+    setDraft("");
+  };
+  const progress = checklistProgress(items);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 border-b border-border bg-bg-subtle px-2 py-1.5">
+        <span className="truncate text-xs font-medium text-fg-muted">{prop.name}</span>
+        {progress && (
+          <span className="text-xs text-fg-muted tabular-nums">{t("progress", progress)}</span>
+        )}
+      </div>
+      <div className="max-h-72 overflow-y-auto p-1">
+        {!items.length && <div className="px-2 py-1.5 text-xs text-fg-faint">{t("empty")}</div>}
+        {items.map((item, i) => (
+          <div key={item.id} className="group flex items-center gap-2 rounded px-1.5 py-0.5 hover:bg-bg-hover">
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={item.checked}
+              aria-label={t("toggle", { text: item.text })}
+              onClick={() =>
+                update((list) => withPending(list).map((x) => (x.id === item.id ? { ...x, checked: !x.checked } : x)))
+              }
+              className="inline-flex"
+            >
+              <CheckboxBox checked={item.checked} />
+            </button>
+            <input
+              defaultValue={item.text}
+              aria-label={t("item", { index: i + 1 })}
+              onChange={(e) => {
+                pending.current.renames[item.id] = e.target.value;
+              }}
+              onBlur={(e) => {
+                // A blank name keeps the old one; remove the item with its button instead.
+                if (!e.target.value.trim()) e.target.value = item.text;
+                flush();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                  input.current?.focus();
+                }
+              }}
+              className={cn(
+                "h-6 min-w-0 flex-1 bg-transparent text-sm outline-none",
+                item.checked && "text-fg-muted line-through",
+              )}
+            />
+            <button
+              type="button"
+              aria-label={t("remove", { text: item.text })}
+              onClick={() => update((list) => withPending(list).filter((x) => x.id !== item.id))}
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-fg-muted opacity-0 group-hover:opacity-100 hover:text-danger focus:opacity-100"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-2 border-t border-border px-2.5 py-1.5">
+        <Plus className="h-3.5 w-3.5 shrink-0 text-fg-muted" />
+        <input
+          ref={input}
+          value={draft}
+          placeholder={t("addItem")}
+          aria-label={t("newItem")}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            pending.current.draft = e.target.value;
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          onBlur={add}
+          className="h-6 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-fg-faint"
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Search/select/create options for select, multi-select and status values. Status options are
+ * listed under their groups and only picked here; new ones are added in the property menu.
+ */
 export function OptionPicker({
   prop,
   value,
@@ -504,7 +740,9 @@ export function OptionPicker({
   onDone: () => void;
 }) {
   const t = useTranslations("database.cell");
+  const tGroup = useTranslations("database.statusGroups");
   const multi = prop.type === "multi_select";
+  const status = prop.type === "status";
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -518,11 +756,11 @@ export function OptionPicker({
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
 
-  const options = optionsOf(prop);
+  const options = useMemo(() => (status ? sortStatusOptions(optionsOf(prop)) : optionsOf(prop)), [prop, status]);
   const q = query.trim().toLowerCase();
   const filtered = useMemo(() => options.filter((o) => o.name.toLowerCase().includes(q)), [options, q]);
   const exact = options.some((o) => o.name.toLowerCase() === q);
-  const canCreate = q.length > 0 && !exact;
+  const canCreate = !status && q.length > 0 && !exact;
   const items: ({ kind: "option"; option: SelectOption } | { kind: "create" })[] = [
     ...filtered.map((option) => ({ kind: "option" as const, option })),
     ...(canCreate ? [{ kind: "create" as const }] : []),
@@ -562,6 +800,14 @@ export function OptionPicker({
     }
   };
 
+  /** Whether the i-th item is the first of its status group (status options list under group headings). */
+  const groupStartsAt = (i: number) => {
+    const item = items[i];
+    const before = items[i - 1];
+    if (item?.kind !== "option") return false;
+    return before?.kind !== "option" || statusGroupOf(before.option) !== statusGroupOf(item.option);
+  };
+
   const choose = (i: number) => {
     const item = items[i];
     if (!item) return;
@@ -573,12 +819,17 @@ export function OptionPicker({
     <div>
       <div className="flex flex-wrap items-center gap-1 border-b border-border bg-bg-subtle px-2 py-1.5">
         {selected.map((o) => (
-          <OptionChip key={o.id} option={o} onRemove={() => setIds(selectedIds.filter((id) => id !== o.id))} />
+          <OptionChip
+            key={o.id}
+            option={o}
+            dot={status}
+            onRemove={() => setIds(selectedIds.filter((id) => id !== o.id))}
+          />
         ))}
         <input
           ref={input}
           value={query}
-          placeholder={selected.length ? "" : t("searchOrCreate")}
+          placeholder={selected.length ? "" : t(status ? "searchStatus" : "searchOrCreate")}
           aria-label={t("optionInput", { property: prop.name })}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -602,37 +853,43 @@ export function OptionPicker({
         />
       </div>
       <div className="max-h-64 overflow-y-auto p-1">
-        {!items.length && <div className="px-2 py-1.5 text-xs text-fg-faint">{t("typeToCreate")}</div>}
-        {items.length > 0 && (
+        {!items.length && (!status || !options.length) && (
+          <div className="px-2 py-1.5 text-xs text-fg-faint">{t(status ? "noStatusOptions" : "typeToCreate")}</div>
+        )}
+        {items.length > 0 && !status && (
           <div className="px-2 pt-1 pb-1.5 text-xs text-fg-muted">
             {multi ? t("selectOptions") : t("selectOption")}
           </div>
         )}
         {items.map((item, i) => (
-          <button
-            key={item.kind === "create" ? "__create" : item.option.id}
-            type="button"
-            onMouseEnter={() => setActive(i)}
-            onClick={() => choose(i)}
-            className={cn(
-              "flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm",
-              i === active && "bg-bg-hover",
+          <Fragment key={item.kind === "create" ? "__create" : item.option.id}>
+            {status && item.kind === "option" && groupStartsAt(i) && (
+              <div className="px-2 pt-1.5 pb-1 text-xs text-fg-muted">{tGroup(statusGroupOf(item.option))}</div>
             )}
-          >
-            {item.kind === "create" ? (
-              <>
-                <Plus className="h-3.5 w-3.5 text-fg-muted" />
-                <span className="text-fg-muted">{t("create")}</span>
-                <OptionChip option={{ id: "new", name: query.trim(), color: "gray" }} />
-              </>
-            ) : (
-              <>
-                <OptionChip option={item.option} />
-                <span className="flex-1" />
-                {selectedIds.includes(item.option.id) && <Check className="h-3.5 w-3.5 text-fg-muted" />}
-              </>
-            )}
-          </button>
+            <button
+              type="button"
+              onMouseEnter={() => setActive(i)}
+              onClick={() => choose(i)}
+              className={cn(
+                "flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm",
+                i === active && "bg-bg-hover",
+              )}
+            >
+              {item.kind === "create" ? (
+                <>
+                  <Plus className="h-3.5 w-3.5 text-fg-muted" />
+                  <span className="text-fg-muted">{t("create")}</span>
+                  <OptionChip option={{ id: "new", name: query.trim(), color: "gray" }} />
+                </>
+              ) : (
+                <>
+                  <OptionChip option={item.option} dot={status} />
+                  <span className="flex-1" />
+                  {selectedIds.includes(item.option.id) && <Check className="h-3.5 w-3.5 text-fg-muted" />}
+                </>
+              )}
+            </button>
+          </Fragment>
         ))}
       </div>
     </div>

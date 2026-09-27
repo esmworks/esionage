@@ -1,4 +1,5 @@
 import type {
+  ChecklistItem,
   FilterOp,
   FilterRule,
   PropertyOptions,
@@ -8,7 +9,15 @@ import type {
   ViewConfig,
   ViewType,
 } from "@/db/schema/app";
-import { holdsPeople, PERSON_ME } from "./property-types";
+import {
+  holdsOptions,
+  holdsPeople,
+  holdsTimestamp,
+  isComputed,
+  PERSON_ME,
+  STATUS_GROUPS,
+  type StatusGroup,
+} from "./property-types";
 
 export const SELECT_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
 
@@ -18,6 +27,9 @@ export const SELECT_COLORS = ["gray", "brown", "orange", "yellow", "green", "blu
  */
 export const DATABASE_ERROR_CODES = [
   "invalidUrl",
+  "invalidEmail",
+  "invalidPhone",
+  "invalidChecklist",
   "invalidNumber",
   "invalidCheckbox",
   "invalidDate",
@@ -57,21 +69,143 @@ export class PropertyValueError extends Error {
 
 type PropertyDef = { id: string; name: string; type: PropertyType; options: PropertyOptions };
 
-/** Written by Esionage itself (who created the row), never by users or agents. */
+/** Written by Esionage itself (who created or last edited the row, and when), never by users or agents. */
 function readOnlyError(prop: PropertyDef) {
   return new PropertyValueError(`"${prop.name}" is set automatically and can't be changed`, "readOnlyProperty", {
     property: prop.name,
   });
 }
 
+/** The row columns computed values come from. Missing ones compute to empty. */
+export type ComputedSource = {
+  createdBy: string | null;
+  updatedBy?: string | null;
+  createdAt?: Date | string | null;
+  updatedAt?: Date | string | null;
+};
+
+function isoTime(d: Date | string | null | undefined) {
+  if (!d) return null;
+  const date = typeof d === "string" ? new Date(d) : d;
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 /**
- * Values Esionage fills in instead of storing: a "created by" property holds the row's creator.
- * Rows read from the database get these merged into their properties.
+ * Values Esionage fills in instead of storing: who created and last edited the row (as person
+ * values) and when (ISO timestamps). Rows read from the database get these merged into their
+ * properties. "Last edited" follows the row's page, so property changes and body edits both count.
  */
-export function computedValues(props: { id: string; type: PropertyType }[], row: { createdBy: string | null }) {
+export function computedValues(props: { id: string; type: PropertyType }[], row: ComputedSource) {
   const out: Record<string, unknown> = {};
-  for (const prop of props) if (prop.type === "created_by") out[prop.id] = row.createdBy ? [row.createdBy] : null;
+  for (const prop of props) {
+    if (prop.type === "created_by") out[prop.id] = row.createdBy ? [row.createdBy] : null;
+    else if (prop.type === "last_edited_by") out[prop.id] = row.updatedBy ? [row.updatedBy] : null;
+    else if (prop.type === "created_time") out[prop.id] = isoTime(row.createdAt);
+    else if (prop.type === "last_edited_time") out[prop.id] = isoTime(row.updatedAt);
+  }
   return out;
+}
+
+const STATUS_COLORS: Record<StatusGroup, string> = { todo: "gray", in_progress: "blue", done: "green" };
+
+/**
+ * Options for a new status property. Options given by name are spread over the groups by
+ * position: the first is to do, the last done and the ones between in progress (a lone option
+ * is to do). Without options it gets Not started / In progress / Done.
+ */
+export function makeStatusOptions(
+  input: (string | { name: string; group?: StatusGroup })[] = [],
+  newId: () => string = () => crypto.randomUUID(),
+): SelectOption[] {
+  const entries = input.length ? input : ["Not started", "In progress", "Done"];
+  const last = entries.length - 1;
+  const options = entries.map((entry, i): SelectOption => {
+    const name = (typeof entry === "string" ? entry : entry.name).trim();
+    const byPosition: StatusGroup = i === 0 ? "todo" : i === last ? "done" : "in_progress";
+    const group = typeof entry === "object" && entry.group ? entry.group : byPosition;
+    return { id: newId(), name, color: STATUS_COLORS[group], group };
+  });
+  return sortStatusOptions(options);
+}
+
+/** A status option's group; options saved without a (known) one count as to do. */
+export function statusGroupOf(option: Pick<SelectOption, "group">): StatusGroup {
+  return option.group && STATUS_GROUPS.includes(option.group) ? option.group : "todo";
+}
+
+/** Default color for a status option added to `group`. */
+export function statusColor(group: StatusGroup) {
+  return STATUS_COLORS[group];
+}
+
+/**
+ * Status options with a valid group each, ordered by group (to do, in progress, done) and by
+ * their order within the group. They are stored in this order, so option order is status order.
+ */
+export function sortStatusOptions(options: SelectOption[]): SelectOption[] {
+  return STATUS_GROUPS.flatMap((group) =>
+    options.filter((o) => statusGroupOf(o) === group).map((o) => ({ ...o, group })),
+  );
+}
+
+/** A checklist value as items; anything else reads as an empty list. */
+export function asChecklist(value: unknown): ChecklistItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const item = entry as Partial<ChecklistItem> | null;
+    if (!item || typeof item !== "object" || typeof item.text !== "string") return [];
+    return [{ id: String(item.id ?? ""), text: item.text, checked: item.checked === true }];
+  });
+}
+
+/** How many items of a checklist are ticked, or null for an empty checklist. */
+export function checklistProgress(value: unknown): { done: number; total: number } | null {
+  const items = asChecklist(value);
+  return items.length ? { done: items.filter((i) => i.checked).length, total: items.length } : null;
+}
+
+export function isEmailAddress(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+/** Loose phone check: digits with the usual separators, an optional leading +, and an optional extension. */
+export function isPhoneNumber(value: string) {
+  const digits = value.replace(/\D/g, "").length;
+  return /^\+?[\d\s().\-/]+((x|ext\.?|#)\s*\d+)?$/i.test(value) && digits >= 3 && digits <= 20;
+}
+
+/** `tel:` link for a stored phone number (separators and extension dropped). */
+export function phoneHref(value: string) {
+  return `tel:${value.replace(/(x|ext\.?|#)\s*\d+$/i, "").replace(/[^\d+]/g, "")}`;
+}
+
+/**
+ * Checklist input: a list of item texts or `{text, checked?, id?}` items. Items keep their ids
+ * (new ones get one) and blank items are dropped.
+ */
+function normalizeChecklist(prop: PropertyDef, value: unknown): ChecklistItem[] | null {
+  const invalid = () =>
+    new PropertyValueError(`"${prop.name}" takes a list of items (texts or {text, checked})`, "invalidChecklist", {
+      property: prop.name,
+    });
+  if (!Array.isArray(value)) throw invalid();
+  const seen = new Set<string>();
+  const out: ChecklistItem[] = [];
+  for (const entry of value) {
+    let item: ChecklistItem;
+    if (typeof entry === "string") item = { id: "", text: entry, checked: false };
+    else if (entry && typeof entry === "object" && typeof (entry as { text?: unknown }).text === "string") {
+      const e = entry as { id?: unknown; text: string; checked?: unknown };
+      if (e.checked !== undefined && typeof e.checked !== "boolean") throw invalid();
+      item = { id: typeof e.id === "string" ? e.id : "", text: e.text, checked: e.checked === true };
+    } else throw invalid();
+    const text = item.text.replace(/\s+/g, " ").trim().slice(0, 1000);
+    if (!text) continue;
+    const id = item.id && !seen.has(item.id) ? item.id : crypto.randomUUID();
+    seen.add(id);
+    out.push({ id, text, checked: item.checked });
+  }
+  return out.length ? out : null;
 }
 
 function findOption(options: SelectOption[] | undefined, input: unknown): SelectOption | undefined {
@@ -85,11 +219,27 @@ function findOption(options: SelectOption[] | undefined, input: unknown): Select
  * callers may pass option names (MCP does), which are resolved here. Returns `null` to clear.
  */
 export function normalizeValue(prop: PropertyDef, value: unknown): unknown {
-  if (prop.type === "created_by") throw readOnlyError(prop);
+  if (isComputed(prop.type)) throw readOnlyError(prop);
   if (value === null || value === undefined || value === "") return null;
   switch (prop.type) {
     case "text":
       return String(value);
+    case "email": {
+      const email = String(value).trim().replace(/^mailto:/i, "");
+      if (!isEmailAddress(email)) {
+        throw new PropertyValueError(`"${prop.name}" must be an email address`, "invalidEmail", { property: prop.name });
+      }
+      return email;
+    }
+    case "phone": {
+      const phone = String(value).trim().replace(/^tel:/i, "").replace(/\s+/g, " ");
+      if (!isPhoneNumber(phone)) {
+        throw new PropertyValueError(`"${prop.name}" must be a phone number`, "invalidPhone", { property: prop.name });
+      }
+      return phone;
+    }
+    case "checklist":
+      return normalizeChecklist(prop, value);
     case "url": {
       const url = String(value).trim();
       if (!/^https?:\/\//i.test(url) && !/^mailto:/i.test(url)) {
@@ -120,7 +270,8 @@ export function normalizeValue(prop: PropertyDef, value: unknown): unknown {
       }
       return s.slice(0, 10);
     }
-    case "select": {
+    case "select":
+    case "status": {
       const option = findOption(prop.options.options, value);
       if (!option) {
         throw new PropertyValueError(`"${value}" is not an option of "${prop.name}"`, "unknownOption", {
@@ -169,7 +320,11 @@ export function normalizeValue(prop: PropertyDef, value: unknown): unknown {
 /** Human-readable value (option names instead of ids), used by MCP output and markdown export. */
 export function displayValue(prop: PropertyDef, value: unknown): unknown {
   if (value === null || value === undefined) return null;
-  if (prop.type === "select") return findOption(prop.options.options, value)?.name ?? null;
+  if (prop.type === "select" || prop.type === "status") return findOption(prop.options.options, value)?.name ?? null;
+  if (prop.type === "checklist") {
+    const items = asChecklist(value).map(({ text, checked }) => ({ text, checked }));
+    return items.length ? items : null;
+  }
   if (prop.type === "multi_select" && Array.isArray(value)) {
     return value.map((v) => findOption(prop.options.options, v)?.name).filter(Boolean);
   }
@@ -194,10 +349,26 @@ function isEmpty(v: unknown) {
   return v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0) || v === false;
 }
 
-/** The stored value, without ids of select options that no longer exist (they display as empty). */
+/**
+ * The calendar day (`YYYY-MM-DD`) of a timestamp in the local time zone: the viewer's in the
+ * browser, the server's for MCP and published pages.
+ */
+export function localDay(value: unknown): string | null {
+  if (typeof value !== "string" && !(value instanceof Date)) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * The value filters compare: without ids of select options that no longer exist (they display
+ * as empty), and timestamps as days, so "Created is Sep 27" works like a date filter.
+ */
 function liveValue(row: RowLike, key: string, prop: PropertyDef | undefined): unknown {
   const v = rawValue(row, key);
-  if (prop?.type !== "select" && prop?.type !== "multi_select") return v;
+  if (prop && holdsTimestamp(prop.type)) return localDay(v);
+  if (!prop || !holdsOptions(prop.type)) return v;
   const known = (id: unknown) => (prop.options.options ?? []).some((o) => o.id === id);
   if (Array.isArray(v)) return v.filter(known);
   return known(v) ? v : null;
@@ -271,12 +442,21 @@ export function applyView<T extends RowLike>(
 ): T[] {
   const byId = new Map(props.map((p) => [p.id, p]));
   const nameOf = new Map(people.map((p) => [p.id, p.name]));
-  // Select sorts compare option order, not option ids; checkboxes sort unchecked < checked;
-  // people sort by their names in the order they were added, so the first person counts most.
+  // Select sorts compare option order, not option ids (status options are stored in group order);
+  // checkboxes sort unchecked < checked; checklists by the share of ticked items; people by their
+  // names in the order they were added, so the first person counts most.
   const sortValue = (row: T, key: string) => {
     const prop = byId.get(key);
     const v = rawValue(row, key);
     const index = (id: unknown) => prop?.options.options?.findIndex((o) => o.id === id) ?? -1;
+    if (prop?.type === "status") {
+      const option = prop.options.options?.find((o) => o.id === v);
+      return option ? STATUS_GROUPS.indexOf(statusGroupOf(option)) * 100_000 + index(v) : null;
+    }
+    if (prop?.type === "checklist") {
+      const progress = checklistProgress(v);
+      return progress ? progress.done / progress.total : null;
+    }
     if (prop?.type === "select") {
       const i = index(v);
       return i === -1 ? null : i;
@@ -342,6 +522,8 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
     case "title":
     case "text":
     case "url":
+    case "email":
+    case "phone":
       return [
         { op: "contains", label: "contains" },
         { op: "equals", label: "is" },
@@ -357,13 +539,19 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
         ...empty,
       ];
     case "select":
+    case "status":
       return [{ op: "equals", label: "is" }, { op: "not_equals", label: "isNot" }, ...empty];
     case "multi_select":
     case "relation":
     case "person":
     case "created_by":
+    case "last_edited_by":
       return [{ op: "contains", label: "contains" }, { op: "not_equals", label: "doesNotContain" }, ...empty];
+    case "checklist":
+      return empty;
     case "date":
+    case "created_time":
+    case "last_edited_time":
       return [
         { op: "equals", label: "is" },
         { op: "lt", label: "isBefore" },
@@ -394,7 +582,7 @@ export function defaultsFromFilters(filters: FilterRule[] = [], props: PropertyD
       continue;
     }
     if (isIncompleteFilter(rule)) continue;
-    if (rule.op === "equals" && ["select", "text", "number", "date"].includes(prop.type)) out[prop.id] = rule.value;
+    if (rule.op === "equals" && ["select", "status", "text", "number", "date"].includes(prop.type)) out[prop.id] = rule.value;
     else if (rule.op === "contains" && prop.type === "multi_select") out[prop.id] = [rule.value];
     else if (rule.op === "contains" && prop.type === "text") out[prop.id] = rule.value;
     else if (rule.op === "contains" && prop.type === "person") {
@@ -437,13 +625,20 @@ type GroupPerson = { id: string; name: string; active: boolean };
 
 /** Property types a board can group by. */
 export function isGroupable(type: PropertyType) {
-  return type === "select" || holdsPeople(type);
+  return type === "select" || type === "status" || holdsPeople(type);
 }
 
-/** The property a board groups by: the view's choice, else the first select, else the first people property. */
+/**
+ * The property a board groups by: the view's choice, else the first select or status, else the
+ * first people property.
+ */
 export function boardGroupProperty<P extends { id: string; type: PropertyType }>(props: P[], groupBy?: string) {
   const groupable = props.filter((p) => isGroupable(p.type));
-  return groupable.find((p) => p.id === groupBy) ?? groupable.find((p) => p.type === "select") ?? groupable[0];
+  return (
+    groupable.find((p) => p.id === groupBy) ??
+    groupable.find((p) => p.type === "select" || p.type === "status") ??
+    groupable[0]
+  );
 }
 
 /**
@@ -506,14 +701,15 @@ export function movePersonValue(value: unknown, from: string | null | undefined,
 }
 
 /**
- * Buckets rows by a select property: first a group for rows without a (known) value, then one
- * group per option in option order. Row order within each group is preserved.
+ * Buckets rows by a select or status property: first a group for rows without a (known) value,
+ * then one group per option in option order (status options by group first). Row order within
+ * each group is preserved.
  */
 export function groupRows<T extends { properties: Record<string, unknown> }>(
   rows: T[],
-  prop: { id: string; options: PropertyOptions },
+  prop: { id: string; type?: PropertyType; options: PropertyOptions },
 ): RowGroup<T>[] {
-  const options = prop.options.options ?? [];
+  const options = prop.type === "status" ? sortStatusOptions(prop.options.options ?? []) : (prop.options.options ?? []);
   const groups: RowGroup<T>[] = options.map((option) => ({ option, rows: [] }));
   const none: RowGroup<T> = { option: null, rows: [] };
   const index = new Map(options.map((o, i) => [o.id, i]));

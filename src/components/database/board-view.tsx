@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Button, cn, MenuItem, MenuSeparator } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
-import { holdsPeople } from "@/lib/property-types";
+import { holdsPeople, isComputed } from "@/lib/property-types";
 import type { SelectOption } from "@/db/schema/app";
 import {
   boardGroupProperty,
@@ -48,8 +48,9 @@ export function BoardView({
   const { people, viewerId } = usePeople();
   const groupBy = boardGroupProperty(properties, view.config.groupBy);
   const byPerson = groupBy ? holdsPeople(groupBy.type) : false;
-  // Grouped by who created each card: cards can't change column, and new cards are the viewer's.
-  const byCreator = groupBy?.type === "created_by";
+  // Grouped by who created or last edited each card: cards can't change column, and new cards are
+  // the viewer's.
+  const byCreator = groupBy ? isComputed(groupBy.type) : false;
   const [dragId, setDragId] = useState<string | null>(null);
   // The column a card was picked up from: on a person board the same card shows in every
   // assignee's column, and moving it replaces only that column's person.
@@ -264,7 +265,11 @@ export function BoardView({
                 ) : group.person ? (
                   <PersonGroupLabel person={group.person} />
                 ) : group.option ? (
-                  <OptionChip option={group.option} className="min-w-0 truncate font-medium" />
+                  <OptionChip
+                    option={group.option}
+                    dot={groupBy.type === "status"}
+                    className="min-w-0 truncate font-medium"
+                  />
                 ) : (
                   <span className="truncate text-sm text-fg-muted">{t("board.noValue", { property: groupBy.name })}</span>
                 )}
