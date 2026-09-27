@@ -141,6 +141,22 @@
 }
 
 /*
+ * BlockNote's dark block backgrounds are mid-tones that light text can't be read on; use the
+ * dark option palette below instead, as select chips do.
+ */
+:root .bn-container[data-color-scheme="dark"] {
+  --bn-colors-highlights-gray-background: #45474c;
+  --bn-colors-highlights-brown-background: #5c4136;
+  --bn-colors-highlights-red-background: #713731;
+  --bn-colors-highlights-orange-background: #7a4a22;
+  --bn-colors-highlights-yellow-background: #7a6128;
+  --bn-colors-highlights-green-background: #2d5a41;
+  --bn-colors-highlights-blue-background: #2a4a72;
+  --bn-colors-highlights-purple-background: #4d3469;
+  --bn-colors-highlights-pink-background: #6a3250;
+}
+
+/*
  * Select option colors, shared by tables, boards and property pickers. `.opt-*` paints a chip;
  * `.tint-*` only sets the palette so a board column and its cards can take the option's color.
  */
