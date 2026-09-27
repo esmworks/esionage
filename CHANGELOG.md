@@ -25,6 +25,11 @@
 - **System properties:** when a row was created, when it was last edited, and who edited it last.
   They are read-only and can be filtered (including relative dates) and sorted. They are included
   in CSV export and MCP. Editing a row's body counts as an edit.
+- **Formula properties:** compute a value per row from other properties with arithmetic, text,
+  date and logic functions. The editor shows mistakes as you type, and results filter, sort,
+  export and show over MCP like values of their type.
+- **Rollup properties:** count, sum, average, min or max, percent checked, or list the values of
+  related rows (only the rows you can see), shown as a number, bar or ring.
 - **More grouping:** boards and tables group by multi-select, checkbox, date (day, week, month or
   year), created or edited time and relation, and statuses by their to do / in progress / done
   group. Tables show groups as collapsible sections with counts, their own calculations and a

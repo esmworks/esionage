@@ -13,8 +13,9 @@ approve them over OAuth.
   via Hocuspocus), with live cursors.
 - **Databases**: every row is also a page.
   - Properties: text, number, select, multi-select, status, date, checkbox, checklist, URL,
-    email, phone, person, one- or two-way relations to other databases, and the read-only
-    "created by", "created time", "last edited time" and "last edited by".
+    email, phone, person, one- or two-way relations to other databases, formulas, rollups over
+    relations, and the read-only "created by", "created time", "last edited time" and
+    "last edited by".
   - Views: table, board, calendar, gallery, list and timeline, each with its own filters, sorting
     and grouping. Filters combine with "and"/"or" in groups and take relative dates such as
     "this week". A "Me" filter shows each viewer their own rows.
