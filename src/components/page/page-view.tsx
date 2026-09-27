@@ -261,24 +261,8 @@ function TitleField({
   const t = useTranslations("page");
   const tc = useTranslations("common");
   const ref = useRef<HTMLTextAreaElement>(null);
-  // Grow with the text, and again when the width changes (sidebar resized or hidden).
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const fit = () => {
-      el.style.height = "auto";
-      el.style.height = `${el.scrollHeight}px`;
-    };
-    fit();
-    let width = el.offsetWidth;
-    const observer = new ResizeObserver(() => {
-      if (el.offsetWidth === width) return;
-      width = el.offsetWidth;
-      fit();
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [value]);
+  // What the field shows right now, including keystrokes the doc hasn't echoed back yet.
+  const [text, setText] = useState(value);
   // The field is uncontrolled: when someone else's edit changes the title, write it here and keep
   // the caret where it was relative to the text (a controlled value would jump it to the end).
   useLayoutEffect(() => {
@@ -287,30 +271,43 @@ function TitleField({
     const before = el.value;
     const { selectionStart, selectionEnd } = el;
     el.value = value;
+    setText(value);
     if (document.activeElement === el) {
       el.setSelectionRange(shiftIndex(before, value, selectionStart), shiftIndex(before, value, selectionEnd));
     }
   }, [value]);
+  const font = cn("font-bold leading-tight", compact ? "text-3xl" : "text-4xl");
+  // An invisible copy of the text sizes the box, so the field is only as wide and tall as its text
+  // and a click beside the title doesn't start editing it.
   return (
-    <textarea
-      ref={ref}
-      rows={1}
-      defaultValue={value}
-      readOnly={!editable}
-      placeholder={tc("untitled")}
-      aria-label={t("title.label")}
-      onChange={(e) => onChange(e.target.value.replace(/\n/g, ""))}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          onEnter();
-        }
-      }}
-      className={cn(
-        "block w-full min-w-0 resize-none overflow-hidden bg-transparent font-bold leading-tight outline-none placeholder:text-fg-faint",
-        compact ? "text-3xl" : "text-4xl",
-      )}
-    />
+    <div className="relative inline-block min-w-0 max-w-full align-top">
+      <span aria-hidden className={cn("invisible block whitespace-pre-wrap break-words", font)}>
+        {(text || tc("untitled")) + "\u00a0"}
+      </span>
+      <textarea
+        ref={ref}
+        rows={1}
+        defaultValue={value}
+        readOnly={!editable}
+        placeholder={tc("untitled")}
+        aria-label={t("title.label")}
+        onChange={(e) => {
+          const next = e.target.value.replace(/\n/g, "");
+          setText(next);
+          onChange(next);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onEnter();
+          }
+        }}
+        className={cn(
+          "absolute inset-0 block h-full w-full resize-none overflow-hidden bg-transparent outline-none placeholder:text-fg-faint",
+          font,
+        )}
+      />
+    </div>
   );
 }
 
