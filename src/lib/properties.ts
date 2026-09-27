@@ -64,6 +64,8 @@ export const DATABASE_ERROR_CODES = [
   "relationTargetReadOnly",
   "databaseLocked",
   "invalidFilter",
+  "invalidViewConfig",
+  "unsupportedViewType",
   "tooManyRows",
   "invalidFormula",
 ] as const;
@@ -810,11 +812,13 @@ export function groupRows<T extends { properties: Record<string, unknown> }>(
 }
 
 /**
- * Board cards stay short: long text and numbers start hidden there until the user shows them.
+ * Board and gallery cards stay short: long text and numbers start hidden there until the user
+ * shows them. List rows and timeline bars are one line, so every property starts hidden there.
  * Other views show every property unless hidden.
  */
 export function hiddenByDefault(viewType: ViewType, propType: PropertyType): boolean {
-  return viewType === "board" && (propType === "text" || propType === "number");
+  if (viewType === "list" || viewType === "timeline") return true;
+  return (viewType === "board" || viewType === "gallery") && (propType === "text" || propType === "number");
 }
 
 export function isHiddenInView(

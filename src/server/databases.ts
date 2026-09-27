@@ -14,8 +14,11 @@ import {
   type ViewConfig,
   type ViewType,
 } from "@/db/schema";
+import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { firstImageInYdoc, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { compileFormulas, formulaForStorage, withFormulaTypes } from "@/lib/derived";
 import { filterConfigError, filterRules, mapFilterRules } from "@/lib/filters";
+import { DEFAULT_VIEW_NAMES, galleryCover, isViewType, layoutConfigError } from "@/lib/views";
 import { holdsOptions, holdsPeople, isComputed, PERSON_ME, type StatusGroup } from "@/lib/property-types";
 import { moveGroupValue } from "@/lib/grouping";
 import {
@@ -877,6 +880,7 @@ export async function deleteProperty(userId: string, propertyId: string) {
             ...c,
             groupBy: c.groupBy === propertyId ? undefined : c.groupBy,
             dateBy: c.dateBy === propertyId ? undefined : c.dateBy,
+            endDateBy: c.endDateBy === propertyId ? undefined : c.endDateBy,
             sorts: c.sorts?.filter((s) => s.propertyId !== propertyId),
             filters: c.filters && mapFilterRules(c.filters, (f) => (f.propertyId === propertyId ? null : f)),
             hidden: c.hidden?.filter((h) => h !== propertyId),
@@ -892,6 +896,11 @@ export async function deleteProperty(userId: string, propertyId: string) {
 }
 
 export async function addView(userId: string, databaseId: string, input: { name: string; type: ViewType }) {
+  if (!isViewType(input.type)) {
+    throw new PropertyValueError(`Unsupported view type "${String(input.type)}"`, "unsupportedViewType", {
+      type: String(input.type),
+    });
+  }
   const database = await requireDatabase(userId, databaseId, "edit");
   assertUnlocked(database);
   const props = await getProperties(databaseId);
@@ -902,6 +911,9 @@ export async function addView(userId: string, databaseId: string, input: { name:
     // Calendar entries are small: show only titles until the user picks properties to show.
     config.hidden = props.map((p) => p.id);
   }
+  // Timelines start without swimlanes and with a week per column; list rows and timeline bars show
+  // only titles until the user picks properties (see hiddenByDefault).
+  if (input.type === "timeline") config.dateBy = props.find((p) => p.type === "date")?.id;
   const [{ max }] = await db
     .select({ max: sql<number | null>`max(${databaseView.position})` })
     .from(databaseView)
@@ -910,7 +922,7 @@ export async function addView(userId: string, databaseId: string, input: { name:
     .insert(databaseView)
     .values({
       databaseId,
-      name: input.name.trim() || { table: "Table", board: "Board", calendar: "Calendar" }[input.type],
+      name: input.name.trim() || DEFAULT_VIEW_NAMES[input.type],
       type: input.type,
       config,
       position: (Number(max) || 0) + 1,
@@ -933,6 +945,8 @@ export async function updateView(userId: string, viewId: string, patch: { name?:
   // Configs come from the client and from MCP; a malformed filter tree would break every viewer.
   const filterError = patch.config && filterConfigError(patch.config);
   if (filterError) throw new PropertyValueError(filterError, "invalidFilter");
+  const layoutError = patch.config && layoutConfigError(patch.config);
+  if (layoutError) throw new PropertyValueError(layoutError, "invalidViewConfig");
   const view = await requireView(userId, viewId);
   // Filters, sorts and layout stay adjustable on a locked database; renaming doesn't.
   if (patch.name !== undefined) assertUnlocked(view);
@@ -1007,7 +1021,48 @@ export async function moveRow(
   notifyRows(row.parentId);
 }
 
-export type DatabaseRowWithPosition = DatabaseRow & { position: number };
+export type DatabaseRowWithPosition = DatabaseRow & {
+  position: number;
+  /** Gallery cover: the first image in the row's body. Only sent while a gallery view shows covers. */
+  cover?: string | null;
+};
+
+/** First images of row bodies by row id, valid while the row's `updatedAt` stays the same. */
+const coverCache = new Map<string, { at: number; url: string | null }>();
+const MAX_CACHED_COVERS = 5000;
+
+/**
+ * The first image in each row's body, for gallery covers. Only rows whose Markdown mentions an
+ * image are read, and from their Yjs state rather than the Markdown, so text that merely looks
+ * like image Markdown (in a code block, say) never becomes a cover.
+ */
+async function rowCovers(rows: { id: string; updatedAt: Date; hasImage?: boolean }[]) {
+  const covers = new Map<string, string | null>();
+  const missing: string[] = [];
+  for (const row of rows) {
+    if (!row.hasImage) continue;
+    const cached = coverCache.get(row.id);
+    if (cached && cached.at === row.updatedAt.getTime()) covers.set(row.id, cached.url);
+    else missing.push(row.id);
+  }
+  if (!missing.length) return covers;
+  const docs = await db
+    .select({ id: page.id, ydoc: page.ydoc, updatedAt: page.updatedAt })
+    .from(page)
+    .where(inArray(page.id, missing));
+  for (const doc of docs) {
+    const url = firstImageInYdoc(doc.ydoc, COLLAB_FRAGMENT);
+    covers.set(doc.id, url);
+    coverCache.delete(doc.id);
+    coverCache.set(doc.id, { at: doc.updatedAt.getTime(), url });
+  }
+  // Oldest entries first: Maps iterate in insertion order.
+  for (const id of coverCache.keys()) {
+    if (coverCache.size <= MAX_CACHED_COVERS) break;
+    coverCache.delete(id);
+  }
+  return covers;
+}
 
 /**
  * Everything the database UI needs in one round trip. Rows are unfiltered and in manual order
@@ -1015,6 +1070,7 @@ export type DatabaseRowWithPosition = DatabaseRow & { position: number };
  */
 export async function getDatabaseSnapshot(userId: string, databaseId: string) {
   const { database, properties, views } = await getDatabase(userId, databaseId);
+  const withCovers = views.some((v) => v.type === "gallery" && galleryCover(v.config) === "first_image");
   const stored = await db
     .select({
       id: page.id,
@@ -1026,6 +1082,7 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
       position: page.position,
       createdAt: page.createdAt,
       updatedAt: page.updatedAt,
+      ...(withCovers ? { hasImage: sql<boolean>`${page.contentMarkdown} ~ ${PG_MARKDOWN_IMAGE_PATTERN}` } : {}),
     })
     .from(page)
     .where(
@@ -1037,8 +1094,14 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
       ),
     )
     .orderBy(asc(page.position), asc(page.createdAt));
-  const [relations, people] = await Promise.all([getRelationTargets(userId, properties), getPeople(userId, properties)]);
-  const rows: DatabaseRowWithPosition[] = await withValues(userId, stored, properties, { relations, people });
+  const [relations, people, covers] = await Promise.all([
+    getRelationTargets(userId, properties),
+    getPeople(userId, properties),
+    withCovers ? rowCovers(stored) : null,
+  ]);
+  const rows: DatabaseRowWithPosition[] = (await withValues(userId, stored, properties, { relations, people })).map(
+    ({ hasImage: _, ...row }) => (covers ? { ...row, cover: covers.get(row.id) ?? null } : row),
+  );
   return {
     database: {
       id: database.id,

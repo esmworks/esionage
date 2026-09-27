@@ -1,11 +1,12 @@
 import { Hocuspocus, type Document, type Extension } from "@hocuspocus/server";
 import { ServerBlockNoteEditor } from "@blocknote/server-util";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import * as Y from "yjs";
 import { db } from "@/db";
 import { databaseProperty, page, pageSnapshot, type SnapshotReason } from "@/db/schema";
 import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { markdownImageHint, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { migrateDocTitle, readDocTitle, writeDocTitle } from "@/lib/collab-title";
 import { AccessError } from "@/server/access";
 import { authorizeCollab, parseDocName as parseName } from "./authorize";
@@ -85,7 +86,13 @@ export function createCollab() {
 
   const persistPage = async (pageId: string, doc: Document, userId?: string) => {
     const [row] = await db
-      .select({ title: page.title, workspaceId: page.workspaceId, parentId: page.parentId })
+      .select({
+        title: page.title,
+        workspaceId: page.workspaceId,
+        parentId: page.parentId,
+        // Same match as markdownImageHint, without reading the whole old body.
+        imageHint: sql<string | null>`substring(${page.contentMarkdown} from ${PG_MARKDOWN_IMAGE_PATTERN})`,
+      })
       .from(page)
       .where(eq(page.id, pageId))
       .limit(1);
@@ -105,6 +112,9 @@ export function createCollab() {
     if (title !== row.title) {
       broadcast(`ws:${row.workspaceId}`, "tree");
       if (row.parentId) broadcast(`db:${row.parentId}`, "rows");
+    } else if (row.parentId && (row.imageHint ?? null) !== markdownImageHint(markdown)) {
+      // Gallery cards show the first image of the body as their cover.
+      broadcast(`db:${row.parentId}`, "rows");
     } else if (row.parentId && (await showsLastEdited(row.parentId))) {
       // A body edit moves the row's "last edited" values, which open views of its database show.
       broadcast(`db:${row.parentId}`, "rows");

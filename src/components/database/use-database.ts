@@ -155,6 +155,37 @@ export function useDatabase(databaseId: string) {
   );
 
   /**
+   * Sets several properties of one row in one write (a timeline bar's start and end): the row
+   * shows the new values right away and keeps them until the server confirms.
+   */
+  const setRowValues = useCallback(
+    async (rowId: string, values: Record<string, unknown>) => {
+      const keys = Object.keys(values);
+      if (!keys.length) return;
+      const v = ++version.current;
+      const tokens = keys.map((key) => `${rowId}\u0000${key}`);
+      setPending((p) => {
+        const next = { ...p };
+        for (const key of keys) next[`${rowId}\u0000${key}`] = { rowId, key, value: values[key], version: v };
+        return next;
+      });
+      try {
+        await unwrap(updateRowPropertiesAction(rowId, values));
+        await refetch();
+      } catch (e) {
+        report(e);
+      } finally {
+        setPending((p) => {
+          const next = { ...p };
+          for (const token of tokens) if (next[token]?.version === v) delete next[token];
+          return next;
+        });
+      }
+    },
+    [refetch, report],
+  );
+
+  /**
    * Sets one property on several rows (bulk edit): every row shows the new value right away, and
    * rows the server skipped (see databases.rowsWithAccess) are reported, then refetched back.
    */
@@ -210,6 +241,7 @@ export function useDatabase(databaseId: string) {
     () => ({
       refetch,
       setCell,
+      setRowValues,
       setCells,
       clearError: () => setError(null),
       /** Shows an already translated message in the error banner. */
@@ -383,7 +415,7 @@ export function useDatabase(databaseId: string) {
       },
     }),
     // patchProperty is a pure helper; the rest are stable callbacks.
-    [databaseId, snapshot?.database.workspaceId, refetch, setCell, setCells, mutateSchema, report, tb],
+    [databaseId, snapshot?.database.workspaceId, refetch, setCell, setRowValues, setCells, mutateSchema, report, tb],
   );
 
   return { snapshot, rows, loadError, error, api };

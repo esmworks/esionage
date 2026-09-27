@@ -88,6 +88,9 @@ jobs:
       - name: Grouping end-to-end
         run: pnpm tsx scripts/grouping-e2e.ts
 
+      - name: Gallery, list and timeline views end-to-end
+        run: pnpm tsx scripts/views-e2e.ts
+
       - name: Start the server
         run: |
           pnpm start > "$RUNNER_TEMP/server.log" 2>&1 &

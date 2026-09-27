@@ -310,6 +310,11 @@ export function describeViewConfig(props: PropertyDef[], config: ViewConfig, loo
   return {
     ...(config.groupBy ? { group_by: keyName(props, config.groupBy), ...describeGrouping(byId.get(config.groupBy), config) } : {}),
     ...(config.dateBy ? { date_by: keyName(props, config.dateBy) } : {}),
+    ...(config.endDateBy ? { end_date_by: keyName(props, config.endDateBy) } : {}),
+    ...(config.zoom ? { zoom: config.zoom } : {}),
+    ...(config.showTable === false ? { show_table: false } : {}),
+    ...(config.cardSize ? { card_size: config.cardSize } : {}),
+    ...(config.cover ? { cover: config.cover.source } : {}),
     ...(config.filters?.length ? { filters: config.filters.map(describeEntry) } : {}),
     ...(config.filters?.length && config.filterCombinator === "or" ? { filter_combinator: "or" } : {}),
     ...(config.sorts?.length
