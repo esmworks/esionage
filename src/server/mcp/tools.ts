@@ -615,6 +615,35 @@ export function createMcpServer(principal: McpPrincipal) {
   );
 
   server.registerTool(
+    "update_database_rows",
+    {
+      title: "Update many database rows",
+      description: `Set the same property values on up to ${MAX_BULK_ROWS} rows of one database (same value format as update_database_row). Values are checked first: if one is invalid nothing changes. Rows the user can't edit are skipped and listed in skipped_row_ids.`,
+      inputSchema: z.object({
+        database_id: id("database"),
+        row_ids: z.array(z.string().min(1)).min(1).max(MAX_BULK_ROWS).describe(`Ids of the rows to change (1-${MAX_BULK_ROWS}).`),
+        properties: rowProperties,
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+      scopeChallenge: requireWrite,
+    },
+    ({ database_id, row_ids, properties }) =>
+      runTool(async () => {
+        assertWrite();
+        if (!Object.keys(properties).length) throw new ToolInputError("Provide at least one property value.");
+        const { database } = await databases.getDatabase(userId, database_id);
+        if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
+        const { done, skipped } = await databases.updateRowsProperties(userId, database.id, row_ids, properties);
+        return {
+          database_id: database.id,
+          updated: done.length,
+          ...(skipped.length ? { skipped_row_ids: skipped } : {}),
+          url: pageUrl(database.workspaceId, database.id),
+        };
+      }),
+  );
+
+  server.registerTool(
     "create_database",
     {
       title: "Create a database",

@@ -128,6 +128,28 @@
   "rowMenu": {
     "open": "Open"
   },
+  "bulk": {
+    "actions": "Selected rows",
+    "selected": "{count} selected",
+    "selectRow": "Select row",
+    "selectAll": "Select all rows",
+    "editProperty": "Edit property",
+    "chooseProperty": "Set a property on the selected rows",
+    "noEditable": "No properties to edit",
+    "setValue": "Set {property}",
+    "apply": "Apply",
+    "clearValue": "Clear",
+    "checked": "Checked",
+    "unchecked": "Unchecked",
+    "back": "Back",
+    "duplicate": "Duplicate",
+    "trash": "Move to trash",
+    "export": "Export CSV",
+    "exportFailed": "Couldn’t export the selected rows.",
+    "clearSelection": "Clear selection",
+    "confirmTrash": "Move {count, plural, one {# row} other {# rows}} to the trash?",
+    "skipped": "{count, plural, one {# row was skipped because you can’t change it.} other {# rows were skipped because you can’t change them.}}"
+  },
   "calculate": {
     "calculate": "Calculate",
     "calculateColumn": "Calculate {column}",
@@ -307,6 +329,7 @@
     "relationTargetReadOnly": "You can only view that database, so the link can’t be shown there too. Untick that option or ask for edit access.",
     "databaseLocked": "This database is locked. Unlock it to change its properties and views.",
     "invalidPerson": "“{property}” can only hold people of this workspace.",
-    "readOnlyProperty": "“{property}” is filled in automatically and can’t be changed."
+    "readOnlyProperty": "“{property}” is filled in automatically and can’t be changed.",
+    "tooManyRows": "You can change at most {max} rows at once."
   }
 }

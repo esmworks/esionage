@@ -76,6 +76,9 @@ jobs:
       - name: Trash end-to-end
         run: pnpm tsx scripts/trash-e2e.ts
 
+      - name: Bulk row actions end-to-end
+        run: pnpm tsx scripts/bulk-e2e.ts
+
       - name: Start the server
         run: |
           pnpm start > "$RUNNER_TEMP/server.log" 2>&1 &

@@ -40,6 +40,7 @@ const databases = vi.hoisted(() => ({
   getDatabase: vi.fn(),
   listRows: vi.fn(),
   updateRowProperties: vi.fn(),
+  updateRowsProperties: vi.fn(),
   createRows: vi.fn(),
   addProperty: vi.fn(),
   updateProperty: vi.fn(),
@@ -339,6 +340,43 @@ describe("create_database_rows", () => {
     const tooMany = await callTool(writer, "create_database_rows", { database_id: "db-1", rows });
     expect(tooMany.isError).toBe(true);
     expect(databases.createRows).not.toHaveBeenCalled();
+  });
+});
+
+describe("update_database_rows", () => {
+  it("sets the values on every row and lists the rows it skipped", async () => {
+    databases.updateRowsProperties.mockResolvedValue({ done: ["row-1"], skipped: ["row-2"] });
+    const r = await callTool(writer, "update_database_rows", {
+      database_id: "db-1",
+      row_ids: ["row-1", "row-2"],
+      properties: { Status: "Done" },
+    });
+    expect(r.isError).toBe(false);
+    expect(databases.updateRowsProperties).toHaveBeenCalledWith("user-1", "db-1", ["row-1", "row-2"], { Status: "Done" });
+    expect(r.data).toMatchObject({ updated: 1, skipped_row_ids: ["row-2"], url: "http://localhost:3000/w/ws-1/p/db-1" });
+  });
+
+  it("leaves skipped_row_ids out when every row changed", async () => {
+    databases.updateRowsProperties.mockResolvedValue({ done: ["row-1"], skipped: [] });
+    const r = await callTool(writer, "update_database_rows", { database_id: "db-1", row_ids: ["row-1"], properties: { Notes: null } });
+    expect(r.data).toEqual({ database_id: "db-1", updated: 1, url: "http://localhost:3000/w/ws-1/p/db-1" });
+  });
+
+  it("refuses read-only tokens, empty changes, trashed databases and oversized batches", async () => {
+    const readOnly = await callTool(reader, "update_database_rows", { database_id: "db-1", row_ids: ["r"], properties: { Status: "Done" } });
+    expect(readOnly.text).toMatch(/read-only/);
+    const empty = await callTool(writer, "update_database_rows", { database_id: "db-1", row_ids: ["r"], properties: {} });
+    expect(empty.text).toMatch(/at least one property/);
+    const tooMany = await callTool(writer, "update_database_rows", {
+      database_id: "db-1",
+      row_ids: Array.from({ length: 101 }, (_, i) => `row-${i}`),
+      properties: { Status: "Done" },
+    });
+    expect(tooMany.isError).toBe(true);
+    databases.getDatabase.mockResolvedValue({ ...database, database: { ...database.database, archivedAt: new Date() } });
+    const trashed = await callTool(writer, "update_database_rows", { database_id: "db-1", row_ids: ["r"], properties: { Status: "Done" } });
+    expect(trashed.text).toMatch(/trash/);
+    expect(databases.updateRowsProperties).not.toHaveBeenCalled();
   });
 });
 

@@ -36,6 +36,7 @@ export const DATABASE_ERROR_CODES = [
   "readOnlyProperty",
   "relationTargetReadOnly",
   "databaseLocked",
+  "tooManyRows",
 ] as const;
 export type DatabaseErrorCode = (typeof DATABASE_ERROR_CODES)[number];
 export type DatabaseErrorParams = Record<string, string>;

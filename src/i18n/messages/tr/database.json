@@ -128,6 +128,28 @@
   "rowMenu": {
     "open": "Aç"
   },
+  "bulk": {
+    "actions": "Seçili satırlar",
+    "selected": "{count} seçili",
+    "selectRow": "Satırı seç",
+    "selectAll": "Tüm satırları seç",
+    "editProperty": "Özelliği düzenle",
+    "chooseProperty": "Seçili satırlarda bir özelliği ayarla",
+    "noEditable": "Düzenlenecek özellik yok",
+    "setValue": "{property} değerini ayarla",
+    "apply": "Uygula",
+    "clearValue": "Temizle",
+    "checked": "İşaretli",
+    "unchecked": "İşaretsiz",
+    "back": "Geri",
+    "duplicate": "Kopyasını oluştur",
+    "trash": "Çöp kutusuna taşı",
+    "export": "CSV olarak dışa aktar",
+    "exportFailed": "Seçili satırlar dışa aktarılamadı.",
+    "clearSelection": "Seçimi temizle",
+    "confirmTrash": "{count} satır çöp kutusuna taşınsın mı?",
+    "skipped": "{count} satır, değiştirme izniniz olmadığı için atlandı."
+  },
   "calculate": {
     "calculate": "Hesapla",
     "calculateColumn": "{column} sütununu hesapla",
@@ -307,6 +329,7 @@
     "relationTargetReadOnly": "O veritabanını yalnızca görüntüleyebiliyorsun, bu yüzden bağlantı orada gösterilemez. O seçeneğin işaretini kaldır ya da düzenleme izni iste.",
     "databaseLocked": "Veritabanı kilitli. Özellikleri ve görünümleri değiştirmek için önce kilidi açın.",
     "invalidPerson": "“{property}” yalnızca bu çalışma alanındaki kişileri içerebilir.",
-    "readOnlyProperty": "“{property}” otomatik doldurulur, değiştirilemez."
+    "readOnlyProperty": "“{property}” otomatik doldurulur, değiştirilemez.",
+    "tooManyRows": "Tek seferde en fazla {max} satır değiştirilebilir."
   }
 }
