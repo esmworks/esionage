@@ -6,7 +6,7 @@ import { cimd } from "@better-auth/cimd";
 import { fetchClientMetadataResource } from "@better-auth/cimd/node";
 import { env, mcpResource } from "@/lib/env";
 
-export const MCP_SCOPES = ["pages:read", "pages:write"] as const;
+export const MCP_SCOPES = ["pages:read", "pages:write", "notifications:read"] as const;
 const OAUTH_SCOPES = ["openid", "profile", "email", "offline_access", ...MCP_SCOPES];
 
 /** http on an exact loopback host, or a private-use scheme: redirects only a native app can receive. */

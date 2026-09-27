@@ -21,13 +21,15 @@ try {
 // Imported after .env is loaded: the database client reads DATABASE_URL when it is created.
 const { and, eq, inArray } = await import("drizzle-orm");
 const { db } = await import("@/db");
-const { page, pendingAssignmentEmail, user, workspace, workspaceMember } = await import("@/db/schema");
+const { notification, page, pendingAssignmentEmail, user, workspace, workspaceMember } = await import("@/db/schema");
 const { registerCollab } = await import("@/server/collab/bridge");
 const { addProperty, getDatabaseSnapshot, getLookups, getRow, listRows, moveRow, updateRowProperties } = await import(
   "@/server/databases"
 );
-const { flushAssignmentEmails, setAssignmentEmailsEnabled, setAssignmentMailer } = await import("@/server/assignments");
+const { flushAssignmentEmails, setAssignmentMailer } = await import("@/server/assignments");
+const { setNotificationPreference } = await import("@/server/notification-preferences");
 const { listInbox, markRead, unreadCount } = await import("@/server/notifications");
+const { flushShareEmails, setShareMailer } = await import("@/server/share-emails");
 const { archivePage } = await import("@/server/pages");
 const { createPage } = await import("@/server/pages");
 const { removePagePermission, setPagePermission } = await import("@/server/permissions");
@@ -42,9 +44,10 @@ registerCollab({
   broadcast: (channel: string, event: string) => void broadcasts.push(`${channel} ${event}`),
 } as unknown as Parameters<typeof registerCollab>[0]);
 
-// Assignment emails are captured instead of sent.
+// Assignment and share emails are captured instead of sent.
 const sent: { to: string; subject: string; text: string }[] = [];
 setAssignmentMailer(async (mail) => void sent.push(mail));
+setShareMailer(async (mail) => void sent.push(mail));
 // A function, so a passed check on the count doesn't narrow it for the next one.
 const sentCount = () => sent.length;
 
@@ -225,7 +228,7 @@ try {
 
   // People who turned assignment emails off get none, including ones already queued
   await updateRowProperties(ids.owner, job.id, { Assignee: [ids.member] });
-  await setAssignmentEmailsEnabled(ids.member, false);
+  await setNotificationPreference(ids.member, "assignment", "email", false);
   await flushAssignmentEmails();
   check(sentCount() === 0, "turning assignment emails off drops the queued one", sent);
   await updateRowProperties(ids.owner, job.id, { Assignee: [ids.bystander] });
@@ -237,7 +240,7 @@ try {
     sent,
   );
   sent.length = 0;
-  await setAssignmentEmailsEnabled(ids.member, true);
+  await setNotificationPreference(ids.member, "assignment", "email", true);
   await updateRowProperties(ids.owner, job.id, { Assignee: [ids.bystander] });
   await updateRowProperties(ids.owner, job.id, { Assignee: [ids.bystander, ids.member] });
   await flushAssignmentEmails();
@@ -324,6 +327,105 @@ try {
     ),
     "someone outside the workspace can't read its inbox",
   );
+
+  // Assignments can be kept out of the inbox
+  const quiet = await createPage(actor, { workspaceId, parentId: tasks.id, title: "Quiet job" });
+  await setNotificationPreference(ids.member, "assignment", "inbox", false);
+  await updateRowProperties(ids.owner, quiet.id, { Assignee: [ids.member] });
+  const aboutQuiet = async () => (await listInbox(ids.member, workspaceId)).filter((n) => n.pageId === quiet.id);
+  check((await aboutQuiet()).length === 0 && (await unreadCount(ids.member, workspaceId)) === 0, "turning assignments off in the inbox hides them and their count");
+  await setNotificationPreference(ids.member, "assignment", "inbox", true);
+  check((await aboutQuiet()).length === 1, "…and turning it back on shows the ones made meanwhile");
+  await markRead(ids.member, workspaceId);
+  await flushAssignmentEmails();
+  sent.length = 0;
+
+  // Sharing a page with someone tells them, in the inbox and a little later by email
+  const doc = await createPage(actor, { workspaceId, title: "Roadmap" });
+  const aboutDoc = async (userId: string) => (await listInbox(userId, workspaceId)).filter((n) => n.pageId === doc.id);
+  broadcasts.length = 0;
+  await setPagePermission(ids.owner, doc.id, ids.member, "edit");
+  const [shared] = await aboutDoc(ids.member);
+  check(
+    shared?.kind === "page_shared" && !shared.read && shared.actorName === "Owner Olcay" && shared.pageTitle === "Roadmap" && shared.databaseTitle === null,
+    "sharing a page with a member puts it in their inbox",
+    await aboutDoc(ids.member),
+  );
+  check(broadcasts.includes(`ws:${workspaceId} inbox`), "…and tells their sidebar", broadcasts);
+  check(sentCount() === 0, "…but emails only after the delay", sent);
+  await flushShareEmails();
+  check(
+    sentCount() === 1 &&
+      sent[0].to === `${ids.member}@example.test` &&
+      sent[0].subject === "Owner Olcay shared “Roadmap” with you" &&
+      // What they can actually do: members already had full access through everyone's default.
+      sent[0].text.includes("You can now view, edit and share “Roadmap”") &&
+      sent[0].text.includes(`/w/${workspaceId}/p/${doc.id}`),
+    "the email names who shared which page, what they can do and links to it",
+    sent,
+  );
+  sent.length = 0;
+  await flushShareEmails();
+  check(sentCount() === 0, "…and goes out once", sent);
+  await setPagePermission(ids.owner, doc.id, ids.member, "view");
+  check((await aboutDoc(ids.member)).map((n) => n.id).join() === shared.id, "lowering the level adds nothing");
+  await setPagePermission(ids.owner, doc.id, ids.member, "full");
+  const raised = await aboutDoc(ids.member);
+  check(raised.length === 1 && raised[0].id !== shared.id, "raising it again leaves one unread notification", raised);
+  await removePagePermission(ids.owner, doc.id, ids.member);
+  check((await aboutDoc(ids.member)).length === 0, "removing the share before it was read takes it back");
+  await flushShareEmails();
+  check(sentCount() === 0, "…with its email", sent);
+  await setPagePermission(ids.owner, doc.id, ids.member, "edit");
+  await setPagePermission(ids.owner, doc.id, ids.member, "none");
+  const left = await db
+    .select({ id: notification.id })
+    .from(notification)
+    .where(and(eq(notification.pageId, doc.id), eq(notification.userId, ids.member)));
+  check(left.length === 0, "setting it to no access takes it back too", left);
+  await flushShareEmails();
+  check(sentCount() === 0, "…with its email", sent);
+  await removePagePermission(ids.owner, doc.id, ids.member);
+
+  await setPagePermission(ids.owner, doc.id, ids.owner, "full");
+  await setPagePermission(ids.owner, doc.id, null, "view");
+  check(
+    (await aboutDoc(ids.owner)).length === 0 && (await aboutDoc(ids.bystander)).length === 0,
+    "sharing with yourself or with everyone notifies nobody",
+  );
+
+  // A guest who read it in the inbox gets no email; a member who turned the inbox off still does
+  await setPagePermission(ids.owner, doc.id, ids.guest, "view");
+  const [guestShare] = await aboutDoc(ids.guest);
+  check(guestShare?.kind === "page_shared", "a guest sees a page shared with them in their inbox");
+  await markRead(ids.guest, workspaceId, [guestShare.id]);
+  await setNotificationPreference(ids.bystander, "page_shared", "inbox", false);
+  await setPagePermission(ids.owner, doc.id, ids.bystander, "edit");
+  check((await aboutDoc(ids.bystander)).length === 0, "turning shares off in the inbox hides them");
+  await flushShareEmails();
+  check(
+    sentCount() === 1 && sent[0].to === `${ids.bystander}@example.test`,
+    "…the email still comes, but not to someone who already read it",
+    sent,
+  );
+  sent.length = 0;
+  await setNotificationPreference(ids.bystander, "page_shared", "inbox", true);
+  check((await aboutDoc(ids.bystander)).length === 1, "turning shares back on in the inbox shows it");
+
+  await setNotificationPreference(ids.member, "page_shared", "email", false);
+  await setPagePermission(ids.owner, doc.id, ids.member, "edit");
+  await flushShareEmails();
+  check(sentCount() === 0 && (await aboutDoc(ids.member)).length === 1, "turning share emails off keeps only the inbox notification", sent);
+  await setNotificationPreference(ids.member, "page_shared", "email", true);
+  await setPagePermission(ids.owner, doc.id, ids.member, "full");
+  await setNotificationPreference(ids.member, "page_shared", "email", false);
+  const waiting = await db
+    .select({ due: notification.emailDueAt })
+    .from(notification)
+    .where(and(eq(notification.pageId, doc.id), eq(notification.userId, ids.member)));
+  check(waiting.length === 1 && waiting[0].due === null, "…and drops share emails already queued", waiting);
+  await flushShareEmails();
+  check(sentCount() === 0, "…so none goes out", sent);
 
   console.log(`\n${passed} checks passed`);
 } finally {

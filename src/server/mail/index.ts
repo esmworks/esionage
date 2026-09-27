@@ -10,6 +10,7 @@ export {
   PASSWORD_RESET_MINUTES,
   passwordResetEmail,
   renderEmail,
+  shareEmail,
   testEmail,
 } from "./templates";
 

@@ -32,5 +32,18 @@
     "action": "Aç",
     "untitled": "Adsız",
     "optOut": "Bu e-postaları Ayarlar > Tercihler bölümünden kapatabilirsiniz."
+  },
+  "share": {
+    "subject": "{actor} “{page}” sayfasını sizinle paylaştı",
+    "heading": "{actor} bir sayfayı sizinle paylaştı",
+    "body": "{workspace} içindeki “{page}” sayfasını artık {level}.",
+    "levels": {
+      "view": "görüntüleyebilirsiniz",
+      "edit": "düzenleyebilirsiniz",
+      "full": "görüntüleyebilir, düzenleyebilir ve paylaşabilirsiniz"
+    },
+    "action": "Sayfayı aç",
+    "untitled": "Adsız",
+    "optOut": "Bu e-postaları Ayarlar > Tercihler bölümünden kapatabilirsiniz."
   }
 }

@@ -30,6 +30,7 @@
     "email": "E-posta adresinizi görme",
     "offlineAccess": "Yeniden giriş yapmanızı istemeden bağlı kalma",
     "pagesRead": "Çalışma alanlarınızdaki sayfaları ve veritabanlarını okuma",
-    "pagesWrite": "Sayfa ve veritabanı satırı oluşturma, bunları düzenleme ve sayfaları çöp kutusuna taşıma"
+    "pagesWrite": "Sayfa ve veritabanı satırı oluşturma, bunları düzenleme ve sayfaları çöp kutusuna taşıma",
+    "notificationsRead": "Gelen kutunuzdaki bildirimleri okuma"
   }
 }

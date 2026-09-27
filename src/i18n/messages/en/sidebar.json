@@ -56,6 +56,7 @@
     "empty": "No notifications yet",
     "markAllRead": "Mark all as read",
     "assignment": "{actor} assigned you to “{property}”",
+    "pageShared": "{actor} shared this page with you",
     "someone": "Someone",
     "unread": "Unread",
     "unreadCount": "{count, plural, one {# unread notification} other {# unread notifications}}"

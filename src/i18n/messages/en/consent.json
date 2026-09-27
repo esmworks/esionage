@@ -30,6 +30,7 @@
     "email": "See your email address",
     "offlineAccess": "Stay connected without asking you to sign in again",
     "pagesRead": "Read pages and databases in your workspaces",
-    "pagesWrite": "Create and edit pages and database rows, and move pages to the trash"
+    "pagesWrite": "Create and edit pages and database rows, and move pages to the trash",
+    "notificationsRead": "Read your inbox notifications"
   }
 }

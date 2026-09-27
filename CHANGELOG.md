@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Inbox:** pages shared with you now show in the inbox next to assignments, and you get an email
+  about them a little later. A share undone right away sends nothing.
+- **Notification preferences:** Settings > Preferences chooses, for assignments and shared pages
+  separately, whether they show in the inbox and whether they come by email.
+- **MCP:** `list_notifications` lists the user's inbox. It needs the new `notifications:read`
+  permission. Apps connected earlier can ask for it too; the user approves it once on the consent
+  screen.
+
 ## 0.2.0 — 2026-09-27
 
 ### Upgrading from 0.1.0

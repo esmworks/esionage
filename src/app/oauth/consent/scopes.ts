@@ -1,6 +1,6 @@
-import { READ_SCOPE, WRITE_SCOPE } from "@/server/mcp/principal";
+import { NOTIFICATIONS_SCOPE, READ_SCOPE, WRITE_SCOPE } from "@/server/mcp/principal";
 
-export type ScopeKey = "openid" | "profile" | "email" | "offlineAccess" | "pagesRead" | "pagesWrite";
+export type ScopeKey = "openid" | "profile" | "email" | "offlineAccess" | "pagesRead" | "pagesWrite" | "notificationsRead";
 
 /**
  * Message keys (under `consent.scopes`) for the OAuth scopes we can describe. The UI translates
@@ -13,6 +13,7 @@ const SCOPE_KEYS: Record<string, ScopeKey> = {
   offline_access: "offlineAccess",
   [READ_SCOPE]: "pagesRead",
   [WRITE_SCOPE]: "pagesWrite",
+  [NOTIFICATIONS_SCOPE]: "notificationsRead",
 };
 
 /** The message key for a scope, or null for an unknown scope (shown as its raw name). */

@@ -93,7 +93,7 @@ async function register(as: Awaited<ReturnType<typeof discover>>, name: string):
       token_endpoint_auth_method: "none",
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
-      scope: "openid profile offline_access pages:read pages:write",
+      scope: "openid profile offline_access pages:read pages:write notifications:read",
     }),
   });
   const body = await json(res);
@@ -114,7 +114,7 @@ function authorizeUrl(as: { authorization_endpoint: string }, client: Client, st
     response_type: "code",
     client_id: client.client_id,
     redirect_uri: REDIRECT_URI,
-    scope: "openid profile offline_access pages:read pages:write",
+    scope: "openid profile offline_access pages:read pages:write notifications:read",
     state,
     code_challenge: challenge,
     code_challenge_method: "S256",
@@ -348,6 +348,7 @@ async function main() {
     "get_database", "query_database", "create_database_row", "create_database_rows", "update_database_row", "create_database", "add_database_property",
     "update_database_property", "delete_database_property", "create_database_view", "update_database_view", "move_page",
     "list_recent_pages", "list_users", "list_trash", "restore_page", "list_page_history", "get_page_version", "restore_page_version",
+    "list_notifications",
   ];
   check(expected.every((t) => toolNames.includes(t)), "tools/list returns every tool", toolNames);
   const getPageTool = list.message.result.tools.find((t: { name: string }) => t.name === "get_page");
@@ -356,6 +357,8 @@ async function main() {
   const { workspaces } = await mcp.ok("list_workspaces", {});
   check(workspaces.length > 0, "user has at least one workspace");
   const ws = workspaces[0].id as string;
+  const inbox = await mcp.ok("list_notifications", { workspace_id: ws, unread_only: true });
+  check(Array.isArray(inbox.notifications), "list_notifications reads the inbox with notifications:read", inbox);
 
   const root = await mcp.ok("create_page", {
     workspace_id: ws,
@@ -630,6 +633,13 @@ async function main() {
     { ...modernHeaders, "mcp-method": "tools/call", "mcp-name": "archive_page" },
   );
   check(roModern.status === 403, "write with read-only token on 2026-07-28 → 403", roModern.status);
+  const roInbox = await roMcp.request("tools/call", { name: "list_notifications", arguments: {} });
+  const inboxStepUp = roInbox.headers.get("www-authenticate") ?? "";
+  check(
+    roInbox.status === 403 && inboxStepUp.includes('error="insufficient_scope"') && inboxStepUp.includes("notifications:read"),
+    "list_notifications without notifications:read → 403 insufficient_scope",
+    { status: roInbox.status, inboxStepUp },
+  );
   const stillThere = await mcp.ok("get_page", { page_id: root.id });
   check(!stillThere.in_trash, "read-only token did not change anything");
 

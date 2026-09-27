@@ -9,6 +9,12 @@ export const userPreference = pgTable("user_preference", {
     .references(() => user.id, { onDelete: "cascade" }),
   /** Email me when someone assigns me to a database row. */
   assignmentEmails: boolean("assignment_emails").notNull().default(true),
+  /** Show assignments in my inbox. */
+  assignmentInbox: boolean("assignment_inbox").notNull().default(true),
+  /** Email me when someone shares a page with me. */
+  shareEmails: boolean("share_emails").notNull().default(true),
+  /** Show pages shared with me in my inbox. */
+  shareInbox: boolean("share_inbox").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -36,12 +42,14 @@ export const pendingAssignmentEmail = pgTable(
   (t) => [primaryKey({ columns: [t.rowId, t.propertyId, t.userId] }), index("assignment_email_due_idx").on(t.dueAt)],
 );
 
-export const NOTIFICATION_KINDS = ["assignment"] as const;
+export const NOTIFICATION_KINDS = ["assignment", "page_shared"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /**
  * A user's inbox, per workspace. "assignment": `actorId` added the user to the person property
- * `propertyId` of row `pageId`. Unread ones are dropped when the change is undone.
+ * `propertyId` of row `pageId`. "page_shared": `actorId` gave the user their own access to page
+ * `pageId`. Unread ones are dropped when the change is undone. Rows are recorded whatever the
+ * user's preferences; the inbox leaves out the kinds they turned off.
  */
 export const notification = pgTable(
   "notification",
@@ -63,6 +71,13 @@ export const notification = pgTable(
     propertyId: text("property_id").references(() => databaseProperty.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     readAt: timestamp("read_at", { withTimezone: true }),
+    /** When to email the user about it (page_shared only); cleared once the email is handled. */
+    emailDueAt: timestamp("email_due_at", { withTimezone: true }),
+    /** The actor's interface language, for that email. */
+    emailLocale: text("email_locale"),
   },
-  (t) => [index("notification_inbox_idx").on(t.userId, t.workspaceId, t.createdAt)],
+  (t) => [
+    index("notification_inbox_idx").on(t.userId, t.workspaceId, t.createdAt),
+    index("notification_email_due_idx").on(t.emailDueAt),
+  ],
 );

@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { oauthClient } from "@/db/schema";
 import { env } from "@/lib/env";
 import { clientDisplayName } from "./grants";
-import { READ_SCOPE, WRITE_SCOPE } from "./principal";
+import { NOTIFICATIONS_SCOPE, READ_SCOPE, WRITE_SCOPE } from "./principal";
 
 /** Plain-language descriptions of every scope a client may request. */
 export const SCOPE_LABELS: Record<string, string> = {
@@ -14,6 +14,7 @@ export const SCOPE_LABELS: Record<string, string> = {
   offline_access: "Stay connected without asking you to sign in again",
   [READ_SCOPE]: "Read pages and databases in your workspaces",
   [WRITE_SCOPE]: "Create and edit pages and database rows, and move pages to the trash",
+  [NOTIFICATIONS_SCOPE]: "Read your inbox notifications",
 };
 
 export function describeScope(scope: string) {

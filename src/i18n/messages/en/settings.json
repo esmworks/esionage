@@ -188,8 +188,15 @@
   },
   "notifications": {
     "heading": "Notifications",
-    "assignmentTitle": "Assignment emails",
-    "assignmentDescription": "Get an email when someone assigns you to a person property in a database row.",
+    "description": "Choose what shows in your inbox and what also comes by email.",
+    "inbox": "Inbox",
+    "email": "Email",
+    "assignmentTitle": "Assignments",
+    "assignmentDescription": "Someone assigns you to a person property in a database row.",
+    "assignmentChannel": "Assignments: {channel}",
+    "shareTitle": "Pages shared with you",
+    "shareDescription": "Someone gives you access to a page.",
+    "shareChannel": "Pages shared with you: {channel}",
     "mailOff": "This server can't send email right now, so none go out."
   }
 }

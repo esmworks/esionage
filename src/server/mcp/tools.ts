@@ -14,10 +14,11 @@ import { computedValues, isGroupable, sortStatusOptions, statusColor } from "@/l
 import { holdsOptions, STATUS_GROUPS } from "@/lib/property-types";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import * as databases from "@/server/databases";
+import * as notifications from "@/server/notifications";
 import * as pages from "@/server/pages";
 import * as workspaces from "@/server/workspaces";
 import { MAX_MARKDOWN_CHARS, pageUrl, runTool, sliceText, ToolInputError } from "./format";
-import { READ_SCOPE, WRITE_SCOPE, type McpPrincipal } from "./principal";
+import { NOTIFICATIONS_SCOPE, READ_SCOPE, WRITE_SCOPE, type McpPrincipal } from "./principal";
 import {
   describeProperty,
   describeViewConfig,
@@ -36,6 +37,7 @@ const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to 
 Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, status, date, checkbox, url, email, phone, checklist, relation, person, created_by, created_time, last_edited_by, last_edited_time). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A status is a select whose options belong to the groups todo, in_progress and done. A checklist holds items that can be ticked off. created_by, created_time, last_edited_by and last_edited_time show who created or last edited each row and when; they are filled in automatically and can't be written.
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / restore_page_version).
+list_notifications shows the user's inbox: rows someone assigned them to and pages shared with them.
 Always share the returned url with the user when you create or change something.`;
 
 const MAX_BULK_ROWS = 100;
@@ -222,6 +224,13 @@ const requireWrite: ScopeChallengeHandler = ({ authInfo }) => {
   return { scopes, errorDescription: "This tool needs the pages:write scope" };
 };
 
+/** The inbox tool advertises a step-up challenge for notifications:read the same way. */
+const requireNotifications: ScopeChallengeHandler = ({ authInfo }) => {
+  if (!authInfo || authInfo.scopes.includes(NOTIFICATIONS_SCOPE)) return undefined;
+  const scopes = [...new Set([...authInfo.scopes, READ_SCOPE, NOTIFICATIONS_SCOPE])] as [string, ...string[]];
+  return { scopes, errorDescription: "This tool needs the notifications:read scope" };
+};
+
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
 
 export function createMcpServer(principal: McpPrincipal) {
@@ -286,6 +295,54 @@ export function createMcpServer(principal: McpPrincipal) {
       runTool(async () => {
         const workspaces = await pages.listWorkspaces(userId);
         return { workspaces: workspaces.map((w) => ({ id: w.id, name: w.name, role: w.role })) };
+      }),
+  );
+
+  server.registerTool(
+    "list_notifications",
+    {
+      title: "List notifications",
+      description:
+        "List the user's inbox, newest first: database rows someone assigned them to and pages someone shared with them, with who did it and a link. Only the kinds the user keeps in their inbox are listed. Reading does not mark them read.",
+      inputSchema: z.object({
+        workspace_id: z.string().optional().describe("Only this workspace; all of the user's workspaces when omitted."),
+        unread_only: z.boolean().default(false).describe("Only notifications the user hasn't read yet."),
+        limit: z.number().int().min(1).max(50).default(20).describe("Maximum results (1-50, default 20)."),
+      }),
+      annotations: READ,
+      scopeChallenge: requireNotifications,
+    },
+    ({ workspace_id, unread_only, limit }) =>
+      runTool(async () => {
+        if (!principal.scopes.includes(NOTIFICATIONS_SCOPE)) {
+          throw new ToolInputError(
+            "This connection can't read notifications: the user did not grant the notifications:read permission. Ask the user to reconnect Esionage and allow it.",
+          );
+        }
+        const items = await notifications.listNotifications(userId, { workspaceId: workspace_id, unreadOnly: unread_only, limit });
+        return {
+          notifications: items.map((n) => {
+            const who = n.actorName || "Someone";
+            const title = pageLabel(n.pageTitle);
+            return {
+              id: n.id,
+              kind: n.kind,
+              read: n.read,
+              created_at: n.createdAt.toISOString(),
+              summary:
+                n.kind === "assignment"
+                  ? `${who} assigned the user to "${n.propertyName ?? ""}" on "${title}" in ${pageLabel(n.databaseTitle)}`
+                  : `${who} shared "${title}" with the user`,
+              actor: n.actorName,
+              page_id: n.pageId,
+              title,
+              ...(n.kind === "assignment" ? { database: pageLabel(n.databaseTitle), property: n.propertyName } : {}),
+              workspace_id: n.workspaceId,
+              workspace_name: n.workspaceName,
+              url: pageUrl(n.workspaceId, n.pageId),
+            };
+          }),
+        };
       }),
   );
 

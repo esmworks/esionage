@@ -55,6 +55,9 @@ vi.mock("@/server/databases", () => databases);
 const workspaces = vi.hoisted(() => ({ listMembers: vi.fn() }));
 vi.mock("@/server/workspaces", () => workspaces);
 
+const notifications = vi.hoisted(() => ({ listNotifications: vi.fn() }));
+vi.mock("@/server/notifications", () => notifications);
+
 const page = {
   id: "page-1",
   workspaceId: "ws-1",
@@ -587,5 +590,66 @@ describe("workspace reads", () => {
     ]);
     const r = await callTool(reader, "list_users", { workspace_id: "ws-1" });
     expect(r.data.users.map((u: { is_you: boolean }) => u.is_you)).toEqual([true, false]);
+  });
+});
+
+describe("list_notifications", () => {
+  const inbox = [
+    {
+      id: "n-2",
+      kind: "page_shared",
+      workspaceId: "ws-1",
+      workspaceName: "Team",
+      createdAt: new Date("2026-09-02T00:00:00Z"),
+      read: false,
+      actorName: "Ada",
+      pageId: "page-1",
+      pageTitle: "Plan",
+      pageIcon: null,
+      databaseTitle: null,
+      propertyName: null,
+    },
+    {
+      id: "n-1",
+      kind: "assignment",
+      workspaceId: "ws-1",
+      workspaceName: "Team",
+      createdAt: new Date("2026-09-01T00:00:00Z"),
+      read: true,
+      actorName: null,
+      pageId: "row-1",
+      pageTitle: "",
+      pageIcon: null,
+      databaseTitle: "Tasks",
+      propertyName: "Owner",
+    },
+  ];
+
+  it("lists the inbox with a summary and link for each kind", async () => {
+    notifications.listNotifications.mockResolvedValue(inbox);
+    const principal = { ...reader, scopes: ["pages:read", "notifications:read"] };
+    const { isError, data } = await callTool(principal, "list_notifications", { workspace_id: "ws-1", unread_only: true });
+    expect(isError).toBe(false);
+    expect(notifications.listNotifications).toHaveBeenCalledWith("user-1", { workspaceId: "ws-1", unreadOnly: true, limit: 20 });
+    expect(data.notifications[0]).toMatchObject({
+      kind: "page_shared",
+      read: false,
+      summary: 'Ada shared "Plan" with the user',
+      url: expect.stringMatching(/\/w\/ws-1\/p\/page-1$/),
+    });
+    expect(data.notifications[0]).not.toHaveProperty("property");
+    expect(data.notifications[1]).toMatchObject({
+      kind: "assignment",
+      summary: 'Someone assigned the user to "Owner" on "Untitled" in Tasks',
+      database: "Tasks",
+      property: "Owner",
+    });
+  });
+
+  it("needs the notifications:read scope", async () => {
+    const { isError, text } = await callTool(writer, "list_notifications", {});
+    expect(isError).toBe(true);
+    expect(text).toMatch(/notifications:read/);
+    expect(notifications.listNotifications).not.toHaveBeenCalled();
   });
 });
