@@ -12,5 +12,11 @@
   "loading": "Yükleniyor…",
   "copy": "Kopyala",
   "copied": "Kopyalandı",
-  "genericError": "Bir şeyler ters gitti. Tekrar deneyin."
+  "genericError": "Bir şeyler ters gitti. Tekrar deneyin.",
+  "errorPage": {
+    "title": "Bir şeyler ters gitti",
+    "description": "Bu sayfa gösterilemedi ya da son değişikliğiniz kaydedilemedi.",
+    "retry": "Tekrar dene",
+    "home": "Ana sayfaya dön"
+  }
 }

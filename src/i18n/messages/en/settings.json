@@ -30,13 +30,13 @@
     "noInvitations": "No pending invitations.",
     "joinLink": {
       "heading": "Add members with a link",
-      "descriptionOn": "Anyone who opens this link and signs in joins as a member. Only owners can see it.",
+      "descriptionOn": "Anyone who opens this link and signs in joins as a member, or with the role of a pending invitation for their email. Only owners can see it.",
       "descriptionOff": "Turn on a link that anyone can use to join this workspace as a member.",
       "regenerate": "Create a new link",
       "copy": "Copy link",
       "toggle": "Join link",
       "regenerateTitle": "Create a new link?",
-      "regenerateBody": "The current link stops working right away. People who already joined stay members.",
+      "regenerateBody": "The current link stops working right away. People who already joined keep their access.",
       "regenerateConfirm": "Create new link"
     },
     "columns": {
@@ -98,6 +98,12 @@
     "followBrowser": "Follow browser",
     "note": "This setting applies to this browser only."
   },
+  "leaveWorkspace": {
+    "title": "Leave workspace",
+    "description": "You're a guest here and see only the pages shared with you. Leaving removes that access.",
+    "button": "Leave"
+  },
+  "copyManually": "Copying isn't available here. Select the text and press Ctrl+C (⌘C on a Mac).",
   "connectedApps": {
     "heading": "Connected apps",
     "description": "Apps you have allowed to use Esionage on your behalf, for example AI assistants connected over MCP.",

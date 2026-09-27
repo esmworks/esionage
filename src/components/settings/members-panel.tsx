@@ -39,13 +39,15 @@ function matches(query: string, ...values: string[]) {
   return !q || values.some((v) => v.toLocaleLowerCase().includes(q));
 }
 
+const ROLE_ORDER: Record<WorkspaceRole, number> = { owner: 0, member: 1, guest: 2 };
+
 function compareMembers(a: Member, b: Member, key: SortKey) {
   switch (key) {
     case "name":
       return (a.name || a.email).localeCompare(b.name || b.email);
     case "role":
-      // Owners first when ascending.
-      return (a.role === "owner" ? 0 : 1) - (b.role === "owner" ? 0 : 1) || a.name.localeCompare(b.name);
+      // Owners, then members, then guests when ascending.
+      return ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || (a.name || a.email).localeCompare(b.name || b.email);
     case "joined":
       return a.joinedAt.getTime() - b.joinedAt.getTime();
     case "edited":
@@ -191,7 +193,6 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 
 function JoinLinkCard({ workspaceId, link }: { workspaceId: string; link: string | null }) {
   const t = useTranslations("settings.members.joinLink");
-  const tc = useTranslations("common");
   const { pending, error, run } = useAction();
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -227,25 +228,37 @@ function JoinLinkCard({ workspaceId, link }: { workspaceId: string; link: string
           </>
         }
       />
-      <Dialog open={confirmReset} onClose={() => setConfirmReset(false)} className="max-w-md">
-        <div className="space-y-3 p-5">
-          <h2 className="text-base font-semibold">{t("regenerateTitle")}</h2>
-          <p className="text-sm text-fg-muted">{t("regenerateBody")}</p>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setConfirmReset(false)}>
-              {tc("cancel")}
-            </Button>
-            <Button
-              variant="primary"
-              disabled={pending}
-              onClick={() => run(() => setJoinLinkAction(workspaceId, "regenerate"), () => setConfirmReset(false))}
-            >
-              {t("regenerateConfirm")}
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+      {/* Mounted only while open, so an earlier attempt's error doesn't linger. */}
+      {confirmReset && <RegenerateLinkDialog workspaceId={workspaceId} onClose={() => setConfirmReset(false)} />}
     </>
+  );
+}
+
+function RegenerateLinkDialog({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) {
+  const t = useTranslations("settings.members.joinLink");
+  const tc = useTranslations("common");
+  // Its own action state, so a failure shows here instead of behind the dialog.
+  const { pending, error, run } = useAction();
+  return (
+    <Dialog open onClose={onClose} className="max-w-md">
+      <div className="space-y-3 p-5">
+        <h2 className="text-base font-semibold">{t("regenerateTitle")}</h2>
+        <p className="text-sm text-fg-muted">{t("regenerateBody")}</p>
+        {error && <p className="text-xs text-danger">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            {tc("cancel")}
+          </Button>
+          <Button
+            variant="primary"
+            disabled={pending}
+            onClick={() => run(() => setJoinLinkAction(workspaceId, "regenerate"), onClose)}
+          >
+            {t("regenerateConfirm")}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 

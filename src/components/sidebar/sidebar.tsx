@@ -39,6 +39,8 @@ type Workspace = { id: string; name: string; icon: string | null; role: string }
 
 const EXPANDED_KEY = "esionage:expanded";
 
+const canEdit = (node: TreeNode) => node.level === "edit" || node.level === "full";
+
 function loadExpanded(): Set<string> {
   try {
     return new Set(JSON.parse(localStorage.getItem(EXPANDED_KEY) ?? "[]"));
@@ -75,6 +77,9 @@ export function Sidebar({
   const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false);
   const [, startTransition] = useTransition();
   const [moveError, setMoveError] = useState(false);
+  // Creating or trashing a page failed (e.g. access changed meanwhile).
+  const [actionError, setActionError] = useState(false);
+  const [dragging, setDragging] = useState<string | null>(null);
   const workspace = workspaces.find((w) => w.id === workspaceId);
   // Guests only see pages shared with them and can't add top-level pages.
   const guest = workspace?.role === "guest";
@@ -119,6 +124,21 @@ export function Sidebar({
     for (const list of map.values()) list.sort((a, b) => a.position - b.position);
     return map;
   }, [tree]);
+  const byId = useMemo(() => new Map(tree.map((n) => [n.id, n])), [tree]);
+
+  /** Whether a dragged page may go under `parentId` (null: the top level), mirroring movePage's checks. */
+  function canDrop(draggedId: string, parentId: string | null) {
+    const dragged = byId.get(draggedId);
+    if (!dragged || !canEdit(dragged)) return false;
+    // Not into itself or one of its subpages: that would cut the branch off the tree.
+    for (let id = parentId; id; id = byId.get(id)?.parentId ?? null) if (id === draggedId) return false;
+    if (parentId === dragged.parentId) return true;
+    // Another parent changes who inherits access to the page: that takes full access.
+    if (dragged.level !== "full") return false;
+    if (!parentId) return !guest;
+    const parent = byId.get(parentId);
+    return !!parent && canEdit(parent) && !(parent.kind === "database" && dragged.kind === "database");
+  }
 
   function toggle(id: string, open?: boolean) {
     setExpanded((prev) => {
@@ -133,19 +153,31 @@ export function Sidebar({
   }
 
   function create(parentId: string | null, kind: PageKind = "page") {
+    setActionError(false);
     startTransition(async () => {
-      const { id } = await createPageAction({ workspaceId, parentId, kind });
-      if (parentId) toggle(parentId, true);
-      refresh();
-      router.push(`/w/${workspaceId}/p/${id}`);
+      try {
+        const { id } = await createPageAction({ workspaceId, parentId, kind });
+        if (parentId) toggle(parentId, true);
+        router.push(`/w/${workspaceId}/p/${id}`);
+      } catch {
+        setActionError(true);
+      } finally {
+        refresh();
+      }
     });
   }
 
   function archive(id: string) {
+    setActionError(false);
     startTransition(async () => {
-      await archivePageAction(id);
-      refresh();
-      if (activeId === id) router.refresh();
+      try {
+        await archivePageAction(id);
+        if (activeId === id) router.refresh();
+      } catch {
+        setActionError(true);
+      } finally {
+        refresh();
+      }
     });
   }
 
@@ -169,6 +201,11 @@ export function Sidebar({
     const timer = setTimeout(() => setMoveError(false), 5000);
     return () => clearTimeout(timer);
   }, [moveError]);
+  useEffect(() => {
+    if (!actionError) return;
+    const timer = setTimeout(() => setActionError(false), 5000);
+    return () => clearTimeout(timer);
+  }, [actionError]);
 
   async function signOut() {
     await authClient.signOut();
@@ -366,6 +403,11 @@ export function Sidebar({
             {t("pages.moveFailed")}
           </p>
         )}
+        {actionError && (
+          <p role="alert" className="mx-4 mb-1 text-xs text-danger">
+            {tc("genericError")}
+          </p>
+        )}
         <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label={t("pages.heading")}>
           {roots.length === 0 && guest && <p className="px-2 py-1.5 text-fg-muted">{t("pages.nothingShared")}</p>}
           {roots.length === 0 && !guest && (
@@ -389,6 +431,9 @@ export function Sidebar({
             onCreate={create}
             onArchive={archive}
             onMove={move}
+            dragging={dragging}
+            onDragging={setDragging}
+            canDrop={canDrop}
           />
         </nav>
 
@@ -496,6 +541,10 @@ type TreeProps = {
   onCreate: (parentId: string | null, kind?: PageKind) => void;
   onArchive: (id: string) => void;
   onMove: (id: string, parentId: string | null, position: number) => void;
+  /** The page being dragged in this tree, if any. */
+  dragging: string | null;
+  onDragging: (id: string | null) => void;
+  canDrop: (draggedId: string, parentId: string | null) => boolean;
 };
 
 function TreeLevel({ nodes, ...props }: TreeProps & { nodes: TreeNode[] }) {
@@ -517,6 +566,7 @@ function TreeItem({
   ...props
 }: TreeProps & { node: TreeNode; prev?: TreeNode; next?: TreeNode }) {
   const { depth, childrenOf, expanded, activeId, activeViewId, workspaceId, onToggle, onCreate, onArchive, onMove } = props;
+  const { dragging, onDragging, canDrop } = props;
   const t = useTranslations("sidebar");
   const tc = useTranslations("common");
   const kids = childrenOf.get(node.id) ?? [];
@@ -524,6 +574,8 @@ function TreeItem({
   const [drop, setDrop] = useState<DropTarget>(null);
   // Database rows are not shown in the tree; dropping into a database would turn a page into a row.
   const canNest = node.kind === "page";
+  // Trashing, adding subpages and moving all need edit access on the server.
+  const editable = canEdit(node);
   // Databases expand to their views instead of child pages.
   const views = node.kind === "database" ? (node.views ?? []) : [];
   const expandable = canNest || views.length > 0;
@@ -538,12 +590,15 @@ function TreeItem({
     return canNest ? "inside" : y < 0.5 ? "before" : "after";
   }
 
+  const parentFor = (zone: "before" | "inside" | "after") => (zone === "inside" ? node.id : node.parentId);
+
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     const draggedId = e.dataTransfer.getData(DRAG_TYPE);
     const zone = zoneFor(e);
     setDrop(null);
-    if (!draggedId || draggedId === node.id) return;
+    onDragging(null);
+    if (!draggedId || draggedId === node.id || !canDrop(draggedId, parentFor(zone))) return;
     if (zone === "inside") {
       const last = kids[kids.length - 1];
       onMove(draggedId, node.id, (last?.position ?? 0) + 1);
@@ -557,15 +612,20 @@ function TreeItem({
   return (
     <li>
       <div
-        draggable
+        draggable={editable}
         onDragStart={(e) => {
           e.dataTransfer.setData(DRAG_TYPE, node.id);
           e.dataTransfer.effectAllowed = "move";
+          onDragging(node.id);
         }}
+        onDragEnd={() => onDragging(null)}
         onDragOver={(e) => {
           if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
+          const zone = zoneFor(e);
+          // Not accepting the drop shows the "not allowed" cursor.
+          if (!dragging || !canDrop(dragging, parentFor(zone))) return setDrop(null);
           e.preventDefault();
-          setDrop({ id: node.id, zone: zoneFor(e) });
+          setDrop({ id: node.id, zone });
         }}
         onDragLeave={() => setDrop(null)}
         onDrop={onDrop}
@@ -607,34 +667,36 @@ function TreeItem({
           )}
           <span className="truncate">{pageLabel(node.title, tc("untitled"))}</span>
         </Link>
-        <div className="hidden items-center group-hover:flex">
-          <Popover
-            align="end"
-            trigger={({ toggle }) => (
-              <IconButton label={t("pages.actions")} onClick={toggle}>
-                <MoreHorizontal className="h-3.5 w-3.5" />
+        {editable && (
+          <div className="hidden items-center group-hover:flex pointer-coarse:flex">
+            <Popover
+              align="end"
+              trigger={({ toggle }) => (
+                <IconButton label={t("pages.actions")} onClick={toggle}>
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </IconButton>
+              )}
+            >
+              {(close) => (
+                <MenuItem
+                  danger
+                  icon={<Trash2 className="h-4 w-4" />}
+                  onClick={() => {
+                    close();
+                    onArchive(node.id);
+                  }}
+                >
+                  {t("pages.moveToTrash")}
+                </MenuItem>
+              )}
+            </Popover>
+            {canNest && (
+              <IconButton label={t("pages.addInside")} onClick={() => onCreate(node.id)}>
+                <Plus className="h-3.5 w-3.5" />
               </IconButton>
             )}
-          >
-            {(close) => (
-              <MenuItem
-                danger
-                icon={<Trash2 className="h-4 w-4" />}
-                onClick={() => {
-                  close();
-                  onArchive(node.id);
-                }}
-              >
-                {t("pages.moveToTrash")}
-              </MenuItem>
-            )}
-          </Popover>
-          {canNest && (
-            <IconButton label={t("pages.addInside")} onClick={() => onCreate(node.id)}>
-              <Plus className="h-3.5 w-3.5" />
-            </IconButton>
-          )}
-        </div>
+          </div>
+        )}
       </div>
       {isOpen && views.length > 0 && (
         <ul>

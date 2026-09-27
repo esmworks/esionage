@@ -31,6 +31,7 @@ export function LanguageSettings({ current }: { current: Locale | null }) {
           disabled={pending}
           onChange={(e) => {
             const next = e.target.value;
+            const previous = value;
             setValue(next);
             setError(false);
             startTransition(async () => {
@@ -38,6 +39,8 @@ export function LanguageSettings({ current }: { current: Locale | null }) {
                 await setLocaleAction(next || null);
                 router.refresh();
               } catch {
+                // Not saved: show the language that is still in effect.
+                setValue(previous);
                 setError(true);
               }
             });

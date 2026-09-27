@@ -239,6 +239,7 @@
     "nestedDatabase": "Bir veritabanının içinde başka bir veritabanı olamaz.",
     "invalidRelation": "“{property}” yalnızca ilişkili veritabanının satırlarına bağlanabilir.",
     "invalidRelationTarget": "İlişki aynı çalışma alanındaki bir veritabanını göstermelidir.",
+    "relationTargetReadOnly": "O veritabanını yalnızca görüntüleyebiliyorsun, bu yüzden bağlantı orada gösterilemez. O seçeneğin işaretini kaldır ya da düzenleme izni iste.",
     "databaseLocked": "Veritabanı kilitli. Özellikleri ve görünümleri değiştirmek için önce kilidi açın."
   }
 }

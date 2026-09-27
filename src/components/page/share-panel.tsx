@@ -70,10 +70,16 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
   const run = async (action: () => Promise<SharingResult>) => {
     setBusy(true);
     setError(null);
-    const result = await action();
-    if (!result.ok) setError(t(`errors.${result.code}`));
-    await load();
-    setBusy(false);
+    try {
+      const result = await action();
+      if (!result.ok) setError(t(`errors.${result.code}`));
+    } catch {
+      // A thrown action (network, session) must not leave the panel greyed out.
+      setError(t("errors.generic"));
+    } finally {
+      await load();
+      setBusy(false);
+    }
   };
 
   const canManage = data?.level === "full";

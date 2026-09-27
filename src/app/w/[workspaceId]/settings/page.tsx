@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { ConnectedApps } from "@/components/settings/connected-apps";
 import { LanguageSettings } from "@/components/settings/language-settings";
+import { LeaveWorkspaceRow } from "@/components/settings/leave-workspace";
 import { McpInstructions } from "@/components/settings/mcp-instructions";
 import { MembersPanel } from "@/components/settings/members-panel";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
@@ -101,7 +102,9 @@ export default async function SettingsPage({
             </>
           )}
           {tab === "members" && <MembersTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
-          {tab === "preferences" && <PreferencesTab />}
+          {tab === "preferences" && (
+            <PreferencesTab workspaceId={workspaceId} userId={user.id} guest={isGuest(workspace.role)} />
+          )}
           {tab === "apps" && (
             <>
               <SettingsHeader title={t("nav.apps")} description={t("connectedApps.description")} />
@@ -137,16 +140,24 @@ async function MembersTab({ workspaceId, userId, isOwner }: { workspaceId: strin
   );
 }
 
-async function PreferencesTab() {
+async function PreferencesTab({ workspaceId, userId, guest }: { workspaceId: string; userId: string; guest: boolean }) {
   const cookieStore = await cookies();
   const savedLocale = cookieStore.get(LOCALE_COOKIE)?.value;
   const t = await getTranslations("settings");
   return (
     <>
       <SettingsHeader title={t("nav.preferences")} description={t("preferences.description")} />
-      <SettingsGroup title={t("language.heading")}>
-        <LanguageSettings current={isLocale(savedLocale) ? savedLocale : null} />
-      </SettingsGroup>
+      <div className="space-y-10">
+        <SettingsGroup title={t("language.heading")}>
+          <LanguageSettings current={isLocale(savedLocale) ? savedLocale : null} />
+        </SettingsGroup>
+        {/* Guests can't open the members list, where everyone else leaves from. */}
+        {guest && (
+          <SettingsGroup title={t("nav.workspace")}>
+            <LeaveWorkspaceRow workspaceId={workspaceId} userId={userId} />
+          </SettingsGroup>
+        )}
+      </div>
     </>
   );
 }

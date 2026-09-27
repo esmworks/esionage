@@ -12,5 +12,11 @@
   "loading": "Loading…",
   "copy": "Copy",
   "copied": "Copied",
-  "genericError": "Something went wrong. Try again."
+  "genericError": "Something went wrong. Try again.",
+  "errorPage": {
+    "title": "Something went wrong",
+    "description": "This page couldn't be shown, or your last change didn't go through.",
+    "retry": "Try again",
+    "home": "Go to home"
+  }
 }

@@ -270,19 +270,15 @@ function OptionsEditor({
           <div key={o.id} className="rounded px-1 py-0.5 hover:bg-bg-subtle">
             <div className="flex items-center gap-1">
               {editing === o.id ? (
-                <Input
-                  autoFocus
-                  defaultValue={o.name}
-                  aria-label={t("optionName")}
-                  className="h-6 flex-1"
-                  onBlur={(e) => {
-                    const name = e.target.value.trim();
-                    if (name && name !== o.name) save(options.map((x) => (x.id === o.id ? { ...x, name } : x)));
-                    setEditing(null);
+                <OptionNameInput
+                  name={o.name}
+                  label={t("optionName")}
+                  onSave={(name) => {
+                    // Names stay unique: lookups by name (typing a tag, MCP) would pick the wrong one.
+                    const taken = options.some((x) => x.id !== o.id && x.name.toLowerCase() === name.toLowerCase());
+                    if (name && name !== o.name && !taken) save(options.map((x) => (x.id === o.id ? { ...x, name } : x)));
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                  }}
+                  onDone={() => setEditing(null)}
                 />
               ) : (
                 <button
@@ -356,5 +352,58 @@ function RelationInfo({ prop }: { prop: Property }) {
       <div className="truncate">{t("relatedTo", { title: pageLabel(target.database.title, tc("untitled")) })}</div>
       {target.pairedName && <div className="truncate">{t("pairedWith", { name: target.pairedName })}</div>}
     </div>
+  );
+}
+
+/**
+ * Rename field for an option. Saves on Enter, blur and unmount: closing the menu by clicking
+ * outside or pressing Escape unmounts it before the input's blur fires.
+ */
+function OptionNameInput({
+  name,
+  label,
+  onSave,
+  onDone,
+}: {
+  name: string;
+  label: string;
+  onSave: (name: string) => void;
+  onDone: () => void;
+}) {
+  // Tracked outside the DOM: element refs are already detached when the unmount save runs.
+  const draft = useRef(name);
+  const saved = useRef(false);
+  const save = () => {
+    if (saved.current) return;
+    saved.current = true;
+    onSave(draft.current.trim());
+  };
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(() => {
+    // Reset for Strict Mode's remount; the unmount save is a no-op while the name is unchanged.
+    saved.current = false;
+    return () => saveRef.current();
+  }, []);
+  return (
+    <Input
+      autoFocus
+      defaultValue={name}
+      aria-label={label}
+      className="h-6 flex-1"
+      onChange={(e) => {
+        draft.current = e.target.value;
+      }}
+      onBlur={() => {
+        save();
+        onDone();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          save();
+          onDone();
+        }
+      }}
+    />
   );
 }

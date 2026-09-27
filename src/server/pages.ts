@@ -11,7 +11,17 @@ import {
   user,
   type ViewType,
 } from "@/db/schema";
-import { accessRank, AccessError, pageVisibleTo, requireMember, requireMembership, requirePageAccess } from "@/server/access";
+import {
+  accessRank,
+  AccessError,
+  type AccessLevel,
+  levelFromRank,
+  pageIdColumn,
+  pageVisibleTo,
+  requireMember,
+  requireMembership,
+  requirePageAccess,
+} from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { normalizeRowProperties, syncPairedRelations, withCode } from "@/server/databases";
 
@@ -22,6 +32,8 @@ export type TreeNode = {
   title: string;
   icon: string | null;
   position: number;
+  /** The user's access to the page, so the sidebar only offers what the server allows. */
+  level: AccessLevel;
   /** Databases only: their views, listed under the database in the sidebar. */
   views?: TreeView[];
 };
@@ -43,15 +55,22 @@ export async function getTree(userId: string, workspaceId: string): Promise<Tree
     title: string;
     icon: string | null;
     position: number;
+    level: number;
   }>(sql`
-    select p.id, p.parent_id, p.kind, p.title, p.icon, p.position
-    from ${page} p
-    left join ${page} parent on parent.id = p.parent_id
-    where p.workspace_id = ${workspaceId}
-      and p.archived_at is null
-      and (parent.id is null or parent.kind <> 'database')
-      and ${pageVisibleTo(userId, "p")}
-    order by p.position, p.created_at
+    with ranked as materialized (
+      -- Materialized so the access level is worked out once per page, for the filter and the result.
+      select p.id, p.parent_id, p.kind, p.title, p.icon, p.position, p.created_at,
+        ${accessRank(userId, pageIdColumn("p"))} as level
+      from ${page} p
+      left join ${page} parent on parent.id = p.parent_id
+      where p.workspace_id = ${workspaceId}
+        and p.archived_at is null
+        and (parent.id is null or parent.kind <> 'database')
+    )
+    select id, parent_id, kind, title, icon, position, level
+    from ranked
+    where level > 0
+    order by position, created_at
   `);
   const views = await db
     .select({ id: databaseView.id, name: databaseView.name, type: databaseView.type, databaseId: databaseView.databaseId })
@@ -69,6 +88,7 @@ export async function getTree(userId: string, workspaceId: string): Promise<Tree
     title: r.title,
     icon: r.icon,
     position: Number(r.position),
+    level: levelFromRank(r.level),
     ...(r.kind === "database" ? { views: viewsOf.get(r.id) ?? [] } : {}),
   }));
 }
@@ -242,7 +262,17 @@ export async function restorePage(userId: string, pageId: string) {
     const [parent] = await db.select({ archivedAt: page.archivedAt }).from(page).where(eq(page.id, parentId));
     if (!parent || parent.archivedAt) parentId = null;
   }
-  await db.update(page).set({ archivedAt: null }).where(sql`${page.id} in ${subtreeIds(pageId)}`);
+  // Only what was trashed together with it: subpages trashed earlier stay in the trash as their own
+  // entries (archivePage stamps just the pages that weren't archived yet).
+  await db
+    .update(page)
+    .set({ archivedAt: null })
+    .where(
+      and(
+        sql`${page.id} in ${subtreeIds(pageId)}`,
+        sql`${page.archivedAt} = (select root.archived_at from ${page} root where root.id = ${pageId})`,
+      ),
+    );
   if (parentId !== p.parentId) await db.update(page).set({ parentId }).where(eq(page.id, pageId));
   getCollab().broadcast(`ws:${p.workspaceId}`, "tree");
   if (parentId) getCollab().broadcast(`db:${parentId}`, "rows");
@@ -257,18 +287,31 @@ export async function deletePagePermanently(userId: string, pageId: string) {
 
 export async function listTrash(userId: string, workspaceId: string) {
   await requireMembership(userId, workspaceId);
-  // Only roots of archived subtrees; their descendants come back with them.
-  return db.execute<{ id: string; title: string; icon: string | null; kind: PageKind; archived_at: Date }>(sql`
-    select p.id, p.title, p.icon, p.kind, p.archived_at
-    from ${page} p
-    left join ${page} parent on parent.id = p.parent_id
-    where p.workspace_id = ${workspaceId}
-      and p.archived_at is not null
-      and (parent.id is null or parent.archived_at is null or parent.archived_at <> p.archived_at)
-      and ${pageVisibleTo(userId, "p")}
-    order by p.archived_at desc
+  // Only roots of archived subtrees; their descendants come back with them. The access level says
+  // whether the user may restore (edit) or delete for good (full).
+  const rows = await db.execute<{
+    id: string;
+    title: string;
+    icon: string | null;
+    kind: PageKind;
+    archived_at: Date;
+    level: number;
+  }>(sql`
+    with ranked as materialized (
+      select p.id, p.title, p.icon, p.kind, p.archived_at, ${accessRank(userId, pageIdColumn("p"))} as level
+      from ${page} p
+      left join ${page} parent on parent.id = p.parent_id
+      where p.workspace_id = ${workspaceId}
+        and p.archived_at is not null
+        and (parent.id is null or parent.archived_at is null or parent.archived_at <> p.archived_at)
+    )
+    select id, title, icon, kind, archived_at, level
+    from ranked
+    where level > 0
+    order by archived_at desc
     limit 100
   `);
+  return rows.map(({ level, ...r }) => ({ ...r, level: levelFromRank(level) }));
 }
 
 /**

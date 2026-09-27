@@ -185,7 +185,10 @@ export function BoardView({
       >
         {groups.map((group, i) => {
           const key = groupKey(group);
-          const dropping = dragId !== null && drop?.group === key;
+          // With a sort active a card can only change column: no target inside its own column,
+          // and no insertion line, since the sort decides where it lands.
+          const dropping =
+            dragId !== null && drop?.group === key && (manualOrder || !group.rows.some((r) => r.id === dragId));
           const colFrom = dragCol === null ? -1 : groups.findIndex((g) => groupKey(g) === dragCol);
           const lineAt = colDrop !== null && colDrop !== colFrom && colDrop !== colFrom + 1 ? colDrop : null;
           return (
@@ -275,7 +278,7 @@ export function BoardView({
                   const visibleIndex = group.rows.filter((r) => r.id !== dragId).findIndex((r) => r.id === row.id);
                   return (
                     <div key={row.id}>
-                      {dropping && drop.index === visibleIndex && row.id !== dragId && <DropLine />}
+                      {dropping && manualOrder && drop.index === visibleIndex && row.id !== dragId && <DropLine />}
                       <Card
                         workspaceId={workspaceId}
                         row={row}
@@ -301,7 +304,7 @@ export function BoardView({
                     </div>
                   );
                 })}
-                {dropping && drop.index >= group.rows.filter((r) => r.id !== dragId).length && <DropLine />}
+                {dropping && manualOrder && drop.index >= group.rows.filter((r) => r.id !== dragId).length && <DropLine />}
                 {!readOnly && (
                   <button
                     type="button"

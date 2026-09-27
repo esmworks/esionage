@@ -24,33 +24,47 @@ export function TrashDialog({
   const t = useTranslations("sidebar.trash");
   const tc = useTranslations("common");
   const [items, setItems] = useState<TrashItem[] | null>(null);
+  const [error, setError] = useState(false);
   const [, startTransition] = useTransition();
 
-  const load = () => listTrashAction(workspaceId).then(setItems);
+  const load = () => listTrashAction(workspaceId).then(setItems, () => setError(true));
   useEffect(() => {
-    if (open) load();
+    if (!open) return;
+    setError(false);
+    load();
   }, [open, workspaceId]);
 
-  function restore(id: string) {
+  /** Runs a trash change; on failure (e.g. someone else just changed the page) shows an error and reloads. */
+  function run(action: () => Promise<unknown>) {
+    setError(false);
     startTransition(async () => {
-      await restorePageAction(id);
+      try {
+        await action();
+        onChange();
+      } catch {
+        setError(true);
+      }
       await load();
-      onChange();
     });
+  }
+
+  function restore(id: string) {
+    run(() => restorePageAction(id));
   }
 
   function remove(id: string) {
     if (!confirm(t("confirmDelete"))) return;
-    startTransition(async () => {
-      await deletePagePermanentlyAction(id);
-      await load();
-      onChange();
-    });
+    run(() => deletePagePermanentlyAction(id));
   }
 
   return (
     <Dialog open={open} onClose={onClose}>
       <div className="border-b border-border px-4 py-3 text-sm font-medium">{t("title")}</div>
+      {error && (
+        <p role="alert" className="border-b border-border px-4 py-2 text-xs text-danger">
+          {tc("genericError")}
+        </p>
+      )}
       <ul className="max-h-[50vh] overflow-y-auto p-1">
         {items?.length === 0 && <li className="px-3 py-6 text-center text-sm text-fg-muted">{t("empty")}</li>}
         {items?.map((item) => (
@@ -66,12 +80,16 @@ export function TrashDialog({
               <PageIcon icon={item.icon} kind={item.kind} className="text-sm" />
               <span className="truncate">{pageLabel(item.title, tc("untitled"))}</span>
             </button>
-            <IconButton label={tc("restore")} onClick={() => restore(item.id)}>
-              <RotateCcw className="h-3.5 w-3.5" />
-            </IconButton>
-            <IconButton label={t("deletePermanently")} onClick={() => remove(item.id)} className="hover:text-danger">
-              <Trash2 className="h-3.5 w-3.5" />
-            </IconButton>
+            {item.canRestore && (
+              <IconButton label={tc("restore")} onClick={() => restore(item.id)}>
+                <RotateCcw className="h-3.5 w-3.5" />
+              </IconButton>
+            )}
+            {item.canDelete && (
+              <IconButton label={t("deletePermanently")} onClick={() => remove(item.id)} className="hover:text-danger">
+                <Trash2 className="h-3.5 w-3.5" />
+              </IconButton>
+            )}
           </li>
         ))}
       </ul>

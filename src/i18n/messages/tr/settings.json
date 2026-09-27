@@ -30,13 +30,13 @@
     "noInvitations": "Bekleyen davet yok.",
     "joinLink": {
       "heading": "Bağlantıyla üye ekle",
-      "descriptionOn": "Bu bağlantıyı açıp giriş yapan herkes üye olarak katılır. Bağlantıyı yalnızca sahipler görür.",
+      "descriptionOn": "Bu bağlantıyı açıp giriş yapan herkes üye olarak katılır; e-postasına bekleyen bir davet varsa davetteki rolle. Bağlantıyı yalnızca sahipler görür.",
       "descriptionOff": "Herkesin bu çalışma alanına üye olarak katılabileceği bir bağlantı açın.",
       "regenerate": "Yeni bağlantı oluştur",
       "copy": "Bağlantıyı kopyala",
       "toggle": "Katılma bağlantısı",
       "regenerateTitle": "Yeni bağlantı oluşturulsun mu?",
-      "regenerateBody": "Mevcut bağlantı hemen geçersiz olur. Daha önce katılanlar üye olarak kalır.",
+      "regenerateBody": "Mevcut bağlantı hemen geçersiz olur. Daha önce katılanların erişimi sürer.",
       "regenerateConfirm": "Yeni bağlantı oluştur"
     },
     "columns": {
@@ -98,6 +98,12 @@
     "followBrowser": "Tarayıcı dilini kullan",
     "note": "Bu ayar yalnızca bu tarayıcı için geçerlidir."
   },
+  "leaveWorkspace": {
+    "title": "Çalışma alanından ayrıl",
+    "description": "Burada misafirsiniz ve yalnızca sizinle paylaşılan sayfaları görüyorsunuz. Ayrılırsanız bu erişimi kaybedersiniz.",
+    "button": "Ayrıl"
+  },
+  "copyManually": "Burada kopyalama kullanılamıyor. Metni seçip Ctrl+C'ye (Mac'te ⌘C) basın.",
   "connectedApps": {
     "heading": "Bağlı uygulamalar",
     "description": "Esionage'ı sizin adınıza kullanmasına izin verdiğiniz uygulamalar; örneğin MCP üzerinden bağlanan yapay zekâ asistanları.",

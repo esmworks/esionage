@@ -3,6 +3,7 @@
 import { Check, ExternalLink, Globe, Link2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { getPageHeaderAction } from "@/app/actions/page-menu";
 import { getPublicationAction, publishPageAction, unpublishPageAction } from "@/app/actions/publication";
 import { Button, cn } from "@/components/ui";
 
@@ -12,6 +13,8 @@ type Publication = { token: string; url: string } | null;
 export function PublishTab({ pageId }: { pageId: string }) {
   const t = useTranslations("publish");
   const [publication, setPublication] = useState<Publication | undefined>(undefined);
+  // Managing the publication needs full access. The server enforces it; this explains the disabled button.
+  const [canManage, setCanManage] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -20,6 +23,9 @@ export function PublishTab({ pageId }: { pageId: string }) {
     getPublicationAction(pageId)
       .then((p) => setPublication(p ?? null))
       .catch(() => setPublication(null));
+    getPageHeaderAction(pageId)
+      .then((info) => setCanManage(info.level === "full"))
+      .catch(() => {});
   }, [pageId]);
 
   const absolute = (url: string) => new URL(url, window.location.origin).toString();
@@ -31,9 +37,21 @@ export function PublishTab({ pageId }: { pageId: string }) {
       const result = await action();
       setPublication(result ?? null);
     } catch {
-      setError(t("needsFullAccess"));
+      // Server action errors lose their message in production, so find the cause here: access
+      // may have changed since the tab opened. The page can't be in the trash, since the Share
+      // popover isn't offered there.
+      const level = await getPageHeaderAction(pageId)
+        .then((info) => info.level)
+        .catch(() => null);
+      if (level && level !== "full") {
+        setCanManage(false);
+        setError(t("needsFullAccess"));
+      } else {
+        setError(t("failed"));
+      }
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   };
 
   if (publication === undefined) return <div className="px-3 py-6 text-sm text-fg-muted">…</div>;
@@ -83,10 +101,12 @@ export function PublishTab({ pageId }: { pageId: string }) {
         </div>
       )}
 
-      {error && (
+      {error ? (
         <p role="alert" className="mt-2 text-xs text-danger">
           {error}
         </p>
+      ) : (
+        !canManage && <p className="mt-2 text-xs text-fg-muted">{t("needsFullAccess")}</p>
       )}
 
       <div className="mt-3">
@@ -94,7 +114,7 @@ export function PublishTab({ pageId }: { pageId: string }) {
           <Button
             size="sm"
             className="w-full justify-center"
-            disabled={busy}
+            disabled={busy || !canManage}
             onClick={() => {
               if (confirm(t("confirmUnpublish"))) void change(() => unpublishPageAction(pageId));
             }}
@@ -106,7 +126,7 @@ export function PublishTab({ pageId }: { pageId: string }) {
             size="sm"
             variant="primary"
             className="w-full justify-center"
-            disabled={busy}
+            disabled={busy || !canManage}
             onClick={() => void change(() => publishPageAction(pageId))}
           >
             {t("publish")}

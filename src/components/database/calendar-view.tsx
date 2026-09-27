@@ -60,6 +60,7 @@ export function CalendarView({
   rows,
   api,
   readOnly,
+  locked,
   onCreateDateProperty,
 }: {
   workspaceId: string;
@@ -68,6 +69,7 @@ export function CalendarView({
   rows: Row[];
   api: DatabaseApi;
   readOnly?: boolean;
+  locked?: boolean;
   onCreateDateProperty: () => void;
 }) {
   const t = useTranslations("database");
@@ -104,7 +106,7 @@ export function CalendarView({
           <p className="text-sm font-medium">{t("calendar.needsDateTitle")}</p>
           <p className="mt-1 text-sm text-fg-muted">{t("calendar.needsDateBody")}</p>
         </div>
-        {!readOnly && (
+        {!readOnly && !locked && (
           <Button size="sm" onClick={onCreateDateProperty}>
             <Plus className="h-3.5 w-3.5" />
             {t("calendar.addDateProperty", { name: t("calendar.defaultDateProperty") })}

@@ -38,6 +38,8 @@ export default async function PageRoute({ params }: Params) {
   const parent = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null;
   const isRow = parent?.kind === "database";
   const archived = Boolean(p.archivedAt);
+  // Viewers see the database and row values but can't change them; the server refuses it too.
+  const canEdit = info.level === "edit" || info.level === "full";
 
   return (
     <PageView
@@ -51,9 +53,9 @@ export default async function PageRoute({ params }: Params) {
       wide={p.kind === "database"}
     >
       {p.kind === "database" ? (
-        <DatabasePage workspaceId={workspaceId} databaseId={p.id} />
+        <DatabasePage workspaceId={workspaceId} databaseId={p.id} canEdit={canEdit && !archived} />
       ) : isRow ? (
-        <RowProperties workspaceId={workspaceId} databaseId={parent.id} rowId={p.id} readOnly={archived} />
+        <RowProperties workspaceId={workspaceId} databaseId={parent.id} rowId={p.id} readOnly={archived || !canEdit} />
       ) : null}
     </PageView>
   );

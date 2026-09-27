@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import type { ViewConfig, ViewType } from "@/db/schema/app";
-import { applyView, filterNeedsValue } from "@/lib/properties";
+import { applyView, defaultsFromFilters } from "@/lib/properties";
 import { BoardView } from "./board-view";
 import { CalendarView } from "./calendar-view";
 import { RelationProvider, type RelationContextValue } from "./relation-context";
@@ -15,7 +15,16 @@ import type { View } from "./types";
 import { useDatabase } from "./use-database";
 import { ActiveRulesBar, ViewTabs, ViewToolbar } from "./view-bar";
 
-export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string; databaseId: string }) {
+export function DatabasePage({
+  workspaceId,
+  databaseId,
+  canEdit = true,
+}: {
+  workspaceId: string;
+  databaseId: string;
+  /** False for viewers: every change is refused by the server, so the controls are hidden. */
+  canEdit?: boolean;
+}) {
   const t = useTranslations("database");
   const locale = useLocale();
   const { snapshot, rows, loadError, error, api } = useDatabase(databaseId);
@@ -30,7 +39,7 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
 
   const views = snapshot?.views ?? [];
   const view = views.find((v) => v.id === selectedViewId) ?? views[0] ?? null;
-  const readOnly = snapshot?.database.archived ?? false;
+  const readOnly = (snapshot?.database.archived ?? false) || !canEdit;
   const locked = snapshot?.database.locked ?? false;
 
   const selectView = useCallback((id: string) => {
@@ -55,12 +64,20 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
     [snapshot, workspaceId, databaseId, api.createRelatedRow],
   );
 
+  // New rows get the values the active filters ask for, so they don't vanish right after creation.
+  const viewApi = useMemo(() => {
+    const defaults = view && snapshot ? defaultsFromFilters(view.config.filters, snapshot.properties) : {};
+    if (!Object.keys(defaults).length) return api;
+    return {
+      ...api,
+      createRow: (input: Parameters<typeof api.createRow>[0] = {}) =>
+        api.createRow({ ...input, properties: { ...defaults, ...input.properties } }),
+    };
+  }, [api, view, snapshot]);
+
   const visibleRows = useMemo(() => {
     if (!view || !snapshot) return [];
-    const filters = (view.config.filters ?? []).filter(
-      (f) => !filterNeedsValue(f.op) || (f.value !== undefined && f.value !== null && f.value !== ""),
-    );
-    return applyView(rows, { filters, sorts: view.config.sorts }, snapshot.properties);
+    return applyView(rows, view.config, snapshot.properties);
   }, [rows, view, snapshot]);
 
   if (!snapshot) {
@@ -117,7 +134,7 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
   };
 
   const newRow = async () => {
-    const id = await api.createRow();
+    const id = await viewApi.createRow();
     if (id) router.push(`/w/${workspaceId}/p/${id}`);
   };
 
@@ -210,7 +227,7 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
               view={view}
               properties={snapshot.properties}
               rows={visibleRows}
-              api={api}
+              api={viewApi}
               readOnly={readOnly}
               locked={locked}
               onCreateGroupProperty={createGroupProperty}
@@ -222,8 +239,9 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
                 view={view}
                 properties={snapshot.properties}
                 rows={visibleRows}
-                api={api}
+                api={viewApi}
                 readOnly={readOnly}
+                locked={locked}
                 onCreateDateProperty={createDateProperty}
               />
             </div>
@@ -234,7 +252,7 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
               view={view}
               properties={snapshot.properties}
               rows={visibleRows}
-              api={api}
+              api={viewApi}
               readOnly={readOnly}
               locked={locked}
               filtered={rows.length > 0}

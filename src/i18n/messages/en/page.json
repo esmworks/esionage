@@ -43,10 +43,13 @@
   "connection": {
     "live": "Live",
     "connecting": "Connecting",
-    "offline": "Offline"
+    "offline": "Offline",
+    "reconnecting": "Reconnecting",
+    "noAccess": "No access"
   },
   "errors": {
-    "accessLost": "You no longer have access to this page."
+    "accessLost": "You no longer have access to this page.",
+    "connectionFailed": "Couldn't connect to live editing. Trying again…"
   },
   "history": {
     "title": "Page history",

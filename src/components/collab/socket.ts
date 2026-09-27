@@ -6,6 +6,7 @@ import * as Y from "yjs";
 let socket: HocuspocusProviderWebsocket | null = null;
 let cachedToken: { value: string; fetchedAt: number } | null = null;
 const TOKEN_REUSE_MS = 30 * 60 * 1000; // server-side TTL is 60 minutes
+const TOKEN_RETRY_MS = 5000;
 
 /** One websocket per tab; every page doc and signal channel is multiplexed over it. */
 function getSocket() {
@@ -30,9 +31,11 @@ export type SharedDoc = {
   doc: Y.Doc;
   provider: HocuspocusProvider;
   onStateless: (listener: (payload: string) => void) => () => void;
+  /** True while the last attempt to get a collab token failed (the provider then reports an auth failure). */
+  readonly tokenFailed: boolean;
 };
 
-type Entry = SharedDoc & { refs: number; releaseTimer?: ReturnType<typeof setTimeout> };
+type Entry = SharedDoc & { refs: number; releaseTimer?: ReturnType<typeof setTimeout>; retryTimer?: ReturnType<typeof setTimeout> };
 
 const entries = new Map<string, Entry>();
 
@@ -53,16 +56,30 @@ export function acquireDoc(name: string): { shared: SharedDoc; release: () => vo
   } else {
     const doc = new Y.Doc();
     const listeners = new Set<(payload: string) => void>();
+    let tokenFailed = false;
     const provider = new HocuspocusProvider({
       websocketProvider: getSocket(),
       name,
       document: doc,
-      token: getCollabToken,
+      token: async () => {
+        clearTimeout(created.retryTimer);
+        try {
+          const token = await getCollabToken();
+          tokenFailed = false;
+          return token;
+        } catch (error) {
+          tokenFailed = true;
+          // The provider only asks again after the socket reconnects, which may never happen on a
+          // healthy socket. The server queues the sync messages until the token arrives.
+          created.retryTimer = setTimeout(() => {
+            if (provider.isAttached && !provider.isAuthenticated) void provider.sendToken();
+          }, TOKEN_RETRY_MS);
+          throw error;
+        }
+      },
       onStateless: ({ payload }) => listeners.forEach((l) => l(payload)),
     });
-    // Providers sharing a socket are not attached automatically.
-    provider.attach();
-    entry = {
+    const created: Entry = {
       name,
       doc,
       provider,
@@ -71,8 +88,14 @@ export function acquireDoc(name: string): { shared: SharedDoc; release: () => vo
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
+      get tokenFailed() {
+        return tokenFailed;
+      },
     };
+    entry = created;
     entries.set(name, entry);
+    // Providers sharing a socket are not attached automatically.
+    provider.attach();
   }
   const current = entry;
   current.refs++;
@@ -86,6 +109,7 @@ export function acquireDoc(name: string): { shared: SharedDoc; release: () => vo
       if (current.refs > 0) return;
       current.releaseTimer = setTimeout(() => {
         entries.delete(name);
+        clearTimeout(current.retryTimer);
         current.provider.destroy();
         current.doc.destroy();
       }, RELEASE_DELAY_MS);

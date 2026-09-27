@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import {
   archivePageAction,
   deletePagePermanentlyAction,
@@ -18,8 +18,8 @@ import { SidebarOpenButton } from "@/components/sidebar/sidebar-context";
 import type { PageHeaderInfo } from "@/server/page-meta";
 import { HistoryPanel } from "./history-panel";
 import { IconPicker } from "./icon-picker";
-import { PageHeaderActions } from "./page-header-actions";
-import { setDocTitle, useDocTitle, usePageDoc } from "./use-page-doc";
+import { hasLevel, PageHeaderActions } from "./page-header-actions";
+import { setDocTitle, useDocTitle, usePageDoc, type ConnectionState } from "./use-page-doc";
 
 // BlockNote touches `window` during setup; render it only in the browser.
 const CollabEditor = dynamic(() => import("./collab-editor"), { ssr: false });
@@ -49,12 +49,17 @@ export function PageView({
   const t = useTranslations("page");
   const tc = useTranslations("common");
   const untitled = tc("untitled");
-  const { pageDoc, synced, error } = usePageDoc(page.id);
+  const { pageDoc, synced, connection, error } = usePageDoc(page.id);
   const title = useDocTitle(pageDoc?.doc, page.title);
   const [icon, setIcon] = useState(page.icon);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const editable = !page.archived && synced && !error;
+  const canEdit = hasLevel(info.level, "edit");
+  const canDelete = hasLevel(info.level, "full");
+  // The collab server drops edits from people who may only view, so don't let them type at all.
+  // Offline edits are kept: the doc syncs them when the connection comes back.
+  const editable = !page.archived && canEdit && synced && connection !== "noAccess";
 
   useEffect(() => setIcon(page.icon), [page.icon]);
 
@@ -63,23 +68,40 @@ export function PageView({
     document.title = t("documentTitle", { title: pageLabel(title, untitled) });
   }, [title, untitled, t]);
 
-  function changeIcon(next: string | null) {
-    setIcon(next);
+  /** Runs a page action; a failure shows a message instead of reaching the error boundary. */
+  function run(action: () => Promise<void>, onError?: () => void) {
+    setActionError(null);
     startTransition(async () => {
-      await setPageIconAction(page.id, next);
-      router.refresh();
+      try {
+        await action();
+      } catch {
+        onError?.();
+        setActionError(t("header.actionFailed"));
+      }
     });
   }
 
+  function changeIcon(next: string | null) {
+    const previous = icon;
+    setIcon(next);
+    run(
+      async () => {
+        await setPageIconAction(page.id, next);
+        router.refresh();
+      },
+      () => setIcon(previous),
+    );
+  }
+
   function moveToTrash() {
-    startTransition(async () => {
+    run(async () => {
       await archivePageAction(page.id);
       router.refresh();
     });
   }
 
   function restore() {
-    startTransition(async () => {
+    run(async () => {
       await restorePageAction(page.id);
       router.refresh();
     });
@@ -87,7 +109,7 @@ export function PageView({
 
   function deleteForever() {
     if (!confirm(t("archived.confirmDelete"))) return;
-    startTransition(async () => {
+    run(async () => {
       await deletePagePermanentlyAction(page.id);
       router.push(`/w/${workspaceId}`);
       router.refresh();
@@ -97,13 +119,17 @@ export function PageView({
   const parents = crumbs.slice(0, -1);
 
   const iconPicker = (
-    <IconPicker icon={icon} onChange={changeIcon} disabled={page.archived}>
+    <IconPicker icon={icon} onChange={changeIcon} disabled={page.archived || !canEdit}>
       {(toggle) =>
         icon ? (
           <button
             type="button"
             onClick={toggle}
-            className={cn("-ml-1 rounded-md p-1 leading-none hover:bg-bg-hover", wide ? "text-4xl" : "text-5xl")}
+            className={cn(
+              "-ml-1 rounded-md p-1 leading-none",
+              wide ? "text-3xl" : "text-5xl",
+              !page.archived && canEdit ? "hover:bg-bg-hover" : "cursor-default",
+            )}
           >
             {icon}
           </button>
@@ -112,7 +138,7 @@ export function PageView({
             size="sm"
             variant="ghost"
             onClick={toggle}
-            className={cn("-ml-2 opacity-0 transition-opacity group-hover:opacity-100", page.archived && "hidden")}
+            className={cn("-ml-2 opacity-0 transition-opacity group-hover:opacity-100", (page.archived || !canEdit) && "hidden")}
           >
             <SmilePlus className="h-4 w-4" /> {t("icon.add")}
           </Button>
@@ -144,12 +170,13 @@ export function PageView({
           </span>
         </nav>
         <div className="flex shrink-0 items-center gap-0.5">
-          <ConnectionDot synced={synced} error={error} />
+          <ConnectionDot connection={connection} />
           <PageHeaderActions
             workspaceId={workspaceId}
             page={{ id: page.id, kind: page.kind, parentId: page.parentId, archived: page.archived, hasBody: showBody }}
             currentUser={user}
             info={info}
+            doc={synced ? pageDoc?.doc : undefined}
             onHistory={() => setHistoryOpen(true)}
             onMoveToTrash={moveToTrash}
           />
@@ -159,16 +186,21 @@ export function PageView({
       {page.archived && (
         <div className="flex items-center justify-center gap-3 bg-danger px-4 py-2 text-sm text-white">
           {t("archived.banner")}
-          <Button size="sm" className="border-white/60 bg-transparent text-white hover:bg-white/10" onClick={restore} disabled={pending}>
-            <RotateCcw className="h-3.5 w-3.5" /> {tc("restore")}
-          </Button>
-          <Button size="sm" className="border-white/60 bg-transparent text-white hover:bg-white/10" onClick={deleteForever} disabled={pending}>
-            {t("archived.deletePermanently")}
-          </Button>
+          {canEdit && (
+            <Button size="sm" className="border-white/60 bg-transparent text-white hover:bg-white/10" onClick={restore} disabled={pending}>
+              <RotateCcw className="h-3.5 w-3.5" /> {tc("restore")}
+            </Button>
+          )}
+          {canDelete && (
+            <Button size="sm" className="border-white/60 bg-transparent text-white hover:bg-white/10" onClick={deleteForever} disabled={pending}>
+              {t("archived.deletePermanently")}
+            </Button>
+          )}
+          {actionError && <span role="alert">{actionError}</span>}
         </div>
       )}
 
-      <div className={cn("w-full flex-1 pb-32", wide ? "pt-10" : "mx-auto max-w-[900px] pt-12")}>
+      <div className={cn("w-full flex-1 pb-32", wide ? "pt-6" : "mx-auto max-w-[900px] pt-12")}>
         <div className={cn(wide ? "page-gutter" : "px-[54px]")}>
           {(!wide || !icon) && <div className="group mb-2 flex h-8 items-end">{iconPicker}</div>}
           {!wide && icon && <div className="h-8" />}
@@ -177,39 +209,51 @@ export function PageView({
             {wide && icon && iconPicker}
             <TitleField
               value={title}
+              compact={wide}
               editable={editable}
               onChange={(v) => pageDoc && setDocTitle(pageDoc.doc, v)}
               onEnter={() => document.querySelector<HTMLElement>(".esionage-editor .ProseMirror")?.focus()}
             />
           </div>
           {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+          {actionError && !page.archived && (
+            <p role="alert" className="mt-2 text-sm text-danger">
+              {actionError}
+            </p>
+          )}
         </div>
 
-        {children && <div className={cn(wide ? "mt-6" : "mt-4 px-[54px]")}>{children}</div>}
+        {children && <div className={cn(wide ? "mt-5" : "mt-4 px-[54px]")}>{children}</div>}
 
         {showBody && (
           <div className="mt-4 min-h-[40vh]">
             {pageDoc && synced ? (
               <CollabEditor pageDoc={pageDoc} user={user} editable={editable} />
             ) : (
-              <div className="px-[54px] text-sm text-fg-faint">{tc("loading")}</div>
+              // Without a connection the error above explains why nothing loads.
+              !error && <div className="px-[54px] text-sm text-fg-faint">{tc("loading")}</div>
             )}
           </div>
         )}
       </div>
 
-      {historyOpen && <HistoryPanel pageId={page.id} readOnly={page.archived} onClose={() => setHistoryOpen(false)} />}
+      {historyOpen && (
+        <HistoryPanel pageId={page.id} readOnly={page.archived || !canEdit} onClose={() => setHistoryOpen(false)} />
+      )}
     </div>
   );
 }
 
 function TitleField({
   value,
+  compact = false,
   editable,
   onChange,
   onEnter,
 }: {
   value: string;
+  /** Wide (database) pages use a smaller title so the views start higher. */
+  compact?: boolean;
   editable: boolean;
   onChange: (value: string) => void;
   onEnter: () => void;
@@ -235,11 +279,23 @@ function TitleField({
     observer.observe(el);
     return () => observer.disconnect();
   }, [value]);
+  // The field is uncontrolled: when someone else's edit changes the title, write it here and keep
+  // the caret where it was relative to the text (a controlled value would jump it to the end).
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || el.value === value) return;
+    const before = el.value;
+    const { selectionStart, selectionEnd } = el;
+    el.value = value;
+    if (document.activeElement === el) {
+      el.setSelectionRange(shiftIndex(before, value, selectionStart), shiftIndex(before, value, selectionEnd));
+    }
+  }, [value]);
   return (
     <textarea
       ref={ref}
       rows={1}
-      value={value}
+      defaultValue={value}
       readOnly={!editable}
       placeholder={tc("untitled")}
       aria-label={t("title.label")}
@@ -250,18 +306,41 @@ function TitleField({
           onEnter();
         }
       }}
-      className="block w-full min-w-0 resize-none overflow-hidden bg-transparent text-4xl font-bold leading-tight outline-none placeholder:text-fg-faint"
+      className={cn(
+        "block w-full min-w-0 resize-none overflow-hidden bg-transparent font-bold leading-tight outline-none placeholder:text-fg-faint",
+        compact ? "text-3xl" : "text-4xl",
+      )}
     />
   );
 }
 
-function ConnectionDot({ synced, error }: { synced: boolean; error: string | null }) {
+/** Where index `i` of `before` ends up in `after`, given one contiguous change between them. */
+function shiftIndex(before: string, after: string, i: number) {
+  let start = 0;
+  const max = Math.min(before.length, after.length);
+  while (start < max && before[start] === after[start]) start++;
+  let end = 0;
+  while (end < max - start && before[before.length - 1 - end] === after[after.length - 1 - end]) end++;
+  if (i <= start) return i;
+  if (i >= before.length - end) return i + after.length - before.length;
+  return after.length - end;
+}
+
+const DOT_COLOR: Record<ConnectionState, string> = {
+  live: "bg-emerald-500",
+  connecting: "bg-amber-400",
+  reconnecting: "bg-amber-400",
+  offline: "bg-danger",
+  noAccess: "bg-danger",
+};
+
+function ConnectionDot({ connection }: { connection: ConnectionState }) {
   const t = useTranslations("page.connection");
-  const label = error ? t("offline") : synced ? t("live") : t("connecting");
+  const label = t(connection);
   return (
     <span className="mr-1 flex items-center gap-1.5 text-xs text-fg-faint" title={label}>
-      <span className={cn("h-1.5 w-1.5 rounded-full", error ? "bg-danger" : synced ? "bg-emerald-500" : "bg-amber-400")} />
-      {!synced && label}
+      <span className={cn("h-1.5 w-1.5 rounded-full", DOT_COLOR[connection])} />
+      {connection !== "live" && label}
     </span>
   );
 }

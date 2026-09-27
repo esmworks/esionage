@@ -28,11 +28,14 @@ export function SearchDialog({ workspaceId, open, onClose }: { workspaceId: stri
 
   useEffect(() => {
     const q = query.trim();
+    // Bumped even when cleared, so a request still in flight can't fill the empty box.
+    const id = ++requestId.current;
     if (!q) {
       setHits([]);
+      setActive(0);
+      setLoading(false);
       return;
     }
-    const id = ++requestId.current;
     setLoading(true);
     const timer = setTimeout(async () => {
       const result = await searchAction(workspaceId, q).catch(() => []);

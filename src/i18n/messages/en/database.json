@@ -239,6 +239,7 @@
     "nestedDatabase": "A database can’t contain another database.",
     "invalidRelation": "“{property}” can only link to rows of its related database.",
     "invalidRelationTarget": "A relation must point to a database in the same workspace.",
+    "relationTargetReadOnly": "You can only view that database, so the link can’t be shown there too. Untick that option or ask for edit access.",
     "databaseLocked": "This database is locked. Unlock it to change its properties and views."
   }
 }

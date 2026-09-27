@@ -31,6 +31,7 @@ export const DATABASE_ERROR_CODES = [
   "nestedDatabase",
   "invalidRelation",
   "invalidRelationTarget",
+  "relationTargetReadOnly",
   "databaseLocked",
 ] as const;
 export type DatabaseErrorCode = (typeof DATABASE_ERROR_CODES)[number];
@@ -162,8 +163,17 @@ function isEmpty(v: unknown) {
   return v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0) || v === false;
 }
 
-function matches(row: RowLike, rule: FilterRule): boolean {
-  const v = rawValue(row, rule.propertyId);
+/** The stored value, without ids of select options that no longer exist (they display as empty). */
+function liveValue(row: RowLike, key: string, prop: PropertyDef | undefined): unknown {
+  const v = rawValue(row, key);
+  if (prop?.type !== "select" && prop?.type !== "multi_select") return v;
+  const known = (id: unknown) => (prop.options.options ?? []).some((o) => o.id === id);
+  if (Array.isArray(v)) return v.filter(known);
+  return known(v) ? v : null;
+}
+
+function matches(row: RowLike, rule: FilterRule, prop?: PropertyDef): boolean {
+  const v = liveValue(row, rule.propertyId, prop);
   switch (rule.op) {
     case "is_empty":
       return isEmpty(v);
@@ -199,23 +209,38 @@ function compare(a: unknown, b: unknown): number {
   return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
 }
 
+/**
+ * A rule the editor has added but not filled in yet ("Status is …"). It filters nothing, so every
+ * consumer (app, published page, MCP) shows the same rows while the user is still picking.
+ */
+export function isIncompleteFilter(rule: FilterRule) {
+  return filterNeedsValue(rule.op) && (rule.value === undefined || rule.value === null || rule.value === "");
+}
+
 export function applyView<T extends RowLike>(
   rows: T[],
   { filters = [], sorts = [] }: { filters?: FilterRule[]; sorts?: SortRule[] },
   props: PropertyDef[] = [],
 ): T[] {
   const byId = new Map(props.map((p) => [p.id, p]));
-  // Select sorts compare option order, not option ids.
+  // Select sorts compare option order, not option ids; checkboxes sort unchecked < checked.
   const sortValue = (row: T, key: string) => {
     const prop = byId.get(key);
     const v = rawValue(row, key);
+    const index = (id: unknown) => prop?.options.options?.findIndex((o) => o.id === id) ?? -1;
     if (prop?.type === "select") {
-      const index = prop.options.options?.findIndex((o) => o.id === v) ?? -1;
-      return index === -1 ? null : index;
+      const i = index(v);
+      return i === -1 ? null : i;
     }
+    if (prop?.type === "multi_select") {
+      const indices = (Array.isArray(v) ? v.map(index) : []).filter((i) => i !== -1).sort((a, b) => a - b);
+      return indices.length ? indices.map((i) => String(i).padStart(4, "0")).join(",") : null;
+    }
+    if (prop?.type === "checkbox") return v === true ? 1 : 0;
     return v;
   };
-  const filtered = rows.filter((row) => filters.every((rule) => matches(row, rule)));
+  const active = filters.filter((rule) => !isIncompleteFilter(rule));
+  const filtered = rows.filter((row) => active.every((rule) => matches(row, rule, byId.get(rule.propertyId))));
   if (!sorts.length) return filtered;
   return [...filtered].sort((a, b) => {
     for (const s of sorts) {
@@ -292,6 +317,28 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
         { op: "is_empty", label: "isUnchecked" },
       ];
   }
+}
+
+/**
+ * Values a new row needs so the view's filters keep showing it (Notion does the same): "Status is
+ * Done" makes the row Done, "Tags contains X" tags it X, "Done is checked" ticks it. Rules that
+ * can't be satisfied by one value (not equals, before/after, empty…) are left alone.
+ */
+export function defaultsFromFilters(filters: FilterRule[] = [], props: PropertyDef[] = []) {
+  const out: Record<string, unknown> = {};
+  for (const rule of filters) {
+    const prop = props.find((p) => p.id === rule.propertyId);
+    if (!prop || prop.id in out) continue;
+    if (prop.type === "checkbox") {
+      if (rule.op === "is_not_empty") out[prop.id] = true;
+      continue;
+    }
+    if (isIncompleteFilter(rule)) continue;
+    if (rule.op === "equals" && ["select", "text", "number", "date"].includes(prop.type)) out[prop.id] = rule.value;
+    else if (rule.op === "contains" && prop.type === "multi_select") out[prop.id] = [rule.value];
+    else if (rule.op === "contains" && prop.type === "text") out[prop.id] = rule.value;
+  }
+  return out;
 }
 
 export function filterNeedsValue(op: FilterOp) {

@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import type * as Y from "yjs";
 import {
   duplicatePageAction,
   getPageHeaderAction,
@@ -33,8 +34,15 @@ import type { TreeNode } from "@/server/pages";
 import { SharePanel } from "./share-panel";
 
 const RANK = { none: 0, view: 1, edit: 2, full: 3 } as const;
-const hasLevel = (level: PageHeaderInfo["level"], needed: "view" | "edit" | "full") => RANK[level] >= RANK[needed];
+/** Client-side mirror of the server's level check, for hiding what the server would refuse. */
+export const hasLevel = (level: PageHeaderInfo["level"], needed: "view" | "edit" | "full") => RANK[level] >= RANK[needed];
 
+/**
+ * The collab server stores a changed doc 2 s after the last edit, and at least every 10 s while
+ * edits keep coming. Refetch the header a little after that so "Edited …" and its author stay current.
+ */
+const STORE_SETTLE_MS = 4000;
+const STORE_MAX_WAIT_MS = 11_000;
 
 /**
  * Right side of the page header, like Notion's: when it was last edited (with who made and changed
@@ -45,6 +53,7 @@ export function PageHeaderActions({
   page,
   currentUser,
   info: initialInfo,
+  doc,
   onHistory,
   onMoveToTrash,
 }: {
@@ -52,15 +61,38 @@ export function PageHeaderActions({
   page: { id: string; kind: PageKind; parentId: string | null; archived: boolean; hasBody: boolean };
   currentUser: { id: string; name: string };
   info: PageHeaderInfo;
+  /** The page's shared doc once synced; its edits trigger a refetch of the header info. */
+  doc?: Y.Doc;
   onHistory: () => void;
   onMoveToTrash: () => void;
 }) {
   const t = useTranslations("page.header");
   const [info, setInfo] = useState(initialInfo);
   useEffect(() => setInfo(initialInfo), [initialInfo]);
-  const refresh = () => {
+  const refresh = useCallback(() => {
     getPageHeaderAction(page.id).then(setInfo).catch(() => {});
-  };
+  }, [page.id]);
+
+  useEffect(() => {
+    if (!doc) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let firstEdit = 0;
+    const onUpdate = () => {
+      const now = Date.now();
+      if (!timer) firstEdit = now;
+      clearTimeout(timer);
+      const wait = Math.min(STORE_SETTLE_MS, firstEdit + STORE_MAX_WAIT_MS - now);
+      timer = setTimeout(() => {
+        timer = undefined;
+        refresh();
+      }, Math.max(0, wait));
+    };
+    doc.on("update", onUpdate);
+    return () => {
+      doc.off("update", onUpdate);
+      clearTimeout(timer);
+    };
+  }, [doc, refresh]);
 
   const toggleFavorite = async () => {
     const favorite = !info.favorite;
@@ -240,7 +272,7 @@ function PageMenu({
             >
               {t("copyLink")}
             </MenuItem>
-            {!page.archived && (
+            {!page.archived && canEdit && (
               <MenuItem icon={<Copy className="h-4 w-4" />} onClick={() => duplicate(close)}>
                 {t("duplicate")}
               </MenuItem>
@@ -328,6 +360,7 @@ function PageMenu({
         pageId={page.id}
         isDatabase={isDatabase}
         currentParentId={page.parentId}
+        guest={info.guest}
         onClose={() => setMoveOpen(false)}
       />
     </>
@@ -341,6 +374,7 @@ function MoveDialog({
   pageId,
   isDatabase,
   currentParentId,
+  guest,
   onClose,
 }: {
   open: boolean;
@@ -348,6 +382,7 @@ function MoveDialog({
   pageId: string;
   isDatabase: boolean;
   currentParentId: string | null;
+  guest: boolean;
   onClose: () => void;
 }) {
   const t = useTranslations("page.move");
@@ -381,6 +416,8 @@ function MoveDialog({
     const q = query.trim().toLocaleLowerCase();
     return tree
       .filter((n) => !blocked.has(n.id) && n.id !== currentParentId)
+      // Moving into a page needs edit access to it, as the server checks.
+      .filter((n) => hasLevel(n.level, "edit"))
       // A database can't become a row of another database.
       .filter((n) => !(isDatabase && n.kind === "database"))
       .filter((n) => !q || pageLabel(n.title, tc("untitled")).toLocaleLowerCase().includes(q))
@@ -413,7 +450,7 @@ function MoveDialog({
         />
       </div>
       <div className={cn("max-h-80 overflow-y-auto p-1", pending && "pointer-events-none opacity-70")}>
-        {currentParentId && !query.trim() && (
+        {currentParentId && !guest && !query.trim() && (
           <button
             type="button"
             onClick={() => move(null)}

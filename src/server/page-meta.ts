@@ -2,11 +2,13 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { page, pageFavorite, type PageKind, user } from "@/db/schema";
-import { AccessError, pageVisibleTo, requireMembership, resolvePageAccess, type AccessLevel } from "@/server/access";
+import { AccessError, isGuest, pageVisibleTo, requireMembership, resolvePageAccess, type AccessLevel } from "@/server/access";
 
 /** What the page header shows: who made and last changed the page, the viewer's access and star. */
 export type PageHeaderInfo = {
   level: AccessLevel;
+  /** Guests can't put pages at the top of the workspace. */
+  guest: boolean;
   createdAt: Date;
   createdBy: string | null;
   updatedAt: Date;
@@ -20,7 +22,7 @@ export async function getPageHeaderInfo(userId: string, pageId: string): Promise
   if (!found || level === "none") throw new AccessError();
   const creator = alias(user, "creator");
   const editor = alias(user, "editor");
-  const [[names], [star]] = await Promise.all([
+  const [[names], [star], membership] = await Promise.all([
     db
       .select({ createdBy: creator.name, updatedBy: editor.name })
       .from(page)
@@ -31,9 +33,11 @@ export async function getPageHeaderInfo(userId: string, pageId: string): Promise
       .select({ pageId: pageFavorite.pageId })
       .from(pageFavorite)
       .where(and(eq(pageFavorite.userId, userId), eq(pageFavorite.pageId, pageId))),
+    requireMembership(userId, found.workspaceId),
   ]);
   return {
     level,
+    guest: isGuest(membership.role),
     createdAt: found.createdAt,
     createdBy: names?.createdBy ?? null,
     updatedAt: found.updatedAt,

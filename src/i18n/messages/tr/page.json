@@ -43,10 +43,13 @@
   "connection": {
     "live": "Canlı",
     "connecting": "Bağlanıyor",
-    "offline": "Çevrimdışı"
+    "offline": "Çevrimdışı",
+    "reconnecting": "Yeniden bağlanıyor",
+    "noAccess": "Erişim yok"
   },
   "errors": {
-    "accessLost": "Artık bu sayfaya erişiminiz yok."
+    "accessLost": "Artık bu sayfaya erişiminiz yok.",
+    "connectionFailed": "Canlı düzenlemeye bağlanılamadı. Yeniden deneniyor…"
   },
   "history": {
     "title": "Sayfa geçmişi",

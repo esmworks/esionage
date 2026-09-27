@@ -287,7 +287,7 @@ function CellEditor({
  * both kinds, the last one is the decimal point and the other groups thousands ("1.234,5",
  * "1,234.5").
  */
-export function parseNumber(raw: string): number | undefined {
+export function parseNumber(raw: string, locale?: string): number | undefined {
   let s = raw.replace(/[\s\u00a0\u202f']/g, "");
   if (!s) return undefined;
   const lastComma = s.lastIndexOf(",");
@@ -298,17 +298,24 @@ export function parseNumber(raw: string): number | undefined {
     s = s.split(group).join("").replace(decimal, ".");
   } else {
     const sep = lastComma !== -1 ? "," : lastDot !== -1 ? "." : null;
-    if (sep) s = s.split(sep).length > 2 ? s.split(sep).join("") : s.replace(sep, ".");
+    // "1,000" in English or "1.000" in Turkish: the locale's group separator before exactly three
+    // digits groups thousands rather than marking decimals.
+    const grouping = sep !== null && locale !== undefined && sep !== decimalSeparator(locale) && /^-?\d{1,3}[.,]\d{3}$/.test(s);
+    if (sep) s = s.split(sep).length > 2 || grouping ? s.split(sep).join("") : s.replace(sep, ".");
   }
   const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
 }
 
+function decimalSeparator(locale: string) {
+  return new Intl.NumberFormat(locale).formatToParts(1.5).find((p) => p.type === "decimal")?.value ?? ".";
+}
+
 /** Parses editor input into a storable value; returns undefined when it is invalid. */
-export function parseInput(prop: Property, raw: string): unknown {
+export function parseInput(prop: Property, raw: string, locale?: string): unknown {
   const s = raw.trim();
   if (!s) return null;
-  if (prop.type === "number") return parseNumber(s);
+  if (prop.type === "number") return parseNumber(s, locale);
   if (prop.type === "url") {
     if (/^(https?:\/\/|mailto:)/i.test(s)) return s;
     if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return `mailto:${s}`;
@@ -325,7 +332,7 @@ export function parseInput(prop: Property, raw: string): unknown {
 function editText(value: unknown, locale: string) {
   if (value === null || value === undefined) return "";
   if (typeof value !== "number") return String(value);
-  const decimal = new Intl.NumberFormat(locale).formatToParts(1.5).find((p) => p.type === "decimal")?.value;
+  const decimal = decimalSeparator(locale);
   const s = String(value);
   return decimal === "," && !s.includes("e") ? s.replace(".", ",") : s;
 }
@@ -366,7 +373,7 @@ function TextEditor({
 
   const commit = () => {
     if (draft !== initial) {
-      const parsed = parseInput(prop, draft);
+      const parsed = parseInput(prop, draft, locale);
       // A second close attempt with an invalid draft discards it instead of trapping the user.
       if (parsed === undefined && !invalid) {
         setInvalid(true);
@@ -435,7 +442,8 @@ function DateEditor({
         aria-label={t("date")}
         onChange={(e) => {
           setDraft(e.target.value);
-          if (e.target.value) onChange(e.target.value);
+          // An emptied field clears the date, like the Clear button.
+          onChange(e.target.value || null);
         }}
         onKeyDown={(e) => e.key === "Enter" && onClose()}
         className="h-8 w-full rounded-md border border-border bg-bg px-2 text-sm outline-none [color-scheme:light_dark] focus:border-accent"
@@ -488,8 +496,11 @@ export function OptionPicker({
   const [active, setActive] = useState(0);
   const [busy, setBusy] = useState(false);
   // Local selection so rapid multi-select toggles don't race the optimistic parent state.
+  // Ids of deleted options are dropped: sending them back would make the server reject the edit.
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
-    Array.isArray(value) ? (value as string[]) : typeof value === "string" ? [value] : [],
+    (Array.isArray(value) ? (value as string[]) : typeof value === "string" ? [value] : []).filter((id) =>
+      optionsOf(prop).some((o) => o.id === id),
+    ),
   );
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);

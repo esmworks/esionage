@@ -7,7 +7,7 @@ import { isLocale, type Locale } from "@/i18n/config";
 import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
 import { env } from "@/lib/env";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
-import { AccessError, requireMember, requireMembership } from "@/server/access";
+import { AccessError, isGuest, requireMember, requireMembership } from "@/server/access";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
 
@@ -414,7 +414,7 @@ async function countOwners(workspaceId: string, tx: Pick<typeof db, "select">) {
 
 export async function setMemberRole(actorId: string, workspaceId: string, targetId: string, role: WorkspaceRole) {
   await requireMembership(actorId, workspaceId, "owner");
-  await db.transaction(async (tx) => {
+  const previous = await db.transaction(async (tx) => {
     const [current] = await tx
       .select({ role: workspaceMember.role })
       .from(workspaceMember)
@@ -428,7 +428,11 @@ export async function setMemberRole(actorId: string, workspaceId: string, target
       .update(workspaceMember)
       .set({ role })
       .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)));
+    return current.role;
   });
+  // Open editors keep the access checked when they connected. Owners and members see pages alike,
+  // so only a move to guest can take access away; drop those connections as removeMember does.
+  if (isGuest(role) && !isGuest(previous)) await getCollab().disconnectUser(targetId, workspaceId);
 }
 
 /** Makes another member an owner and the acting owner a member, in one step. */

@@ -5,7 +5,8 @@ import * as Y from "yjs";
 import { db } from "@/db";
 import { page, pageSnapshot, type SnapshotReason } from "@/db/schema";
 import { blocksToPlainText } from "@/lib/blocks";
-import { COLLAB_FRAGMENT, COLLAB_META } from "@/lib/collab-constants";
+import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { readDocTitle, writeDocTitle } from "@/lib/collab-title";
 import { AccessError, hasLevel, requireMembership, resolvePageAccess } from "@/server/access";
 import type { Channel, CollabService, PageContent, WriteActor } from "./bridge";
 import { verifyCollabToken } from "./token";
@@ -24,10 +25,7 @@ function parseName(name: string): { kind: "page" | "ws" | "db"; id: string } | n
 
 const pageDocName = (pageId: string) => `page:${pageId}`;
 
-function readTitle(doc: Y.Doc): string | undefined {
-  const value = doc.getMap(COLLAB_META).get("title");
-  return typeof value === "string" ? value : undefined;
-}
+const readTitle = readDocTitle;
 
 async function deriveContent(doc: Y.Doc) {
   const blocks = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
@@ -236,7 +234,7 @@ export function createCollab() {
 
     async setTitle(pageId, title, actor) {
       await transactPage(pageId, actor, (doc) => {
-        doc.transact(() => doc.getMap(COLLAB_META).set("title", title), { source: "local", context: actor });
+        writeDocTitle(doc, title, { source: "local", context: actor });
       });
     },
 
@@ -251,7 +249,7 @@ export function createCollab() {
         doc.transact(
           () => {
             editor.blocksToYXmlFragment(blocks, doc.getXmlFragment(COLLAB_FRAGMENT));
-            doc.getMap(COLLAB_META).set("title", snap.title);
+            writeDocTitle(doc, snap.title, { source: "local", context: actor });
           },
           { source: "local", context: actor },
         );

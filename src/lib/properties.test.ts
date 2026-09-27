@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FilterRule, PropertyOptions, PropertyType } from "@/db/schema/app";
 import {
   applyView,
+  defaultsFromFilters,
   displayValue,
   filterNeedsValue,
   filterOperators,
@@ -146,6 +147,40 @@ describe("applyView", () => {
     expect(newest.map((r) => r.id)).toEqual(["d", "c", "b", "a"]);
   });
 
+  it("sorts checkboxes both ways", () => {
+    const asc = applyView(rows, { sorts: [{ propertyId: "p_checkbox", direction: "asc" }] }, props);
+    expect(asc.map((r) => r.id)).toEqual(["b", "c", "d", "a"]);
+    const desc = applyView(rows, { sorts: [{ propertyId: "p_checkbox", direction: "desc" }] }, props);
+    expect(desc.map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("sorts multi-selects by option order, not by option id", () => {
+    const opts = prop("multi_select", {
+      options: [
+        { id: "zz", name: "First", color: "red" },
+        { id: "aa", name: "Second", color: "blue" },
+      ],
+    });
+    const list = [row("x", "x", { p_multi_select: ["aa"] }, 1), row("y", "y", { p_multi_select: ["zz"] }, 2), row("z", "z", {}, 3)];
+    const asc = applyView(list, { sorts: [{ propertyId: "p_multi_select", direction: "asc" }] }, [opts]);
+    expect(asc.map((r) => r.id)).toEqual(["y", "x", "z"]);
+    const desc = applyView(list, { sorts: [{ propertyId: "p_multi_select", direction: "desc" }] }, [opts]);
+    expect(desc.map((r) => r.id)).toEqual(["x", "y", "z"]);
+  });
+
+  it("ignores rules the editor hasn't filled in yet", () => {
+    const out = applyView(rows, { filters: [{ propertyId: "p_select", op: "equals" }] }, props);
+    expect(out.map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("treats ids of deleted options as empty", () => {
+    const stale = [row("s", "s", { p_select: "gone", p_multi_select: ["gone"] }, 1), ...rows];
+    const noStatus = applyView(stale, { filters: [{ propertyId: "p_select", op: "is_empty" }] }, props);
+    expect(noStatus.map((r) => r.id)).toEqual(["s", "d"]);
+    const noTags = applyView(stale, { filters: [{ propertyId: "p_multi_select", op: "is_empty" }] }, props);
+    expect(noTags.map((r) => r.id)).toEqual(["s", "b", "d"]);
+  });
+
   it("does not mutate the input", () => {
     const copy = [...rows];
     applyView(rows, { sorts: [{ propertyId: "title", direction: "desc" }] });
@@ -249,5 +284,36 @@ describe("orderGroups", () => {
     expect(names()).toEqual(["", "o1", "o2", "o3"]);
     expect(names(["o3", "", "o1"])).toEqual(["o3", "", "o1", "o2"]);
     expect(names(["gone", "o2"])).toEqual(["o2", "", "o1", "o3"]);
+  });
+});
+
+describe("defaultsFromFilters", () => {
+  const props = [status, tags, prop("checkbox"), prop("number"), prop("text")];
+
+  it("fills values a new row needs to stay in the view", () => {
+    const filters: FilterRule[] = [
+      { propertyId: "p_select", op: "equals", value: "o2" },
+      { propertyId: "p_multi_select", op: "contains", value: "t1" },
+      { propertyId: "p_checkbox", op: "is_not_empty" },
+      { propertyId: "p_number", op: "equals", value: 4 },
+      { propertyId: "p_text", op: "contains", value: "abc" },
+    ];
+    expect(defaultsFromFilters(filters, props)).toEqual({
+      p_select: "o2",
+      p_multi_select: ["t1"],
+      p_checkbox: true,
+      p_number: 4,
+      p_text: "abc",
+    });
+  });
+
+  it("leaves rules alone that one value can't satisfy", () => {
+    const filters: FilterRule[] = [
+      { propertyId: "p_select", op: "not_equals", value: "o2" },
+      { propertyId: "p_number", op: "gt", value: 4 },
+      { propertyId: "p_text", op: "equals" },
+      { propertyId: "title", op: "contains", value: "x" },
+    ];
+    expect(defaultsFromFilters(filters, props)).toEqual({});
   });
 });

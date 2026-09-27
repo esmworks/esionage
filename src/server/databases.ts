@@ -122,7 +122,13 @@ export async function listRows(userId: string, databaseId: string, config: ViewC
  * Validates row values keyed by property id or (case-insensitive) name and returns them keyed
  * by id. Unknown keys are rejected so agents learn the schema instead of silently losing data.
  */
-export async function normalizeRowProperties(userId: string, databaseId: string, input: Record<string, unknown>) {
+export async function normalizeRowProperties(
+  userId: string,
+  databaseId: string,
+  input: Record<string, unknown>,
+  /** The row's stored values, when editing an existing row. */
+  existing: Record<string, unknown> = {},
+) {
   const props = await getProperties(databaseId);
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
@@ -135,7 +141,10 @@ export async function normalizeRowProperties(userId: string, databaseId: string,
       );
     }
     const normalized = normalizeValue(prop, value);
-    out[prop.id] = prop.type === "relation" && normalized ? await resolveRelationValue(userId, prop, normalized as string[]) : normalized;
+    out[prop.id] =
+      prop.type === "relation" && normalized
+        ? await resolveRelationValue(userId, prop, normalized as string[], asIds(existing[prop.id]))
+        : normalized;
   }
   return out;
 }
@@ -143,8 +152,11 @@ export async function normalizeRowProperties(userId: string, databaseId: string,
 /**
  * Maps relation input to row ids of the related database. Each entry is a row id (trashed rows
  * included, so existing links survive an edit) or, for agents, the exact title of a live row.
+ * Ids the row already links to are kept when the user can't see them, and dropped when they are
+ * no longer rows of the related database (deleted for good or moved out), so a stale link never
+ * blocks editing the rest of the cell.
  */
-async function resolveRelationValue(userId: string, prop: DatabaseProperty, input: string[]) {
+async function resolveRelationValue(userId: string, prop: DatabaseProperty, input: string[], existing: string[] = []) {
   const targetId = prop.options.relation?.databaseId;
   const invalid = (value: string) =>
     new PropertyValueError(`"${value}" is not a row of the database related to "${prop.name}"`, "invalidRelation", {
@@ -157,8 +169,23 @@ async function resolveRelationValue(userId: string, prop: DatabaseProperty, inpu
     .from(page)
     .where(and(eq(page.parentId, targetId), pageVisibleTo(userId)));
   const ids = new Set(rows.map((r) => r.id));
+  const unseen = existing.filter((id) => !ids.has(id) && input.includes(id));
+  const hidden = new Set(
+    unseen.length
+      ? (
+          await db
+            .select({ id: page.id })
+            .from(page)
+            .where(and(eq(page.parentId, targetId), inArray(page.id, unseen)))
+        ).map((r) => r.id)
+      : [],
+  );
   const out: string[] = [];
   for (const value of input) {
+    if (unseen.includes(value)) {
+      if (hidden.has(value) && !out.includes(value)) out.push(value);
+      continue;
+    }
     let id = ids.has(value) ? value : undefined;
     if (!id) {
       const needle = value.trim().toLowerCase();
@@ -233,7 +260,7 @@ export async function updateRowProperties(userId: string, rowId: string, patch: 
   const row = await requirePageAccess(userId, rowId, "edit");
   if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
   await requireDatabase(userId, row.parentId, "view");
-  const normalized = await normalizeRowProperties(userId, row.parentId, patch);
+  const normalized = await normalizeRowProperties(userId, row.parentId, patch, row.properties);
   const next = { ...row.properties };
   for (const [id, value] of Object.entries(normalized)) {
     if (value === null) delete next[id];
@@ -300,8 +327,11 @@ export type RelationInput = {
   pairedName?: string;
 };
 
-async function nextPropertyPosition(databaseId: string) {
-  const [{ max }] = await db
+type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+// Take the transaction when called inside one: the outer pool can't see its uncommitted inserts.
+async function nextPropertyPosition(databaseId: string, exec: Executor = db) {
+  const [{ max }] = await exec
     .select({ max: sql<number | null>`max(${databaseProperty.position})` })
     .from(databaseProperty)
     .where(eq(databaseProperty.databaseId, databaseId));
@@ -309,12 +339,29 @@ async function nextPropertyPosition(databaseId: string) {
 }
 
 /** `name`, or `name 2`, `name 3`… so it doesn't clash with a property of the database. */
-async function uniquePropertyName(databaseId: string, name: string) {
-  const taken = new Set((await getProperties(databaseId)).map((p) => p.name.trim().toLowerCase()));
+async function uniquePropertyName(databaseId: string, name: string, exec: Executor = db) {
+  const names = await exec
+    .select({ name: databaseProperty.name })
+    .from(databaseProperty)
+    .where(eq(databaseProperty.databaseId, databaseId));
+  const taken = new Set(names.map((p) => p.name.trim().toLowerCase()));
   taken.add("title");
   let candidate = name;
   for (let i = 2; taken.has(candidate.toLowerCase()); i++) candidate = `${name} ${i}`;
   return candidate;
+}
+
+/**
+ * Calendar entries show only the properties the user picked (a new calendar view hides every
+ * property), so a property added later starts hidden there too.
+ */
+async function hideInCalendars(exec: Executor, databaseId: string, propertyId: string) {
+  // Explicit casts: inside set() drizzle would send the parameters as jsonb, like the column.
+  const hidden = sql`coalesce(${databaseView.config} -> 'hidden', '[]'::jsonb)`;
+  await exec
+    .update(databaseView)
+    .set({ config: sql`jsonb_set(${databaseView.config}, '{hidden}', ${hidden} || to_jsonb(${propertyId}::text))` })
+    .where(and(eq(databaseView.databaseId, databaseId), eq(databaseView.type, "calendar")));
 }
 
 export async function addProperty(
@@ -335,9 +382,18 @@ export async function addProperty(
     target =
       input.relation.databaseId === databaseId
         ? database
-        : // A two-way relation also adds a property to the target, so it needs edit access there.
-          await requireDatabase(userId, input.relation.databaseId, input.relation.twoWay ? "edit" : "view").catch(() => null);
+        : await requireDatabase(userId, input.relation.databaseId, "view").catch(() => null);
     if (!target || target.workspaceId !== database.workspaceId || target.archivedAt) throw invalidTarget();
+    // A two-way relation also adds a property to the target, so it needs edit access there.
+    if (input.relation.twoWay && target.id !== databaseId) {
+      const editable = await requireDatabase(userId, target.id, "edit").then(
+        () => true,
+        () => false,
+      );
+      if (!editable) {
+        throw new PropertyValueError("Two-way relations need edit access to the related database", "relationTargetReadOnly");
+      }
+    }
   }
   const options: PropertyOptions =
     input.type === "select" || input.type === "multi_select"
@@ -353,13 +409,15 @@ export async function addProperty(
         name: input.name.trim() || "Property",
         type: input.type,
         options,
-        position: await nextPropertyPosition(databaseId),
+        position: await nextPropertyPosition(databaseId, tx),
       })
       .returning();
+    await hideInCalendars(tx, databaseId, created.id);
     if (!target || !input.relation?.twoWay) return created;
     const pairedName = await uniquePropertyName(
       target.id,
       input.relation.pairedName?.trim() || database.title.trim() || "Related",
+      tx,
     );
     const [paired] = await tx
       .insert(databaseProperty)
@@ -368,9 +426,10 @@ export async function addProperty(
         name: pairedName,
         type: "relation",
         options: { relation: { databaseId, pairedPropertyId: created.id } },
-        position: await nextPropertyPosition(target.id),
+        position: await nextPropertyPosition(target.id, tx),
       })
       .returning();
+    await hideInCalendars(tx, target.id, paired.id);
     const relation: RelationConfig = { databaseId: target.id, pairedPropertyId: paired.id };
     const [linked] = await tx
       .update(databaseProperty)
@@ -406,15 +465,43 @@ export async function updateProperty(
   patch: { name?: string; options?: SelectOption[]; position?: number },
 ) {
   const prop = await requireProperty(userId, propertyId);
-  await db
-    .update(databaseProperty)
-    .set({
-      ...(patch.name !== undefined ? { name: patch.name.trim() || prop.name } : {}),
-      ...(patch.options !== undefined ? { options: { ...prop.options, options: patch.options } } : {}),
-      ...(patch.position !== undefined ? { position: patch.position } : {}),
-    })
-    .where(eq(databaseProperty.id, propertyId));
+  // Rows must not keep ids of deleted options: they'd show as empty yet fail validation on the next edit.
+  const removed = patch.options
+    ? (prop.options.options ?? []).filter((o) => !patch.options!.some((n) => n.id === o.id)).map((o) => o.id)
+    : [];
+  await db.transaction(async (tx) => {
+    await tx
+      .update(databaseProperty)
+      .set({
+        ...(patch.name !== undefined ? { name: patch.name.trim() || prop.name } : {}),
+        ...(patch.options !== undefined ? { options: { ...prop.options, options: patch.options } } : {}),
+        ...(patch.position !== undefined ? { position: patch.position } : {}),
+      })
+      .where(eq(databaseProperty.id, propertyId));
+    if (!removed.length) return;
+    const ids = sql`${sql.raw("ARRAY[")}${sql.join(
+      removed.map((id) => sql`${id}::text`),
+      sql`, `,
+    )}${sql.raw("]::text[]")}`;
+    // Explicit casts: inside set() drizzle would send the parameters as jsonb, like the column.
+    const current = sql`(${page.properties} -> ${propertyId}::text)`;
+    if (prop.type === "select") {
+      await tx
+        .update(page)
+        .set({ properties: sql`${page.properties} - ${propertyId}::text` })
+        .where(and(eq(page.parentId, prop.databaseId), sql`${page.properties} ->> ${propertyId}::text = any(${ids})`));
+    } else if (prop.type === "multi_select") {
+      await tx
+        .update(page)
+        .set({
+          properties: sql`case when (${current} - ${ids}) = '[]'::jsonb then ${page.properties} - ${propertyId}::text
+            else jsonb_set(${page.properties}, ${`{${propertyId}}`}::text[], ${current} - ${ids}) end`,
+        })
+        .where(and(eq(page.parentId, prop.databaseId), sql`${current} ?| ${ids}`));
+    }
+  });
   notifySchema(prop.databaseId);
+  if (removed.length) notifyRows(prop.databaseId);
 }
 
 /** Adds a select option by name if missing and returns it (used when typing a new tag). */
@@ -582,7 +669,14 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
       updatedAt: page.updatedAt,
     })
     .from(page)
-    .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt), pageVisibleTo(userId)))
+    .where(
+      and(
+        eq(page.parentId, databaseId),
+        // A trashed database still shows (and exports) the rows that went to the trash with it.
+        database.archivedAt ? eq(page.archivedAt, database.archivedAt) : isNull(page.archivedAt),
+        pageVisibleTo(userId),
+      ),
+    )
     .orderBy(asc(page.position), asc(page.createdAt));
   return {
     database: {

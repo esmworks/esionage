@@ -3,6 +3,7 @@
 import { getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import type { PageKind } from "@/db/schema";
+import { hasLevel } from "@/server/access";
 import * as pages from "@/server/pages";
 import { requireUserId } from "@/server/session";
 
@@ -70,7 +71,15 @@ export async function getTreeAction(workspaceId: string) {
 export async function listTrashAction(workspaceId: string) {
   const userId = await requireUserId();
   const rows = await pages.listTrash(userId, workspaceId);
-  return rows.map((r) => ({ id: r.id, title: r.title, icon: r.icon, kind: r.kind, archivedAt: new Date(r.archived_at) }));
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    icon: r.icon,
+    kind: r.kind,
+    archivedAt: new Date(r.archived_at),
+    canRestore: hasLevel(r.level, "edit"),
+    canDelete: hasLevel(r.level, "full"),
+  }));
 }
 
 export async function searchAction(workspaceId: string, query: string) {

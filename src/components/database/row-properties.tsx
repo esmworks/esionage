@@ -41,6 +41,18 @@ export function RowProperties({
   readOnly?: boolean;
 }) {
   const t = useTranslations("database.rowProperties");
+  const tc = useTranslations("common");
+  // Actions throw (instead of returning an error) when the session expired or the network failed.
+  const safe = useCallback(
+    async <T,>(action: Promise<{ ok: true; data: T } | { ok: false; error: string }>) => {
+      try {
+        return await action;
+      } catch {
+        return { ok: false as const, error: tc("genericError") };
+      }
+    },
+    [tc],
+  );
   const [data, setData] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Values written locally but not yet confirmed by a refetch.
@@ -50,7 +62,7 @@ export function RowProperties({
 
   const refetch = useCallback(async () => {
     const mine = ++seq.current;
-    const res = await loadRowAction(rowId);
+    const res = await safe(loadRowAction(rowId));
     if (mine !== seq.current) return;
     if (res.ok) {
       setData({
@@ -62,7 +74,7 @@ export function RowProperties({
       });
     }
     else setError(res.error);
-  }, [rowId]);
+  }, [rowId, safe]);
 
   useEffect(() => {
     void refetch();
@@ -87,7 +99,7 @@ export function RowProperties({
   const setValue = async (propertyId: string, value: unknown) => {
     const v = ++version.current;
     setPending((p) => ({ ...p, [propertyId]: { value, version: v } }));
-    const res = await updateRowPropertiesAction(rowId, { [propertyId]: value });
+    const res = await safe(updateRowPropertiesAction(rowId, { [propertyId]: value }));
     if (!res.ok) setError(res.error);
     else setError(null);
     await refetch();
@@ -100,7 +112,7 @@ export function RowProperties({
   };
 
   const createOption = async (propertyId: string, name: string): Promise<SelectOption | null> => {
-    const res = await ensureOptionAction(propertyId, name);
+    const res = await safe(ensureOptionAction(propertyId, name));
     if (!res.ok) {
       setError(res.error);
       return null;
@@ -120,14 +132,14 @@ export function RowProperties({
   };
 
   const addProperty = async (name: string, type: PropertyType, relation?: RelationInput) => {
-    const res = await addPropertyAction(databaseId, { name, type, relation });
+    const res = await safe(addPropertyAction(databaseId, { name, type, relation }));
     if (!res.ok) setError(res.error);
     await refetch();
   };
 
   const createRelatedRow = useCallback(
     async (targetDatabaseId: string, title: string) => {
-      const res = await createRowAction(workspaceId, targetDatabaseId, { title });
+      const res = await safe(createRowAction(workspaceId, targetDatabaseId, { title }));
       if (!res.ok) {
         setError(res.error);
         return null;
@@ -135,7 +147,7 @@ export function RowProperties({
       await refetch();
       return res.data.id;
     },
-    [workspaceId, refetch],
+    [workspaceId, refetch, safe],
   );
 
   const relationContext = useMemo<RelationContextValue | null>(

@@ -76,6 +76,7 @@ export function HistoryPanel({ pageId, onClose, readOnly }: { pageId: string; on
     if (!selected) return;
     let cancelled = false;
     setPreview(null);
+    setError((e) => (e === "version" ? null : e));
     getSnapshotAction(selected)
       .then((s) => !cancelled && setPreview({ title: s.title, markdown: s.contentMarkdown }))
       .catch(() => !cancelled && setError("version"));
@@ -108,7 +109,8 @@ export function HistoryPanel({ pageId, onClose, readOnly }: { pageId: string; on
             {preview ? (
               <Preview markdown={preview.markdown} />
             ) : (
-              <p className="px-12 text-sm text-fg-muted">{items?.length === 0 ? "" : tc("loading")}</p>
+              // A failed load shows its error beside the Restore button instead of loading forever.
+              <p className="px-12 text-sm text-fg-muted">{items?.length === 0 || error === "version" ? "" : tc("loading")}</p>
             )}
           </div>
         </div>
