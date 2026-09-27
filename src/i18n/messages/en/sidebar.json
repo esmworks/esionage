@@ -10,7 +10,8 @@
     "inbox": "Inbox",
     "settings": "Settings",
     "trash": "Trash",
-    "templates": "Templates"
+    "templates": "Templates",
+    "import": "Import"
   },
   "toggle": {
     "open": "Open sidebar",
@@ -33,7 +34,8 @@
     "noChildren": "No pages inside",
     "favorites": "Favorites",
     "moveFailed": "The page couldn't be moved here. Moving it under another page needs full access to it.",
-    "fromTemplate": "From a template"
+    "fromTemplate": "From a template",
+    "import": "Import…"
   },
   "search": {
     "placeholder": "Search pages and content…",

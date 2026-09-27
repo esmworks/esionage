@@ -16,6 +16,7 @@ import {
   Search,
   Settings,
   Trash2,
+  Upload,
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -41,6 +42,7 @@ import { SIDEBAR_WIDTH } from "@/lib/sidebar-layout";
 import { SidebarPeekEdge, useSidebar } from "./sidebar-context";
 import { TrashDialog } from "./trash-dialog";
 import { TemplatesDialog } from "@/components/workspace/templates-dialog";
+import { ImportDialog } from "@/components/workspace/import-dialog";
 
 type Workspace = { id: string; name: string; icon: string | null; role: string };
 
@@ -85,6 +87,7 @@ export function Sidebar({
   const [searchOpen, setSearchOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   // Bumped on every inbox signal so an open inbox reloads.
@@ -443,6 +446,15 @@ export function Sidebar({
                   >
                     {t("pages.fromTemplate")}
                   </MenuItem>
+                  <MenuItem
+                    icon={<Upload className="h-4 w-4" />}
+                    onClick={() => {
+                      close();
+                      setImportOpen(true);
+                    }}
+                  >
+                    {t("pages.import")}
+                  </MenuItem>
                 </>
               )}
             </Popover>
@@ -495,6 +507,9 @@ export function Sidebar({
               {t("nav.templates")}
             </SidebarButton>
           )}
+          <SidebarButton icon={<Upload className="h-4 w-4" />} onClick={() => setImportOpen(true)}>
+            {t("nav.import")}
+          </SidebarButton>
           <SidebarButton icon={<Trash2 className="h-4 w-4" />} onClick={() => setTrashOpen(true)}>
             {t("nav.trash")}
           </SidebarButton>
@@ -512,6 +527,14 @@ export function Sidebar({
       />
       <NewWorkspaceDialog open={newWorkspaceOpen} onClose={() => setNewWorkspaceOpen(false)} />
       <TemplatesDialog workspaceId={workspaceId} open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
+      <ImportDialog
+        workspaceId={workspaceId}
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        tree={tree}
+        topLevel={Boolean(topLevel)}
+        activeId={activeId}
+      />
       <TrashDialog
         workspaceId={workspaceId}
         open={trashOpen}

@@ -1,0 +1,87 @@
+{
+  "open": "Import",
+  "title": "Import",
+  "description": "Bring pages in from Markdown files and ZIP exports, or rows from a CSV file.",
+  "tabs": {
+    "pages": "Markdown & ZIP",
+    "csv": "CSV"
+  },
+  "destination": "Put under",
+  "topLevel": "Top level of the workspace",
+  "noDestination": "There is no page you can add pages to.",
+  "pages": {
+    "help": "Markdown files become pages and folders keep their structure. CSV files become databases, and images that pages link to are uploaded. Exports from Notion work too.",
+    "chooseFiles": "Choose files",
+    "chooseFolder": "Choose a folder",
+    "drop": "or drop files here",
+    "selected": "{count, plural, one {# file} other {# files}}, {size}",
+    "clear": "Clear"
+  },
+  "csv": {
+    "choose": "Choose a CSV file",
+    "summary": "{name}: {rows, plural, one {# row} other {# rows}}, {columns, plural, one {# column} other {# columns}}",
+    "mode": "Import as",
+    "newDatabase": "A new database",
+    "existing": "Rows of a database",
+    "name": "Name",
+    "titleColumn": "Row titles from",
+    "noTitle": "No column (untitled rows)",
+    "column": "Column",
+    "type": "Type",
+    "target": "Goes to",
+    "values": "Values",
+    "leaveOut": "Leave out",
+    "rowTitle": "Row title",
+    "database": "Database",
+    "chooseDatabase": "Choose a database",
+    "noDatabases": "There is no database you can add rows to.",
+    "cantLoad": "This database's properties couldn't be loaded.",
+    "newOptions": "Select values the database doesn't have yet are added as options."
+  },
+  "import": "Import",
+  "importing": "Importing…",
+  "done": {
+    "title": "Import finished",
+    "created": "Created {list}.",
+    "nothing": "Nothing new was created.",
+    "open": "Open",
+    "again": "Import more"
+  },
+  "counts": {
+    "pages": "{count, plural, one {# page} other {# pages}}",
+    "databases": "{count, plural, one {# database} other {# databases}}",
+    "rows": "{count, plural, one {# row} other {# rows}}",
+    "files": "{count, plural, one {# file} other {# files}}"
+  },
+  "warnings": {
+    "heading": "Left out or changed",
+    "invalidValues": "{count, plural, one {# value} other {# values}} in “{column}” didn't fit the property and were left empty.",
+    "missingFile": "“{path}”, linked from “{page}”, wasn't in the upload.",
+    "fileNotStored": {
+      "tooLarge": "“{path}” is larger than the upload limit and wasn't stored.",
+      "quotaExceeded": "“{path}” wasn't stored: the workspace is out of file storage.",
+      "failed": "“{path}” couldn't be stored."
+    },
+    "skipped": {
+      "nestedZip": "“{path}” is a ZIP nested too deep and was left out.",
+      "nestedDatabase": "“{path}” would be a database inside a database and was left out.",
+      "duplicate": "“{path}” was left out: the full version of the same database was imported.",
+      "tooLarge": "“{path}” is too large for one page and was left out."
+    },
+    "more": "…and {count, plural, one {# more} other {# more}}."
+  },
+  "errors": {
+    "tooLarge": "The upload is larger than {limit}.",
+    "tooManyFiles": "An import can hold at most {limit} files.",
+    "tooManyPages": "An import can create at most {limit} pages.",
+    "tooManyRows": "A CSV file can have at most {limit} rows.",
+    "tooManyColumns": "A CSV file can have at most {limit} columns.",
+    "badZip": "The ZIP file can't be read.",
+    "nothingToImport": "There is no Markdown or CSV file to import.",
+    "emptyCsv": "The CSV file has no header row.",
+    "badMapping": "Choose where at least one column goes, and each property only once.",
+    "noAccess": "You can't add pages there, or it no longer exists.",
+    "notADatabase": "Rows can only be added to a database.",
+    "badRequest": "The import didn't go through. Nothing was changed."
+  }
+}

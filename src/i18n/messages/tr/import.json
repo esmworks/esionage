@@ -1,0 +1,87 @@
+{
+  "open": "İçe aktar",
+  "title": "İçe aktar",
+  "description": "Markdown dosyalarından ve ZIP dışa aktarımlarından sayfa, CSV dosyasından satır getirin.",
+  "tabs": {
+    "pages": "Markdown ve ZIP",
+    "csv": "CSV"
+  },
+  "destination": "Nereye",
+  "topLevel": "Çalışma alanının en üst düzeyi",
+  "noDestination": "Sayfa ekleyebileceğiniz bir sayfa yok.",
+  "pages": {
+    "help": "Markdown dosyaları sayfa olur, klasörler yapısını korur. CSV dosyaları veritabanı olur, sayfaların bağlantı verdiği görseller yüklenir. Notion dışa aktarımları da çalışır.",
+    "chooseFiles": "Dosya seç",
+    "chooseFolder": "Klasör seç",
+    "drop": "ya da dosyaları buraya bırakın",
+    "selected": "{count, plural, one {# dosya} other {# dosya}}, {size}",
+    "clear": "Temizle"
+  },
+  "csv": {
+    "choose": "CSV dosyası seç",
+    "summary": "{name}: {rows, plural, one {# satır} other {# satır}}, {columns, plural, one {# sütun} other {# sütun}}",
+    "mode": "Şu şekilde aktar",
+    "newDatabase": "Yeni bir veritabanı",
+    "existing": "Bir veritabanının satırları",
+    "name": "Ad",
+    "titleColumn": "Satır başlıkları",
+    "noTitle": "Sütun yok (başlıksız satırlar)",
+    "column": "Sütun",
+    "type": "Tür",
+    "target": "Hedef",
+    "values": "Değerler",
+    "leaveOut": "Dışarıda bırak",
+    "rowTitle": "Satır başlığı",
+    "database": "Veritabanı",
+    "chooseDatabase": "Bir veritabanı seçin",
+    "noDatabases": "Satır ekleyebileceğiniz bir veritabanı yok.",
+    "cantLoad": "Bu veritabanının özellikleri yüklenemedi.",
+    "newOptions": "Veritabanında henüz olmayan seçim değerleri seçenek olarak eklenir."
+  },
+  "import": "İçe aktar",
+  "importing": "İçe aktarılıyor…",
+  "done": {
+    "title": "İçe aktarma tamamlandı",
+    "created": "Oluşturulanlar: {list}.",
+    "nothing": "Yeni bir şey oluşturulmadı.",
+    "open": "Aç",
+    "again": "Başka içe aktar"
+  },
+  "counts": {
+    "pages": "{count, plural, one {# sayfa} other {# sayfa}}",
+    "databases": "{count, plural, one {# veritabanı} other {# veritabanı}}",
+    "rows": "{count, plural, one {# satır} other {# satır}}",
+    "files": "{count, plural, one {# dosya} other {# dosya}}"
+  },
+  "warnings": {
+    "heading": "Dışarıda kalanlar ve değişenler",
+    "invalidValues": "“{column}” sütunundaki {count, plural, one {# değer} other {# değer}} özelliğe uymadığı için boş bırakıldı.",
+    "missingFile": "“{page}” sayfasının bağlantı verdiği “{path}” yüklemede yoktu.",
+    "fileNotStored": {
+      "tooLarge": "“{path}” yükleme sınırından büyük olduğu için saklanmadı.",
+      "quotaExceeded": "“{path}” saklanmadı: çalışma alanının dosya depolaması doldu.",
+      "failed": "“{path}” saklanamadı."
+    },
+    "skipped": {
+      "nestedZip": "“{path}” çok derinde iç içe geçmiş bir ZIP olduğu için dışarıda bırakıldı.",
+      "nestedDatabase": "“{path}” veritabanı içinde veritabanı olacağı için dışarıda bırakıldı.",
+      "duplicate": "“{path}” dışarıda bırakıldı: aynı veritabanının tam sürümü aktarıldı.",
+      "tooLarge": "“{path}” tek bir sayfa için çok büyük olduğu için dışarıda bırakıldı."
+    },
+    "more": "…ve {count, plural, one {# tane daha} other {# tane daha}}."
+  },
+  "errors": {
+    "tooLarge": "Yükleme {limit} sınırından büyük.",
+    "tooManyFiles": "Bir içe aktarma en fazla {limit} dosya içerebilir.",
+    "tooManyPages": "Bir içe aktarma en fazla {limit} sayfa oluşturabilir.",
+    "tooManyRows": "Bir CSV dosyasında en fazla {limit} satır olabilir.",
+    "tooManyColumns": "Bir CSV dosyasında en fazla {limit} sütun olabilir.",
+    "badZip": "ZIP dosyası okunamıyor.",
+    "nothingToImport": "İçe aktarılacak Markdown ya da CSV dosyası yok.",
+    "emptyCsv": "CSV dosyasında başlık satırı yok.",
+    "badMapping": "En az bir sütunun hedefini seçin; her özellik yalnızca bir kez kullanılabilir.",
+    "noAccess": "Oraya sayfa ekleyemezsiniz ya da artık mevcut değil.",
+    "notADatabase": "Satırlar yalnızca bir veritabanına eklenebilir.",
+    "badRequest": "İçe aktarma gerçekleşmedi. Hiçbir şey değişmedi."
+  }
+}
