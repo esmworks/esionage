@@ -29,7 +29,10 @@
     "lastEdited": "Son düzenleyen: {name}",
     "actionFailed": "İşlem tamamlanamadı.",
     "viewers": "{count, plural, other {Bu sayfayı # kişi daha görüntülüyor}}",
-    "viewersTitle": "Bu sayfayı görüntüleyenler"
+    "viewersTitle": "Bu sayfayı görüntüleyenler",
+    "saveAsTemplate": "Şablon olarak kaydet",
+    "saveAsRowTemplate": "Satır şablonu olarak kaydet",
+    "deleteTemplate": "Şablonu sil"
   },
   "comments": {
     "title": "Yorumlar",
@@ -198,5 +201,12 @@
     "replace": "Değiştir",
     "replaceAll": "Tümünü değiştir",
     "close": "Kapat (Esc)"
+  },
+  "template": {
+    "workspace": "Bu bir şablon. Ondan oluşturulan yeni sayfalar içeriğini ve alt sayfalarını kopyalar.",
+    "row": "Bu bir satır şablonu. Ondan oluşturulan yeni satırlar özelliklerini ve içeriğini alır.",
+    "inside": "Bu sayfa bir şablonun parçası.",
+    "use": "Şablonu kullan",
+    "confirmDelete": "Bu şablon kalıcı olarak silinsin mi? Ondan oluşturulmuş sayfalar olduğu gibi kalır."
   }
 }

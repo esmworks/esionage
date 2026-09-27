@@ -9,7 +9,8 @@
     "home": "Home",
     "inbox": "Inbox",
     "settings": "Settings",
-    "trash": "Trash"
+    "trash": "Trash",
+    "templates": "Templates"
   },
   "toggle": {
     "open": "Open sidebar",
@@ -31,7 +32,8 @@
     "addInside": "Add a page inside",
     "noChildren": "No pages inside",
     "favorites": "Favorites",
-    "moveFailed": "The page couldn't be moved here. Moving it under another page needs full access to it."
+    "moveFailed": "The page couldn't be moved here. Moving it under another page needs full access to it.",
+    "fromTemplate": "From a template"
   },
   "search": {
     "placeholder": "Search pages and content…",
@@ -61,5 +63,18 @@
     "someone": "Someone",
     "unread": "Unread",
     "unreadCount": "{count, plural, one {# unread notification} other {# unread notifications}}"
+  },
+  "templates": {
+    "title": "Templates",
+    "description": "Pick one to create a new page from it.",
+    "workspace": "In this workspace",
+    "builtIn": "Built-in",
+    "empty": "No templates yet. To add one, open a page’s ⋯ menu and choose “Save as template”.",
+    "use": "Create a page from this template",
+    "database": "Database",
+    "edit": "Edit template",
+    "open": "Open template",
+    "delete": "Delete template",
+    "confirmDelete": "Delete this template for good? Pages already made from it stay as they are."
   }
 }

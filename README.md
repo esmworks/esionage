@@ -28,6 +28,10 @@ approve them over OAuth.
     anonymous.
   - Put a database inside any page, or show a view of an existing one there.
   - Lock a database to freeze its properties and views, and export its rows as CSV.
+  - Row templates with preset properties and content; pick one as the default for "New".
+- **Templates**: save a page or database (with its subpages) as a template and create new pages
+  from it, or start from built-in templates for meeting notes, a weekly plan or a project tracker.
+  Templates stay out of the sidebar, search, trash and published sites.
 - **Comments**: select text and comment on it; reply, react, resolve and reopen threads, live for
   everyone on the page. People who can comment on a page (or edit it) write comments and viewers
   read along; full access also deletes other people's comments.
@@ -172,6 +176,7 @@ The client opens a browser window where you sign in and approve access. The tool
 - **Pages:** `get_page`, `create_page`, `update_page`, `move_page`, `archive_page`, `list_trash`,
   `restore_page`.
 - **Page history:** `list_page_history`, `get_page_version`, `diff_page_version`, `restore_page_version`.
+- **Templates:** `list_templates`; `create_page` and `create_database_row` take a `template_id`.
 - **Comments:** `list_comments`, `add_comment` (start a thread on quoted text, or reply).
 - **Inbox:** `list_notifications`, when the user also grants the `notifications:read` permission.
 - **Databases:** `get_database`, `query_database`, `create_database`, `create_database_row`,

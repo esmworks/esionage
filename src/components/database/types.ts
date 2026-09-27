@@ -28,10 +28,21 @@ export type {
 export type DerivedInput = { formula?: { expression: string }; rollup?: RollupInput };
 
 export type DatabaseSnapshot = {
-  database: { id: string; workspaceId: string; title: string; icon: string | null; archived: boolean; locked: boolean };
+  database: {
+    id: string;
+    workspaceId: string;
+    title: string;
+    icon: string | null;
+    archived: boolean;
+    locked: boolean;
+    /** The row template "New" starts from; null for blank rows. */
+    defaultTemplateId: string | null;
+  };
   properties: Property[];
   views: View[];
   rows: Row[];
+  /** Row templates of the database (see server/templates.ts), for the menu next to "New". */
+  templates: { id: string; title: string; icon: string | null }[];
   /** Related database and its rows, per relation property id. */
   relations: Record<string, RelationTarget>;
   /** People person properties can show and assign (see databases.getPeople). */

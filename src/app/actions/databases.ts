@@ -7,6 +7,7 @@ import { AccessError } from "@/server/access";
 import * as databases from "@/server/databases";
 import { duplicateRows } from "@/server/duplicate";
 import * as pages from "@/server/pages";
+import * as templates from "@/server/templates";
 import { requireUserId } from "@/server/session";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -55,9 +56,20 @@ export async function loadRowAction(rowId: string) {
 export async function createRowAction(
   workspaceId: string,
   databaseId: string,
-  input: { title?: string; properties?: Record<string, unknown> } = {},
+  input: {
+    title?: string;
+    properties?: Record<string, unknown>;
+    /** Copy this row template of the database (see server/templates.ts). */
+    templateId?: string | null;
+    /** Start from the database's default row template, when it has one. */
+    useDefault?: boolean;
+  } = {},
 ) {
   return run(async (userId) => {
+    if (input.templateId || input.useDefault) {
+      const created = await templates.createRow({ userId }, databaseId, input);
+      return { id: created.id, position: created.position };
+    }
     const created = await pages.createPage(
       { userId },
       { workspaceId, parentId: databaseId, title: input.title, properties: input.properties },

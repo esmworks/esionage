@@ -1,0 +1,78 @@
+"use server";
+
+import { getLocale, getTranslations } from "next-intl/server";
+import { isDatabaseErrorCode, PropertyValueError } from "@/lib/properties";
+import { builtinTemplates, type BuiltinTemplateKey } from "@/lib/builtin-templates";
+import { AccessError, hasLevel } from "@/server/access";
+import { requireUserId } from "@/server/session";
+import * as templates from "@/server/templates";
+
+export type TemplateResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
+/** Domain errors become translated messages; anything else is logged and shown as a generic one. */
+async function run<T>(label: string, fn: (userId: string) => Promise<T>): Promise<TemplateResult<T>> {
+  const userId = await requireUserId();
+  try {
+    return { ok: true, data: await fn(userId) };
+  } catch (error) {
+    const t = await getTranslations();
+    const { code, params } = error as { code?: unknown; params?: Record<string, string> };
+    if (error instanceof Error && isDatabaseErrorCode(code)) return { ok: false, error: t(`database.errors.${code}`, params ?? {}) };
+    if (error instanceof AccessError) return { ok: false, error: t("database.errors.accessDenied") };
+    if (!(error instanceof PropertyValueError)) console.error(`[${label}]`, error);
+    return { ok: false, error: t("common.genericError") };
+  }
+}
+
+export type TemplatePickerData = {
+  templates: { id: string; title: string; icon: string | null; kind: "page" | "database"; canEdit: boolean; canDelete: boolean }[];
+  builtins: { key: BuiltinTemplateKey; title: string; description: string; icon: string; kind: "page" | "database" }[];
+};
+
+/** The workspace's templates and the built-in gallery (in the user's language), for the picker. */
+export async function listTemplatesAction(workspaceId: string) {
+  return run("list templates", async (userId): Promise<TemplatePickerData> => {
+    const [list, locale] = await Promise.all([templates.listTemplates(userId, workspaceId), getLocale()]);
+    return {
+      templates: list.map((t) => ({
+        id: t.id,
+        title: t.title,
+        icon: t.icon,
+        kind: t.kind,
+        canEdit: hasLevel(t.level, "edit"),
+        canDelete: hasLevel(t.level, "full"),
+      })),
+      builtins: builtinTemplates(locale).map(({ key, title, description, icon, kind }) => ({ key, title, description, icon, kind })),
+    };
+  });
+}
+
+export async function createFromTemplateAction(templateId: string, parentId: string | null = null) {
+  return run("new page from template", async (userId) => {
+    const created = await templates.createFromTemplate({ userId }, templateId, { parentId });
+    return { id: created.id, workspaceId: created.workspaceId };
+  });
+}
+
+export async function createFromBuiltinAction(workspaceId: string, key: BuiltinTemplateKey, parentId: string | null = null) {
+  return run("new page from built-in template", async (userId) => {
+    const locale = await getLocale();
+    return templates.createFromBuiltin({ userId }, workspaceId, key, { locale, parentId });
+  });
+}
+
+export async function saveAsTemplateAction(pageId: string) {
+  return run("save as template", (userId) => templates.saveAsTemplate({ userId }, pageId));
+}
+
+export async function deleteTemplateAction(templateId: string) {
+  return run("delete template", (userId) => templates.deleteTemplate(userId, templateId));
+}
+
+export async function createRowTemplateAction(databaseId: string) {
+  return run("new row template", (userId) => templates.createRowTemplate({ userId }, databaseId));
+}
+
+export async function setDefaultRowTemplateAction(databaseId: string, templateId: string | null) {
+  return run("default row template", (userId) => templates.setDefaultRowTemplate(userId, databaseId, templateId));
+}

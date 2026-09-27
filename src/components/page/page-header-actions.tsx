@@ -7,6 +7,7 @@ import {
   Download,
   FileText,
   History,
+  LayoutTemplate,
   Link2,
   Lock,
   MessageSquare,
@@ -26,6 +27,7 @@ import {
   setFavoriteAction,
 } from "@/app/actions/page-menu";
 import { getTreeAction, movePageAction } from "@/app/actions/pages";
+import { deleteTemplateAction, saveAsTemplateAction } from "@/app/actions/templates";
 import { cn, Dialog, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, Popover, Switch } from "@/components/ui";
 import type { PageKind } from "@/db/schema/app";
 import { FAVORITES_EVENT } from "@/lib/favorites-event";
@@ -64,7 +66,7 @@ export function PageHeaderActions({
   onMoveToTrash,
 }: {
   workspaceId: string;
-  page: { id: string; kind: PageKind; parentId: string | null; archived: boolean; hasBody: boolean };
+  page: { id: string; kind: PageKind; parentId: string | null; archived: boolean; hasBody: boolean; isRow?: boolean };
   currentUser: { id: string; name: string };
   info: PageHeaderInfo;
   /** The page's shared doc once synced; its edits trigger a refetch of the header info. */
@@ -138,7 +140,7 @@ export function PageHeaderActions({
             </button>
           )}
         >
-          <SharePanel pageId={page.id} currentUser={currentUser} />
+          <SharePanel pageId={page.id} currentUser={currentUser} publishable={!info.template} />
         </Popover>
       )}
       {onComments && (
@@ -152,7 +154,8 @@ export function PageHeaderActions({
           <MessageSquare className="h-4 w-4" />
         </IconButton>
       )}
-      {!page.archived && (
+      {/* Templates aren't listed under Favorites, so they get no star. */}
+      {!page.archived && !info.template && (
         <IconButton
           label={info.favorite ? t("removeFavorite") : t("addFavorite")}
           title={info.favorite ? t("removeFavorite") : t("addFavorite")}
@@ -229,13 +232,14 @@ function PageMenu({
   onMoveToTrash,
 }: {
   workspaceId: string;
-  page: { id: string; kind: PageKind; parentId: string | null; archived: boolean; hasBody: boolean };
+  page: { id: string; kind: PageKind; parentId: string | null; archived: boolean; hasBody: boolean; isRow?: boolean };
   info: PageHeaderInfo;
   onInfo: (info: PageHeaderInfo) => void;
   onHistory: () => void;
   onMoveToTrash: () => void;
 }) {
   const t = useTranslations("page.header");
+  const tTemplate = useTranslations("page.template");
   const locale = useLocale();
   const router = useRouter();
   const [moveOpen, setMoveOpen] = useState(false);
@@ -244,6 +248,37 @@ function PageMenu({
   const canEdit = hasLevel(info.level, "edit");
   const canManage = hasLevel(info.level, "full");
   const isDatabase = page.kind === "database";
+  // A template (or a row template) itself: deleted rather than trashed, and it stays where it is listed.
+  const templateRoot = info.template === "workspace" || info.template === "row";
+  // Rows become row templates of their database (edit access there); other pages go to the top level.
+  const canSaveTemplate = !page.archived && !info.template && (page.isRow ? canEdit : info.topLevel);
+
+  const saveAsTemplate = (close: () => void) =>
+    startTransition(async () => {
+      setError(null);
+      const result = await saveAsTemplateAction(page.id);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      close();
+      router.push(`/w/${result.data.workspaceId}/p/${result.data.id}`);
+    });
+
+  const deleteTemplate = (close: () => void) => {
+    if (!confirm(tTemplate("confirmDelete"))) return;
+    startTransition(async () => {
+      setError(null);
+      const result = await deleteTemplateAction(page.id);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      close();
+      router.push(result.data.databaseId ? `/w/${workspaceId}/p/${result.data.databaseId}` : `/w/${workspaceId}`);
+      router.refresh();
+    });
+  };
 
   const duplicate = (close: () => void) =>
     startTransition(async () => {
@@ -301,8 +336,13 @@ function PageMenu({
                 {t("duplicate")}
               </MenuItem>
             )}
-            {/* Moving to another parent needs full access on the page. */}
-            {!page.archived && canManage && (
+            {canSaveTemplate && (
+              <MenuItem icon={<LayoutTemplate className="h-4 w-4" />} onClick={() => saveAsTemplate(close)}>
+                {page.isRow ? t("saveAsRowTemplate") : t("saveAsTemplate")}
+              </MenuItem>
+            )}
+            {/* Moving to another parent needs full access on the page. Templates don't move. */}
+            {!page.archived && canManage && !info.template && (
               <MenuItem
                 icon={<CornerUpLeft className="h-4 w-4" />}
                 onClick={() => {
@@ -313,7 +353,7 @@ function PageMenu({
                 {t("moveTo")}
               </MenuItem>
             )}
-            {!page.archived && canEdit && (
+            {!page.archived && canEdit && !templateRoot && (
               <MenuItem
                 icon={<Trash2 className="h-4 w-4" />}
                 onClick={() => {
@@ -322,6 +362,11 @@ function PageMenu({
                 }}
               >
                 {t("moveToTrash")}
+              </MenuItem>
+            )}
+            {templateRoot && canManage && (
+              <MenuItem icon={<Trash2 className="h-4 w-4" />} onClick={() => deleteTemplate(close)}>
+                {t("deleteTemplate")}
               </MenuItem>
             )}
 

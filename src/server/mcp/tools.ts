@@ -55,6 +55,8 @@ import { resolveEmbeds } from "@/server/embeds";
 import * as forms from "@/server/forms";
 import * as notifications from "@/server/notifications";
 import * as pages from "@/server/pages";
+import * as templates from "@/server/templates";
+import { builtinTemplates, isBuiltinTemplateKey } from "@/lib/builtin-templates";
 import * as workspaces from "@/server/workspaces";
 import { MAX_MARKDOWN_CHARS, pageUrl, runTool, sliceText, ToolInputError } from "./format";
 import { env } from "@/lib/env";
@@ -80,6 +82,7 @@ Start with list_workspaces or search to find ids, then get_page / list_pages / q
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / diff_page_version / restore_page_version).
 People discuss pages in comment threads anchored to text of the page: list_comments reads them, add_comment starts a thread on quoted text or replies to one.
 list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them and new comments in their threads.
+Templates are starting points for new pages and rows: list_templates lists a workspace's page templates (and the built-in gallery) or a database's row templates; create_page and create_database_row take a template_id. A database's default row template is used by create_database_row when no properties or body are given. Templates don't show up in search or list_pages.
 Always share the returned url with the user when you create or change something.`;
 
 const MAX_BULK_ROWS = 100;
@@ -859,6 +862,8 @@ export function createMcpServer(principal: McpPrincipal) {
           updated_at: page.updatedAt.toISOString(),
           url: pageUrl(page.workspaceId, page.id),
         };
+        if (page.isTemplate) out.template = parentDatabase ? "row_template" : "page_template";
+        else if (page.inTemplate) out.template = "inside_template";
         if (parentDatabase) {
           const { properties } = await databases.getDatabase(userId, parentDatabase.id);
           out.database_id = parentDatabase.id;
@@ -901,28 +906,101 @@ export function createMcpServer(principal: McpPrincipal) {
   );
 
   server.registerTool(
+    "list_templates",
+    {
+      title: "List templates",
+      description:
+        'List templates to start new pages from: the page templates of a workspace plus the built-in gallery (ids "builtin:<key>"), or, with database_id, the row templates of that database and which one is the default. Pass an id as template_id to create_page or create_database_row. Templates are pages: read or edit one with get_page / update_page.',
+      inputSchema: z.object({
+        workspace_id: z.string().optional().describe("Workspace whose page templates to list. Ignored when database_id is set."),
+        database_id: z.string().optional().describe("Database whose row templates to list."),
+      }),
+      annotations: READ,
+    },
+    ({ workspace_id, database_id }) =>
+      runTool(async () => {
+        if (database_id) {
+          const { database } = await databases.getDatabase(userId, database_id);
+          const rows = await templates.listRowTemplates(userId, database_id);
+          return {
+            database_id,
+            default_template_id: rows.defaultTemplateId,
+            templates: rows.templates.map((t) => ({
+              id: t.id,
+              title: pageLabel(t.title),
+              default: t.id === rows.defaultTemplateId,
+              url: pageUrl(database.workspaceId, t.id),
+            })),
+          };
+        }
+        if (!workspace_id) throw new ToolInputError("Provide workspace_id (page templates) or database_id (row templates).");
+        const list = await templates.listTemplates(userId, workspace_id);
+        return {
+          templates: list.map((t) => ({
+            id: t.id,
+            title: pageLabel(t.title),
+            kind: t.kind,
+            url: pageUrl(workspace_id, t.id),
+          })),
+          built_in: builtinTemplates("en").map((t) => ({ id: `builtin:${t.key}`, title: t.title, kind: t.kind, description: t.description })),
+        };
+      }),
+  );
+
+  server.registerTool(
     "create_page",
     {
       title: "Create a page",
       description:
-        "Create a new page at the top level of a workspace (workspace_id) or nested under another page (parent_id), with an optional Markdown body. To add a row to a database use create_database_row instead.",
+        "Create a new page at the top level of a workspace (workspace_id) or nested under another page (parent_id), with an optional Markdown body, or copy a template (template_id from list_templates) with its sub-pages. To add a row to a database use create_database_row instead.",
       inputSchema: z.object({
         workspace_id: z.string().optional().describe("Workspace for a top-level page. Ignored when parent_id is set."),
         parent_id: z.string().optional().describe("Page to nest the new page under."),
-        title: z.string().min(1).max(500).describe("Page title."),
-        markdown: z.string().optional().describe("Initial page body in Markdown."),
+        title: z.string().min(1).max(500).optional().describe("Page title. Required unless template_id is given (the template's title is used then)."),
+        markdown: z.string().optional().describe("Initial page body in Markdown. With template_id it replaces the template's body."),
         icon: z.string().max(16).optional().describe("A single emoji used as the page icon."),
+        template_id: z
+          .string()
+          .optional()
+          .describe('A page template of the workspace, or a built-in one ("builtin:<key>"), from list_templates.'),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ workspace_id, parent_id, title, markdown, icon }) =>
+    ({ workspace_id, parent_id, title, markdown, icon, template_id }) =>
       runTool(async () => {
         assertWrite();
         const location = await resolveLocation(workspace_id, parent_id);
         if (location.parentKind === "database") {
           throw new ToolInputError("parent_id is a database. Use create_database_row to add rows to it.");
         }
+        if (template_id) {
+          let createdId: string;
+          if (template_id.startsWith("builtin:")) {
+            const key = template_id.slice("builtin:".length);
+            if (!isBuiltinTemplateKey(key)) throw new ToolInputError(`Unknown built-in template "${key}". Call list_templates for the keys.`);
+            createdId = (await templates.createFromBuiltin(actor, location.workspaceId, key, { parentId: location.parentId })).id;
+          } else {
+            const template = await pages.getPage(userId, template_id);
+            if (!template.isTemplate || template.parentId) {
+              throw new ToolInputError("template_id is not a page template. Call list_templates; row templates go to create_database_row.");
+            }
+            createdId = (await templates.createFromTemplate(actor, template_id, { parentId: location.parentId })).id;
+          }
+          if (title !== undefined) await pages.renamePage(actor, createdId, title);
+          if (icon !== undefined) await pages.setPageIcon(userId, createdId, icon);
+          if (markdown !== undefined) await getCollab().replaceContent(createdId, markdown, actor);
+          const created = await pages.getPage(userId, createdId);
+          return {
+            id: created.id,
+            title: pageLabel(created.title),
+            workspace_id: created.workspaceId,
+            parent_id: created.parentId,
+            from_template: template_id,
+            url: pageUrl(created.workspaceId, created.id),
+          };
+        }
+        if (title === undefined) throw new ToolInputError("Provide title (or template_id).");
         const created = await pages.createPage(actor, {
           workspaceId: location.workspaceId,
           parentId: location.parentId,
@@ -1115,21 +1193,38 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Add a database row",
       description:
-        "Add a row to a database with a title, property values (by property name, select options by name) and an optional Markdown body. Call get_database first to learn the property names and options.",
+        "Add a row to a database with a title, property values (by property name, select options by name) and an optional Markdown body. Call get_database first to learn the property names and options. Without properties and markdown the row starts from the database's default row template, if it has one; template_id picks a row template (see list_templates), with the given properties set over its values.",
       inputSchema: z.object({
         database_id: id("database"),
         title: z.string().min(1).max(500).describe("Row title."),
         properties: rowProperties.optional(),
-        markdown: z.string().optional().describe("Optional Markdown body for the row's page."),
+        markdown: z.string().optional().describe("Optional Markdown body for the row's page. With a template it replaces the template's body."),
+        template_id: z
+          .string()
+          .optional()
+          .describe('A row template of this database from list_templates, or "none" for a blank row even when the database has a default template.'),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, title, properties, markdown }) =>
+    ({ database_id, title, properties, markdown, template_id }) =>
       runTool(async () => {
         assertWrite();
         const { database } = await databases.getDatabase(userId, database_id);
         if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
+        const blank = template_id === "none";
+        const noValues = !Object.keys(properties ?? {}).length && markdown === undefined;
+        if (!blank && (template_id || noValues)) {
+          const created = await templates.createRow(actor, database.id, {
+            title,
+            properties: properties ?? {},
+            templateId: template_id ?? null,
+            useDefault: noValues,
+          });
+          if (markdown !== undefined) await getCollab().replaceContent(created.id, markdown, actor);
+          const output = await rowOutput(database.id, created.id);
+          return created.templateId ? { ...output, from_template: created.templateId } : output;
+        }
         const created = await pages.createPage(actor, {
           workspaceId: database.workspaceId,
           parentId: database.id,

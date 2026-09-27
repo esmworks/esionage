@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCcw, SmilePlus } from "lucide-react";
+import { LayoutTemplate, RotateCcw, SmilePlus } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -12,6 +12,8 @@ import {
   restorePageAction,
   setPageIconAction,
 } from "@/app/actions/pages";
+import { createRowAction } from "@/app/actions/databases";
+import { createFromTemplateAction } from "@/app/actions/templates";
 import { Button, cn, PageIcon, pageLabel } from "@/components/ui";
 import type { PageKind } from "@/db/schema/app";
 import { SidebarOpenButton } from "@/components/sidebar/sidebar-context";
@@ -39,7 +41,16 @@ export function PageView({
   children,
 }: {
   workspaceId: string;
-  page: { id: string; parentId: string | null; title: string; icon: string | null; kind: PageKind; archived: boolean };
+  page: {
+    id: string;
+    parentId: string | null;
+    title: string;
+    icon: string | null;
+    kind: PageKind;
+    archived: boolean;
+    /** A row of a database (its parent). */
+    isRow?: boolean;
+  };
   info: PageHeaderInfo;
   crumbs: Crumb[];
   user: { id: string; name: string };
@@ -131,6 +142,22 @@ export function PageView({
     });
   }
 
+  /** A new page (or row) from this template, opened right away. */
+  function applyTemplate() {
+    setActionError(null);
+    startTransition(async () => {
+      const result =
+        info.template === "row" && page.parentId
+          ? await createRowAction(workspaceId, page.parentId, { templateId: page.id })
+          : await createFromTemplateAction(page.id);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      router.push(`/w/${workspaceId}/p/${result.data.id}`);
+    });
+  }
+
   const parents = crumbs.slice(0, -1);
 
   const iconPicker = (
@@ -189,7 +216,14 @@ export function PageView({
           <ConnectionDot connection={connection} />
           <PageHeaderActions
             workspaceId={workspaceId}
-            page={{ id: page.id, kind: page.kind, parentId: page.parentId, archived: page.archived, hasBody: showBody }}
+            page={{
+              id: page.id,
+              kind: page.kind,
+              parentId: page.parentId,
+              archived: page.archived,
+              hasBody: showBody,
+              isRow: page.isRow,
+            }}
             currentUser={user}
             info={info}
             doc={synced ? pageDoc?.doc : undefined}
@@ -216,6 +250,18 @@ export function PageView({
             </Button>
           )}
           {actionError && <span role="alert">{actionError}</span>}
+        </div>
+      )}
+
+      {info.template && !page.archived && (
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-y border-border bg-bg-subtle px-4 py-2 text-sm">
+          <LayoutTemplate className="h-4 w-4 shrink-0 text-fg-muted" />
+          <span className="text-fg-muted">{t(`template.${info.template}`)}</span>
+          {info.template !== "inside" && (
+            <Button size="sm" variant="primary" onClick={applyTemplate} disabled={pending}>
+              {t("template.use")}
+            </Button>
+          )}
         </div>
       )}
 

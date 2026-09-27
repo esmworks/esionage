@@ -22,14 +22,25 @@ type CurrentUser = { id: string; name: string; email?: string };
 const LEVELS: PageLevel[] = ["full", "edit", "comment", "view", "none"];
 const RANK: Record<PageLevel, number> = { none: 0, view: 1, comment: 2, edit: 3, full: 4 };
 
-/** The Share popover: who can open the page (Share) and the public web link (Publish). */
-export function SharePanel({ pageId, currentUser }: { pageId: string; currentUser: CurrentUser }) {
+/**
+ * The Share popover: who can open the page (Share) and the public web link (Publish). Templates
+ * are never published, so they only get the Share tab.
+ */
+export function SharePanel({
+  pageId,
+  currentUser,
+  publishable = true,
+}: {
+  pageId: string;
+  currentUser: CurrentUser;
+  publishable?: boolean;
+}) {
   const t = useTranslations("page.share");
   const [tab, setTab] = useState<"share" | "publish">("share");
   return (
     <div className="w-full md:w-[min(28rem,calc(100vw-2rem))]">
       <div className="flex gap-4 border-b border-border px-3" role="tablist">
-        {(["share", "publish"] as const).map((key) => (
+        {(publishable ? (["share", "publish"] as const) : (["share"] as const)).map((key) => (
           <button
             key={key}
             type="button"

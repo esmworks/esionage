@@ -57,7 +57,19 @@
       "inProgress": "In progress",
       "done": "Done"
     },
-    "defaultTagsProperty": "Tags"
+    "defaultTagsProperty": "Tags",
+    "templates": {
+      "menu": "New row options",
+      "heading": "Templates",
+      "blank": "Empty row",
+      "setDefault": "Use for “New”",
+      "isDefault": "Used for “New”",
+      "edit": "Edit template",
+      "delete": "Delete template",
+      "confirmDelete": "Delete this row template for good? Rows already made from it stay as they are.",
+      "newTemplate": "New template",
+      "none": "No templates yet"
+    }
   },
   "viewTabs": {
     "addView": "Add view",
@@ -489,7 +501,9 @@
     "invalidFormula": "The formula for “{property}” has an error: {message}",
     "invalidViewConfig": "These view settings can’t be saved. Reload the page and try again.",
     "unsupportedViewType": "Unsupported view type “{type}”.",
-    "invalidRollup": "The rollup “{property}” can’t be saved: {message}"
+    "invalidRollup": "The rollup “{property}” can’t be saved: {message}",
+    "isTemplate": "Templates can’t be moved or put in the trash. Delete them from the template list instead.",
+    "notATemplate": "This page is not a template of this workspace or database."
   },
   "formula": {
     "title": "Formula",

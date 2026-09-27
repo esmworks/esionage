@@ -131,7 +131,7 @@ export function withCode<E extends Error>(error: E, code: DatabaseErrorCode): E 
   return Object.assign(error, { code });
 }
 
-async function requireDatabase(userId: string, databaseId: string, needed: RequiredLevel) {
+export async function requireDatabase(userId: string, databaseId: string, needed: RequiredLevel) {
   const p = await requirePageAccess(userId, databaseId, needed);
   if (p.kind !== "database") throw withCode(new AccessError("Not a database"), "notADatabase");
   return p;
@@ -205,7 +205,7 @@ export async function listRows(userId: string, databaseId: string, config: ViewC
         updatedAt: page.updatedAt,
       })
       .from(page)
-      .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt), pageVisibleTo(userId)))
+      .where(and(eq(page.parentId, databaseId), eq(page.isTemplate, false), isNull(page.archivedAt), pageVisibleTo(userId)))
       .orderBy(asc(page.position), asc(page.createdAt)),
     getProperties(databaseId),
   ]);
@@ -311,11 +311,11 @@ async function resolveRelationValue(userId: string, prop: DatabaseProperty, inpu
       property: prop.name,
     });
   if (!targetId) throw invalid(input[0]);
-  // Only rows the user can see can be linked (or found by title).
+  // Only rows the user can see can be linked (or found by title); row templates never.
   const rows = await db
     .select({ id: page.id, title: page.title, archivedAt: page.archivedAt })
     .from(page)
-    .where(and(eq(page.parentId, targetId), pageVisibleTo(userId)));
+    .where(and(eq(page.parentId, targetId), eq(page.isTemplate, false), pageVisibleTo(userId)));
   const ids = new Set(rows.map((r) => r.id));
   const unseen = existing.filter((id) => !ids.has(id) && input.includes(id));
   const hidden = new Set(
@@ -324,7 +324,7 @@ async function resolveRelationValue(userId: string, prop: DatabaseProperty, inpu
           await db
             .select({ id: page.id })
             .from(page)
-            .where(and(eq(page.parentId, targetId), inArray(page.id, unseen)))
+            .where(and(eq(page.parentId, targetId), eq(page.isTemplate, false), inArray(page.id, unseen)))
         ).map((r) => r.id)
       : [],
   );
@@ -427,8 +427,11 @@ export async function updateRowProperties(userId: string, rowId: string, patch: 
     else next[id] = value;
   }
   await db.update(page).set({ properties: next, updatedBy: userId }).where(eq(page.id, rowId));
-  await syncPairedRelations(rowId, row.parentId, row.properties, next);
-  await announceAssignments(userId, row.parentId, [{ rowId, before: row.properties, after: next }]);
+  // Templates link one way and assign nobody: their values only seed the rows made from them.
+  if (!row.inTemplate) {
+    await syncPairedRelations(rowId, row.parentId, row.properties, next);
+    await announceAssignments(userId, row.parentId, [{ rowId, before: row.properties, after: next }]);
+  }
   notifyRows(row.parentId);
   return next;
 }
@@ -459,10 +462,12 @@ export async function rowsWithAccess(userId: string, databaseId: string, rowIds:
           id: page.id,
           properties: page.properties,
           archivedAt: page.archivedAt,
+          inTemplate: page.inTemplate,
           level: accessRank(userId, sql`${page.id}`),
         })
         .from(page)
-        .where(and(inArray(page.id, rowIds), eq(page.parentId, databaseId)))
+        // Row templates aren't rows: views never show them, so bulk actions skip them.
+        .where(and(inArray(page.id, rowIds), eq(page.parentId, databaseId), eq(page.isTemplate, false)))
     : [];
   const allowed = new Map(
     found.filter((r) => !r.archivedAt && hasLevel(levelFromRank(r.level), needed)).map((r) => [r.id, r] as const),
@@ -512,11 +517,14 @@ export async function updateRowsProperties(
     where ${inArray(page.id, rows.map((r) => r.id))}
   `);
 
-  const changes = rows.map((row) => {
-    const after: Record<string, unknown> = { ...row.properties, ...set };
-    for (const k of cleared) delete after[k];
-    return { rowId: row.id, before: row.properties, after };
-  });
+  // Rows of a database kept as a template link one way and assign nobody (see updateRowProperties).
+  const changes = rows
+    .filter((row) => !row.inTemplate)
+    .map((row) => {
+      const after: Record<string, unknown> = { ...row.properties, ...set };
+      for (const k of cleared) delete after[k];
+      return { rowId: row.id, before: row.properties, after };
+    });
   await syncPairedRelationsMany(databaseId, changes);
   await announceAssignments(userId, databaseId, changes);
   notifyRows(databaseId);
@@ -1130,8 +1138,10 @@ export async function moveRow(
     .update(page)
     .set({ properties, ...(position !== undefined ? { position } : {}), updatedBy: userId })
     .where(eq(page.id, rowId));
-  if (type === "relation") await syncPairedRelations(rowId, row.parentId, row.properties, properties);
-  if (type === "person") await announceAssignments(userId, row.parentId, [{ rowId, before: row.properties, after: properties }]);
+  if (type === "relation" && !row.inTemplate) await syncPairedRelations(rowId, row.parentId, row.properties, properties);
+  if (type === "person" && !row.inTemplate) {
+    await announceAssignments(userId, row.parentId, [{ rowId, before: row.properties, after: properties }]);
+  }
   notifyRows(row.parentId);
 }
 
@@ -1178,6 +1188,20 @@ export async function rowCovers(rows: { id: string; updatedAt: Date; hasImage?: 
   return covers;
 }
 
+export type RowTemplateSummary = { id: string; title: string; icon: string | null };
+
+/**
+ * A database's row templates the user can see, in order (see server/templates.ts). Access to the
+ * database has been checked.
+ */
+export async function listRowTemplateSummaries(userId: string, databaseId: string): Promise<RowTemplateSummary[]> {
+  return db
+    .select({ id: page.id, title: page.title, icon: page.icon })
+    .from(page)
+    .where(and(eq(page.parentId, databaseId), eq(page.isTemplate, true), isNull(page.archivedAt), pageVisibleTo(userId)))
+    .orderBy(asc(page.position), asc(page.createdAt));
+}
+
 /**
  * Everything the database UI needs in one round trip. Rows are unfiltered and in manual order
  * (views are applied client-side so switching views and optimistic edits are instant).
@@ -1207,16 +1231,18 @@ export async function getDatabaseSnapshot(
     .where(
       and(
         eq(page.parentId, databaseId),
+        eq(page.isTemplate, false),
         // A trashed database still shows (and exports) the rows that went to the trash with it.
         database.archivedAt ? eq(page.archivedAt, database.archivedAt) : isNull(page.archivedAt),
         pageVisibleTo(userId),
       ),
     )
     .orderBy(asc(page.position), asc(page.createdAt));
-  const [relations, people, covers] = await Promise.all([
+  const [relations, people, covers, templates] = await Promise.all([
     getRelationTargets(userId, properties),
     getPeople(userId, properties),
     withCovers ? rowCovers(stored) : null,
+    listRowTemplateSummaries(userId, databaseId),
   ]);
   const rows: DatabaseRowWithPosition[] = (await withValues(userId, stored, properties, { relations, people })).map(
     ({ hasImage: _, ...row }) => (covers ? { ...row, cover: covers.get(row.id) ?? null } : row),
@@ -1229,10 +1255,14 @@ export async function getDatabaseSnapshot(
       icon: database.icon,
       archived: Boolean(database.archivedAt),
       locked: Boolean(database.lockedAt),
+      /** The row template "New" starts from, when the user can see it. */
+      defaultTemplateId: templates.some((t) => t.id === database.defaultTemplateId) ? database.defaultTemplateId : null,
     },
     properties,
     views,
     rows,
+    /** Row templates, for the menu next to "New". */
+    templates,
     relations,
     people,
     viewerId: userId,
@@ -1273,7 +1303,7 @@ export async function getRelationTargets(
     db
       .select({ id: page.id, title: page.title, icon: page.icon, parentId: page.parentId })
       .from(page)
-      .where(and(inArray(page.parentId, targetIds), isNull(page.archivedAt), pageVisibleTo(userId)))
+      .where(and(inArray(page.parentId, targetIds), eq(page.isTemplate, false), isNull(page.archivedAt), pageVisibleTo(userId)))
       .orderBy(asc(page.position), asc(page.createdAt)),
     pairedIds.length
       ? db
@@ -1366,13 +1396,21 @@ export async function getLookups(userId: string, properties: DatabaseProperty[])
   return { relations, people };
 }
 
-/** Live databases of a workspace, for choosing the target of a relation. */
+/** Live databases of a workspace, for choosing the target of a relation. Templates aren't offered. */
 export async function listWorkspaceDatabases(userId: string, workspaceId: string) {
   await requireMembership(userId, workspaceId);
   return db
     .select({ id: page.id, title: page.title, icon: page.icon })
     .from(page)
-    .where(and(eq(page.workspaceId, workspaceId), eq(page.kind, "database"), isNull(page.archivedAt), pageVisibleTo(userId)))
+    .where(
+      and(
+        eq(page.workspaceId, workspaceId),
+        eq(page.kind, "database"),
+        eq(page.inTemplate, false),
+        isNull(page.archivedAt),
+        pageVisibleTo(userId),
+      ),
+    )
     .orderBy(asc(page.title));
 }
 

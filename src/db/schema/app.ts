@@ -132,12 +132,26 @@ export const page = pgTable(
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     /** Databases: while set, properties and views can't be added, renamed or removed. Rows stay editable. */
     lockedAt: timestamp("locked_at", { withTimezone: true }),
+    /**
+     * A template (see server/templates.ts): a top-level page of the workspace's template picker, or
+     * a row template of its parent database. New pages and rows are copied from it.
+     */
+    isTemplate: boolean("is_template").notNull().default(false),
+    /**
+     * The page is a template or lies under one. Such pages stay out of the sidebar, search, trash,
+     * favorites, published sites and relation pickers. Database views leave out only the row
+     * templates themselves (`isTemplate`), so a database kept as a template still shows its rows.
+     */
+    inTemplate: boolean("in_template").notNull().default(false),
+    /** Databases: the row template "New" starts from; null for a blank row. */
+    defaultTemplateId: text("default_template_id").references((): AnyPgColumn => page.id, { onDelete: "set null" }),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [
     index("page_workspace_parent_idx").on(t.workspaceId, t.parentId, t.position),
+    index("page_template_idx").on(t.workspaceId, t.parentId).where(sql`${t.isTemplate}`),
     index("page_search_idx").using(
       "gin",
       sql`to_tsvector('simple', coalesce(${t.title}, '') || ' ' || coalesce(${t.contentText}, ''))`,

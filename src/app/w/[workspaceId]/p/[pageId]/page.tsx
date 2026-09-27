@@ -45,7 +45,7 @@ export default async function PageRoute({ params }: Params) {
     <PageView
       key={p.id}
       workspaceId={workspaceId}
-      page={{ id: p.id, parentId: p.parentId, title: p.title, icon: p.icon, kind: p.kind, archived }}
+      page={{ id: p.id, parentId: p.parentId, title: p.title, icon: p.icon, kind: p.kind, archived, isRow }}
       info={info}
       crumbs={crumbs}
       user={{ id: user.id, name: user.name }}

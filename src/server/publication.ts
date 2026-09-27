@@ -65,6 +65,7 @@ export async function publishPage(userId: string, pageId: string): Promise<{ tok
     throw new PublishError("This workspace lets only owners publish pages", "notAllowed");
   }
   if (p.archivedAt) throw new PublishError("Pages in the trash can't be published");
+  if (p.inTemplate) throw new PublishError("Templates can't be published");
   await db
     .insert(pagePublication)
     .values({ pageId, token: randomBytes(32).toString("base64url"), publishedBy: userId })
@@ -335,7 +336,8 @@ export async function getPublishedPage(token: string, pageId?: string, viewId?: 
 
 /**
  * Pages from `rootId` down to `pageId` when every page on the way is live and visible to the
- * publisher, and `pageId` lies within MAX_DEPTH levels under the root; null otherwise.
+ * publisher, and `pageId` lies within MAX_DEPTH levels under the root; null otherwise. Templates
+ * (a database's row templates, say) count as not live: they are never published.
  */
 async function chainTo(publisher: string, pageId: string, rootId: string): Promise<PublishedCrumb[] | null> {
   const rows = await db.execute<{
@@ -348,10 +350,10 @@ async function chainTo(publisher: string, pageId: string, rootId: string): Promi
     depth: number;
   }>(sql`
     with recursive chain as (
-      select id, parent_id, title, icon, kind, archived_at is not null as archived, 0 as depth
+      select id, parent_id, title, icon, kind, archived_at is not null or in_template as archived, 0 as depth
       from ${page} where id = ${pageId}
       union all
-      select p.id, p.parent_id, p.title, p.icon, p.kind, p.archived_at is not null, c.depth + 1
+      select p.id, p.parent_id, p.title, p.icon, p.kind, p.archived_at is not null or p.in_template, c.depth + 1
       from ${page} p join chain c on p.id = c.parent_id
       where c.id <> ${rootId} and c.depth < ${MAX_DEPTH}
     )
@@ -394,7 +396,7 @@ async function liveChildren(publisher: string, parentId: string): Promise<Publis
   return db
     .select({ id: page.id, title: page.title, icon: page.icon, kind: page.kind })
     .from(page)
-    .where(and(eq(page.parentId, parentId), isNull(page.archivedAt), pageVisibleTo(publisher)))
+    .where(and(eq(page.parentId, parentId), isNull(page.archivedAt), eq(page.inTemplate, false), pageVisibleTo(publisher)))
     .orderBy(asc(page.position), asc(page.createdAt));
 }
 
@@ -484,7 +486,7 @@ async function publishedDatabase(
       hasImage: withCovers ? sql<boolean>`${page.contentMarkdown} ~ ${PG_MARKDOWN_IMAGE_PATTERN}` : sql<boolean>`false`,
     })
     .from(page)
-    .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt), pageVisibleTo(publisher)))
+    .where(and(eq(page.parentId, databaseId), eq(page.isTemplate, false), isNull(page.archivedAt), pageVisibleTo(publisher)))
     .orderBy(asc(page.position), asc(page.createdAt));
   const properties = publicProperties(allProperties);
   const tabs = shownViews.map((v) => ({ id: v.id, name: v.name, type: v.type }));

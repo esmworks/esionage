@@ -55,7 +55,8 @@ export { listWorkspaces } from "@/server/workspaces";
 
 /**
  * Sidebar tree: every live page the user can see except database rows (those live inside their
- * database). A page shared with someone who can't see its parent shows up as a top-level page.
+ * database) and templates (listed by the template picker). A page shared with someone who can't
+ * see its parent shows up as a top-level page.
  */
 export async function getTree(userId: string, workspaceId: string): Promise<TreeNode[]> {
   await requireMembership(userId, workspaceId);
@@ -76,6 +77,7 @@ export async function getTree(userId: string, workspaceId: string): Promise<Tree
       left join ${page} parent on parent.id = p.parent_id
       where p.workspace_id = ${workspaceId}
         and p.archived_at is null
+        and not p.in_template
         and (parent.id is null or parent.kind <> 'database')
     )
     select id, parent_id, kind, title, icon, position, level
@@ -143,6 +145,11 @@ export type CreatePageInput = {
   properties?: Record<string, unknown>;
   /** Names for a new database's starter properties and view, in the creator's language. */
   seedNames?: DatabaseSeedNames;
+  /**
+   * Adds a template instead of a page: a workspace template at the top level, a row template
+   * under a database (see server/templates.ts).
+   */
+  template?: boolean;
 };
 
 export type DatabaseSeedNames = {
@@ -169,12 +176,15 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
   const kind = input.kind ?? "page";
   let workspaceId = input.workspaceId;
   let parentKind: PageKind | null = null;
+  // Pages added under a template belong to it, and stay out of the sidebar and search like it.
+  let parentInTemplate = false;
   // A top-level page from a guest is theirs alone.
   let topLevel: "shared" | "private" | null = null;
   if (input.parentId) {
     const parent = await requirePageAccess(userId, input.parentId, "edit");
     workspaceId = parent.workspaceId;
     parentKind = parent.kind;
+    parentInTemplate = parent.inTemplate;
     if (parent.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
     if (parent.kind === "database" && kind === "database") {
       throw withCode(new Error("A database can't contain another database"), "nestedDatabase");
@@ -182,6 +192,11 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
   } else {
     topLevel = await requireTopLevel(userId, workspaceId);
   }
+  const isTemplate = Boolean(input.template);
+  if (isTemplate && input.parentId && parentKind !== "database") {
+    throw new Error("Templates are added to the workspace or to a database");
+  }
+  const inTemplate = isTemplate || parentInTemplate;
 
   const properties =
     parentKind === "database" && input.properties
@@ -200,6 +215,8 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
         icon: input.icon ?? null,
         properties,
         position,
+        isTemplate,
+        inTemplate,
         createdBy: userId,
         updatedBy: userId,
       })
@@ -223,8 +240,11 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
     await db.insert(databaseView).values({ databaseId: created.id, name: names.table, type: "table", position: 1 });
   }
 
-  if (parentKind === "database") await syncPairedRelations(created.id, input.parentId!, {}, properties);
-  if (parentKind === "database") await announceAssignments(userId, input.parentId!, [{ rowId: created.id, before: {}, after: properties }]);
+  // Templates link one way and assign nobody: their values only seed the rows made from them.
+  if (parentKind === "database" && !inTemplate) {
+    await syncPairedRelations(created.id, input.parentId!, {}, properties);
+    await announceAssignments(userId, input.parentId!, [{ rowId: created.id, before: {}, after: properties }]);
+  }
 
   const collab = getCollab();
   if (input.markdown?.trim()) await collab.replaceContent(created.id, input.markdown, actor);
@@ -258,6 +278,8 @@ function subtreeIds(rootId: string) {
 
 export async function archivePage(userId: string, pageId: string) {
   const p = await requirePageAccess(userId, pageId, "edit");
+  // Templates aren't listed in the trash; they are deleted from the template picker instead.
+  if (p.isTemplate) throw withCode(new Error("Templates are deleted, not moved to the trash"), "isTemplate");
   await db
     .update(page)
     .set({ archivedAt: new Date(), updatedBy: userId })
@@ -348,6 +370,7 @@ export async function listTrash(userId: string, workspaceId: string) {
       left join ${page} parent on parent.id = p.parent_id
       where p.workspace_id = ${workspaceId}
         and p.archived_at is not null
+        and not p.is_template
         and (parent.id is null or parent.archived_at is null or parent.archived_at <> p.archived_at)
     )
     select id, title, icon, kind, archived_at, level
@@ -368,14 +391,22 @@ export async function movePage(userId: string, pageId: string, newParentId: stri
   const current = await requirePageAccess(userId, pageId, "edit");
   const p = current.parentId === newParentId ? current : await requirePageAccess(userId, pageId, "full");
   if (!newParentId && p.parentId !== null) await requireMember(userId, p.workspaceId);
+  // Templates stay where they are listed, and pages don't move into or out of a template.
+  if (p.parentId !== newParentId && p.isTemplate) throw withCode(new Error("Templates can't be moved"), "isTemplate");
   if (newParentId) {
     const parent = await requirePageAccess(userId, newParentId, "edit");
+    if (parent.inTemplate !== p.inTemplate) {
+      throw withCode(new Error("Pages can't be moved into or out of a template"), "isTemplate");
+    }
     if (parent.workspaceId !== p.workspaceId) throw new AccessError("Cannot move across workspaces");
     if (parent.kind === "database" && p.kind === "database") throw new Error("A database cannot be a row");
     const cycle = await db.execute<{ hit: number }>(
       sql`select 1 as hit from ${subtreeIds(pageId)} s where s.id = ${newParentId}`,
     );
     if (cycle.length) throw new Error("Cannot move a page inside itself");
+  }
+  if (!newParentId && p.inTemplate && !p.isTemplate) {
+    throw withCode(new Error("Pages can't be moved into or out of a template"), "isTemplate");
   }
   await db
     .update(page)
@@ -426,6 +457,7 @@ export async function searchPages(
     from ${page} p
     left join ${page} parent on parent.id = p.parent_id
     where p.archived_at is null
+      and not p.in_template
       and ${pageVisibleTo(userId, "p")}
       ${workspaceId ? sql`and p.workspace_id = ${workspaceId}` : sql``}
       and (
@@ -474,7 +506,9 @@ export async function listChildren(userId: string, workspaceId: string, parentId
     .where(
       and(
         eq(page.workspaceId, workspaceId),
-        parentId ? eq(page.parentId, parentId) : topLevel,
+        parentId ? eq(page.parentId, parentId) : and(topLevel, eq(page.inTemplate, false)),
+        // Templates are listed by list_templates, not as pages.
+        eq(page.isTemplate, false),
         isNull(page.archivedAt),
         pageVisibleTo(userId),
       ),
@@ -529,7 +563,7 @@ export async function recentPages(userId: string, workspaceId: string, limit = 8
   return db
     .select({ id: page.id, title: page.title, icon: page.icon, kind: page.kind, updatedAt: page.updatedAt })
     .from(page)
-    .where(and(eq(page.workspaceId, workspaceId), isNull(page.archivedAt), pageVisibleTo(userId)))
+    .where(and(eq(page.workspaceId, workspaceId), isNull(page.archivedAt), eq(page.inTemplate, false), pageVisibleTo(userId)))
     .orderBy(desc(page.updatedAt))
     .limit(limit);
 }

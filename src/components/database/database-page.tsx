@@ -16,6 +16,7 @@ import { ChartView } from "./chart-view";
 import { FormToolbar, FormView } from "./form-view";
 import { GalleryView } from "./gallery-view";
 import { ListView } from "./list-view";
+import { RowTemplatesMenu } from "./row-templates-menu";
 import { PeopleProvider, type PeopleContextValue } from "./person-cell";
 import { RelationProvider, type RelationContextValue } from "./relation-context";
 import { SchemaProvider } from "./schema-context";
@@ -218,8 +219,9 @@ export function DatabasePage({
     }
   };
 
-  const newRow = async () => {
-    const id = await viewApi.createRow();
+  /** "New": from the default row template when there is one; the menu beside it picks another or none. */
+  const newRow = async (template?: string | null) => {
+    const id = await viewApi.createRow(template === undefined ? { useDefault: true } : { templateId: template });
     // Inside a page the new row shows up in place; leaving the page would lose the reader's spot.
     if (id && !embedded) {
       markNewPage(id);
@@ -285,10 +287,19 @@ export function DatabasePage({
                       onCreateDateProperty={createDateProperty}
                     />
                     {!readOnly && (
-                      <Button size="sm" variant="primary" onClick={newRow} className="ml-1">
-                        <Plus className="h-3.5 w-3.5" />
-                        {t("page.new")}
-                      </Button>
+                      <div className="ml-1 flex items-center">
+                        <Button size="sm" variant="primary" onClick={() => void newRow()} className="rounded-r-none">
+                          <Plus className="h-3.5 w-3.5" />
+                          {t("page.new")}
+                        </Button>
+                        <RowTemplatesMenu
+                          workspaceId={workspaceId}
+                          snapshot={snapshot}
+                          onCreate={(templateId) => void newRow(templateId)}
+                          onChanged={() => void api.refetch()}
+                          onError={api.showError}
+                        />
+                      </div>
                     )}
                   </div>
                 )}
