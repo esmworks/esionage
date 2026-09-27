@@ -20,6 +20,7 @@ import { HistoryPanel } from "./history-panel";
 import { IconPicker } from "./icon-picker";
 import { hasLevel, PageHeaderActions } from "./page-header-actions";
 import { setDocTitle, useDocTitle, usePageDoc, type ConnectionState } from "./use-page-doc";
+import { usePagePresence } from "./use-presence";
 
 // BlockNote touches `window` during setup; render it only in the browser.
 const CollabEditor = dynamic(() => import("./collab-editor"), { ssr: false });
@@ -51,6 +52,8 @@ export function PageView({
   const untitled = tc("untitled");
   const { pageDoc, synced, connection, error } = usePageDoc(page.id);
   const title = useDocTitle(pageDoc?.doc, page.title);
+  // Everyone who has the page open shows in the header, including people who may only view it.
+  const viewers = usePagePresence(pageDoc, user);
   const [icon, setIcon] = useState(page.icon);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -178,6 +181,7 @@ export function PageView({
             currentUser={user}
             info={info}
             doc={synced ? pageDoc?.doc : undefined}
+            viewers={connection === "live" ? viewers : []}
             onHistory={() => setHistoryOpen(true)}
             commentsOpen={commentsOpen}
             onComments={showBody ? () => setCommentsOpen((open) => !open) : undefined}

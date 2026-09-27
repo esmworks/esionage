@@ -16,6 +16,7 @@ import { blocksToMarkdown, markdownToBlocks, serverEditor as editor } from "@/se
 import { authorizeCollab, parseDocName as parseName } from "./authorize";
 import type { Channel, CollabService, CommentActor, CommentOpResult, PageContent, WriteActor } from "./bridge";
 import { anchorThread, reanchor, threadQuotes } from "./comment-marks";
+import { stampPresence } from "./presence";
 import { touchesThreads } from "./thread-guard";
 import { verifyCollabToken } from "./token";
 
@@ -224,6 +225,12 @@ export function createCollab() {
         console.warn(`[collab] refused a browser's change to the comments of ${documentName}`);
         throw Object.assign(new Error("Comment threads are written by the server"), { code: 4403, reason: "Forbidden" });
       }
+    },
+
+    async beforeHandleAwareness({ states, context }) {
+      // Presence (who has the page open) names the person the connection signed in as, whatever
+      // the browser claimed. Read-only connections send awareness too, so viewers are counted.
+      stampPresence(states, context);
     },
 
     async onChange({ documentName, update }) {

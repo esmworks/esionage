@@ -4,6 +4,10 @@
 
 ### Added
 
+- **Presence:** the page header shows who else has the page open, as avatars in their cursor
+  colors with "+N" for more than four; click them for everyone's names. People who can only view
+  the page count too, each person shows once however many tabs they have open, and you don't see
+  yourself. The collab server names each viewer after the account they signed in with.
 - **"Can comment" access:** share a page so people can read and comment on it without editing it.
   Their comments mark the selected text on the server, so the page itself stays read-only for them.
 - **Comments on pages:** select text and choose Comment to start a thread; reply, react with emoji,

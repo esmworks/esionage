@@ -10,7 +10,8 @@ approve them over OAuth.
   icons, favorites, duplicate, move, trash with restore, export as Markdown, and full-text search
   over titles and content.
 - **Realtime collaboration**: several people can edit the same page at once (Yjs over WebSocket
-  via Hocuspocus), with live cursors.
+  via Hocuspocus), with live cursors. The page header shows who else has the page open, including
+  people who can only view it.
 - **Databases**: every row is also a page.
   - Properties: text, number, select, multi-select, status, date, checkbox, checklist, URL,
     email, phone, person, one- or two-way relations to other databases, formulas, rollups over
@@ -201,7 +202,7 @@ Useful scripts:
 | `pnpm build` | Production build |
 | `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
-| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
+| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, presence); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
 
