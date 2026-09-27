@@ -22,7 +22,9 @@
   "views": {
     "table": "Table",
     "board": "Board",
-    "calendar": "Calendar"
+    "calendar": "Calendar",
+    "gallery": "Gallery",
+    "list": "List"
   },
   "colors": {
     "gray": "Gray",
@@ -357,6 +359,29 @@
     "noDate": "{count, plural, one {# row} other {# rows}} without {property}",
     "noDateTitle": "Rows without {property}"
   },
+  "layout": {
+    "label": "Layout",
+    "cardSize": "Card size",
+    "cardSizes": {
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large"
+    },
+    "cover": "Card cover",
+    "covers": {
+      "first_image": "First image in the page",
+      "none": "None"
+    }
+  },
+  "gallery": {
+    "new": "New",
+    "empty": "No rows to show.",
+    "rowActions": "Row actions"
+  },
+  "list": {
+    "new": "New",
+    "empty": "No rows to show."
+  },
   "errors": {
     "invalidUrl": "“{property}” must be an http(s) or mailto URL.",
     "invalidEmail": "“{property}” must be an email address.",
@@ -382,6 +407,8 @@
     "invalidPerson": "“{property}” can only hold people of this workspace.",
     "readOnlyProperty": "“{property}” is filled in automatically and can’t be changed.",
     "invalidFilter": "This filter can’t be saved. Reload the page and try again.",
-    "tooManyRows": "You can change at most {max} rows at once."
+    "tooManyRows": "You can change at most {max} rows at once.",
+    "invalidViewConfig": "These view settings can’t be saved. Reload the page and try again.",
+    "unsupportedViewType": "Unsupported view type “{type}”."
   }
 }

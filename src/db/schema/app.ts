@@ -172,7 +172,7 @@ export const databaseProperty = pgTable(
   (t) => [index("database_property_db_idx").on(t.databaseId)],
 );
 
-export type ViewType = "table" | "board" | "calendar";
+export type ViewType = "table" | "board" | "calendar" | "gallery" | "list";
 export type SortRule = { propertyId: string; direction: "asc" | "desc" };
 export type FilterOp = "contains" | "equals" | "not_equals" | "is_empty" | "is_not_empty" | "gt" | "lt" | "is_within";
 /** Values of an `is_within` rule: date ranges relative to the day the view is looked at. */
@@ -183,10 +183,21 @@ export type FilterCombinator = "and" | "or";
 /** Rules combined with their own and/or; groups nest at most MAX_FILTER_DEPTH levels (see lib/filters). */
 export type FilterGroup = { type: "group"; combinator: FilterCombinator; rules: FilterEntry[] };
 export type FilterEntry = FilterRule | FilterGroup;
+/** Gallery card sizes. */
+export type CardSize = "small" | "medium" | "large";
+/**
+ * Where gallery cards take their cover from: the first image in the row's body, or nowhere.
+ * Files properties will add `{ source: "property"; propertyId }`.
+ */
+export type ViewCover = { source: "first_image" } | { source: "none" };
 export type ViewConfig = {
   groupBy?: string;
   /** Calendar views: the date property that places rows on days. */
   dateBy?: string;
+  /** Galleries: "medium" when missing. */
+  cardSize?: CardSize;
+  /** Galleries: the first image of each row when missing. */
+  cover?: ViewCover;
   sorts?: SortRule[];
   /** Rules and groups; plain rule lists from before groups existed are still valid. */
   filters?: FilterEntry[];

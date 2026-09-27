@@ -48,6 +48,7 @@ import {
   toggleHiddenInView,
 } from "@/lib/properties";
 import { holdsOptions, holdsPeople, holdsTimestamp, PERSON_ME } from "@/lib/property-types";
+import { VIEW_TYPES } from "@/lib/views";
 import { Floating, useFloating } from "./floating";
 import { usePeople } from "./person-cell";
 import { useFormatDate } from "./property-cell";
@@ -55,7 +56,6 @@ import { PropertyTypeIcon, ViewIcon } from "./property-icons";
 import { linkedRows, useRelations } from "./relation-context";
 import { TITLE, type Property, type View } from "./types";
 
-export const VIEW_TYPES = ["table", "board", "calendar"] as const satisfies readonly ViewType[];
 export { ViewIcon };
 
 export function ViewTabs({

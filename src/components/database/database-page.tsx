@@ -9,12 +9,15 @@ import type { ViewConfig, ViewType } from "@/db/schema/app";
 import { applyView, defaultsFromFilters } from "@/lib/properties";
 import { BoardView } from "./board-view";
 import { CalendarView } from "./calendar-view";
+import { GalleryView } from "./gallery-view";
+import { ListView } from "./list-view";
 import { PeopleProvider, type PeopleContextValue } from "./person-cell";
 import { RelationProvider, type RelationContextValue } from "./relation-context";
 import { TableView } from "./table-view";
 import type { View } from "./types";
 import { useDatabase } from "./use-database";
 import { ActiveRulesBar, ViewTabs, ViewToolbar } from "./view-bar";
+import { ViewLayoutMenu } from "./view-settings";
 
 export function DatabasePage({
   workspaceId,
@@ -188,6 +191,7 @@ export function DatabasePage({
                     onCreateGroupProperty={createGroupProperty}
                     onCreateDateProperty={createDateProperty}
                   />
+                  <ViewLayoutMenu view={view} readOnly={readOnly} onConfig={(config) => setConfig(view, config)} />
                   {!readOnly && (
                     <Button size="sm" variant="primary" onClick={newRow} className="ml-1">
                       <Plus className="h-3.5 w-3.5" />
@@ -249,6 +253,24 @@ export function DatabasePage({
                 readOnly={readOnly}
                 locked={locked}
                 onCreateGroupProperty={createGroupProperty}
+              />
+            ) : view.type === "gallery" ? (
+              <GalleryView
+                workspaceId={workspaceId}
+                view={view}
+                properties={snapshot.properties}
+                rows={visibleRows}
+                api={viewApi}
+                readOnly={readOnly}
+              />
+            ) : view.type === "list" ? (
+              <ListView
+                workspaceId={workspaceId}
+                view={view}
+                properties={snapshot.properties}
+                rows={visibleRows}
+                api={viewApi}
+                readOnly={readOnly}
               />
             ) : view.type === "calendar" ? (
               <div className="page-gutter">

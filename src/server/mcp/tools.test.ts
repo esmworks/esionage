@@ -330,6 +330,21 @@ describe("relations and calendars", () => {
     expect(r.data.property).toMatchObject({ related_database_id: "db-2", two_way: true });
   });
 
+  it("sets gallery cards, and only on galleries", async () => {
+    const views = [
+      { id: "view-l", name: "Compact", type: "list", config: {} },
+      { id: "view-g", name: "Cards", type: "gallery", config: {} },
+    ];
+    databases.getDatabase.mockResolvedValue({ ...database, views });
+    const onList = await callTool(writer, "update_database_view", { database_id: "db-1", view_id: "view-l", card_size: "small" });
+    expect(onList.text).toMatch(/card_size only applies to gallery/);
+    const r = await callTool(writer, "update_database_view", { database_id: "db-1", view_id: "view-g", card_size: "large", cover: "none" });
+    expect(databases.updateView).toHaveBeenLastCalledWith("user-1", "view-g", {
+      config: { cardSize: "large", cover: { source: "none" } },
+    });
+    expect(r.data).toMatchObject({ card_size: "large", cover: "none" });
+  });
+
   it("creates calendar views on a date property only", async () => {
     const due = { id: "prop-due", name: "Due", type: "date", options: {} };
     databases.getDatabase.mockResolvedValue({ ...database, properties: [status, notes, due] });

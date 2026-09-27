@@ -22,7 +22,9 @@
   "views": {
     "table": "Tablo",
     "board": "Pano",
-    "calendar": "Takvim"
+    "calendar": "Takvim",
+    "gallery": "Galeri",
+    "list": "Liste"
   },
   "colors": {
     "gray": "Gri",
@@ -357,6 +359,29 @@
     "noDate": "{property} olmayan {count, plural, other {# satır}}",
     "noDateTitle": "{property} olmayan satırlar"
   },
+  "layout": {
+    "label": "Düzen",
+    "cardSize": "Kart boyutu",
+    "cardSizes": {
+      "small": "Küçük",
+      "medium": "Orta",
+      "large": "Büyük"
+    },
+    "cover": "Kart kapağı",
+    "covers": {
+      "first_image": "Sayfadaki ilk görsel",
+      "none": "Yok"
+    }
+  },
+  "gallery": {
+    "new": "Yeni",
+    "empty": "Gösterilecek satır yok.",
+    "rowActions": "Satır işlemleri"
+  },
+  "list": {
+    "new": "Yeni",
+    "empty": "Gösterilecek satır yok."
+  },
   "errors": {
     "invalidUrl": "“{property}” bir http(s) veya mailto URL’si olmalıdır.",
     "invalidEmail": "“{property}” bir e-posta adresi olmalıdır.",
@@ -382,6 +407,8 @@
     "invalidPerson": "“{property}” yalnızca bu çalışma alanındaki kişileri içerebilir.",
     "readOnlyProperty": "“{property}” otomatik doldurulur, değiştirilemez.",
     "invalidFilter": "Bu filtre kaydedilemedi. Sayfayı yenileyip tekrar deneyin.",
-    "tooManyRows": "Tek seferde en fazla {max} satır değiştirilebilir."
+    "tooManyRows": "Tek seferde en fazla {max} satır değiştirilebilir.",
+    "invalidViewConfig": "Bu görünüm ayarları kaydedilemedi. Sayfayı yenileyip tekrar deneyin.",
+    "unsupportedViewType": "Desteklenmeyen görünüm türü: “{type}”."
   }
 }
