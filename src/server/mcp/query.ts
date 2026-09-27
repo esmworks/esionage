@@ -7,7 +7,10 @@ import type {
   PropertyType,
   SortRule,
   ViewConfig,
+  ViewType,
 } from "@/db/schema/app";
+import type { AggregateResult } from "@/lib/aggregate";
+import { canStack, chartData, chartGroupProperty, chartMeasure, chartSortOf, chartTypeOf, OTHER_KEY } from "@/lib/chart";
 import {
   isDayCount,
   isFilterGroup,
@@ -18,11 +21,12 @@ import {
   RELATIVE_DATE_RANGES,
   rangeNeedsDays,
 } from "@/lib/filters";
-import { groupDateByOf } from "@/lib/grouping";
+import { groupDateByOf, type GroupContext, type GroupValue } from "@/lib/grouping";
 import { pageLabel } from "@/lib/labels";
 import {
   CREATED_KEY,
   displayValue,
+  isGroupable,
   isSortable,
   PropertyValueError,
   sortStatusOptions,
@@ -293,8 +297,11 @@ function keyName(props: PropertyDef[], key: string) {
   return props.find((p) => p.id === key)?.name ?? key;
 }
 
-/** A view's stored config with property and option names, for get_database output. */
-export function describeViewConfig(props: PropertyDef[], config: ViewConfig, lookups: Lookups = NO_LOOKUPS) {
+/**
+ * A view's stored config with property and option names, for get_database output. Chart settings
+ * are described with their defaults when `type` is "chart".
+ */
+export function describeViewConfig(props: PropertyDef[], config: ViewConfig, lookups: Lookups = NO_LOOKUPS, type?: ViewType) {
   const byId = new Map(props.map((p) => [p.id, p]));
   const describeEntry = (f: FilterEntry): object => {
     if (isFilterGroup(f)) return { type: "group", combinator: f.combinator, rules: f.rules.map(describeEntry) };
@@ -321,11 +328,110 @@ export function describeViewConfig(props: PropertyDef[], config: ViewConfig, loo
     ...(config.showTable === false ? { show_table: false } : {}),
     ...(config.cardSize ? { card_size: config.cardSize } : {}),
     ...(config.cover ? { cover: config.cover.source } : {}),
+    ...(type === "chart" ? describeChart(props, config) : {}),
     ...(config.filters?.length ? { filters: config.filters.map(describeEntry) } : {}),
     ...(config.filters?.length && config.filterCombinator === "or" ? { filter_combinator: "or" } : {}),
     ...(config.sorts?.length
       ? { sorts: config.sorts.map((s) => ({ property: keyName(props, s.propertyId), direction: s.direction })) }
       : {}),
+  };
+}
+
+/** A chart's settings by name: what it measures (a stale calculation counts rows, like the chart does). */
+function describeChart(props: PropertyDef[], config: ViewConfig) {
+  const measure = chartMeasure(config, props);
+  const chartType = chartTypeOf(config);
+  const stackBy = config.stackBy && props.find((p) => p.id === config.stackBy);
+  // Like the chart itself, a chart without a (usable) saved grouping groups the way a board would.
+  const groupBy = chartGroupProperty(props, config);
+  return {
+    ...(groupBy ? { group_by: groupBy.name } : {}),
+    chart_type: chartType,
+    aggregate: measure.kind === "count" ? "count" : measure.fn,
+    ...(measure.kind === "aggregate" ? { aggregate_property: keyName(props, measure.prop.id) } : {}),
+    ...(stackBy && canStack(chartType, measure) ? { stack_by: stackBy.name } : {}),
+    chart_sort: chartSortOf(config),
+    ...(config.showValues ? { show_values: true } : {}),
+    ...(chartType === "donut" ? { show_legend: config.showLegend !== false } : {}),
+  };
+}
+
+/** A chart group's name: an option, person, related row or status group, a date bucket, checked or not. */
+function chartGroupLabel(prop: PropertyDef, value: GroupValue): string {
+  switch (value.kind) {
+    case "none":
+      return `No ${prop.name}`;
+    case "option":
+      return value.option.name || "Untitled";
+    case "status_group":
+      return value.group;
+    case "person":
+      return value.person.name;
+    case "checkbox":
+      return value.checked ? "Checked" : "Unchecked";
+    case "relation":
+      return pageLabel(value.row.title);
+    case "date":
+      switch (value.by) {
+        case "day":
+          return value.start;
+        case "week":
+          return `${value.start} to ${value.end}`;
+        case "month":
+          return value.start.slice(0, 7);
+        case "year":
+          return value.start.slice(0, 4);
+      }
+  }
+}
+
+/**
+ * What a chart view plots over `rows` (already filtered), for query_database: one entry per bar,
+ * point or slice with its label, value and row count, and stacked segments by series. Values are
+ * plain numbers in `format` (percentages as fractions, date ranges in days); null when a group has
+ * nothing to measure. Created and edited times count by their UTC day.
+ */
+export function describeChartSeries(
+  props: PropertyDef[],
+  config: ViewConfig,
+  rows: { id: string; properties: Record<string, unknown> }[],
+  lookups: Lookups = NO_LOOKUPS,
+) {
+  const groupBy = chartGroupProperty(props, config);
+  if (!groupBy) return { note: "This chart has no property to group by; add a select, status, date or other groupable property." };
+  const measure = chartMeasure(config, props);
+  const stackBy = props.find((p) => p.id === config.stackBy && p.id !== groupBy.id && isGroupable(p.type)) ?? null;
+  const contextFor = (prop: PropertyDef): GroupContext => ({
+    people: lookups.people.map((p) => ({ id: p.id, name: p.name, active: p.active !== false })),
+    relationRows: prop.type === "relation" ? (lookups.relations[prop.id]?.rows ?? []).map((r) => ({ ...r, icon: null })) : undefined,
+    dayOf: (value) => (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : null),
+  });
+  const data = chartData(rows, {
+    groupBy,
+    stackBy,
+    measure,
+    config,
+    context: contextFor(groupBy),
+    ...(stackBy ? { stackContext: contextFor(stackBy) } : {}),
+  });
+  const label = (prop: PropertyDef, key: string, value: GroupValue, other?: boolean) => (other || key === OTHER_KEY ? "Other" : chartGroupLabel(prop, value));
+  const valueOf = (result: AggregateResult | null) => (result && result.format !== "date" ? result.value : null);
+  return {
+    group_by: groupBy.name,
+    format: data.format,
+    series: data.groups.map((g) => ({
+      group: label(groupBy, g.key, g.value, g.other),
+      ...(g.value.kind === "date" ? { start: g.value.start, end: g.value.end } : {}),
+      value: valueOf(g.result),
+      row_count: g.rows.length,
+      ...(data.series.length
+        ? {
+            segments: g.segments
+              .map((s, i) => ({ series: label(stackBy!, s.key, data.series[i].value, data.series[i].other), value: valueOf(s.result), row_count: s.rows.length }))
+              .filter((s) => s.row_count > 0),
+          }
+        : {}),
+    })),
   };
 }
 

@@ -13,6 +13,7 @@ import { ViewIcon } from "@/components/database/property-icons";
 import type { DatabaseSnapshot, Property } from "@/components/database/types";
 import { Button, cn, MenuItem, PageIcon, pageLabel } from "@/components/ui";
 import type { ViewConfig, ViewType } from "@/db/schema/app";
+import { chartGroupProperty } from "@/lib/chart";
 import type { LinkedView } from "@/lib/embed-blocks";
 import { VIEW_TYPES } from "@/lib/views";
 import type { EmbedInfo } from "@/server/embeds";
@@ -180,11 +181,12 @@ function startingConfig(type: ViewType, config: ViewConfig, properties: Property
   const next = { ...config };
   const firstDate = properties.find((p) => p.type === "date")?.id;
   if (type === "board" && !next.groupBy) next.groupBy = properties.find((p) => p.type === "select" || p.type === "status")?.id;
+  if (type === "chart" && !next.groupBy) next.groupBy = chartGroupProperty(properties, {})?.id;
   if ((type === "calendar" || type === "timeline") && !next.dateBy) next.dateBy = firstDate;
   return next;
 }
 
-/** A linked view picks its own layout: table, board, calendar, gallery, list or timeline. */
+/** A linked view picks its own layout: table, board, calendar, gallery, list, timeline or chart. */
 function LayoutMenu({
   view,
   properties,

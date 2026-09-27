@@ -281,7 +281,9 @@ describe("view visibility", () => {
   it("shows only chosen properties on list rows and timeline bars, and hides long values on gallery cards", () => {
     expect(isHiddenInView({ type: "list", config: {} }, sel)).toBe(true);
     expect(isHiddenInView({ type: "timeline", config: {} }, sel)).toBe(true);
+    expect(isHiddenInView({ type: "chart", config: {} }, sel)).toBe(true);
     expect(isHiddenInView({ type: "list", config: { shown: ["s"] } }, sel)).toBe(false);
+    expect(isHiddenInView({ type: "chart", config: { shown: ["s"] } }, sel)).toBe(false);
     expect(isHiddenInView({ type: "gallery", config: {} }, text)).toBe(true);
     expect(isHiddenInView({ type: "gallery", config: {} }, sel)).toBe(false);
   });

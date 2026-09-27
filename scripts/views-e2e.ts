@@ -124,7 +124,7 @@ try {
     timeline.config,
   );
   check(
-    await rejects(() => addView(ids.owner, tasks.id, { name: "X", type: "chart" as never }), "unsupportedViewType"),
+    await rejects(() => addView(ids.owner, tasks.id, { name: "X", type: "kanban" as never }), "unsupportedViewType"),
     "an unknown view type is refused",
   );
 

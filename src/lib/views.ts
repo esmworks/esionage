@@ -1,7 +1,8 @@
-import type { CardSize, TimelineZoom, ViewConfig, ViewCover, ViewType } from "@/db/schema/app";
+import type { CardSize, ChartSort, ChartType, TimelineZoom, ViewConfig, ViewCover, ViewType } from "@/db/schema/app";
+import { CHART_SORTS, CHART_TYPES, isChartAggregateFn } from "./chart";
 
 /** Every kind of database view, in the order the "Add a view" menu lists them. */
-export const VIEW_TYPES = ["table", "board", "calendar", "gallery", "list", "timeline"] as const satisfies readonly ViewType[];
+export const VIEW_TYPES = ["table", "board", "calendar", "gallery", "list", "timeline", "chart"] as const satisfies readonly ViewType[];
 export const CARD_SIZES = ["small", "medium", "large"] as const satisfies readonly CardSize[];
 export const COVER_SOURCES = ["first_image", "none"] as const satisfies readonly ViewCover["source"][];
 export const TIMELINE_ZOOMS = ["day", "week", "month"] as const satisfies readonly TimelineZoom[];
@@ -18,6 +19,7 @@ export const DEFAULT_VIEW_NAMES: Record<ViewType, string> = {
   gallery: "Gallery",
   list: "List",
   timeline: "Timeline",
+  chart: "Chart",
 };
 
 export function galleryCover(config: Pick<ViewConfig, "cover">): ViewCover["source"] {
@@ -31,13 +33,15 @@ export function galleryCover(config: Pick<ViewConfig, "cover">): ViewCover["sour
  */
 export function layoutConfigError(config: ViewConfig): string | null {
   const c = config as Record<string, unknown>;
-  for (const key of ["groupBy", "dateBy", "endDateBy"] as const) {
+  for (const key of ["groupBy", "dateBy", "endDateBy", "stackBy"] as const) {
     if (c[key] !== undefined && typeof c[key] !== "string") return `${key} must be a property id`;
   }
   if (c.zoom !== undefined && !TIMELINE_ZOOMS.includes(c.zoom as TimelineZoom)) {
     return `Zoom must be one of: ${TIMELINE_ZOOMS.join(", ")}`;
   }
-  if (c.showTable !== undefined && typeof c.showTable !== "boolean") return "showTable must be true or false";
+  for (const key of ["showTable", "showValues", "showLegend"] as const) {
+    if (c[key] !== undefined && typeof c[key] !== "boolean") return `${key} must be true or false`;
+  }
   if (c.cardSize !== undefined && !CARD_SIZES.includes(c.cardSize as CardSize)) {
     return `Card size must be one of: ${CARD_SIZES.join(", ")}`;
   }
@@ -45,6 +49,26 @@ export function layoutConfigError(config: ViewConfig): string | null {
     const cover = c.cover as { source?: unknown } | null;
     if (!cover || typeof cover !== "object" || !COVER_SOURCES.includes(cover.source as ViewCover["source"])) {
       return `Cover must be one of: ${COVER_SOURCES.join(", ")}`;
+    }
+  }
+  if (c.chartType !== undefined && !CHART_TYPES.includes(c.chartType as ChartType)) {
+    return `Chart type must be one of: ${CHART_TYPES.join(", ")}`;
+  }
+  if (c.chartSort !== undefined && !CHART_SORTS.includes(c.chartSort as ChartSort)) {
+    return `Chart sort must be one of: ${CHART_SORTS.join(", ")}`;
+  }
+  if (c.chartAggregate !== undefined) {
+    const agg = c.chartAggregate as { fn?: unknown; propertyId?: unknown } | null;
+    if (!agg || typeof agg !== "object" || typeof agg.propertyId !== "string" || !agg.propertyId) {
+      return "chartAggregate must name a property id and a calculation";
+    }
+    if (!isChartAggregateFn(agg.fn)) return `Charts can't measure "${String(agg.fn)}"`;
+  }
+  // Charts read these to lay out their groups; a stray value would break every viewer.
+  for (const key of ["groupOrder", "hiddenGroups"] as const) {
+    const keys = c[key];
+    if (keys !== undefined && (!Array.isArray(keys) || !keys.every((k) => typeof k === "string"))) {
+      return `${key} must be a list of group keys`;
     }
   }
   return null;

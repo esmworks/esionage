@@ -177,6 +177,8 @@ export function remapViewConfig(
   }
   if (config.dateBy !== undefined) out.dateBy = map(config.dateBy);
   if (config.endDateBy !== undefined) out.endDateBy = map(config.endDateBy);
+  if (config.stackBy !== undefined) out.stackBy = map(config.stackBy);
+  if (config.chartAggregate) out.chartAggregate = { ...config.chartAggregate, propertyId: map(config.chartAggregate.propertyId) };
   if (config.sorts) out.sorts = config.sorts.map((s) => ({ ...s, propertyId: map(s.propertyId) }));
   if (config.filters) {
     out.filters = mapFilterRules(config.filters, (f) => {

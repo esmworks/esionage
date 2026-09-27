@@ -27,7 +27,8 @@
     "calendar": "Calendar",
     "gallery": "Gallery",
     "list": "List",
-    "timeline": "Timeline"
+    "timeline": "Timeline",
+    "chart": "Chart"
   },
   "colors": {
     "gray": "Gray",
@@ -398,6 +399,47 @@
   "list": {
     "new": "New",
     "empty": "No rows to show."
+  },
+  "chart": {
+    "type": "Chart type",
+    "types": {
+      "bar": "Vertical bar",
+      "horizontal_bar": "Horizontal bar",
+      "line": "Line",
+      "donut": "Donut"
+    },
+    "groupBy": "Group by",
+    "measure": "Value",
+    "count": "Count rows",
+    "countShort": "Count",
+    "measureOf": "{calculation} of {property}",
+    "calculation": "Calculation",
+    "stackBy": "Stack by",
+    "noStack": "None",
+    "stackHint": "Bars stack when they count rows or add values up.",
+    "sort": "Sort groups",
+    "sorts": {
+      "group": "Group order",
+      "value_desc": "Value, high to low",
+      "value_asc": "Value, low to high"
+    },
+    "showNoValue": "Show rows without a value",
+    "showValues": "Show values",
+    "showLegend": "Show legend",
+    "other": "Other",
+    "total": "Total",
+    "share": "{share} of the total",
+    "segment": "{group}, {series}",
+    "needsGroupTitle": "Charts group rows by a property such as a select, status, person or date",
+    "needsGroupBody": "This database has no property a chart can group by yet.",
+    "empty": "No rows to chart.",
+    "title": "{measure} by {property} ({type})",
+    "tableCaption": "Values of {name}",
+    "groupColumn": "Group",
+    "rowCount": "{count, plural, one {# row} other {# rows}}",
+    "rowsIn": "Rows in {group}",
+    "noRows": "No rows in this group.",
+    "openRows": "{group}: {value}. Show rows"
   },
   "timeline": {
     "needsDateTitle": "Timelines place rows by a date property",
