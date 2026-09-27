@@ -198,3 +198,31 @@ export function remapViewConfig(
   if (config.form?.defaults) out.form!.defaults = remapRowProperties(config.form.defaults, propIds, rowIdsFor);
   return out;
 }
+
+/**
+ * A view config without references to the properties `gone` holds: what deleting a property does
+ * to its database's views, and what a copy that leaves properties behind does to the copied views.
+ */
+export function dropPropertyReferences(config: ViewConfig, gone: (propertyId: string) => boolean): ViewConfig {
+  const c = config;
+  return {
+    ...c,
+    groupBy: c.groupBy !== undefined && gone(c.groupBy) ? undefined : c.groupBy,
+    dateBy: c.dateBy !== undefined && gone(c.dateBy) ? undefined : c.dateBy,
+    endDateBy: c.endDateBy !== undefined && gone(c.endDateBy) ? undefined : c.endDateBy,
+    stackBy: c.stackBy !== undefined && gone(c.stackBy) ? undefined : c.stackBy,
+    // A gallery that took covers from the property goes back to the default.
+    cover: c.cover?.source === "property" && gone(c.cover.propertyId) ? undefined : c.cover,
+    chartAggregate: c.chartAggregate && gone(c.chartAggregate.propertyId) ? undefined : c.chartAggregate,
+    sorts: c.sorts?.filter((s) => !gone(s.propertyId)),
+    filters: c.filters && mapFilterRules(c.filters, (f) => (gone(f.propertyId) ? null : f)),
+    hidden: c.hidden?.filter((h) => !gone(h)),
+    shown: c.shown?.filter((h) => !gone(h)),
+    calculations: c.calculations && Object.fromEntries(Object.entries(c.calculations).filter(([k]) => !gone(k))),
+    form: c.form && {
+      ...c.form,
+      questions: c.form.questions?.filter((q) => !gone(q.propertyId)),
+      defaults: c.form.defaults && Object.fromEntries(Object.entries(c.form.defaults).filter(([k]) => !gone(k))),
+    },
+  };
+}

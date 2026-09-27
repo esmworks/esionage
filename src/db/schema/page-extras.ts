@@ -1,5 +1,5 @@
 import { boolean, index, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
-import { databaseView, page } from "./app";
+import { databaseView, page, workspace } from "./app";
 import { user } from "./auth";
 
 /** Pages a user starred; listed under Favorites in their sidebar. Private to that user. */
@@ -30,7 +30,37 @@ export const pagePublication = pgTable("page_publication", {
   publishedBy: text("published_by").references(() => user.id, { onDelete: "set null" }),
   /** Search engines may index the page and its subpages; off unless the publisher allows it. */
   indexable: boolean("indexable").notNull().default(false),
+  /**
+   * Listed in the workspace's site (`workspace_site`): its navigation shows the page and its
+   * subpages, and site addresses serve them. Off by default, so a page shared by link only is
+   * never listed without someone choosing to.
+   */
+  inSite: boolean("in_site").notNull().default(false),
+  /** Signed-in visitors may copy the page (as published) into a workspace of theirs. Off by default. */
+  allowDuplicate: boolean("allow_duplicate").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * A workspace's public site (see server/site.ts): a readable address (`/s/<slug>`) that opens the
+ * home page, with navigation between the workspace's published pages listed in it (`inSite`).
+ * Owners set it up; without a row the workspace has no site, and its pages only have their links.
+ */
+export const workspaceSite = pgTable("workspace_site", {
+  workspaceId: text("workspace_id")
+    .primaryKey()
+    .references(() => workspace.id, { onDelete: "cascade" }),
+  /** Lowercase letters, digits and hyphens (see lib/site.ts); unique across the server. */
+  slug: text("slug").notNull().unique(),
+  /** Shown at the top of every page of the site. */
+  title: text("title").notNull().default(""),
+  /** A published page of the workspace; while it isn't served, the site opens its first listed page. */
+  homePageId: text("home_page_id").references(() => page.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 /**

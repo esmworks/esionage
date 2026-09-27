@@ -20,7 +20,8 @@ import { firstImageInYdoc, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { asFiles, fileIdOf, fileUrl, type FileValue } from "@/lib/files";
 import { isApplicable, isRollupFn, ROLLUP_DISPLAYS, type RollupDisplay } from "@/lib/aggregate";
 import { compileFormulas, formulaForStorage, TITLE_FIELD, valueType, withFormulaTypes } from "@/lib/derived";
-import { filterConfigError, filterRules, mapFilterRules } from "@/lib/filters";
+import { dropPropertyReferences } from "@/lib/duplicate";
+import { filterConfigError, filterRules } from "@/lib/filters";
 import { chartGroupProperty } from "@/lib/chart";
 import { defaultFormConfig } from "@/lib/forms";
 import { DEFAULT_VIEW_NAMES, galleryCover, isViewType, layoutConfigError } from "@/lib/views";
@@ -1015,31 +1016,9 @@ export async function deleteProperty(userId: string, propertyId: string) {
     // Drop references from view configs.
     const views = await tx.select().from(databaseView).where(eq(databaseView.databaseId, prop.databaseId));
     for (const view of views) {
-      const c = view.config;
       await tx
         .update(databaseView)
-        .set({
-          config: {
-            ...c,
-            groupBy: c.groupBy === propertyId ? undefined : c.groupBy,
-            dateBy: c.dateBy === propertyId ? undefined : c.dateBy,
-            endDateBy: c.endDateBy === propertyId ? undefined : c.endDateBy,
-            stackBy: c.stackBy === propertyId ? undefined : c.stackBy,
-            // A gallery that took covers from the property goes back to the default.
-            cover: c.cover?.source === "property" && c.cover.propertyId === propertyId ? undefined : c.cover,
-            chartAggregate: c.chartAggregate?.propertyId === propertyId ? undefined : c.chartAggregate,
-            sorts: c.sorts?.filter((s) => s.propertyId !== propertyId),
-            filters: c.filters && mapFilterRules(c.filters, (f) => (f.propertyId === propertyId ? null : f)),
-            hidden: c.hidden?.filter((h) => h !== propertyId),
-            shown: c.shown?.filter((h) => h !== propertyId),
-            calculations: c.calculations && Object.fromEntries(Object.entries(c.calculations).filter(([k]) => k !== propertyId)),
-            form: c.form && {
-              ...c.form,
-              questions: c.form.questions?.filter((q) => q.propertyId !== propertyId),
-              defaults: c.form.defaults && Object.fromEntries(Object.entries(c.form.defaults).filter(([k]) => k !== propertyId)),
-            },
-          },
-        })
+        .set({ config: dropPropertyReferences(view.config, (id) => id === propertyId) })
         .where(eq(databaseView.id, view.id));
     }
   });

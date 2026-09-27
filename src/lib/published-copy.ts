@@ -1,0 +1,150 @@
+import { isEmbedBlockType } from "./embed-blocks";
+import { MENTION, mentionProps, mentionText, PAGE_LINK_BLOCK } from "./mentions";
+
+/**
+ * "Duplicate" on a published page copies it into another workspace (see server/site.ts). The copy
+ * is rebuilt from the page's blocks, as the publication shows them, rather than carrying the stored
+ * document along: a stored document keeps edit history, comments and ids that belong to the source
+ * workspace. Pure: the server loads the blocks and writes the result.
+ *
+ * - People mentions become their text (`@Name`, as the published page shows them): the person
+ *   isn't in the new workspace, and their id stays behind.
+ * - Date mentions keep their date without a reminder.
+ * - Page mentions and "Link to page" blocks follow the copied pages; other pages read as the
+ *   published page showed them (`outside`: a link to their public address, or plain text).
+ * - Database blocks (inline databases, linked views) stay when their database was copied too, and
+ *   are left out otherwise: the new workspace can't show a database of another workspace.
+ * - Uploaded files point at the copies made in the new workspace (`fileIds`).
+ */
+
+type Json = unknown;
+type Node = Record<string, Json>;
+
+export type CopyRefs = {
+  /** Source page id → copy id. */
+  pageIds: ReadonlyMap<string, string>;
+  /** Source file id → the copy's file id. */
+  fileIds: ReadonlyMap<string, string>;
+  /** Pages that weren't copied, as the published page showed them. */
+  outside: ReadonlyMap<string, { text: string; href: string | null }>;
+};
+
+const FILE_PATH = /\/api\/files\/([A-Za-z0-9_-]{24})(?![A-Za-z0-9_-])/g;
+
+/** `text` with every uploaded file's path pointed at its copy (files without one stay). */
+export function remapFilePaths(text: string, fileIds: ReadonlyMap<string, string>): string {
+  return text.replace(FILE_PATH, (whole, id: string) => {
+    const next = fileIds.get(id);
+    return next ? `/api/files/${next}` : whole;
+  });
+}
+
+const textNode = (text: string) => ({ type: "text", text, styles: {} });
+
+function outsideInline(pageId: string, refs: CopyRefs): Json[] {
+  const ref = refs.outside.get(pageId);
+  if (!ref) return [];
+  return ref.href ? [{ type: "link", href: ref.href, content: [textNode(ref.text)] }] : [textNode(ref.text)];
+}
+
+function copyInline(items: Json[], refs: CopyRefs): Json[] {
+  return items.flatMap((item): Json[] => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [item];
+    const node = item as Node;
+    if (node.type === MENTION) {
+      const props = mentionProps(node.props);
+      if (props.kind === "user") return [textNode(mentionText(props))];
+      if (props.kind === "date") return [{ ...node, props: { ...props, remindAt: "" } }];
+      const copy = refs.pageIds.get(props.pageId);
+      return copy ? [{ ...node, props: { ...props, pageId: copy } }] : outsideInline(props.pageId, refs);
+    }
+    if (node.type === "link") {
+      const content = Array.isArray(node.content) ? copyInline(node.content, refs) : [];
+      const href = typeof node.href === "string" ? remapFilePaths(node.href, refs.fileIds) : node.href;
+      return [{ ...node, href, content }];
+    }
+    return [node];
+  });
+}
+
+function copyContent(content: Json, refs: CopyRefs): Json {
+  if (Array.isArray(content)) return copyInline(content, refs);
+  const table = content as { type?: string; rows?: { cells?: Json[] }[] } | null;
+  if (table?.type === "tableContent" && Array.isArray(table.rows)) {
+    return {
+      ...table,
+      rows: table.rows.map((row) => ({
+        ...row,
+        cells: (row.cells ?? []).map((cell) =>
+          Array.isArray(cell)
+            ? copyInline(cell, refs)
+            : cell && typeof cell === "object"
+              ? { ...cell, content: copyContent((cell as { content?: Json }).content, refs) }
+              : cell,
+        ),
+      })),
+    };
+  }
+  return content;
+}
+
+function copyProps(props: Json, fileIds: ReadonlyMap<string, string>): Json {
+  if (!props || typeof props !== "object" || Array.isArray(props)) return props;
+  return Object.fromEntries(
+    Object.entries(props as Node).map(([key, value]) => [key, typeof value === "string" ? remapFilePaths(value, fileIds) : value]),
+  );
+}
+
+type Block = { type: string; props?: Json; content?: Json; children?: Block[] } & Node;
+
+/** The blocks of a copied page (see the rules above). */
+export function copyPublishedBlocks<B extends Block>(blocks: B[], refs: CopyRefs): B[] {
+  return blocks.flatMap((block): B[] => {
+    const children = block.children?.length ? copyPublishedBlocks(block.children as B[], refs) : (block.children ?? []);
+    const props = copyProps(block.props, refs.fileIds) as Node | undefined;
+    if (isEmbedBlockType(block.type)) {
+      const copy = refs.pageIds.get(String(props?.databaseId ?? ""));
+      return copy ? [{ ...block, props: { ...props, databaseId: copy }, children }] : (children as B[]);
+    }
+    if (block.type === PAGE_LINK_BLOCK) {
+      const pageId = String(props?.pageId ?? "");
+      const copy = refs.pageIds.get(pageId);
+      if (copy) return [{ ...block, props: { ...props, pageId: copy }, children }];
+      return [{ id: block.id, type: "paragraph", props: {}, content: outsideInline(pageId, refs), children } as unknown as B];
+    }
+    return [{ ...block, props, content: copyContent(block.content, refs), children }];
+  });
+}
+
+/** Ids of the pages a block tree mentions or links to with "Link to page" blocks. */
+export function mentionedPageIds(blocks: Block[]): string[] {
+  const ids = new Set<string>();
+  const inline = (items: Json) => {
+    if (Array.isArray(items)) {
+      for (const item of items) {
+        const node = item as Node | null;
+        if (node?.type === MENTION) {
+          const props = mentionProps(node.props);
+          if (props.kind === "page" && props.pageId) ids.add(props.pageId);
+        } else if (node?.type === "link" && Array.isArray(node.content)) inline(node.content);
+      }
+      return;
+    }
+    const table = items as { type?: string; rows?: { cells?: Json[] }[] } | null;
+    if (table?.type === "tableContent") {
+      for (const row of table.rows ?? []) for (const cell of row.cells ?? []) inline(Array.isArray(cell) ? cell : (cell as { content?: Json })?.content);
+    }
+  };
+  const walk = (list: Block[]) => {
+    for (const block of list) {
+      if (block.type === PAGE_LINK_BLOCK) {
+        const pageId = String((block.props as Node | undefined)?.pageId ?? "");
+        if (pageId) ids.add(pageId);
+      }
+      inline(block.content);
+      if (block.children?.length) walk(block.children);
+    }
+  };
+  walk(blocks);
+  return [...ids];
+}

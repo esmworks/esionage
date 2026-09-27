@@ -4,6 +4,23 @@
 
 ### Added
 
+- **Workspace site and Duplicate for published pages:** owners set up a site in Settings → Site: a
+  slug (lowercase letters, digits and hyphens, 3–40 characters, unique, a few reserved), a title
+  and a home page picked among published pages. `/s/<slug>` opens the home page with a navigation
+  (sidebar, a menu on phones) of the publications listed in the site, each with its subpages;
+  pages live at `/s/<slug>/<title>-<id>` (old titles redirect), and mentions of other listed pages
+  link within the site. A publication is listed only when its publisher (Publish tab) or an owner
+  (Settings → Site) turns it on, so link-only pages never show up; the home page is listed when it
+  is picked, and the site falls back to its first listed page while the home page is offline.
+  Existing `/s/<token>` links keep working, and each page keeps its publication's search-engine
+  setting. New per-publication option **Allow duplicate** (off by default): a Duplicate button on
+  the published page lets a signed-in visitor (others sign in first and come back) copy the page
+  and its published subpages to the top of one of their workspaces, optionally as a template. Only
+  what the publication shows is copied (pages the publisher can see, public properties, web
+  views); bodies are rebuilt without comments, history, reminders or people's ids, pages that
+  weren't copied read as the published page showed them, and uploaded files are copied into the
+  new workspace within its quota. Five duplicates a minute and thirty an hour per person
+  (migration `0018_site_and_duplicate`).
 - **Export with subpages and whole-workspace export:** "Export with subpages" in the page menu
   ("Export with row pages" for databases) downloads a ZIP of the page and everything under it, and
   owners can download the whole workspace from Settings → General → Export. Pages are Markdown,

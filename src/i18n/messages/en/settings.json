@@ -9,7 +9,8 @@
     "preferences": "Preferences",
     "accountSecurity": "Account security",
     "apps": "Connected apps",
-    "security": "Security"
+    "security": "Security",
+    "site": "Site"
   },
   "workspace": {
     "heading": "Workspace",
@@ -239,5 +240,38 @@
     "reminderDescription": "A reminder you set on a date in a page is due.",
     "reminderChannel": "Reminders: {channel}",
     "mailOff": "This server can't send email right now, so none go out."
+  },
+  "site": {
+    "description": "Give this workspace's published pages one readable address, a home page and navigation between them.",
+    "heading": "Site",
+    "notSetUp": "This workspace has no site yet. Its published pages are reachable only through their own links.",
+    "slugLabel": "Address",
+    "slugHint": "Lowercase letters, numbers and hyphens, 3 to 40 characters.",
+    "titleLabel": "Title",
+    "titleHint": "Shown at the top of every page of the site.",
+    "homeLabel": "Home page",
+    "homeHint": "The page the site's address opens. Only published pages can be picked.",
+    "homeNone": "The first listed page",
+    "create": "Create site",
+    "save": "Save",
+    "open": "Open site",
+    "remove": "Take down",
+    "confirmRemove": "Take the site down? Its address stops working; each published page keeps its own link.",
+    "membersOnly": "Only owners can change the site.",
+    "pagesHeading": "Pages in the site",
+    "pagesDescription": "Published pages the site lists, each with its subpages. Pages that aren't listed keep working through their own links but can't be reached from the site.",
+    "pagesEmpty": "No pages are published yet. Publish a page from its Share menu first.",
+    "listed": "Listed in the site",
+    "privatePage": "A page you don't have access to",
+    "home": "Home page",
+    "errors": {
+      "tooShort": "The address needs at least 3 characters.",
+      "tooLong": "The address can have at most 40 characters.",
+      "invalid": "Use lowercase letters, numbers and single hyphens; start and end with a letter or number.",
+      "reserved": "This address is reserved. Pick another one.",
+      "slugTaken": "Another workspace uses this address.",
+      "homeNotPublished": "Pick a published page of this workspace that you can see.",
+      "ownersOnly": "Only workspace owners can do this."
+    }
   }
 }

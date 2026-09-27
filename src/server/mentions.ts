@@ -350,7 +350,7 @@ export async function publishedPageRefs(
     labels,
   }: {
     /** The page's address when it is published with this publication, else null. */
-    inPublication: (pageId: string) => Promise<string | null>;
+    inPublication: (pageId: string, title: string) => Promise<string | null>;
     labels: { untitled: string; private: string; deleted: string };
   },
 ) {
@@ -371,7 +371,7 @@ export async function publishedPageRefs(
       out.set(ref.id, { text: ref.status === "deleted" ? labels.deleted : labels.private, href: null });
       continue;
     }
-    const href = (await inPublication(ref.id)) ?? own.get(ref.id) ?? null;
+    const href = (await inPublication(ref.id, ref.title)) ?? own.get(ref.id) ?? null;
     out.set(ref.id, { text: ref.title.trim() || labels.untitled, href });
   }
   return out;
