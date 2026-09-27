@@ -27,7 +27,7 @@ try {
 } catch {}
 
 // Imported after .env is loaded: the database client reads DATABASE_URL when it is created.
-const { eq, inArray } = await import("drizzle-orm");
+const { and, eq, inArray } = await import("drizzle-orm");
 const { db } = await import("@/db");
 const { oauthClient, user, workspace, workspaceMember } = await import("@/db/schema");
 const { updateWorkspaceSettings, WorkspaceError } = await import("@/server/workspaces");
@@ -406,6 +406,20 @@ async function main() {
   check(outsiderGate.status === 404, "…also on the set-up page", outsiderGate);
   const ownOther = await open(`/w/${outsider.workspaceId}`, outsider.jar);
   check(ownOther.status === 200, "other workspaces are unaffected", ownOther);
+
+  // Someone held back can still leave: nobody should have to set up two-step verification to get out.
+  await db.insert(workspaceMember).values({ workspaceId, userId: outsider.id, role: "member" });
+  const heldTree = await callAction(outsider.jar, settingsPath, PAGES_ACTIONS, "getTreeAction", [workspaceId]);
+  check(heldTree.status === 500, "a member without it is held back", heldTree.status);
+  const left = await callAction(outsider.jar, settingsPath, "src/app/actions/workspaces.ts", "removeMemberAction", [
+    workspaceId,
+    outsider.id,
+  ]);
+  const stillIn = await db
+    .select({ id: workspaceMember.userId })
+    .from(workspaceMember)
+    .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, outsider.id)));
+  check(left.status === 200 && stillIn.length === 0, "…but can leave the workspace", left);
 
   await enableTwoFactor(member.jar);
   const inside = await open(`/w/${workspaceId}`, member.jar);
