@@ -17,6 +17,13 @@
     "description": "The name and basic settings of this workspace.",
     "nameDescription": "Shown in the sidebar, in invitations and in emails."
   },
+  "export": {
+    "heading": "Export",
+    "title": "Export workspace",
+    "description": "Download every page you can see as a ZIP: pages as Markdown, databases as CSV, and the files they show. Pages in the trash are left out; templates are kept in a Templates folder.",
+    "button": "Export",
+    "preparing": "Preparing…"
+  },
   "members": {
     "heading": "Members",
     "description": "Members can see and edit every page unless its sharing is restricted; guests see only pages shared with them. Owners can also manage members.",

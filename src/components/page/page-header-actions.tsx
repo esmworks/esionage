@@ -5,6 +5,7 @@ import {
   Copy,
   CornerUpLeft,
   Download,
+  FileArchive,
   FileText,
   History,
   LayoutTemplate,
@@ -29,6 +30,7 @@ import {
 import { getTreeAction, movePageAction } from "@/app/actions/pages";
 import { deleteTemplateAction, saveAsTemplateAction } from "@/app/actions/templates";
 import { cn, Dialog, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, Popover, Switch } from "@/components/ui";
+import { useZipExport } from "@/components/use-zip-export";
 import type { PageKind } from "@/db/schema/app";
 import { FAVORITES_EVENT } from "@/lib/favorites-event";
 import type { Presence } from "@/lib/presence";
@@ -245,6 +247,7 @@ function PageMenu({
   const [moveOpen, setMoveOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const zipExport = useZipExport();
   const canEdit = hasLevel(info.level, "edit");
   const canManage = hasLevel(info.level, "full");
   const isDatabase = page.kind === "database";
@@ -398,6 +401,12 @@ function PageMenu({
               </span>
               <span className="flex-1 truncate">{isDatabase ? t("exportCsv") : t("exportMarkdown")}</span>
             </a>
+            <MenuItem
+              icon={<FileArchive className="h-4 w-4" />}
+              onClick={() => void zipExport.start(`/w/${workspaceId}/p/${page.id}/export?subpages=1`, close)}
+            >
+              {zipExport.pending ? t("exportPreparing") : isDatabase ? t("exportZipDatabase") : t("exportZip")}
+            </MenuItem>
             {page.hasBody && (
               <MenuItem
                 icon={<History className="h-4 w-4" />}
@@ -410,9 +419,9 @@ function PageMenu({
               </MenuItem>
             )}
 
-            {error && (
+            {(error || zipExport.error) && (
               <p role="alert" className="px-2 pt-1 text-xs text-danger">
-                {error}
+                {error ?? zipExport.error}
               </p>
             )}
             <MenuSeparator />

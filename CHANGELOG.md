@@ -4,6 +4,18 @@
 
 ### Added
 
+- **Export with subpages and whole-workspace export:** "Export with subpages" in the page menu
+  ("Export with row pages" for databases) downloads a ZIP of the page and everything under it, and
+  owners can download the whole workspace from Settings → General → Export. Pages are Markdown,
+  databases CSV with their row pages in a folder beside them (each row page lists its
+  properties), and uploaded files the pages and rows show are copied into `files/`. The layout
+  mirrors the sidebar, with names made safe and unique per folder; links between exported pages
+  and to their files become relative paths, links to anything left out point at the app. Only
+  pages the person can view go in (hidden ones are left out and links to them say "No access");
+  the trash is left out; templates are kept in `Templates/` folders. The archive is streamed as it
+  is built (fflate), one export at a time per person, and exports over `EXPORT_MAX_PAGES` (10,000)
+  pages or `EXPORT_MAX_FILES_MB` (2,048) of files are refused up front with a message. No
+  migration.
 - **Files & media property:** a database property that holds uploaded files. Images show as small
   thumbnails in tables, boards, lists, galleries and row pages, other files by name; the cell
   editor uploads (pick or drop, several at once) and removes them. Galleries can take their cover

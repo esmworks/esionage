@@ -57,6 +57,8 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-}
       S3_PREFIX: ${S3_PREFIX:-}
+      EXPORT_MAX_PAGES: ${EXPORT_MAX_PAGES:-}
+      EXPORT_MAX_FILES_MB: ${EXPORT_MAX_FILES_MB:-}
     volumes:
       - uploads:/app/data/uploads
     ports:
