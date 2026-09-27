@@ -1,0 +1,183 @@
+/**
+ * AI settings from the environment. AI is off unless AI_PROVIDER and AI_MODEL are set (plus a key
+ * for hosted providers); nothing is sent anywhere while it is off. See the README's AI section.
+ */
+
+export const AI_PROVIDERS = ["anthropic", "openai", "google", "openai-compatible", "ollama", "lmstudio"] as const;
+export type AiProviderKind = (typeof AI_PROVIDERS)[number];
+
+/** Chat providers whose requests go to our own server or network by default. */
+const LOCAL_DEFAULT_URLS: Partial<Record<AiProviderKind, string>> = {
+  ollama: "http://localhost:11434/v1",
+  lmstudio: "http://localhost:1234/v1",
+};
+
+/** Where a hosted provider's OpenAI-compatible embeddings endpoint is, when it has one. */
+const HOSTED_EMBEDDING_URLS: Partial<Record<AiProviderKind, string>> = {
+  openai: "https://api.openai.com/v1",
+  google: "https://generativelanguage.googleapis.com/v1beta/openai",
+};
+
+/** The provider's own key variable, read when AI_API_KEY is not set. */
+const PROVIDER_KEY_VARS: Partial<Record<AiProviderKind, string>> = {
+  anthropic: "ANTHROPIC_API_KEY",
+  openai: "OPENAI_API_KEY",
+  google: "GEMINI_API_KEY",
+};
+
+export type AiChatConfig = {
+  provider: AiProviderKind;
+  model: string;
+  /** Overrides the provider's endpoint; required for openai-compatible. */
+  baseUrl: string | null;
+  apiKey: string | null;
+};
+
+export type AiEmbeddingsConfig = {
+  model: string;
+  /** An OpenAI-compatible API root; `/embeddings` is appended. */
+  baseUrl: string;
+  apiKey: string | null;
+  /** Asks the model for vectors of this size, where it supports that. */
+  dimensions: number | null;
+};
+
+export type AiLimits = {
+  /** Characters of prompt (instructions plus content) one request may send. */
+  maxInputChars: number;
+  /** Tokens one answer may have. */
+  maxOutputTokens: number;
+  timeoutMs: number;
+  /** Requests per person per minute (editor actions, refreshes started). */
+  userPerMinute: number;
+  /** Requests per workspace per minute, background property values included. */
+  workspacePerMinute: number;
+  /** Property values worked out at the same time, across the server. */
+  concurrency: number;
+  /** For openai-compatible servers, whose context size we can't look up. */
+  contextWindow: number;
+};
+
+export type AiConfig = {
+  chat: AiChatConfig | null;
+  embeddings: AiEmbeddingsConfig | null;
+  limits: AiLimits;
+  /** Why AI is off although something was set, for the startup log. */
+  problems: string[];
+};
+
+type Env = Record<string, string | undefined>;
+
+const clean = (value: string | undefined) => {
+  const v = value?.trim();
+  return v ? v : null;
+};
+
+function positive(env: Env, name: string, fallback: number, problems: string[]) {
+  const raw = clean(env[name]);
+  if (raw === null) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    problems.push(`${name} must be a positive number (using ${fallback})`);
+    return fallback;
+  }
+  return Math.floor(n);
+}
+
+function url(raw: string | null, name: string, problems: string[]) {
+  if (raw === null) return null;
+  const parsed = URL.parse(raw);
+  if (!parsed || !/^https?:$/.test(parsed.protocol)) {
+    problems.push(`${name} must be an http(s) URL`);
+    return undefined;
+  }
+  return raw.replace(/\/+$/, "");
+}
+
+export function readAiConfig(env: Env = process.env): AiConfig {
+  const problems: string[] = [];
+  const limits: AiLimits = {
+    maxInputChars: positive(env, "AI_MAX_INPUT_CHARS", 48_000, problems),
+    maxOutputTokens: positive(env, "AI_MAX_OUTPUT_TOKENS", 2_048, problems),
+    timeoutMs: positive(env, "AI_TIMEOUT_SECONDS", 60, problems) * 1000,
+    userPerMinute: positive(env, "AI_RATE_LIMIT", 20, problems),
+    workspacePerMinute: positive(env, "AI_WORKSPACE_RATE_LIMIT", 120, problems),
+    concurrency: positive(env, "AI_CONCURRENCY", 2, problems),
+    contextWindow: positive(env, "AI_CONTEXT_WINDOW", 32_768, problems),
+  };
+
+  const providerRaw = clean(env.AI_PROVIDER)?.toLowerCase() ?? null;
+  const model = clean(env.AI_MODEL);
+  let chat: AiChatConfig | null = null;
+  let provider: AiProviderKind | null = null;
+  if (providerRaw !== null) {
+    if (!(AI_PROVIDERS as readonly string[]).includes(providerRaw)) {
+      problems.push(`AI_PROVIDER must be one of ${AI_PROVIDERS.join(", ")}`);
+    } else {
+      provider = providerRaw as AiProviderKind;
+      const baseUrl = url(clean(env.AI_BASE_URL), "AI_BASE_URL", problems);
+      const keyVar = PROVIDER_KEY_VARS[provider];
+      const apiKey = clean(env.AI_API_KEY) ?? (keyVar ? clean(env[keyVar]) : null);
+      const resolvedUrl = baseUrl === undefined ? undefined : (baseUrl ?? LOCAL_DEFAULT_URLS[provider] ?? null);
+      if (!model) problems.push("AI_MODEL is not set");
+      else if (resolvedUrl === undefined) {
+        // Reported above.
+      } else if (provider === "openai-compatible" && !resolvedUrl) problems.push("AI_BASE_URL is required with AI_PROVIDER=openai-compatible");
+      else if (keyVar && !apiKey) problems.push(`AI_API_KEY is required with AI_PROVIDER=${provider}`);
+      else chat = { provider, model, baseUrl: resolvedUrl, apiKey };
+    }
+  } else if (model) {
+    problems.push("AI_MODEL is set but AI_PROVIDER is not");
+  }
+
+  // Embeddings (semantic search) speak the OpenAI-compatible /embeddings API. They default to the
+  // chat provider's endpoint and key; a key is only reused for that same endpoint, never sent to a
+  // different host.
+  let embeddings: AiEmbeddingsConfig | null = null;
+  const embeddingModel = clean(env.AI_EMBEDDINGS_MODEL);
+  if (embeddingModel) {
+    const explicit = url(clean(env.AI_EMBEDDINGS_BASE_URL), "AI_EMBEDDINGS_BASE_URL", problems);
+    const inherited = chat ? inheritedEmbeddingsUrl(chat) : null;
+    const baseUrl = explicit === undefined ? null : (explicit ?? inherited);
+    const sameEndpoint = baseUrl !== null && baseUrl === inherited;
+    const apiKey = clean(env.AI_EMBEDDINGS_API_KEY) ?? (sameEndpoint ? (chat?.apiKey ?? null) : null);
+    const dimensions = clean(env.AI_EMBEDDINGS_DIMENSIONS) ? positive(env, "AI_EMBEDDINGS_DIMENSIONS", 0, problems) || null : null;
+    if (!baseUrl) {
+      if (explicit !== undefined) problems.push("AI_EMBEDDINGS_BASE_URL is required for embeddings with this AI_PROVIDER");
+    } else embeddings = { model: embeddingModel, baseUrl, apiKey, dimensions };
+  }
+
+  return { chat, embeddings, limits, problems };
+}
+
+/**
+ * The chat provider's OpenAI-compatible API root, where embeddings go by default: the configured
+ * server for local and compatible providers, OpenAI's (or its override) and Google's compatible
+ * endpoint. Anthropic has no embeddings API.
+ */
+function inheritedEmbeddingsUrl(chat: AiChatConfig): string | null {
+  switch (chat.provider) {
+    case "openai":
+      return chat.baseUrl ?? HOSTED_EMBEDDING_URLS.openai!;
+    case "google":
+      return HOSTED_EMBEDDING_URLS.google!;
+    case "anthropic":
+      return null;
+    default:
+      return chat.baseUrl;
+  }
+}
+
+/** One line for the startup log; never includes keys. */
+export function describeAiConfig(config: AiConfig): string {
+  const parts: string[] = [];
+  if (config.chat) {
+    const where = config.chat.baseUrl ? ` at ${config.chat.baseUrl}` : "";
+    parts.push(`AI: ${config.chat.provider} ${config.chat.model}${where}`);
+  } else {
+    parts.push("AI: off");
+  }
+  if (config.embeddings) parts.push(`embeddings: ${config.embeddings.model} at ${config.embeddings.baseUrl}`);
+  if (config.problems.length) parts.push(`(${config.problems.join("; ")})`);
+  return parts.join(", ");
+}

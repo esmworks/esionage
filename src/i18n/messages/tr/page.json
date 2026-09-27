@@ -88,7 +88,8 @@
       "beforeRestore": "Geri yüklemeden önce",
       "manual": "Kaydedilen sürüm",
       "beforeAiEdit": "Yapay zekâ düzenlemesinden önce",
-      "beforeAiEditBy": "{client} düzenlemesinden önce"
+      "beforeAiEditBy": "{client} düzenlemesinden önce",
+      "beforeAssistantEdit": "Yapay zekâ asistanı düzenlemesinden önce"
     },
     "empty": "Henüz sürüm yok. Siz düzenlerken ve bir yapay zekâ uygulaması bu sayfayı değiştirmeden önce sürümler otomatik olarak kaydedilir.",
     "restore": "Bu sürümü geri yükle",

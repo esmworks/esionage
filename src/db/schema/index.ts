@@ -6,3 +6,4 @@ export * from "./notifications";
 export * from "./files";
 export * from "./mentions";
 export * from "./api-tokens";
+export * from "./ai";

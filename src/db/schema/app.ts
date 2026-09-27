@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import type { AiAutofillConfig } from "../../lib/ai";
 import type { AggregateFn, RollupDisplay, RollupFn } from "../../lib/aggregate";
 import type { FormulaResultType } from "../../lib/formula/types";
 import { PROPERTY_TYPES, type PropertyType, type StatusGroup } from "../../lib/property-types";
@@ -49,6 +50,11 @@ export type WorkspaceSettings = {
    * the workspace in the app. Doesn't apply to connected apps (MCP), which use their own tokens.
    */
   requireTwoFactor: boolean;
+  /**
+   * The AI writing assistant and AI autofill properties, when the server has an AI provider (see
+   * server/ai). Owners can turn them off so no page content of the workspace goes to the provider.
+   */
+  ai: boolean;
 };
 
 export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
@@ -56,6 +62,7 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   guestPrivatePages: false,
   publishing: "members",
   requireTwoFactor: false,
+  ai: true,
 };
 
 export const workspace = pgTable("workspace", {
@@ -202,6 +209,8 @@ export type PropertyOptions = {
   relation?: RelationConfig;
   formula?: FormulaConfig;
   rollup?: RollupConfig;
+  /** Text properties: AI autofill (see lib/ai and server/ai-properties). */
+  ai?: AiAutofillConfig;
 };
 
 export const databaseProperty = pgTable(
@@ -353,7 +362,8 @@ export const databaseView = pgTable(
   (t) => [index("database_view_db_idx").on(t.databaseId)],
 );
 
-export type SnapshotReason = "auto" | "before_mcp_write" | "before_restore" | "manual";
+/** `before_ai_edit`: saved before the editor's AI writing assistant applied a suggestion. */
+export type SnapshotReason = "auto" | "before_mcp_write" | "before_restore" | "before_ai_edit" | "manual";
 
 export const pageSnapshot = pgTable(
   "page_snapshot",

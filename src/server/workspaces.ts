@@ -737,6 +737,7 @@ const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettin
   guestPrivatePages: [false, true],
   publishing: ["owners", "members"],
   requireTwoFactor: [false, true],
+  ai: [true, false],
 };
 
 /**

@@ -88,7 +88,8 @@
       "beforeRestore": "Before restore",
       "manual": "Saved version",
       "beforeAiEdit": "Before AI edit",
-      "beforeAiEditBy": "Before edit by {client}"
+      "beforeAiEditBy": "Before edit by {client}",
+      "beforeAssistantEdit": "Before AI assistant edit"
     },
     "empty": "No versions yet. Versions are saved automatically while you edit and before any AI app changes this page.",
     "restore": "Restore this version",

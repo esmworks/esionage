@@ -25,6 +25,7 @@
     "@blocknote/mantine": "^0.55.0",
     "@blocknote/react": "^0.55.0",
     "@blocknote/server-util": "^0.55.0",
+    "@earendil-works/pi-ai": "0.87.1",
     "@hocuspocus/provider": "^4.7.0",
     "@hocuspocus/server": "^4.7.0",
     "@mantine/core": "^9.6.2",
