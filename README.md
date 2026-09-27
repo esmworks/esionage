@@ -7,8 +7,9 @@ approve them over OAuth.
 ## Features
 
 - **Pages**: nested pages, a block editor (BlockNote) with slash menu and markdown shortcuts,
-  icons, favorites, duplicate, move, trash with restore, export as Markdown, and full-text search
-  over titles and content.
+  icons, favorites, duplicate, move, trash with restore, export as Markdown (or, with subpages, as
+  a ZIP; owners can export the whole workspace, see [Export](#export)), and full-text search over
+  titles and content.
 - **Rich blocks**: callouts, LaTeX equations (block and inline, KaTeX), Mermaid diagrams with a
   live preview, a table of contents and a breadcrumb, also on published pages and in Markdown.
 - **Web bookmarks and embeds**: link cards with the page's title, description and image (fetched
@@ -144,6 +145,39 @@ published page showing it. Only raster images, video,
 audio and PDF open in the browser; everything else, SVG included, is downloaded. When a page is
 deleted for good, its files go once no other page shows them, and uploads no page ever used are
 removed after a day.
+
+## Export
+
+The page menu exports a page as Markdown or a database as CSV. "Export with subpages" (for a
+database, "Export with row pages") downloads a ZIP of the page and everything under it; owners
+can download the whole workspace from Settings → General → Export. The archive mirrors the
+sidebar:
+
+```
+Project.md              a page, and a folder of the same name for its subpages
+Project/
+  Tasks.csv             a database as CSV, its row pages in a folder beside it
+  Tasks/
+    Write docs.md       a row page lists its properties under its title
+    Templates/          the database's row templates
+Templates/              workspace templates (whole-workspace exports only)
+files/                  uploaded files the exported pages and rows show
+```
+
+Names come from titles, made safe for every file system and unique within their folder. Links
+between exported pages and to uploaded files point into the archive (relative paths), so the
+Markdown can be opened in an editor such as Obsidian; links to pages that aren't in it point at
+the app. An export holds only what the person exporting can see: pages they can't open are left
+out and links to them say "No access". Pages in the trash are left out; exporting a page from the
+trash brings the subpages trashed with it.
+
+The ZIP is streamed while it is built, one download at a time per person. Larger exports are
+refused up front with a message:
+
+| Variable | Meaning |
+| --- | --- |
+| `EXPORT_MAX_PAGES` | Most pages (rows and templates included) one export may hold. Default `10000`. |
+| `EXPORT_MAX_FILES_MB` | Most MB of uploaded files one export may hold. Default `2048` (at most about 3.5 GB). |
 
 ## Email
 

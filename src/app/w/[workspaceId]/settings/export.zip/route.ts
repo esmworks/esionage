@@ -1,0 +1,44 @@
+import { AccessError } from "@/server/access";
+import {
+  archiveResponse,
+  ExportError,
+  exportErrorResponse,
+  exportRunning,
+  planExport,
+  planSummary,
+  startExport,
+} from "@/server/export";
+import { exportLabels } from "@/server/export-labels";
+import { getSession } from "@/server/session";
+
+/**
+ * The whole workspace as a ZIP of Markdown, CSV and uploaded files (see server/export), for owners;
+ * anyone else gets 404 so the workspace's existence doesn't leak. Holds the pages the owner can
+ * view. `?check=1` only answers whether the export can be made (JSON), for the settings page.
+ */
+export async function GET(request: Request, { params }: { params: Promise<{ workspaceId: string }> }) {
+  const session = await getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  const userId = session.user.id;
+  const { workspaceId } = await params;
+  try {
+    const labels = await exportLabels();
+    if (new URL(request.url).searchParams.get("check") === "1") {
+      if (exportRunning(userId)) throw new ExportError("busy");
+      return Response.json(planSummary(await planExport(userId, { workspaceId }, labels)), { headers: { "Cache-Control": "no-store" } });
+    }
+    const release = startExport(userId);
+    try {
+      const plan = await planExport(userId, { workspaceId }, labels);
+      plan.title = `${plan.title} ${new Date().toISOString().slice(0, 10)}`;
+      return archiveResponse(userId, plan, labels, release);
+    } catch (error) {
+      release();
+      throw error;
+    }
+  } catch (error) {
+    if (error instanceof AccessError) return new Response("Not found", { status: 404 });
+    if (error instanceof ExportError) return exportErrorResponse(error);
+    throw error;
+  }
+}

@@ -18,5 +18,11 @@
     "description": "This page couldn't be shown, or your last change didn't go through.",
     "retry": "Try again",
     "home": "Go to home"
+  },
+  "export": {
+    "failed": "Couldn’t start the export. Try again.",
+    "tooManyPages": "This is too much to export at once: exports hold at most {limit} pages. Export a smaller part of the workspace.",
+    "tooLarge": "The files in this export add up to more than {size}. Export a smaller part of the workspace.",
+    "busy": "You already have an export running. Wait for its download to finish."
   }
 }

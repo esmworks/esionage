@@ -1,31 +1,28 @@
-import { getTranslations } from "next-intl/server";
-import { toCsv } from "@/lib/csv";
-import { isErrorValue } from "@/lib/derived";
-import { env } from "@/lib/env";
-import { asFiles } from "@/lib/files";
-import { mapReferenceLines, markdownReferences } from "@/lib/embed-blocks";
 import { pageLabel } from "@/lib/labels";
-import { asChecklist, displayValue } from "@/lib/properties";
-import { holdsPeople } from "@/lib/property-types";
 import { AccessError } from "@/server/access";
-import { getCollab } from "@/server/collab/bridge";
-import { getDatabaseSnapshot, MAX_BULK_ROWS } from "@/server/databases";
-import { resolveEmbeds } from "@/server/embeds";
-import { labelPageLinks } from "@/server/mentions";
+import { MAX_BULK_ROWS } from "@/server/databases";
+import {
+  archiveResponse,
+  attachment,
+  databaseCsv,
+  ExportError,
+  exportErrorResponse,
+  exportRunning,
+  markdownFile,
+  pageMarkdown,
+  planExport,
+  planSummary,
+  startExport,
+} from "@/server/export";
+import { exportLabels } from "@/server/export-labels";
 import { getPage } from "@/server/pages";
 import { getSession } from "@/server/session";
-
-/** A file name without characters that trip up file systems or the Content-Disposition header. */
-function fileName(title: string, extension: string) {
-  const base = title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "Untitled";
-  return `filename="${base.replace(/[^\x20-\x7e]/g, "_")}.${extension}"; filename*=UTF-8''${encodeURIComponent(base)}.${extension}`;
-}
 
 function download(body: string, type: string, disposition: string) {
   return new Response(body, {
     headers: {
       "Content-Type": `${type}; charset=utf-8`,
-      "Content-Disposition": `attachment; ${disposition}`,
+      "Content-Disposition": disposition,
       "Cache-Control": "no-store",
     },
   });
@@ -44,89 +41,45 @@ async function requestedRows(request: Request): Promise<string[] | null> {
 
 /**
  * A page as Markdown, or a database's rows as CSV (all of them, or with POST the selected ones).
- * Pages the user can't see are 404.
+ * With `?subpages=1`, the page or database with everything under it as a ZIP (see server/export);
+ * adding `check=1` only answers whether that export can be made (JSON), so the page menu can say
+ * why not before starting a download. Pages the user can't see are 404.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ pageId: string }> }) {
   const session = await getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
+  const userId = session.user.id;
   const { pageId } = await params;
+  const query = new URL(request.url).searchParams;
   try {
-    const target = await getPage(session.user.id, pageId);
-    const only = await requestedRows(request);
-    if (target.kind === "database") {
-      const snapshot = await getDatabaseSnapshot(session.user.id, pageId);
-      const byId = new Map(snapshot.rows.map((row) => [row.id, row]));
-      const rows = only ? only.flatMap((id) => byId.get(id) ?? []) : snapshot.rows;
-      const titleOf = new Map(
-        Object.values(snapshot.relations).flatMap((r) => r.rows.map((row) => [row.id, row.title] as const)),
-      );
-      // A relation to the same database would otherwise print ids for its trashed rows.
-      if (target.archivedAt) for (const row of rows) if (!titleOf.has(row.id)) titleOf.set(row.id, row.title);
-      const nameOf = new Map(snapshot.people.map((p) => [p.id, p.name] as const));
-      const cell = (value: unknown, names: Map<string, string>): string | number | null => {
-        if (value === null || value === undefined || value === "") return null;
-        if (Array.isArray(value)) return value.map((v) => names.get(String(v)) ?? String(v)).join(", ");
-        if (typeof value === "boolean") return value ? "true" : "false";
-        return typeof value === "number" ? value : String(value);
-      };
-      // One line per checklist item, "[x] Done thing" / "[ ] Open thing".
-      const checklist = (value: unknown) =>
-        asChecklist(value)
-          .map((item) => `[${item.checked ? "x" : " "}] ${item.text}`)
-          .join("\n") || null;
-      // One line per file, "photo.png (https://…/api/files/…)": the link opens for people who can see the row.
-      const files = (value: unknown) =>
-        asFiles(value)
-          .map((f) => `${f.name} (${env.appUrl}${f.url})`)
-          .join("\n") || null;
-      const csv = toCsv([
-        ["Name", ...snapshot.properties.map((p) => p.name)],
-        ...rows.map((row) => [
-          row.title,
-          ...snapshot.properties.map((p) => {
-            const value = row.properties[p.id];
-            // A formula that fails on this row says why.
-            if (isErrorValue(value)) return `#ERROR: ${value.error.message}`;
-            if (p.type === "files") return files(value);
-            return p.type === "checklist"
-              ? checklist(value)
-              : cell(displayValue(p, value), holdsPeople(p.type) ? nameOf : titleOf);
-          }),
-        ]),
-      ]);
-      return download(csv, "text/csv", fileName(target.title, "csv"));
+    const labels = await exportLabels();
+    if (request.method === "GET" && query.get("subpages") === "1") {
+      if (query.get("check") === "1") {
+        if (exportRunning(userId)) throw new ExportError("busy");
+        return Response.json(planSummary(await planExport(userId, { pageId }, labels)), { headers: { "Cache-Control": "no-store" } });
+      }
+      const release = startExport(userId);
+      try {
+        return archiveResponse(userId, await planExport(userId, { pageId }, labels), labels, release);
+      } catch (error) {
+        release();
+        throw error;
+      }
     }
-    const content = await getCollab().readPage(pageId);
-    const title = content.title || target.title;
-    const body = await linkEmbeds(session.user.id, await labelLinks(session.user.id, content.markdown.trim()));
-    const markdown = `${title ? `# ${title}\n\n` : ""}${body}\n`;
-    return download(markdown, "text/markdown", fileName(title, "md"));
+
+    const target = await getPage(userId, pageId);
+    if (target.kind === "database") {
+      const { title, csv } = await databaseCsv(userId, pageId, await requestedRows(request));
+      return download(csv, "text/csv", attachment(title, "csv"));
+    }
+    const { title, body } = await pageMarkdown(userId, pageId, labels);
+    const name = title || target.title;
+    return download(markdownFile(name, body), "text/markdown", attachment(pageLabel(name, labels.untitled), "md"));
   } catch (error) {
     if (error instanceof AccessError) return new Response("Not found", { status: 404 });
+    if (error instanceof ExportError) return exportErrorResponse(error);
     throw error;
   }
-}
-
-/**
- * Database blocks as links to their database, for readers who can see it; a note otherwise, which
- * names nothing (see lib/embed-blocks).
- */
-async function linkEmbeds(userId: string, markdown: string) {
-  const embeds = await resolveEmbeds(userId, markdownReferences(markdown));
-  if (!embeds.length) return markdown;
-  const [t, tc] = await Promise.all([getTranslations("page.embed"), getTranslations("common")]);
-  const byId = new Map(embeds.map((e) => [e.databaseId, e.database]));
-  return mapReferenceLines(markdown, (ref) => {
-    const database = byId.get(ref.databaseId);
-    if (!database) return `*${t("unavailable")}*`;
-    return `[${pageLabel(database.title, tc("untitled")).replace(/[[\]]/g, "\\$&")}](/w/${database.workspaceId}/p/${database.id})`;
-  });
-}
-
-/** Mentioned and linked pages under their current title, as far as the reader can see them. */
-async function labelLinks(userId: string, markdown: string) {
-  const [t, tc] = await Promise.all([getTranslations("page.mention"), getTranslations("common")]);
-  return labelPageLinks(userId, markdown, { untitled: tc("untitled"), noAccess: t("noAccess"), deleted: t("deleted") });
 }
 
 /** Exports the selected rows of a database: a POST, since a large selection would not fit in a URL. */

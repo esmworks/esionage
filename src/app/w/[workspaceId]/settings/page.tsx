@@ -14,6 +14,7 @@ import { PublicForms } from "@/components/settings/public-forms";
 import { PublishedPages } from "@/components/settings/published-pages";
 import { GuestInviteSetting, GuestPrivatePagesSetting, PublishingSetting } from "@/components/settings/security-settings";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
+import { WorkspaceExport } from "@/components/settings/workspace-export";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
 import { AccessError, isGuest } from "@/server/access";
@@ -116,6 +117,12 @@ export default async function SettingsPage({
               <SettingsGroup title={t("workspace.heading")}>
                 <WorkspaceNameForm workspaceId={workspaceId} name={workspace.name} canEdit={isOwner} />
               </SettingsGroup>
+              {/* Exporting everything is for owners, like the members list download. */}
+              {isOwner && (
+                <SettingsGroup title={t("export.heading")} className="mt-10">
+                  <WorkspaceExport workspaceId={workspaceId} />
+                </SettingsGroup>
+              )}
             </>
           )}
           {tab === "members" && <MembersTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
