@@ -67,6 +67,7 @@ export default function CollabEditor({
   crumbs,
   commentsOpen,
   onCloseComments,
+  offline = false,
 }: {
   pageDoc: PageDoc;
   user: { id: string; name: string };
@@ -83,6 +84,8 @@ export default function CollabEditor({
   crumbs: TrailCrumb[];
   commentsOpen: boolean;
   onCloseComments: () => void;
+  /** The server can't be reached: typing works, commenting (a server action) doesn't. */
+  offline?: boolean;
 }) {
   const locale = useLocale();
   const tc = useTranslations("common");
@@ -190,7 +193,7 @@ export default function CollabEditor({
             <FormattingToolbarController
               formattingToolbar={() => (
                 <FormattingToolbar>
-                  {getFormattingToolbarItems().filter((item) => canComment || item.key !== "addCommentButton")}
+                  {getFormattingToolbarItems().filter((item) => (canComment && !offline) || item.key !== "addCommentButton")}
                 </FormattingToolbar>
               )}
             />

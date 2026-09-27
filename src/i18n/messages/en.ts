@@ -14,7 +14,8 @@ import imports from "./en/import.json";
 import security from "./en/security.json";
 import apiTokens from "./en/apiTokens.json";
 import account from "./en/account.json";
+import offline from "./en/offline.json";
 
-const messages = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish, form, import: imports, security, apiTokens, account };
+const messages = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish, form, import: imports, security, apiTokens, account, offline };
 
 export default messages;

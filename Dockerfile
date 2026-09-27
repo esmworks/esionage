@@ -23,6 +23,8 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/.next ./.next
 COPY next.config.ts tsconfig.json server.ts ./
 COPY src ./src
+# Service worker and app icons (installable app, offline copies).
+COPY public ./public
 COPY drizzle ./drizzle
 COPY scripts/migrate.ts scripts/send-test-email.ts ./scripts/
 # Uploaded files (local storage). Mount a volume here; see docker-compose.yml.

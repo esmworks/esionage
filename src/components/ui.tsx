@@ -135,19 +135,26 @@ export function MenuItem({
   onClick,
   danger,
   active,
+  disabled,
+  title,
 }: {
   icon?: ReactNode;
   children: ReactNode;
   onClick?: () => void;
   danger?: boolean;
   active?: boolean;
+  disabled?: boolean;
+  /** Tooltip, e.g. why the item is disabled. */
+  title?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
+      title={title}
       className={cn(
-        "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover",
+        "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent",
         danger && "text-danger",
         active && "bg-bg-hover",
       )}

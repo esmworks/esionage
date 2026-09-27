@@ -13,7 +13,8 @@ import { markdownImageHint, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { migrateDocTitle, readDocTitle, writeDocTitle } from "@/lib/collab-title";
 import { requestLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
-import { AccessError } from "@/server/access";
+import { COLLAB_FORBIDDEN, COLLAB_TWO_STEP, COLLAB_UNAUTHORIZED } from "@/lib/offline";
+import { AccessError, TwoFactorRequiredError } from "@/server/access";
 import { sessionPassesTwoFactor } from "@/server/account-security";
 import { blocksToMarkdown, markdownToBlocks, serverEditor as editor } from "@/server/blocknote";
 import { mentionablePeople, syncPageReferences } from "@/server/mentions";
@@ -42,6 +43,9 @@ const AUTO_SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
 const debug = process.env.COLLAB_DEBUG ? (...args: unknown[]) => console.log("[collab]", ...args) : () => {};
 
 const pageDocName = (pageId: string) => `page:${pageId}`;
+
+/** A refused connection; Hocuspocus sends `reason` to the browser with the "permission denied" answer. */
+const refusal = (reason: string) => Object.assign(new Error(reason), { reason });
 
 const readTitle = readDocTitle;
 
@@ -228,7 +232,8 @@ export function createCollab() {
     async onAuthenticate({ token, documentName, connectionConfig, requestHeaders }) {
       const user = verifyCollabToken(token);
       const target = parseName(documentName);
-      if (!user || !target) throw new Error("unauthorized");
+      if (!user) throw refusal(COLLAB_UNAUTHORIZED);
+      if (!target) throw refusal(COLLAB_FORBIDDEN);
       try {
         const strong = await sessionPassesTwoFactor(user.sessionId, user.userId);
         // People who may only read get the live document but their edits are dropped.
@@ -243,7 +248,9 @@ export function createCollab() {
           strong,
         } satisfies Context;
       } catch (error) {
-        if (error instanceof AccessError) throw new Error("forbidden");
+        // Browsers drop their offline copy of a page only for "forbidden" (see components/collab/socket).
+        if (error instanceof TwoFactorRequiredError) throw refusal(COLLAB_TWO_STEP);
+        if (error instanceof AccessError) throw refusal(COLLAB_FORBIDDEN);
         throw error;
       }
     },

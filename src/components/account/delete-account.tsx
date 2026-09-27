@@ -7,6 +7,7 @@ import { SettingsRow } from "@/components/settings/section";
 import { Button, Dialog, Input } from "@/components/ui";
 import type { DeletionPlan } from "@/lib/account";
 import { canProve, ProofFields, proofFrom, type ProofSetup } from "./proof-fields";
+import { wipeAllOfflineData } from "@/components/offline/offline-store";
 
 /**
  * Account > Profile > Delete account. The dialog says what happens to each workspace; while the
@@ -77,7 +78,9 @@ function DeleteDialog({ email, plan, proof, onClose }: { email: string; plan: De
             startTransition(async () => {
               const result = await deleteAccountAction({ confirmation: typed, proof: proofFrom(form) }).catch(() => null);
               if (!result?.ok) return setError(result?.error ?? tc("genericError"));
-              // A full load: every cached page belonged to the account that is gone.
+              // A full load: every cached page belonged to the account that is gone, and so did the
+              // offline copies.
+              await wipeAllOfflineData();
               window.location.href = "/sign-in";
             });
           }}

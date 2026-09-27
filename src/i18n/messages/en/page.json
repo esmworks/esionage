@@ -69,11 +69,16 @@
     "connecting": "Connecting",
     "offline": "Offline",
     "reconnecting": "Reconnecting",
-    "noAccess": "No access"
+    "noAccess": "No access",
+    "syncing": "Syncing…",
+    "synced": "Synced",
+    "offlinePending": "Offline · edits kept here",
+    "offlineHint": "You're offline. Keep editing: changes are saved in this browser and sync when the connection is back."
   },
   "errors": {
     "accessLost": "You no longer have access to this page.",
-    "connectionFailed": "Couldn't connect to live editing. Trying again…"
+    "connectionFailed": "Couldn't connect to live editing. Trying again…",
+    "notAvailableOffline": "This page isn't saved on this device yet. Open it once while online to use it offline."
   },
   "history": {
     "title": "Page history",

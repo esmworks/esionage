@@ -8,6 +8,7 @@ import { addPasskey, usePasskeySupport } from "@/components/security/passkeys";
 import { TwoFactorSetupFlow, useSecurityError } from "@/components/security/two-factor";
 import { Button } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
+import { wipeAllOfflineData } from "@/components/offline/offline-store";
 
 export function TwoStepGate({
   workspaceId,
@@ -90,6 +91,7 @@ export function TwoStepGate({
           className="text-accent hover:underline"
           onClick={async () => {
             await authClient.signOut();
+            await wipeAllOfflineData();
             window.location.assign("/sign-in");
           }}
         >

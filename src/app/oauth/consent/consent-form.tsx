@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
+import { wipeAllOfflineData } from "@/components/offline/offline-store";
 
 type ScopeItem = { scope: string; label: string };
 
@@ -60,6 +61,7 @@ export function ConsentForm({
   async function switchAccount() {
     setPending("switch");
     await authClient.signOut();
+    await wipeAllOfflineData();
     window.location.href = `/sign-in${window.location.search}`;
   }
 
