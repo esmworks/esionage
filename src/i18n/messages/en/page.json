@@ -120,10 +120,11 @@
   "move": {
     "title": "Move to",
     "search": "Search pages…",
-    "root": "Top of the workspace",
-    "rootHint": "Becomes a top-level page in the sidebar",
     "empty": "No matching pages.",
-    "failed": "Couldn't move the page there."
+    "failed": "Couldn't move the page there.",
+    "teamspaceHint": "Top of this teamspace: its members get access",
+    "private": "Private",
+    "privateHint": "Top of your private pages: only people it's shared with get access"
   },
   "share": {
     "tabShare": "Share",
@@ -147,6 +148,9 @@
     "generalAccess": "General access",
     "everyone": "Everyone in the workspace",
     "everyoneHint": "Members get at least this much access, whatever you give them individually. Set it to \"No access\" to open the page only to the people you add.",
+    "everyoneIn": "Everyone in {name}",
+    "everyoneTeamspace": "Everyone in the teamspace",
+    "everyoneTeamspaceHint": "Members of the teamspace get at least this much access, whatever you give them individually. Set it to \"No access\" to open the page only to the people you add.",
     "readOnly": "Only people with full access can change sharing.",
     "copyLink": "Copy link",
     "copied": "Copied",

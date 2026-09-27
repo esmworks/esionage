@@ -5,6 +5,7 @@ import { isDatabaseErrorCode, PropertyValueError } from "@/lib/properties";
 import { builtinTemplates, type BuiltinTemplateKey } from "@/lib/builtin-templates";
 import { AccessError, hasLevel } from "@/server/access";
 import { requireUserId } from "@/server/session";
+import { TeamspaceError } from "@/server/teamspaces";
 import * as templates from "@/server/templates";
 
 export type TemplateResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -18,6 +19,7 @@ async function run<T>(label: string, fn: (userId: string) => Promise<T>): Promis
     const t = await getTranslations();
     const { code, params } = error as { code?: unknown; params?: Record<string, string> };
     if (error instanceof Error && isDatabaseErrorCode(code)) return { ok: false, error: t(`database.errors.${code}`, params ?? {}) };
+    if (error instanceof TeamspaceError) return { ok: false, error: t(`teamspaces.errors.${error.code}`) };
     if (error instanceof AccessError) return { ok: false, error: t("database.errors.accessDenied") };
     if (!(error instanceof PropertyValueError)) console.error(`[${label}]`, error);
     return { ok: false, error: t("common.genericError") };
@@ -47,17 +49,23 @@ export async function listTemplatesAction(workspaceId: string) {
   });
 }
 
-export async function createFromTemplateAction(templateId: string, parentId: string | null = null) {
+/** `teamspaceId` (top level): a teamspace, null for a private page, undefined for the default teamspace. */
+export async function createFromTemplateAction(templateId: string, parentId: string | null = null, teamspaceId?: string | null) {
   return run("new page from template", async (userId) => {
-    const created = await templates.createFromTemplate({ userId }, templateId, { parentId });
+    const created = await templates.createFromTemplate({ userId }, templateId, { parentId, teamspaceId });
     return { id: created.id, workspaceId: created.workspaceId };
   });
 }
 
-export async function createFromBuiltinAction(workspaceId: string, key: BuiltinTemplateKey, parentId: string | null = null) {
+export async function createFromBuiltinAction(
+  workspaceId: string,
+  key: BuiltinTemplateKey,
+  parentId: string | null = null,
+  teamspaceId?: string | null,
+) {
   return run("new page from built-in template", async (userId) => {
     const locale = await getLocale();
-    return templates.createFromBuiltin({ userId }, workspaceId, key, { locale, parentId });
+    return templates.createFromBuiltin({ userId }, workspaceId, key, { locale, parentId, teamspaceId });
   });
 }
 

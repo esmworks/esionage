@@ -7,8 +7,9 @@ import { USER_MARKER } from "@/lib/offline";
 import { parseSidebarCookie, SIDEBAR_COOKIE } from "@/lib/sidebar-layout";
 import { getMembership } from "@/server/access";
 import { listFavorites } from "@/server/page-meta";
-import { getTree, listWorkspaces } from "@/server/pages";
+import { getSidebar, listWorkspaces } from "@/server/pages";
 import { requireSession, requireWorkspaceSession } from "@/server/session";
+import { canCreateTeamspace } from "@/server/teamspaces";
 import { topLevelAccess } from "@/server/workspaces";
 
 export default async function WorkspaceLayout({
@@ -24,11 +25,12 @@ export default async function WorkspaceLayout({
   // redirects members, so outsiders don't learn the workspace exists.
   await requireWorkspaceSession(workspaceId);
   if (!(await getMembership(user.id, workspaceId))) notFound();
-  const [workspaces, tree, favorites, topLevel, cookieStore] = await Promise.all([
+  const [workspaces, sidebar, favorites, topLevel, canCreate, cookieStore] = await Promise.all([
     listWorkspaces(user.id),
-    getTree(user.id, workspaceId),
+    getSidebar(user.id, workspaceId),
     listFavorites(user.id, workspaceId),
     topLevelAccess(user.id, workspaceId),
+    canCreateTeamspace(user.id, workspaceId),
     cookies(),
   ]);
 
@@ -41,7 +43,9 @@ export default async function WorkspaceLayout({
           <Sidebar
             workspaceId={workspaceId}
             workspaces={workspaces}
-            initialTree={tree}
+            initialTree={sidebar.tree}
+            initialTeamspaces={sidebar.teamspaces}
+            canCreateTeamspace={canCreate}
             initialFavorites={favorites}
             topLevel={topLevel}
             user={{ id: user.id, name: user.name, email: user.email, image: user.image ?? null }}

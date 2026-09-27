@@ -18,6 +18,7 @@ import { resolveEmbeds } from "@/server/embeds";
 import * as forms from "@/server/forms";
 import { labelPageLinks, listBacklinks } from "@/server/mentions";
 import * as pages from "@/server/pages";
+import * as teamspaces from "@/server/teamspaces";
 import * as templates from "@/server/templates";
 import { isBuiltinTemplateKey } from "@/lib/builtin-templates";
 import { pageUrl, sliceText, ToolInputError } from "./mcp/format";
@@ -117,6 +118,14 @@ export const inputs = {
   listPages: z.object({
     workspace_id: id("workspace"),
     parent_id: z.string().optional().describe("Parent page id. Omit for the workspace's top-level pages."),
+    teamspace_id: z
+      .string()
+      .optional()
+      .describe('Top level only: just this teamspace\'s pages (from list_teamspaces), or "private" for the user\'s private pages.'),
+  }),
+  listTeamspaces: z.object({
+    workspace_id: id("workspace"),
+    include_archived: z.boolean().default(false).describe("Also list archived teamspaces."),
   }),
   getPage: z.object({
     page_id: id("page"),
@@ -125,6 +134,12 @@ export const inputs = {
   createPage: z.object({
     workspace_id: z.string().optional().describe("Workspace for a top-level page. Ignored when parent_id is set."),
     parent_id: z.string().optional().describe("Page to nest the new page under."),
+    teamspace_id: z
+      .string()
+      .optional()
+      .describe(
+        'Top-level pages: the teamspace to add it to (from list_teamspaces; the user must be in it), or "private" (the default) for a page only the user sees. Ignored when parent_id is set.',
+      ),
     title: z
       .string()
       .min(1)
@@ -150,7 +165,11 @@ export const inputs = {
   pageId: z.object({ page_id: id("page") }),
   movePage: z.object({
     page_id: id("page"),
-    parent_id: z.string().min(1).nullable().describe("New parent page id, or null for the workspace's top level."),
+    parent_id: z.string().min(1).nullable().describe("New parent page id, or null for the top level."),
+    teamspace_id: z
+      .string()
+      .optional()
+      .describe('With parent_id null: the teamspace to move it to (from list_teamspaces), or "private". Ignored under a parent.'),
   }),
   databaseId: z.object({ database_id: id("database") }),
   queryDatabase: z.object({
@@ -238,17 +257,37 @@ export async function rowOutput(ctx: OperationContext, databaseId: string, rowId
   };
 }
 
-/** Where a new page goes: under `parentId` when given, else at the top of `workspaceId`. */
-export async function resolveLocation(ctx: OperationContext, workspaceId?: string, parentId?: string) {
+/**
+ * Where a new page goes: under `parentId` when given (in the parent's teamspace), else at the top
+ * of `workspaceId`, in the teamspace `teamspaceId` names (see spaceOf; private when missing). The
+ * workspace comes from the teamspace when only that is given.
+ */
+export async function resolveLocation(ctx: OperationContext, workspaceId?: string, parentId?: string, teamspaceId?: string) {
   if (parentId) {
     const parent = await pages.getPage(ctx.userId, parentId);
     if (parent.archivedAt) throw new ToolInputError("The parent page is in the trash. Choose another parent.");
-    return { workspaceId: parent.workspaceId, parentId, parentKind: parent.kind };
+    return { workspaceId: parent.workspaceId, parentId, parentKind: parent.kind, teamspaceId: undefined };
+  }
+  const space = spaceOf(teamspaceId);
+  if (!workspaceId && space) {
+    const teamspace = await teamspaces.getTeamspace(ctx.userId, space).catch(() => null);
+    if (!teamspace) throw new ToolInputError("Unknown teamspace_id. Call list_teamspaces for the ids.");
+    workspaceId = teamspace.workspaceId;
   }
   if (!workspaceId) {
     throw new ToolInputError("Provide workspace_id (to create at the top level) or parent_id (to nest under a page).");
   }
-  return { workspaceId, parentId: null, parentKind: null };
+  return { workspaceId, parentId: null, parentKind: null, teamspaceId: space ?? null };
+}
+
+/** A teamspace_id argument: an id, or "private" (null) for the user's private pages. */
+export const spaceOf = (value?: string | null) => (value === undefined || value === null ? undefined : value === "private" ? null : value);
+
+/** The teamspace a page is in, as outputs show it: its id and name, or null and "Private". */
+export async function teamspaceOf(ctx: OperationContext, teamspaceId: string | null) {
+  if (!teamspaceId) return { teamspace_id: null, teamspace: "Private" };
+  const label = await teamspaces.teamspaceLabel(ctx.userId, teamspaceId);
+  return { teamspace_id: teamspaceId, teamspace: label?.name ?? null };
 }
 
 // ---------------------------------------------------------------------------- operations
@@ -256,6 +295,26 @@ export async function resolveLocation(ctx: OperationContext, workspaceId?: strin
 export async function listWorkspaces(ctx: OperationContext) {
   const workspaces = await pages.listWorkspaces(ctx.userId);
   return { workspaces: workspaces.map((w) => ({ id: w.id, name: w.name, role: w.role })) };
+}
+
+export async function listTeamspaces(ctx: OperationContext, { workspace_id, include_archived }: Args<"listTeamspaces">) {
+  const list = await teamspaces.listTeamspaces(ctx.userId, workspace_id, { archived: include_archived ? "all" : "active" });
+  return {
+    teamspaces: list.map((t) => ({
+      id: t.id,
+      name: t.name,
+      icon: t.icon,
+      description: t.description || undefined,
+      access: t.access,
+      archived: Boolean(t.archivedAt),
+      member_count: t.memberCount,
+      owners: t.owners.map((o) => o.name),
+      joined: t.joined,
+      role: t.role,
+      can_add_pages: t.joined && !t.archivedAt,
+    })),
+    note: 'Pages outside every teamspace are private: create_page / move_page with teamspace_id "private".',
+  };
 }
 
 export async function search(ctx: OperationContext, { query, workspace_id, limit }: Args<"search">) {
@@ -266,6 +325,7 @@ export async function search(ctx: OperationContext, { query, workspace_id, limit
       title: pageLabel(h.title),
       kind: h.kind,
       workspace_id: h.workspaceId,
+      teamspace_id: h.teamspaceId,
       parent_id: h.parentId,
       snippet: h.snippet,
       updated_at: h.updatedAt.toISOString(),
@@ -274,14 +334,15 @@ export async function search(ctx: OperationContext, { query, workspace_id, limit
   };
 }
 
-export async function listPages(ctx: OperationContext, { workspace_id, parent_id }: Args<"listPages">) {
-  const children = await pages.listChildren(ctx.userId, workspace_id, parent_id ?? null);
+export async function listPages(ctx: OperationContext, { workspace_id, parent_id, teamspace_id }: Args<"listPages">) {
+  const children = await pages.listChildren(ctx.userId, workspace_id, parent_id ?? null, { teamspaceId: spaceOf(teamspace_id) });
   return {
     pages: children.map((c) => ({
       id: c.id,
       title: pageLabel(c.title),
       kind: c.kind,
       icon: c.icon,
+      teamspace_id: c.teamspaceId,
       updated_at: c.updatedAt.toISOString(),
       url: pageUrl(workspace_id, c.id),
     })),
@@ -310,6 +371,7 @@ export async function getPage(
     kind: page.kind,
     icon: page.icon,
     workspace_id: page.workspaceId,
+    ...(await teamspaceOf(ctx, page.teamspaceId)),
     // A parent they can't see stays unnamed, id included.
     parent_id: parent?.id ?? null,
     path: [workspace?.name ?? "Workspace", ...crumbs.map((c) => pageLabel(c.title))].join(" / "),
@@ -366,10 +428,10 @@ export async function getPage(
 
 export async function createPage(
   ctx: OperationContext,
-  { workspace_id, parent_id, title, markdown, icon, template_id }: Args<"createPage">,
+  { workspace_id, parent_id, teamspace_id, title, markdown, icon, template_id }: Args<"createPage">,
 ) {
   const { userId, actor } = ctx;
-  const location = await resolveLocation(ctx, workspace_id, parent_id);
+  const location = await resolveLocation(ctx, workspace_id, parent_id, teamspace_id);
   if (location.parentKind === "database") {
     throw new ToolInputError("parent_id is a database. Use create_database_row to add rows to it.");
   }
@@ -378,13 +440,15 @@ export async function createPage(
     if (template_id.startsWith("builtin:")) {
       const key = template_id.slice("builtin:".length);
       if (!isBuiltinTemplateKey(key)) throw new ToolInputError(`Unknown built-in template "${key}". Call list_templates for the keys.`);
-      createdId = (await templates.createFromBuiltin(actor, location.workspaceId, key, { parentId: location.parentId })).id;
+      createdId = (
+        await templates.createFromBuiltin(actor, location.workspaceId, key, { parentId: location.parentId, teamspaceId: location.teamspaceId })
+      ).id;
     } else {
       const template = await pages.getPage(userId, template_id);
       if (!template.isTemplate || template.parentId) {
         throw new ToolInputError("template_id is not a page template. Call list_templates; row templates go to create_database_row.");
       }
-      createdId = (await templates.createFromTemplate(actor, template_id, { parentId: location.parentId })).id;
+      createdId = (await templates.createFromTemplate(actor, template_id, { parentId: location.parentId, teamspaceId: location.teamspaceId })).id;
     }
     if (title !== undefined) await pages.renamePage(actor, createdId, title);
     if (icon !== undefined) await pages.setPageIcon(userId, createdId, icon);
@@ -394,6 +458,7 @@ export async function createPage(
       id: created.id,
       title: pageLabel(created.title),
       workspace_id: created.workspaceId,
+      ...(await teamspaceOf(ctx, created.teamspaceId)),
       parent_id: created.parentId,
       from_template: template_id,
       url: pageUrl(created.workspaceId, created.id),
@@ -403,6 +468,7 @@ export async function createPage(
   const created = await pages.createPage(actor, {
     workspaceId: location.workspaceId,
     parentId: location.parentId,
+    teamspaceId: location.teamspaceId,
     title,
     icon: icon ?? null,
     markdown,
@@ -411,6 +477,7 @@ export async function createPage(
     id: created.id,
     title: pageLabel(created.title),
     workspace_id: created.workspaceId,
+    ...(await teamspaceOf(ctx, created.teamspaceId)),
     parent_id: created.parentId,
     url: pageUrl(created.workspaceId, created.id),
   };
@@ -484,7 +551,7 @@ export async function restorePage(ctx: OperationContext, { page_id }: Args<"page
   };
 }
 
-export async function movePage(ctx: OperationContext, { page_id, parent_id }: Args<"movePage">) {
+export async function movePage(ctx: OperationContext, { page_id, parent_id, teamspace_id }: Args<"movePage">) {
   const { userId } = ctx;
   const { page, parentDatabase } = await loadPage(ctx, page_id);
   if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it with restore_page first.");
@@ -500,7 +567,11 @@ export async function movePage(ctx: OperationContext, { page_id, parent_id }: Ar
       throw new ToolInputError("A page cannot be moved inside itself or one of its sub-pages.");
     }
   }
-  if ((parent?.id ?? null) !== page.parentId) await pages.movePage(userId, page_id, parent?.id ?? null);
+  const space = parent ? undefined : spaceOf(teamspace_id);
+  if ((parent?.id ?? null) !== page.parentId || (space !== undefined && space !== page.teamspaceId)) {
+    await pages.movePage(userId, page_id, parent?.id ?? null, undefined, space);
+  }
+  const moved = await pages.getPage(userId, page_id).catch(() => null);
   const note =
     parent?.kind === "database" && parentDatabase?.id !== parent.id
       ? "The page is now a row of this database; set its properties with update_database_row."
@@ -511,6 +582,7 @@ export async function movePage(ctx: OperationContext, { page_id, parent_id }: Ar
     id: page.id,
     title: pageLabel(page.title),
     parent_id: parent?.id ?? null,
+    ...(moved ? await teamspaceOf(ctx, moved.teamspaceId) : {}),
     ...(note ? { note } : {}),
     url: pageUrl(page.workspaceId, page.id),
   };

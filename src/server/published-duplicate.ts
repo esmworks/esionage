@@ -315,7 +315,8 @@ export async function duplicatePublishedPage(
       for (const { id, source } of copiedFiles) {
         await tx.update(file).set({ pageId: firstShownOn.get(source.id) ?? plan.rootId }).where(eq(file.id, id));
       }
-      if (topLevel === "private") await makePagePrivate(tx, target, plan.rootId, userId);
+      // A copy from the web lands among their private pages; they move it to a teamspace to share it.
+      await makePagePrivate(tx, target, plan.rootId, userId);
       if (plan.properties.length) {
         await tx.insert(databaseProperty).values(
           plan.properties.map(({ id, databaseId, name, type, options, position }) => ({ id, databaseId, name, type, options, position })),

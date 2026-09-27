@@ -505,6 +505,32 @@ export function createCollab() {
         }
       }
     },
+
+    async disconnectTeamspace(teamspaceId, userIds) {
+      const who = userIds && new Set(userIds);
+      const matches = (context: Context) => context.userId !== undefined && (!who || who.has(context.userId));
+      const open = [...hocuspocus.documents.values()].filter((doc) => doc.getConnections().some((c) => matches(c.context as Context)));
+      const pageIds = open.flatMap((doc) => {
+        const target = parseName(doc.name);
+        return target && target.kind !== "ws" ? [target.id] : [];
+      });
+      if (!pageIds.length) return;
+      const inTeamspace = new Set(
+        (
+          await db
+            .select({ id: page.id })
+            .from(page)
+            .where(and(eq(page.teamspaceId, teamspaceId), inArray(page.id, pageIds)))
+        ).map((r) => r.id),
+      );
+      for (const doc of open) {
+        const target = parseName(doc.name);
+        if (!target || target.kind === "ws" || !inTeamspace.has(target.id)) continue;
+        for (const connection of doc.getConnections()) {
+          if (matches(connection.context as Context)) connection.close({ code: 4403, reason: "Forbidden" });
+        }
+      }
+    },
   };
 
   /** Closes the connections to the workspace's documents (signals, pages, databases) that match. */

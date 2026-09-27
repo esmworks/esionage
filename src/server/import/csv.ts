@@ -145,6 +145,8 @@ export type NewDatabaseInput = {
   workspaceId: string;
   /** The page the database goes under; null for the top level. */
   parentId: string | null;
+  /** At the top level: the teamspace, null for a private database, undefined for the default teamspace. */
+  teamspaceId?: string | null;
   title: string;
   table: CsvTable;
   /** The column that becomes the rows' titles; null for untitled rows. */
@@ -172,6 +174,7 @@ export async function importCsvAsDatabase(actor: WriteActor, input: NewDatabaseI
   const database = await createPage(actor, {
     workspaceId: input.workspaceId,
     parentId: input.parentId,
+    teamspaceId: input.teamspaceId,
     kind: "database",
     title: input.title,
     seedNames: input.seedNames,

@@ -1,14 +1,17 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   customType,
   doublePrecision,
+  foreignKey,
   index,
   jsonb,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -49,6 +52,8 @@ export type WorkspaceSettings = {
    * the workspace in the app. Doesn't apply to connected apps (MCP), which use their own tokens.
    */
   requireTwoFactor: boolean;
+  /** Who may create teamspaces. Guests never can. */
+  teamspaceCreation: "owners" | "members";
 };
 
 export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
@@ -56,6 +61,7 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   guestPrivatePages: false,
   publishing: "members",
   requireTwoFactor: false,
+  teamspaceCreation: "members",
 };
 
 export const workspace = pgTable("workspace", {
@@ -112,6 +118,66 @@ export const workspaceInvitation = pgTable(
   (t) => [uniqueIndex("workspace_invitation_email_idx").on(t.workspaceId, t.email)],
 );
 
+/**
+ * Who sees a teamspace and its pages (see `page_access_level`): owners and members of the
+ * workspace only. Guests are never in a teamspace; they get single pages shared with them.
+ * - `default`: every owner and member is in it and can't leave it.
+ * - `open`: everyone sees it and can join; those who haven't can read and comment on its pages.
+ * - `closed`: everyone sees that it exists, but only its members open its pages; its owners add them.
+ * - `private`: only its members know it exists.
+ */
+export const TEAMSPACE_ACCESS = ["default", "open", "closed", "private"] as const;
+export type TeamspaceAccess = (typeof TEAMSPACE_ACCESS)[number];
+/** Teamspace owners change its settings and members; members add and edit its pages. */
+export type TeamspaceRole = "owner" | "member";
+
+export const teamspace = pgTable(
+  "teamspace",
+  {
+    id: id(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    icon: text("icon"),
+    description: text("description").notNull().default(""),
+    access: text("access").$type<TeamspaceAccess>().notNull().default("open"),
+    /** Archived teamspaces leave the sidebar and take no new pages; their pages keep their access. */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [
+    // Target of the page's (teamspace_id, workspace_id) key: a page never sits in another workspace's teamspace.
+    unique("teamspace_id_workspace_key").on(t.id, t.workspaceId),
+    index("teamspace_workspace_idx").on(t.workspaceId),
+    check("teamspace_access_check", sql`${t.access} in ('default', 'open', 'closed', 'private')`),
+  ],
+);
+
+/**
+ * Who joined a teamspace, and who owns it. Everyone is in a `default` teamspace without a row;
+ * rows there only name its owners.
+ */
+export const teamspaceMember = pgTable(
+  "teamspace_member",
+  {
+    teamspaceId: text("teamspace_id")
+      .notNull()
+      .references(() => teamspace.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").$type<TeamspaceRole>().notNull().default("member"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.teamspaceId, t.userId] }),
+    index("teamspace_member_user_idx").on(t.userId),
+    check("teamspace_member_role_check", sql`${t.role} in ('owner', 'member')`),
+  ],
+);
+
 export type PageKind = "page" | "database";
 /** Values of a database row, keyed by property id. */
 export type RowProperties = Record<string, unknown>;
@@ -124,6 +190,12 @@ export const page = pgTable(
       .notNull()
       .references(() => workspace.id, { onDelete: "cascade" }),
     parentId: text("parent_id").references((): AnyPgColumn => page.id, { onDelete: "cascade" }),
+    /**
+     * The teamspace the page's tree belongs to, set on every page of the tree (a trigger copies the
+     * parent's; see drizzle/*_teamspaces.sql). Null for private pages: only the people they are
+     * shared with see them.
+     */
+    teamspaceId: text("teamspace_id"),
     kind: text("kind").$type<PageKind>().notNull().default("page"),
     title: text("title").notNull().default(""),
     icon: text("icon"),
@@ -157,6 +229,12 @@ export const page = pgTable(
   },
   (t) => [
     index("page_workspace_parent_idx").on(t.workspaceId, t.parentId, t.position),
+    index("page_teamspace_idx").on(t.teamspaceId),
+    foreignKey({
+      name: "page_teamspace_fk",
+      columns: [t.teamspaceId, t.workspaceId],
+      foreignColumns: [teamspace.id, teamspace.workspaceId],
+    }),
     index("page_template_idx").on(t.workspaceId, t.parentId).where(sql`${t.isTemplate}`),
     index("page_search_idx").using(
       "gin",

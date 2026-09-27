@@ -15,10 +15,21 @@ import { cn, Dialog, IconButton, PageIcon, pageLabel } from "@/components/ui";
 
 /**
  * The template picker: the workspace's templates and the built-in gallery. Picking one creates a
- * new top-level page from it and opens it. Templates can be opened for editing and deleted here,
+ * new top-level page from it (in `teamspaceId`: a teamspace, or null for the private section) and opens it. Templates can be opened for editing and deleted here,
  * the only place besides their own page where they are listed.
  */
-export function TemplatesDialog({ workspaceId, open, onClose }: { workspaceId: string; open: boolean; onClose: () => void }) {
+export function TemplatesDialog({
+  workspaceId,
+  open,
+  onClose,
+  teamspaceId,
+}: {
+  workspaceId: string;
+  open: boolean;
+  onClose: () => void;
+  /** Where new pages go: a teamspace, null for private, undefined for the workspace default. */
+  teamspaceId?: string | null;
+}) {
   const router = useRouter();
   const t = useTranslations("sidebar.templates");
   const tc = useTranslations("common");
@@ -87,7 +98,7 @@ export function TemplatesDialog({ workspaceId, open, onClose }: { workspaceId: s
                 type="button"
                 className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"
                 title={t("use")}
-                onClick={() => create(() => createFromTemplateAction(item.id))}
+                onClick={() => create(() => createFromTemplateAction(item.id, null, teamspaceId))}
               >
                 <PageIcon icon={item.icon} kind={item.kind} className="text-sm" />
                 <span className="truncate">{pageLabel(item.title, tc("untitled"))}</span>
@@ -112,7 +123,7 @@ export function TemplatesDialog({ workspaceId, open, onClose }: { workspaceId: s
               <button
                 type="button"
                 className="flex w-full items-start gap-2 rounded-md px-3 py-1.5 text-left hover:bg-bg-hover"
-                onClick={() => create(() => createFromBuiltinAction(workspaceId, item.key))}
+                onClick={() => create(() => createFromBuiltinAction(workspaceId, item.key, null, teamspaceId))}
               >
                 <PageIcon icon={item.icon} kind={item.kind} className="mt-0.5 text-sm" />
                 <span className="min-w-0 flex-1">

@@ -1,0 +1,633 @@
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { db } from "@/db";
+import {
+  DEFAULT_WORKSPACE_SETTINGS,
+  TEAMSPACE_ACCESS,
+  teamspace,
+  teamspaceMember,
+  user,
+  workspace,
+  workspaceMember,
+  type TeamspaceAccess,
+  type TeamspaceRole,
+  type WorkspaceRole,
+} from "@/db/schema";
+import { TeamspaceError } from "@/lib/teamspace-error";
+import { AccessError, isGuest, requireMember } from "@/server/access";
+import { getCollab } from "@/server/collab/bridge";
+
+/**
+ * Teamspaces group a workspace's pages and the people working on them. Every page tree lives in
+ * one teamspace (`page.teamspaceId`, on every page of the tree) or in nobody's (a private page).
+ * What that means for access is decided in SQL, by `page_access_level` (drizzle/*_teamspaces.sql):
+ * a teamspace's pages are open to its members, readable by everyone while it is open, and hidden
+ * from everyone else. This module manages the teamspaces themselves: who is in them, who runs them
+ * and where new top-level pages go.
+ *
+ * Guests are never in a teamspace. Owners and members are in every `default` teamspace without a
+ * row in `teamspace_member`; rows there name its owners. People join `open` teamspaces themselves;
+ * the owners of a `closed` or `private` one add them.
+ */
+
+export { TeamspaceError, type TeamspaceErrorCode } from "@/lib/teamspace-error";
+
+export const isTeamspaceAccess = (value: unknown): value is TeamspaceAccess =>
+  (TEAMSPACE_ACCESS as readonly unknown[]).includes(value);
+
+const MAX_NAME = 80;
+const MAX_DESCRIPTION = 500;
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Row = typeof teamspace.$inferSelect;
+
+/** Whether someone (an owner or member of the workspace) is in the teamspace. */
+const joinedTeamspace = (t: { access: TeamspaceAccess }, row: { role: TeamspaceRole } | undefined) =>
+  t.access === "default" || row !== undefined;
+
+async function creationPolicy(workspaceId: string) {
+  const [row] = await db.select({ settings: workspace.settings }).from(workspace).where(eq(workspace.id, workspaceId));
+  return { ...DEFAULT_WORKSPACE_SETTINGS, ...row?.settings }.teamspaceCreation;
+}
+
+/** Whether the user may create teamspaces in the workspace: owners, and members unless restricted. */
+export async function canCreateTeamspace(userId: string, workspaceId: string) {
+  const membership = await requireMember(userId, workspaceId).catch(() => null);
+  if (!membership) return false;
+  return membership.role === "owner" || (await creationPolicy(workspaceId)) === "members";
+}
+
+async function ownRow(tx: Pick<typeof db, "select">, teamspaceId: string, userId: string) {
+  const [row] = await tx
+    .select({ role: teamspaceMember.role })
+    .from(teamspaceMember)
+    .where(and(eq(teamspaceMember.teamspaceId, teamspaceId), eq(teamspaceMember.userId, userId)));
+  return row;
+}
+
+/**
+ * The teamspace, when the user can see it: they are an owner or member of its workspace and it
+ * isn't a private one they aren't in. Throws AccessError otherwise, the same way whether it exists
+ * or not.
+ */
+async function visibleTeamspace(userId: string, teamspaceId: string) {
+  const [found] = await db.select().from(teamspace).where(eq(teamspace.id, teamspaceId)).limit(1);
+  if (!found) throw new AccessError();
+  const membership = await requireMember(userId, found.workspaceId);
+  const row = await ownRow(db, teamspaceId, userId);
+  if (found.access === "private" && !row) throw new AccessError();
+  return { teamspace: found, role: membership.role as WorkspaceRole, row };
+}
+
+/**
+ * Teamspace owners manage a teamspace; so do workspace owners, except a private teamspace they
+ * aren't an owner of: private stays private, from workspace owners too.
+ */
+const canManage = (t: Row, workspaceRole: WorkspaceRole, row: { role: TeamspaceRole } | undefined) =>
+  row?.role === "owner" || (workspaceRole === "owner" && t.access !== "private");
+
+async function manageableTeamspace(userId: string, teamspaceId: string) {
+  const found = await visibleTeamspace(userId, teamspaceId);
+  if (!canManage(found.teamspace, found.role, found.row)) throw new AccessError();
+  return found;
+}
+
+export type TeamspaceSummary = {
+  id: string;
+  name: string;
+  icon: string | null;
+  description: string;
+  access: TeamspaceAccess;
+  archivedAt: Date | null;
+  updatedAt: Date;
+  memberCount: number;
+  owners: { id: string; name: string }[];
+  /** The viewer is in it. */
+  joined: boolean;
+  /** The viewer's role in it, when they are in it. */
+  role: TeamspaceRole | null;
+  canManage: boolean;
+  canJoin: boolean;
+  canLeave: boolean;
+};
+
+/**
+ * The teamspaces the user can see, oldest first: all but the private ones they aren't in.
+ * Owners and members only; guests have no teamspaces.
+ */
+export async function listTeamspaces(
+  userId: string,
+  workspaceId: string,
+  { archived = "active" }: { archived?: "active" | "archived" | "all" } = {},
+): Promise<TeamspaceSummary[]> {
+  const { role: workspaceRole } = await requireMember(userId, workspaceId);
+  const rows = await db.execute<{
+    id: string;
+    name: string;
+    icon: string | null;
+    description: string;
+    access: TeamspaceAccess;
+    archived_at: Date | null;
+    updated_at: Date;
+    created_at: Date;
+    created_by: string | null;
+    workspace_id: string;
+    own_role: TeamspaceRole | null;
+    member_count: number;
+  }>(sql`
+    select t.*,
+      (select m.role from ${teamspaceMember} m where m.teamspace_id = t.id and m.user_id = ${userId}) as own_role,
+      case when t.access = 'default' then
+        (select count(*) from ${workspaceMember} wm where wm.workspace_id = t.workspace_id and wm.role in ('owner', 'member'))
+      else
+        (select count(*) from ${teamspaceMember} m
+          join ${workspaceMember} wm on wm.user_id = m.user_id and wm.workspace_id = t.workspace_id and wm.role in ('owner', 'member')
+          where m.teamspace_id = t.id)
+      end::int as member_count
+    from ${teamspace} t
+    where t.workspace_id = ${workspaceId}
+      and (t.access <> 'private' or exists (
+        select 1 from ${teamspaceMember} m where m.teamspace_id = t.id and m.user_id = ${userId}
+      ))
+      ${archived === "active" ? sql`and t.archived_at is null` : archived === "archived" ? sql`and t.archived_at is not null` : sql``}
+    order by t.created_at, t.id
+  `);
+  const ids = rows.map((r) => r.id);
+  const owners = ids.length
+    ? await db
+        .select({ teamspaceId: teamspaceMember.teamspaceId, id: user.id, name: user.name })
+        .from(teamspaceMember)
+        .innerJoin(user, eq(user.id, teamspaceMember.userId))
+        .innerJoin(
+          workspaceMember,
+          and(eq(workspaceMember.userId, teamspaceMember.userId), eq(workspaceMember.workspaceId, workspaceId)),
+        )
+        .where(and(inArray(teamspaceMember.teamspaceId, ids), eq(teamspaceMember.role, "owner")))
+        .orderBy(asc(teamspaceMember.createdAt))
+    : [];
+  return rows.map((r) => {
+    const row = r.own_role ? { role: r.own_role } : undefined;
+    const t = { access: r.access, archivedAt: r.archived_at } as Row;
+    const joined = joinedTeamspace(r, row);
+    const ownersOf = owners.filter((o) => o.teamspaceId === r.id).map(({ id, name }) => ({ id, name }));
+    return {
+      id: r.id,
+      name: r.name,
+      icon: r.icon,
+      description: r.description,
+      access: r.access,
+      archivedAt: r.archived_at ? new Date(r.archived_at) : null,
+      updatedAt: new Date(r.updated_at),
+      memberCount: Number(r.member_count),
+      owners: ownersOf,
+      joined,
+      role: joined ? (row?.role ?? "member") : null,
+      canManage: canManage(t, workspaceRole, row),
+      canJoin: !joined && r.access === "open" && !r.archived_at,
+      // The last owner hands the teamspace on first (a default teamspace's owners are optional).
+      canLeave: joined && r.access !== "default" && !(row?.role === "owner" && ownersOf.length <= 1),
+    };
+  });
+}
+
+export async function getTeamspace(userId: string, teamspaceId: string) {
+  const { teamspace: found } = await visibleTeamspace(userId, teamspaceId);
+  const list = await listTeamspaces(userId, found.workspaceId, { archived: "all" });
+  const summary = list.find((t) => t.id === teamspaceId);
+  if (!summary) throw new AccessError();
+  return { ...summary, workspaceId: found.workspaceId };
+}
+
+function cleanName(name: string) {
+  const clean = name.trim().slice(0, MAX_NAME);
+  if (!clean) throw new TeamspaceError("nameRequired", "Give the teamspace a name.");
+  return clean;
+}
+
+export type TeamspaceInput = { name: string; icon?: string | null; description?: string; access?: TeamspaceAccess };
+
+/**
+ * A new teamspace with its creator as owner. Needs `canCreateTeamspace`; a default teamspace (one
+ * everybody is in) needs a workspace owner.
+ */
+export async function createTeamspace(userId: string, workspaceId: string, input: TeamspaceInput) {
+  const membership = await requireMember(userId, workspaceId);
+  if (!(await canCreateTeamspace(userId, workspaceId))) {
+    throw new TeamspaceError("creationRestricted", "Only workspace owners can create teamspaces here.");
+  }
+  const access = input.access ?? "open";
+  if (!isTeamspaceAccess(access)) throw new TeamspaceError("invalidAccess", `Unknown access ${String(access)}`);
+  if (access === "default" && membership.role !== "owner") {
+    throw new TeamspaceError("ownersOnly", "Only workspace owners can make a teamspace everyone is in.");
+  }
+  const created = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(teamspace)
+      .values({
+        workspaceId,
+        name: cleanName(input.name),
+        icon: input.icon ?? null,
+        description: (input.description ?? "").trim().slice(0, MAX_DESCRIPTION),
+        access,
+        createdBy: userId,
+      })
+      .returning();
+    await tx.insert(teamspaceMember).values({ teamspaceId: row.id, userId, role: "owner" });
+    return row;
+  });
+  getCollab().broadcast(`ws:${workspaceId}`, "tree");
+  return created;
+}
+
+/**
+ * Changes a teamspace's name, icon, description or access. Needs to manage it; making a teamspace
+ * default, or one default no longer, needs a workspace owner, since it changes everyone's sidebar.
+ * Everyone in a default teamspace stays in it when it stops being one (they can leave then).
+ */
+export async function updateTeamspace(
+  userId: string,
+  teamspaceId: string,
+  patch: Partial<Omit<TeamspaceInput, "access">> & { access?: TeamspaceAccess },
+) {
+  const { teamspace: current, role } = await manageableTeamspace(userId, teamspaceId);
+  const access = patch.access ?? current.access;
+  if (!isTeamspaceAccess(access)) throw new TeamspaceError("invalidAccess", `Unknown access ${String(access)}`);
+  const changesDefault = access !== current.access && (access === "default" || current.access === "default");
+  if (changesDefault && role !== "owner") {
+    throw new TeamspaceError("ownersOnly", "Only workspace owners can change which teamspaces everyone is in.");
+  }
+  await db.transaction(async (tx) => {
+    if (current.access === "default" && access !== "default") {
+      await tx.execute(sql`
+        insert into ${teamspaceMember} (teamspace_id, user_id, role)
+        select ${teamspaceId}, wm.user_id, 'member' from ${workspaceMember} wm
+        where wm.workspace_id = ${current.workspaceId} and wm.role in ('owner', 'member')
+        on conflict do nothing
+      `);
+      // It runs on its own from now on: someone has to own it.
+      await tx
+        .update(teamspaceMember)
+        .set({ role: "owner" })
+        .where(
+          and(
+            eq(teamspaceMember.teamspaceId, teamspaceId),
+            eq(teamspaceMember.userId, userId),
+            sql`not exists (select 1 from ${teamspaceMember} o where o.teamspace_id = ${teamspaceId} and o.role = 'owner')`,
+          ),
+        );
+    }
+    await tx
+      .update(teamspace)
+      .set({
+        ...(patch.name !== undefined ? { name: cleanName(patch.name) } : {}),
+        ...(patch.icon !== undefined ? { icon: patch.icon } : {}),
+        ...(patch.description !== undefined ? { description: patch.description.trim().slice(0, MAX_DESCRIPTION) } : {}),
+        access,
+        updatedAt: new Date(),
+      })
+      .where(eq(teamspace.id, teamspaceId));
+  });
+  // People who lost its pages drop their open editors and reconnect with what they have left.
+  const narrower = ACCESS_RANK[access] < ACCESS_RANK[current.access];
+  if (narrower) await getCollab().disconnectTeamspace(teamspaceId);
+  getCollab().broadcast(`ws:${current.workspaceId}`, "tree");
+}
+
+/** How much of the teamspace people outside it see, for spotting narrower access. */
+const ACCESS_RANK: Record<TeamspaceAccess, number> = { private: 0, closed: 1, open: 2, default: 3 };
+
+/** Archives a teamspace (it leaves every sidebar and takes no new pages) or brings it back. */
+export async function setTeamspaceArchived(userId: string, teamspaceId: string, archived: boolean) {
+  const { teamspace: current } = await manageableTeamspace(userId, teamspaceId);
+  await db
+    .update(teamspace)
+    .set({ archivedAt: archived ? (current.archivedAt ?? new Date()) : null, updatedAt: new Date() })
+    .where(eq(teamspace.id, teamspaceId));
+  getCollab().broadcast(`ws:${current.workspaceId}`, "tree");
+}
+
+/** Joins an open teamspace. */
+export async function joinTeamspace(userId: string, teamspaceId: string) {
+  const { teamspace: found, row } = await visibleTeamspace(userId, teamspaceId);
+  if (joinedTeamspace(found, row)) return;
+  if (found.archivedAt) throw new TeamspaceError("archived", "This teamspace is archived.");
+  if (found.access !== "open") {
+    throw new TeamspaceError("notJoinable", "Ask an owner of this teamspace to add you.");
+  }
+  await db.insert(teamspaceMember).values({ teamspaceId, userId, role: "member" }).onConflictDoNothing();
+  getCollab().broadcast(`ws:${found.workspaceId}`, "tree");
+}
+
+/** Leaves a teamspace: see removeTeamspaceMember. */
+export async function leaveTeamspace(userId: string, teamspaceId: string) {
+  await removeTeamspaceMember(userId, teamspaceId, userId);
+}
+
+/**
+ * Adds owners or members of the workspace to the teamspace; people already in it keep their role.
+ * Needs to manage it. Guests can't be added: they get single pages shared with them instead.
+ */
+export async function addTeamspaceMembers(
+  actorId: string,
+  teamspaceId: string,
+  userIds: string[],
+  role: TeamspaceRole = "member",
+) {
+  const { teamspace: found } = await manageableTeamspace(actorId, teamspaceId);
+  const wanted = [...new Set(userIds)];
+  if (!wanted.length) return;
+  const people = await db
+    .select({ userId: workspaceMember.userId, role: workspaceMember.role })
+    .from(workspaceMember)
+    .where(and(eq(workspaceMember.workspaceId, found.workspaceId), inArray(workspaceMember.userId, wanted)));
+  const allowed = new Set(people.filter((p) => !isGuest(p.role)).map((p) => p.userId));
+  const missing = wanted.filter((id) => !allowed.has(id));
+  if (missing.length) {
+    throw new TeamspaceError("notMember", "Only owners and members of the workspace can join its teamspaces.");
+  }
+  await db
+    .insert(teamspaceMember)
+    .values(wanted.map((id) => ({ teamspaceId, userId: id, role: role === "owner" ? ("owner" as const) : ("member" as const) })))
+    .onConflictDoNothing();
+  await db.update(teamspace).set({ updatedAt: new Date() }).where(eq(teamspace.id, teamspaceId));
+  getCollab().broadcast(`ws:${found.workspaceId}`, "tree");
+}
+
+/**
+ * Takes someone out of a teamspace: themselves (leaving), or anyone when the actor manages it.
+ * Nobody leaves a default teamspace; there it only takes away their owner role. The last owner
+ * stays until they make someone else owner, so every teamspace has someone running it.
+ */
+export async function removeTeamspaceMember(actorId: string, teamspaceId: string, targetId: string) {
+  const self = actorId === targetId;
+  const { teamspace: found } = self
+    ? await visibleTeamspace(actorId, teamspaceId)
+    : await manageableTeamspace(actorId, teamspaceId);
+  if (self && found.access === "default") {
+    throw new TeamspaceError("cannotLeaveDefault", "Everyone is in this teamspace; it can't be left.");
+  }
+  await db.transaction(async (tx) => {
+    const members = await tx
+      .select({ userId: teamspaceMember.userId, role: teamspaceMember.role })
+      .from(teamspaceMember)
+      .where(eq(teamspaceMember.teamspaceId, teamspaceId))
+      .for("update");
+    const target = members.find((m) => m.userId === targetId);
+    if (!target) {
+      if (found.access === "default") return;
+      throw new TeamspaceError("notMember", "This person isn't in the teamspace.");
+    }
+    const owners = members.filter((m) => m.role === "owner");
+    if (found.access !== "default" && target.role === "owner" && owners.length <= 1) {
+      throw new TeamspaceError("lastOwner", "Make someone else an owner of the teamspace first.");
+    }
+    await tx
+      .delete(teamspaceMember)
+      .where(and(eq(teamspaceMember.teamspaceId, teamspaceId), eq(teamspaceMember.userId, targetId)));
+    await tx.update(teamspace).set({ updatedAt: new Date() }).where(eq(teamspace.id, teamspaceId));
+  });
+  if (found.access !== "default") await getCollab().disconnectTeamspace(teamspaceId, [targetId]);
+  getCollab().broadcast(`ws:${found.workspaceId}`, "tree");
+}
+
+/** Makes someone in the teamspace an owner or a member of it. Needs to manage it. */
+export async function setTeamspaceRole(actorId: string, teamspaceId: string, targetId: string, role: TeamspaceRole) {
+  const { teamspace: found } = await manageableTeamspace(actorId, teamspaceId);
+  await db.transaction(async (tx) => {
+    const members = await tx
+      .select({ userId: teamspaceMember.userId, role: teamspaceMember.role })
+      .from(teamspaceMember)
+      .where(eq(teamspaceMember.teamspaceId, teamspaceId))
+      .for("update");
+    const target = members.find((m) => m.userId === targetId);
+    if (!target) {
+      // In a default teamspace everyone is a member without a row.
+      const [person] = await tx
+        .select({ role: workspaceMember.role })
+        .from(workspaceMember)
+        .where(and(eq(workspaceMember.workspaceId, found.workspaceId), eq(workspaceMember.userId, targetId)));
+      if (found.access !== "default" || !person || isGuest(person.role)) {
+        throw new TeamspaceError("notMember", "This person isn't in the teamspace.");
+      }
+      if (role === "owner") await tx.insert(teamspaceMember).values({ teamspaceId, userId: targetId, role: "owner" });
+      return;
+    }
+    if (target.role === role) return;
+    if (role === "member" && found.access !== "default" && members.filter((m) => m.role === "owner").length <= 1) {
+      throw new TeamspaceError("lastOwner", "Make someone else an owner of the teamspace first.");
+    }
+    if (role === "member" && found.access === "default") {
+      // Default teamspaces only keep rows for their owners.
+      await tx
+        .delete(teamspaceMember)
+        .where(and(eq(teamspaceMember.teamspaceId, teamspaceId), eq(teamspaceMember.userId, targetId)));
+    } else {
+      await tx
+        .update(teamspaceMember)
+        .set({ role })
+        .where(and(eq(teamspaceMember.teamspaceId, teamspaceId), eq(teamspaceMember.userId, targetId)));
+    }
+  });
+  await db.update(teamspace).set({ updatedAt: new Date() }).where(eq(teamspace.id, teamspaceId));
+}
+
+export type TeamspacePerson = { userId: string; name: string; email: string; role: TeamspaceRole; joinedAt: Date };
+
+/** Who is in a teamspace, owners first. Anyone who can see the teamspace can see who is in it. */
+export async function listTeamspaceMembers(userId: string, teamspaceId: string): Promise<TeamspacePerson[]> {
+  const { teamspace: found } = await visibleTeamspace(userId, teamspaceId);
+  const rows =
+    found.access === "default"
+      ? await db
+          .select({
+            userId: user.id,
+            name: user.name,
+            email: user.email,
+            role: sql<TeamspaceRole>`coalesce(${teamspaceMember.role}, 'member')`,
+            joinedAt: workspaceMember.createdAt,
+          })
+          .from(workspaceMember)
+          .innerJoin(user, eq(user.id, workspaceMember.userId))
+          .leftJoin(
+            teamspaceMember,
+            and(eq(teamspaceMember.teamspaceId, teamspaceId), eq(teamspaceMember.userId, workspaceMember.userId)),
+          )
+          .where(and(eq(workspaceMember.workspaceId, found.workspaceId), inArray(workspaceMember.role, ["owner", "member"])))
+      : await db
+          .select({
+            userId: user.id,
+            name: user.name,
+            email: user.email,
+            role: teamspaceMember.role,
+            joinedAt: teamspaceMember.createdAt,
+          })
+          .from(teamspaceMember)
+          .innerJoin(user, eq(user.id, teamspaceMember.userId))
+          .innerJoin(
+            workspaceMember,
+            and(eq(workspaceMember.userId, teamspaceMember.userId), eq(workspaceMember.workspaceId, found.workspaceId)),
+          )
+          .where(and(eq(teamspaceMember.teamspaceId, teamspaceId), inArray(workspaceMember.role, ["owner", "member"])));
+  return rows
+    .map((r) => ({ ...r, joinedAt: new Date(r.joinedAt) }))
+    .sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "owner" ? -1 : 1));
+}
+
+/**
+ * For the members list: which of the teamspaces the viewer can see each person is in (archived
+ * ones left out). Guests are in none.
+ */
+export async function teamspacesByMember(viewerId: string, workspaceId: string) {
+  const visible = await listTeamspaces(viewerId, workspaceId);
+  const byUser = new Map<string, { id: string; name: string; icon: string | null }[]>();
+  if (!visible.length) return byUser;
+  const people = await db
+    .select({ userId: workspaceMember.userId, role: workspaceMember.role })
+    .from(workspaceMember)
+    .where(eq(workspaceMember.workspaceId, workspaceId));
+  const rows = await db
+    .select({ teamspaceId: teamspaceMember.teamspaceId, userId: teamspaceMember.userId })
+    .from(teamspaceMember)
+    .where(inArray(teamspaceMember.teamspaceId, visible.map((t) => t.id)));
+  for (const person of people) {
+    if (isGuest(person.role)) continue;
+    const theirs = visible.filter(
+      (t) => t.access === "default" || rows.some((r) => r.teamspaceId === t.id && r.userId === person.userId),
+    );
+    byUser.set(person.userId, theirs.map(({ id, name, icon }) => ({ id, name, icon })));
+  }
+  return byUser;
+}
+
+/** The teamspace's id, name and icon when the user can see it (see visibleTeamspace), else null. */
+export async function teamspaceLabel(userId: string, teamspaceId: string) {
+  try {
+    const { teamspace: found } = await visibleTeamspace(userId, teamspaceId);
+    return { id: found.id, name: found.name, icon: found.icon };
+  } catch (error) {
+    if (error instanceof AccessError) return null;
+    throw error;
+  }
+}
+
+/**
+ * Who a teamspace page's "everyone" entry reaches: its access and who is in it by row (everyone
+ * when it is a default one). Only for callers that already checked access to such a page.
+ */
+export async function teamspaceReach(teamspaceId: string) {
+  const [found] = await db.select({ access: teamspace.access }).from(teamspace).where(eq(teamspace.id, teamspaceId));
+  const rows = await db
+    .select({ userId: teamspaceMember.userId })
+    .from(teamspaceMember)
+    .where(eq(teamspaceMember.teamspaceId, teamspaceId));
+  return { access: (found?.access ?? "private") as TeamspaceAccess, members: new Set(rows.map((r) => r.userId)) };
+}
+
+/** The teamspaces the user is in and that aren't archived: the sidebar's sections. */
+export async function sidebarTeamspaces(userId: string, workspaceId: string) {
+  const membership = await requireMember(userId, workspaceId).catch(() => null);
+  if (!membership) return [];
+  return (await listTeamspaces(userId, workspaceId)).filter((t) => t.joined);
+}
+
+/**
+ * Throws unless the user may add pages at the top of the teamspace: they are in it (owners and
+ * members only), it belongs to the workspace and it isn't archived.
+ */
+export async function requireTeamspaceForPages(userId: string, teamspaceId: string, workspaceId: string) {
+  const [found] = await db
+    .select()
+    .from(teamspace)
+    .where(and(eq(teamspace.id, teamspaceId), eq(teamspace.workspaceId, workspaceId)))
+    .limit(1);
+  if (!found) throw new AccessError();
+  const membership = await requireMember(userId, workspaceId);
+  if (isGuest(membership.role)) throw new AccessError();
+  const row = await ownRow(db, teamspaceId, userId);
+  if (!joinedTeamspace(found, row)) {
+    if (found.access === "private") throw new AccessError();
+    throw new TeamspaceError("notMember", "Join the teamspace to add pages to it.");
+  }
+  if (found.archivedAt) throw new TeamspaceError("archived", "This teamspace is archived.");
+  return found;
+}
+
+/** The oldest default teamspace that isn't archived: where top-level pages go when nobody says. */
+export async function defaultTeamspaceId(workspaceId: string) {
+  const [row] = await db
+    .select({ id: teamspace.id })
+    .from(teamspace)
+    .where(and(eq(teamspace.workspaceId, workspaceId), eq(teamspace.access, "default"), isNull(teamspace.archivedAt)))
+    .orderBy(asc(teamspace.createdAt), asc(teamspace.id))
+    .limit(1);
+  return row?.id ?? null;
+}
+
+/**
+ * Where a new top-level page of `userId` goes. `requested`: a teamspace id (they must be in it),
+ * null for their private pages, or undefined for the workspace's first default teamspace (private
+ * when there is none). A guest's top-level pages are always private (when the workspace lets
+ * them add any: `topLevel` from `topLevelAccess`).
+ */
+export async function placeTopLevel(
+  userId: string,
+  workspaceId: string,
+  topLevel: "shared" | "private",
+  requested: string | null | undefined,
+): Promise<{ teamspaceId: string | null; private: boolean }> {
+  if (topLevel === "private") {
+    if (requested) throw new AccessError();
+    return { teamspaceId: null, private: true };
+  }
+  if (requested === null) return { teamspaceId: null, private: true };
+  if (requested === undefined) {
+    const fallback = await defaultTeamspaceId(workspaceId);
+    return fallback ? { teamspaceId: fallback, private: false } : { teamspaceId: null, private: true };
+  }
+  await requireTeamspaceForPages(userId, requested, workspaceId);
+  return { teamspaceId: requested, private: false };
+}
+
+/**
+ * After someone left the workspace or became a guest: they are out of its teamspaces, and a
+ * teamspace they were the last owner of passes to its oldest member, or to `heirId` (the owner who
+ * removed them, else the oldest workspace owner) when nobody is left in it, so no teamspace is
+ * stranded without anyone able to run it or, when private, even see it.
+ */
+export async function dropFromTeamspaces(tx: Tx, workspaceId: string, userId: string, heirId: string | null) {
+  const left = await tx.execute<{ teamspace_id: string }>(sql`
+    delete from ${teamspaceMember} m
+    using ${teamspace} t
+    where t.id = m.teamspace_id and t.workspace_id = ${workspaceId} and m.user_id = ${userId}
+    returning m.teamspace_id
+  `);
+  for (const { teamspace_id: teamspaceId } of left) {
+    const [ts] = await tx.select({ access: teamspace.access }).from(teamspace).where(eq(teamspace.id, teamspaceId));
+    if (!ts || ts.access === "default") continue;
+    const rest = await tx
+      .select({ userId: teamspaceMember.userId, role: teamspaceMember.role })
+      .from(teamspaceMember)
+      .innerJoin(
+        workspaceMember,
+        and(eq(workspaceMember.userId, teamspaceMember.userId), eq(workspaceMember.workspaceId, workspaceId)),
+      )
+      .where(and(eq(teamspaceMember.teamspaceId, teamspaceId), inArray(workspaceMember.role, ["owner", "member"])))
+      .orderBy(asc(teamspaceMember.createdAt));
+    if (rest.some((m) => m.role === "owner")) continue;
+    const next = rest[0]?.userId ?? heirId;
+    if (!next || next === userId) continue;
+    await tx
+      .insert(teamspaceMember)
+      .values({ teamspaceId, userId: next, role: "owner" })
+      .onConflictDoUpdate({ target: [teamspaceMember.teamspaceId, teamspaceMember.userId], set: { role: "owner" } });
+  }
+}
+
+/** Names the General teamspace the database gives a new workspace, and makes its creator its owner. */
+export async function setUpGeneralTeamspace(tx: Tx, workspaceId: string, ownerId: string, name: string) {
+  const [general] = await tx
+    .update(teamspace)
+    .set({ name, createdBy: ownerId })
+    .where(and(eq(teamspace.workspaceId, workspaceId), eq(teamspace.access, "default")))
+    .returning({ id: teamspace.id });
+  if (general) await tx.insert(teamspaceMember).values({ teamspaceId: general.id, userId: ownerId, role: "owner" }).onConflictDoNothing();
+}

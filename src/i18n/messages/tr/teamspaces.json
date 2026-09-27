@@ -1,0 +1,62 @@
+{
+  "access": {
+    "default": "Varsayılan",
+    "open": "Açık",
+    "closed": "Kapalı",
+    "private": "Özel"
+  },
+  "accessHint": {
+    "default": "Çalışma alanındaki herkes bu teamspace'tedir ve ayrılamaz.",
+    "open": "Çalışma alanındaki herkes görür ve katılabilir. Katılana kadar sayfalarını okuyup yorum yapabilir.",
+    "closed": "Çalışma alanındaki herkes var olduğunu görür. Sayfalarını yalnızca üyeleri açar; üyeleri sahipleri ekler.",
+    "private": "Yalnızca üyeleri görür."
+  },
+  "roles": {
+    "owner": "Sahip",
+    "member": "Üye"
+  },
+  "errors": {
+    "nameRequired": "Teamspace'e bir ad verin.",
+    "creationRestricted": "Bu çalışma alanında teamspace'leri yalnızca sahipler oluşturabilir.",
+    "ownersOnly": "Herkesin hangi teamspace'lerde olacağını yalnızca çalışma alanı sahipleri değiştirebilir.",
+    "cannotLeaveDefault": "Herkes bu teamspace'te; buradan ayrılınamaz.",
+    "lastOwner": "Önce teamspace'e başka bir sahip atayın.",
+    "notJoinable": "Sizi eklemesi için bu teamspace'in bir sahibine başvurun.",
+    "archived": "Bu teamspace arşivlenmiş.",
+    "notMember": "Teamspace'lere yalnızca çalışma alanının sahipleri ve üyeleri katılabilir.",
+    "invalidAccess": "Teamspace'i kimlerin görebileceğini seçin.",
+    "accessDenied": "Bu teamspace'te bunu yapamazsınız."
+  },
+  "dialog": {
+    "createTitle": "Yeni teamspace",
+    "editTitle": "Teamspace'i düzenle",
+    "name": "Ad",
+    "namePlaceholder": "Pazarlama, Mühendislik…",
+    "icon": "Simge seçin",
+    "description": "Açıklama",
+    "descriptionPlaceholder": "Bu teamspace ne için?",
+    "access": "Kimler görebilir",
+    "defaultLocked": "Varsayılan bir teamspace'in erişimini yalnızca çalışma alanı sahipleri değiştirebilir.",
+    "becomesDefault": "Çalışma alanındaki herkes katılır ve ayrılamaz.",
+    "leavesDefault": "Şimdilik herkes içinde kalır ama ayrılabilir; çalışma alanının yeni üyeleri eklenmez.",
+    "create": "Teamspace oluştur",
+    "creating": "Oluşturuluyor…"
+  },
+  "members": {
+    "title": "{name} üyeleri",
+    "everyone": "Çalışma alanındaki herkes bu teamspace'te. Sahipleri onu düzenleyip yönetebilir.",
+    "readOnly": "Bu teamspace'te kimlerin olacağını yalnızca sahipleri değiştirebilir.",
+    "add": "Kişi ekle",
+    "search": "Kişi ara",
+    "addSelected": "{count, plural, =0 {Kişi ekle} other {# kişiyi ekle}}",
+    "addAs": "Rol",
+    "noOneToAdd": "Çalışma alanındaki herkes zaten bu teamspace'te.",
+    "noMatches": "Aramanıza uyan kimse yok.",
+    "empty": "Bu teamspace'te kimse yok.",
+    "list": "Bu teamspace'teki kişiler",
+    "roleOf": "{name} adlı kişinin rolü",
+    "remove": "{name} adlı kişiyi çıkar",
+    "you": "(siz)",
+    "select": "{name} adlı kişiyi seç"
+  }
+}

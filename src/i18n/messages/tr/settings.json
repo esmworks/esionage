@@ -6,6 +6,7 @@
     "workspace": "Çalışma alanı",
     "general": "Genel",
     "members": "Üyeler",
+    "teamspaces": "Teamspace'ler",
     "security": "Güvenlik",
     "site": "Site",
     "myAccount": "Hesabım"
@@ -50,6 +51,7 @@
     "columns": {
       "user": "Kullanıcı",
       "role": "Rol",
+      "teamspaces": "Teamspace'ler",
       "joined": "Katılma",
       "lastEdited": "Son düzenleme",
       "actions": "İşlemler",
@@ -64,6 +66,8 @@
       "member": "Üye",
       "guest": "Misafir"
     },
+    "teamspaceCount": "{count, plural, one {# teamspace} other {# teamspace}}",
+    "teamspacesOf": "{name} adlı üyenin teamspace'leri",
     "neverEdited": "Henüz düzenleme yok",
     "actionsFor": "{name} için işlemler",
     "transfer": "Sahip yap ve sahiplikten çekil",
@@ -95,6 +99,66 @@
       "linkOnly": "Bu davet bağlantısını paylaşın",
       "linkValidity": "Davet bağlantıları 7 gün ve yalnızca davet edilen e-posta adresi için geçerlidir.",
       "addMore": "Başka ekle"
+    }
+  },
+  "teamspaces": {
+    "heading": "Teamspace'ler",
+    "description": "Teamspace'ler sayfaları ve onlar üzerinde çalışan kişileri bir araya getirir. Herkes içinde olduğu teamspace'leri kenar çubuğunda görür. Misafirler hiçbir teamspace'te olmaz; yalnızca kendileriyle paylaşılan sayfaları görürler.",
+    "newButton": "Yeni teamspace",
+    "search": "Teamspace ara",
+    "status": {
+      "active": "Etkin",
+      "archived": "Arşivlenmiş"
+    },
+    "ownerFilter": "Sahip",
+    "anyOwner": "Tüm sahipler",
+    "accessFilter": "Erişim",
+    "anyAccess": "Tüm erişimler",
+    "columns": {
+      "teamspace": "Teamspace",
+      "members": "Üyeler",
+      "owners": "Sahipler",
+      "access": "Erişim",
+      "updated": "Güncelleme",
+      "actions": "İşlemler"
+    },
+    "joined": "Katıldınız",
+    "noOwners": "Sahip yok",
+    "empty": "Henüz teamspace yok.",
+    "emptyArchived": "Arşivlenmiş teamspace yok.",
+    "noMatches": "Filtrelerinize uyan teamspace yok.",
+    "actionsFor": "{name} için işlemler",
+    "edit": "Düzenle",
+    "manageMembers": "Üyeleri yönet",
+    "viewMembers": "Üyeleri gör",
+    "join": "Katıl",
+    "leave": "Ayrıl",
+    "archive": "Arşivle",
+    "restore": "Geri yükle",
+    "leaveTitle": "{name} teamspace'inden ayrılınsın mı?",
+    "leaveBody": "Sayfaları kenar çubuğunuzdan kalkar. Açık bir teamspace'e kendiniz yeniden katılabilirsiniz; diğerlerinde sizi sahiplerinden birinin eklemesi gerekir.",
+    "archiveTitle": "{name} arşivlensin mi?",
+    "archiveBody": "Herkesin kenar çubuğundan kalkar ve yeni sayfa almaz. Arşivlenmiş teamspace'lerden geri yükleyebilirsiniz.",
+    "defaults": {
+      "heading": "Varsayılan teamspace'ler",
+      "description": "Çalışma alanındaki herkes, sonradan katılanlar da dahil, bu teamspace'lerdedir ve ayrılamaz. Biri katıldığında güncellenecek bir şey yoktur. Yeni üst düzey sayfalar en eskisine eklenir.",
+      "add": "Varsayılan teamspace ekle",
+      "addPlaceholder": "Teamspace seçin…",
+      "empty": "Varsayılan teamspace yok. Yeni üst düzey sayfalar kişilerin özel sayfalarına eklenir.",
+      "remove": "Kaldır",
+      "removeFor": "{name} varsayılan teamspace olmasın",
+      "makeTitle": "{name} varsayılan teamspace olsun mu?",
+      "makeBody": "Çalışma alanındaki herkes, şimdi ve sonradan katılanlar, bu teamspace'te olur ve ayrılamaz. Sayfaları herkesin kenar çubuğunda görünür.",
+      "makeConfirm": "Varsayılan yap",
+      "removeTitle": "{name} açık teamspace olsun mu?",
+      "removeBody": "Şimdilik herkes içinde kalır ama ayrılabilir; çalışma alanına sonradan katılanlar eklenmez.",
+      "removeConfirm": "Açık yap"
+    },
+    "policyHeading": "İzinler",
+    "creation": {
+      "title": "Teamspace'leri yalnızca çalışma alanı sahipleri oluşturabilir",
+      "description": "Kapalıyken sahipler ve üyeler teamspace oluşturabilir. Misafirler hiçbir zaman oluşturamaz.",
+      "ownersOnly": "Bunu yalnızca çalışma alanı sahipleri değiştirebilir."
     }
   },
   "preferences": {

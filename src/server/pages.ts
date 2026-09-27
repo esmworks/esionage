@@ -7,6 +7,7 @@ import {
   databaseView,
   oauthClient,
   page,
+  pagePermission,
   pageSnapshot,
   type PageKind,
   user,
@@ -35,11 +36,19 @@ import {
   withCode,
   type BulkResult,
 } from "@/server/databases";
-import { makePagePrivate } from "@/server/permissions";
+import { followNewSpace, freezeInheritedEntries, makePagePrivate } from "@/server/permissions";
+import { placeTopLevel, requireTeamspaceForPages, sidebarTeamspaces, type TeamspaceSummary } from "@/server/teamspaces";
 import { requireTopLevel } from "@/server/workspaces";
+
+import { placeInSections, PRIVATE_SECTION, SHARED_SECTION, type TreeSection } from "@/lib/tree-sections";
+
+// Where a page shows in the sidebar: the section of a teamspace the user is in (its id), their
+// private pages, or pages shared with them from elsewhere.
+export { PRIVATE_SECTION, SHARED_SECTION, type TreeSection };
 
 export type TreeNode = {
   id: string;
+  /** The parent, when it is in the tree too; null for the top of a section. */
   parentId: string | null;
   kind: PageKind;
   title: string;
@@ -47,6 +56,9 @@ export type TreeNode = {
   position: number;
   /** The user's access to the page, so the sidebar only offers what the server allows. */
   level: AccessLevel;
+  /** The teamspace the page belongs to; null for private pages. */
+  teamspaceId: string | null;
+  section: TreeSection;
   /** Databases only: their views, listed under the database in the sidebar. */
   views?: TreeView[];
 };
@@ -56,9 +68,13 @@ export type TreeView = { id: string; name: string; type: ViewType };
 export { listWorkspaces } from "@/server/workspaces";
 
 /**
- * Sidebar tree: every live page the user can see except database rows (those live inside their
- * database) and templates (listed by the template picker). A page shared with someone who can't
- * see its parent shows up as a top-level page.
+ * Sidebar tree: the live pages the user can see except database rows (those live inside their
+ * database) and templates (listed by the template picker), each in its section:
+ * - the teamspaces they are in (archived ones left out), with their pages;
+ * - "private": their own pages outside any teamspace;
+ * - "shared": pages shared with them by name that are in neither, such as a page of a closed
+ *   teamspace or someone's private page. A page whose parent they can't see shows at the top.
+ * Pages of open teamspaces they haven't joined stay out, like those teamspaces; search finds them.
  */
 export async function getTree(userId: string, workspaceId: string): Promise<TreeNode[]> {
   await requireMembership(userId, workspaceId);
@@ -70,10 +86,13 @@ export async function getTree(userId: string, workspaceId: string): Promise<Tree
     icon: string | null;
     position: number;
     level: number;
+    teamspace_id: string | null;
+    mine: boolean;
+    shared: boolean;
   }>(sql`
     with ranked as materialized (
       -- Materialized so the access level is worked out once per page, for the filter and the result.
-      select p.id, p.parent_id, p.kind, p.title, p.icon, p.position, p.created_at,
+      select p.id, p.parent_id, p.kind, p.title, p.icon, p.position, p.created_at, p.teamspace_id, p.created_by,
         ${accessRank(userId, pageIdColumn("p"))} as level
       from ${page} p
       left join ${page} parent on parent.id = p.parent_id
@@ -82,11 +101,22 @@ export async function getTree(userId: string, workspaceId: string): Promise<Tree
         and not p.in_template
         and (parent.id is null or parent.kind <> 'database')
     )
-    select id, parent_id, kind, title, icon, position, level
+    select id, parent_id, kind, title, icon, position, level, teamspace_id,
+      coalesce(created_by = ${userId}, false) as mine,
+      exists (select 1 from ${pagePermission} pp where pp.page_id = ranked.id and pp.user_id = ${userId} and pp.level <> 'none') as shared
     from ranked
     where level > 0
     order by position, created_at
   `);
+  const joined = new Set((await sidebarTeamspaces(userId, workspaceId)).map((t) => t.id));
+  const placement = placeInSections(
+    rows.map((r) => ({ id: r.id, parentId: r.parent_id, teamspaceId: r.teamspace_id, mine: r.mine, shared: r.shared })),
+    joined,
+  );
+  const nodes = rows.flatMap((r) => {
+    const where = placement.get(r.id);
+    return where ? [{ r, ...where }] : [];
+  });
   const views = await db
     .select({ id: databaseView.id, name: databaseView.name, type: databaseView.type, databaseId: databaseView.databaseId })
     .from(databaseView)
@@ -95,17 +125,27 @@ export async function getTree(userId: string, workspaceId: string): Promise<Tree
     .orderBy(asc(databaseView.position));
   const viewsOf = new Map<string, TreeView[]>();
   for (const { databaseId, ...v } of views) viewsOf.set(databaseId, [...(viewsOf.get(databaseId) ?? []), v]);
-  const visible = new Set(rows.map((r) => r.id));
-  return rows.map((r) => ({
+  return nodes.map(({ r, section, parentId }) => ({
     id: r.id,
-    parentId: r.parent_id && visible.has(r.parent_id) ? r.parent_id : null,
+    parentId,
     kind: r.kind,
     title: r.title,
     icon: r.icon,
     position: Number(r.position),
     level: levelFromRank(r.level),
+    teamspaceId: r.teamspace_id,
+    section,
     ...(r.kind === "database" ? { views: viewsOf.get(r.id) ?? [] } : {}),
   }));
+}
+
+/** The sidebar: its page tree and the teamspaces it has a section for. */
+export async function getSidebar(
+  userId: string,
+  workspaceId: string,
+): Promise<{ tree: TreeNode[]; teamspaces: TeamspaceSummary[] }> {
+  const [tree, teamspaces] = await Promise.all([getTree(userId, workspaceId), sidebarTeamspaces(userId, workspaceId)]);
+  return { tree, teamspaces };
 }
 
 export async function getPage(userId: string, pageId: string) {
@@ -154,6 +194,12 @@ export type CreatePageInput = {
    * under a database (see server/templates.ts).
    */
   template?: boolean;
+  /**
+   * Top-level pages: the teamspace to add it to (the user must be in it), null for a private page,
+   * or undefined for the workspace's first default teamspace. Ignored under a parent. A guest's
+   * top-level pages are always private.
+   */
+  teamspaceId?: string | null;
 };
 
 export type DatabaseSeedNames = {
@@ -182,11 +228,12 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
   let parentKind: PageKind | null = null;
   // Pages added under a template belong to it, and stay out of the sidebar and search like it.
   let parentInTemplate = false;
-  // A top-level page from a guest is theirs alone.
-  let topLevel: "shared" | "private" | null = null;
+  // A top-level page goes to a teamspace, or is private: theirs alone.
+  let placement: { teamspaceId: string | null; private: boolean } = { teamspaceId: null, private: false };
   if (input.parentId) {
     const parent = await requirePageAccess(userId, input.parentId, "edit");
     workspaceId = parent.workspaceId;
+    placement = { teamspaceId: parent.teamspaceId, private: false };
     parentKind = parent.kind;
     parentInTemplate = parent.inTemplate;
     if (parent.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
@@ -194,7 +241,7 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
       throw withCode(new Error("A database can't contain another database"), "nestedDatabase");
     }
   } else {
-    topLevel = await requireTopLevel(userId, workspaceId);
+    placement = await placeTopLevel(userId, workspaceId, await requireTopLevel(userId, workspaceId), input.teamspaceId);
   }
   const isTemplate = Boolean(input.template);
   if (isTemplate && input.parentId && parentKind !== "database") {
@@ -221,11 +268,12 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
         position,
         isTemplate,
         inTemplate,
+        teamspaceId: placement.teamspaceId,
         createdBy: userId,
         updatedBy: userId,
       })
       .returning();
-    if (topLevel === "private") await makePagePrivate(tx, workspaceId, row.id, userId);
+    if (placement.private) await makePagePrivate(tx, workspaceId, row.id, userId);
     return row;
   });
 
@@ -346,7 +394,14 @@ export async function restorePage(userId: string, pageId: string) {
         sql`${page.archivedAt} = (select root.archived_at from ${page} root where root.id = ${pageId})`,
       ),
     );
-  if (parentId !== p.parentId) await db.update(page).set({ parentId }).where(eq(page.id, pageId));
+  if (parentId !== p.parentId) {
+    // Lifted to the top of its teamspace (or of the private pages): it keeps the access it had
+    // from its old ancestors rather than opening up to everyone there, or to nobody.
+    await db.transaction(async (tx) => {
+      await freezeInheritedEntries(tx, p.workspaceId, pageId);
+      await tx.update(page).set({ parentId }).where(eq(page.id, pageId));
+    });
+  }
   getCollab().broadcast(`ws:${p.workspaceId}`, "tree");
   if (parentId) getCollab().broadcast(`db:${parentId}`, "rows");
 }
@@ -403,18 +458,36 @@ export async function listTrash(userId: string, workspaceId: string) {
 }
 
 /**
- * Reordering among the same siblings needs edit access. Moving under another parent changes who
- * inherits access to the page, so it needs full access, like sharing; the top level also needs a
- * member: a guest's top-level pages are private to them, which a move wouldn't make them.
+ * Reordering among the same siblings needs edit access. Moving under another parent, or to another
+ * teamspace, changes who inherits access to the page, so it needs full access, like sharing; the
+ * top level also needs a member: a guest's top-level pages are private to them, which a move
+ * wouldn't make them.
+ *
+ * `teamspaceId` says where a page moved to the top level goes: a teamspace the user is in, null for
+ * their private pages, or undefined for the top of the teamspace it is in now. A page that changes
+ * teamspace takes the access of its new place (see followNewSpace).
  */
-export async function movePage(userId: string, pageId: string, newParentId: string | null, position?: number) {
+export async function movePage(
+  userId: string,
+  pageId: string,
+  newParentId: string | null,
+  position?: number,
+  teamspaceId?: string | null,
+) {
   const current = await requirePageAccess(userId, pageId, "edit");
-  const p = current.parentId === newParentId ? current : await requirePageAccess(userId, pageId, "full");
-  if (!newParentId && p.parentId !== null) await requireMember(userId, p.workspaceId);
+  const parent = newParentId ? await requirePageAccess(userId, newParentId, "edit") : null;
+  const space = parent ? parent.teamspaceId : teamspaceId === undefined ? current.teamspaceId : teamspaceId;
+  const changesSpace = space !== current.teamspaceId;
+  const p = current.parentId === newParentId && !changesSpace ? current : await requirePageAccess(userId, pageId, "full");
+  if (!newParentId && (p.parentId !== null || changesSpace)) {
+    await requireMember(userId, p.workspaceId);
+    if (space) await requireTeamspaceForPages(userId, space, p.workspaceId);
+  }
   // Templates stay where they are listed, and pages don't move into or out of a template.
-  if (p.parentId !== newParentId && p.isTemplate) throw withCode(new Error("Templates can't be moved"), "isTemplate");
-  if (newParentId) {
-    const parent = await requirePageAccess(userId, newParentId, "edit");
+  if ((p.parentId !== newParentId || changesSpace) && p.isTemplate) {
+    throw withCode(new Error("Templates can't be moved"), "isTemplate");
+  }
+  if (parent) {
     if (parent.inTemplate !== p.inTemplate) {
       throw withCode(new Error("Pages can't be moved into or out of a template"), "isTemplate");
     }
@@ -428,10 +501,19 @@ export async function movePage(userId: string, pageId: string, newParentId: stri
   if (!newParentId && p.inTemplate && !p.isTemplate) {
     throw withCode(new Error("Pages can't be moved into or out of a template"), "isTemplate");
   }
-  await db
-    .update(page)
-    .set({ parentId: newParentId, position: position ?? (await nextPosition(p.workspaceId, newParentId)) })
-    .where(eq(page.id, pageId));
+  const nextPos = position ?? (await nextPosition(p.workspaceId, newParentId));
+  await db.transaction(async (tx) => {
+    // Under a parent the database copies its teamspace (and to everything below it).
+    await tx
+      .update(page)
+      .set({ parentId: newParentId, position: nextPos, ...(newParentId ? {} : { teamspaceId: space }) })
+      .where(eq(page.id, pageId));
+    await followNewSpace(tx, p.workspaceId, pageId, userId, {
+      changedSpace: changesSpace,
+      toPrivate: space === null,
+      privateTop: !newParentId && space === null && (changesSpace || p.parentId !== null),
+    });
+  });
   getCollab().broadcast(`ws:${p.workspaceId}`, "tree");
   for (const id of [p.parentId, newParentId]) if (id) getCollab().broadcast(`db:${id}`, "rows");
 }
@@ -439,6 +521,8 @@ export async function movePage(userId: string, pageId: string, newParentId: stri
 export type SearchHit = {
   id: string;
   workspaceId: string;
+  /** Null for private pages. */
+  teamspaceId: string | null;
   parentId: string | null;
   kind: PageKind;
   title: string;
@@ -460,6 +544,7 @@ export async function searchPages(
   const rows = await db.execute<{
     id: string;
     workspace_id: string;
+    teamspace_id: string | null;
     parent_id: string | null;
     kind: PageKind;
     title: string;
@@ -468,7 +553,7 @@ export async function searchPages(
     updated_at: Date;
     rank: number;
   }>(sql`
-    select p.id, p.workspace_id,
+    select p.id, p.workspace_id, p.teamspace_id,
       -- A parent they can't see isn't named, not even by id.
       case when p.parent_id is not null and ${pageVisibleTo(userId, "parent")} then p.parent_id end as parent_id,
       p.kind, p.title, p.icon, p.content_text, p.updated_at,
@@ -493,6 +578,7 @@ export async function searchPages(
   return rows.filter((r) => !heldBack.has(r.workspace_id)).map((r) => ({
     id: r.id,
     workspaceId: r.workspace_id,
+    teamspaceId: r.teamspace_id,
     parentId: r.parent_id,
     kind: r.kind,
     title: r.title,
@@ -513,7 +599,13 @@ function makeSnippet(text: string, q: string) {
  * Pages directly under `parentId`, or the user's top-level pages: those without a parent and those
  * shared with them whose parent (other than a database) they can't see.
  */
-export async function listChildren(userId: string, workspaceId: string, parentId: string | null) {
+export async function listChildren(
+  userId: string,
+  workspaceId: string,
+  parentId: string | null,
+  /** Top level only: just this teamspace's pages (null: private pages outside any teamspace). */
+  { teamspaceId }: { teamspaceId?: string | null } = {},
+) {
   await requireMembership(userId, workspaceId);
   if (parentId) await requirePageAccess(userId, parentId, "view");
   const parent = alias(page, "parent");
@@ -522,13 +614,25 @@ export async function listChildren(userId: string, workspaceId: string, parentId
     and(sql`${parent.kind} <> 'database'`, sql`${accessRank(userId, sql`${parent.id}`)} = 0`),
   );
   return db
-    .select({ id: page.id, kind: page.kind, title: page.title, icon: page.icon, updatedAt: page.updatedAt })
+    .select({
+      id: page.id,
+      kind: page.kind,
+      title: page.title,
+      icon: page.icon,
+      teamspaceId: page.teamspaceId,
+      updatedAt: page.updatedAt,
+    })
     .from(page)
     .leftJoin(parent, eq(parent.id, page.parentId))
     .where(
       and(
         eq(page.workspaceId, workspaceId),
         parentId ? eq(page.parentId, parentId) : and(topLevel, eq(page.inTemplate, false)),
+        !parentId && teamspaceId !== undefined
+          ? teamspaceId === null
+            ? isNull(page.teamspaceId)
+            : eq(page.teamspaceId, teamspaceId)
+          : undefined,
         // Templates are listed by list_templates, not as pages.
         eq(page.isTemplate, false),
         isNull(page.archivedAt),

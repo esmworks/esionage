@@ -273,7 +273,14 @@ try {
   const copiedViews = await db.select().from(databaseView).where(eq(databaseView.databaseId, copiedTasks.id));
   check(copiedViews.map((v) => v.name).join() === table.name && !copiedViews.some((v) => v.name === hiddenView.name), "only the views on the web are copied", copiedViews);
   const perms = await db.select().from(pagePermission).where(inArray(pagePermission.pageId, copied.map((p) => p.id)));
-  check(perms.length === 0, "no permission entries of the source workspace come along", perms);
+  // The copy lands among the visitor's private pages (teamspaces, #36): the only entries are the
+  // ones that make it theirs, none of the source workspace's.
+  check(
+    perms.every((p) => p.workspaceId === target && p.pageId === root.id && (p.userId === null ? p.level === "none" : p.userId === ids.visitor)) &&
+      root.teamspaceId === null,
+    "no permission entries of the source workspace come along: the copy is private to the visitor",
+    perms,
+  );
 
   const copiedChapter = byTitle("Chapter One")[0];
   check(!copiedChapter.contentMarkdown.includes(ids.owner) && copiedChapter.contentText.includes("@Olivia Owner"), "people mentions become their name", copiedChapter.contentMarkdown);

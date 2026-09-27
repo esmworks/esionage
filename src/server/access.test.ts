@@ -60,7 +60,7 @@ describe("pageVisibleTo", () => {
  */
 describe("access checks stay in one place", () => {
   const root = join(__dirname, "..");
-  const ALLOWED = new Set(["server/access.ts", "server/permissions.ts", "server/workspaces.ts"]);
+  const ALLOWED = new Set(["server/access.ts", "server/permissions.ts", "server/workspaces.ts", "server/teamspaces.ts"]);
 
   function sources(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -75,6 +75,14 @@ describe("access checks stay in one place", () => {
       .map((path) => relative(root, path))
       .filter((path) => !ALLOWED.has(path))
       .filter((path) => /\bworkspaceMember\b|workspace_member/.test(readFileSync(join(root, path), "utf8")));
+    expect(offenders).toEqual([]);
+  });
+
+  it("no other module reads teamspace_member: who is in a teamspace is teamspaces.ts's business", () => {
+    const offenders = sources(root)
+      .map((path) => relative(root, path))
+      .filter((path) => path !== "server/teamspaces.ts")
+      .filter((path) => /\bteamspaceMember\b|teamspace_member/.test(readFileSync(join(root, path), "utf8")));
     expect(offenders).toEqual([]);
   });
 });

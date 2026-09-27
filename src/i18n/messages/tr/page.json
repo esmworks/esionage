@@ -120,10 +120,11 @@
   "move": {
     "title": "Şuraya taşı",
     "search": "Sayfa ara…",
-    "root": "Çalışma alanının en üstü",
-    "rootHint": "Kenar çubuğunda en üst düzey sayfa olur",
     "empty": "Eşleşen sayfa yok.",
-    "failed": "Sayfa buraya taşınamadı."
+    "failed": "Sayfa buraya taşınamadı.",
+    "teamspaceHint": "Bu teamspace'in en üstü: üyeleri erişim kazanır",
+    "private": "Özel",
+    "privateHint": "Özel sayfalarınızın en üstü: yalnızca paylaşılan kişiler erişir"
   },
   "share": {
     "tabShare": "Paylaş",
@@ -147,6 +148,9 @@
     "generalAccess": "Genel erişim",
     "everyone": "Çalışma alanındaki herkes",
     "everyoneHint": "Üyeler, kişi bazında ne verilirse verilsin en az bu kadar erişime sahip olur. Sayfayı yalnızca eklediğiniz kişilere açmak için bunu \"Erişim yok\" yapın.",
+    "everyoneIn": "{name} içindeki herkes",
+    "everyoneTeamspace": "Teamspace'teki herkes",
+    "everyoneTeamspaceHint": "Teamspace üyeleri, onlara tek tek ne verirseniz verin en az bu kadar erişim alır. Sayfayı yalnızca eklediğiniz kişilere açmak için \"Erişim yok\" seçin.",
     "readOnly": "Paylaşım ayarlarını yalnızca tam erişimi olanlar değiştirebilir.",
     "copyLink": "Bağlantıyı kopyala",
     "copied": "Kopyalandı",

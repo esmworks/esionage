@@ -12,6 +12,7 @@ import {
   Inbox,
   LayoutTemplate,
   LogOut,
+  LogOut as LeaveIcon,
   MoreHorizontal,
   Plus,
   Search,
@@ -19,6 +20,7 @@ import {
   Trash2,
   Upload,
   UserRound,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -26,7 +28,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { unreadCountAction } from "@/app/actions/notifications";
 import { listFavoritesAction } from "@/app/actions/page-menu";
-import { archivePageAction, createPageAction, getTreeAction, movePageAction } from "@/app/actions/pages";
+import { archivePageAction, createPageAction, getSidebarAction, movePageAction } from "@/app/actions/pages";
+import { leaveTeamspaceAction } from "@/app/actions/teamspaces";
 import type { FavoritePage } from "@/server/page-meta";
 import { useChannel } from "@/components/collab/use-channel";
 import { ViewIcon } from "@/components/database/property-icons";
@@ -42,6 +45,9 @@ import { InstallAppMenuItem } from "@/components/offline/install-app";
 import { FAVORITES_EVENT } from "@/lib/favorites-event";
 import { INBOX_PREFERENCES_EVENT } from "@/lib/inbox-event";
 import type { TreeNode } from "@/server/pages";
+import type { TeamspaceSummary } from "@/server/teamspaces";
+import { PRIVATE_SECTION, SHARED_SECTION, type TreeSection } from "@/lib/tree-sections";
+import { TeamspaceDialog } from "@/components/teamspaces/teamspace-dialog";
 import { InboxDialog } from "./inbox-dialog";
 import { NewWorkspaceDialog } from "./new-workspace-dialog";
 import { SearchDialog } from "./search-dialog";
@@ -54,21 +60,35 @@ import { ImportDialog } from "@/components/workspace/import-dialog";
 type Workspace = { id: string; name: string; icon: string | null; role: string };
 
 const EXPANDED_KEY = "esionage:expanded";
+/** Sidebar sections the user folded: teamspace ids, "private", "shared" and the teamspaces group. */
+const FOLDED_KEY = "esionage:folded-sections";
+const TEAMSPACES_GROUP = "teamspaces";
 
 const canEdit = (node: TreeNode) => node.level === "edit" || node.level === "full";
 
-function loadExpanded(): Set<string> {
+function loadSet(key: string): Set<string> {
   try {
-    return new Set(JSON.parse(localStorage.getItem(EXPANDED_KEY) ?? "[]"));
+    return new Set(JSON.parse(localStorage.getItem(key) ?? "[]"));
   } catch {
     return new Set();
   }
 }
 
+function saveSet(key: string, set: Set<string>) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...set]));
+  } catch {}
+}
+
+/** Where a new top-level page goes: a teamspace, null for private, undefined for the workspace default. */
+type Target = string | null | undefined;
+
 export function Sidebar({
   workspaceId,
   workspaces,
   initialTree,
+  initialTeamspaces,
+  canCreateTeamspace,
   initialFavorites,
   topLevel,
   user,
@@ -76,6 +96,9 @@ export function Sidebar({
   workspaceId: string;
   workspaces: Workspace[];
   initialTree: TreeNode[];
+  /** The teamspaces they are in, each a sidebar section. */
+  initialTeamspaces: TeamspaceSummary[];
+  canCreateTeamspace: boolean;
   initialFavorites: FavoritePage[];
   /** Whether they may add top-level pages; a guest's are private to them. */
   topLevel: "shared" | "private" | null;
@@ -89,12 +112,17 @@ export function Sidebar({
   const activeViewId = useSearchParams().get("view");
   const sidebar = useSidebar();
   const [tree, setTree] = useState(initialTree);
+  const [teamspaces, setTeamspaces] = useState(initialTeamspaces);
+  const [folded, setFolded] = useState<Set<string>>(() => new Set());
+  const [teamspaceDialog, setTeamspaceDialog] = useState<{ teamspace?: TeamspaceSummary } | null>(null);
   const [favorites, setFavorites] = useState(initialFavorites);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [searchOpen, setSearchOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  // The section the templates or import dialog was opened from.
+  const [dialogTarget, setDialogTarget] = useState<Target>(undefined);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   // Bumped on every inbox signal so an open inbox reloads.
@@ -102,8 +130,8 @@ export function Sidebar({
   const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false);
   const [, startTransition] = useTransition();
   const [moveError, setMoveError] = useState(false);
-  // Creating or trashing a page failed (e.g. access changed meanwhile).
-  const [actionError, setActionError] = useState(false);
+  // Creating or trashing a page failed (e.g. access changed meanwhile), or leaving a teamspace did.
+  const [actionError, setActionError] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const workspace = workspaces.find((w) => w.id === workspaceId);
   // Guests only see pages shared with them (and their own private pages) and can't move pages to the top.
@@ -114,15 +142,24 @@ export function Sidebar({
   /** Tooltip for a control that needs the server while it can't be reached. */
   const needsServer = (label: string) => (offline ? tOffline("needsConnection", { action: label }) : undefined);
 
-  useEffect(() => setExpanded(loadExpanded()), []);
+  useEffect(() => {
+    setExpanded(loadSet(EXPANDED_KEY));
+    setFolded(loadSet(FOLDED_KEY));
+  }, []);
   useEffect(() => setTree(initialTree), [initialTree]);
+  useEffect(() => setTeamspaces(initialTeamspaces), [initialTeamspaces]);
   useEffect(() => setFavorites(initialFavorites), [initialFavorites]);
 
   const refreshFavorites = useCallback(() => {
     listFavoritesAction(workspaceId).then(setFavorites).catch(() => {});
   }, [workspaceId]);
   const refresh = useCallback(() => {
-    getTreeAction(workspaceId).then(setTree).catch(() => {});
+    getSidebarAction(workspaceId)
+      .then((next) => {
+        setTree(next.tree);
+        setTeamspaces(next.teamspaces);
+      })
+      .catch(() => {});
     // Renames, trash and sharing changes show up in Favorites too.
     refreshFavorites();
   }, [workspaceId, refreshFavorites]);
@@ -132,13 +169,16 @@ export function Sidebar({
   // The tree as last loaded is kept in this browser; offline, it replaces the one the page came
   // with (a cached page may be older than the last tree seen).
   useEffect(() => {
-    if (!offline) void saveSnapshot(user.id, treeSnapshotKey(workspaceId), tree);
-  }, [offline, tree, user.id, workspaceId]);
+    if (!offline) void saveSnapshot(user.id, treeSnapshotKey(workspaceId), { tree, teamspaces });
+  }, [offline, tree, teamspaces, user.id, workspaceId]);
   useEffect(() => {
     if (!offline) return;
     let current = true;
-    void loadSnapshot<TreeNode[]>(user.id, treeSnapshotKey(workspaceId)).then((kept) => {
-      if (current && kept) setTree(kept.data);
+    void loadSnapshot<{ tree: TreeNode[]; teamspaces: TeamspaceSummary[] }>(user.id, treeSnapshotKey(workspaceId)).then((kept) => {
+      // Copies from before teamspaces were kept as a bare tree; those wait for the next load.
+      if (!current || !kept || Array.isArray(kept.data)) return;
+      setTree(kept.data.tree);
+      setTeamspaces(kept.data.teamspaces);
     });
     return () => {
       current = false;
@@ -187,31 +227,58 @@ export function Sidebar({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Pages by parent; the tops of the sections under `@<section>`.
   const children = useMemo(() => {
-    const map = new Map<string | null, TreeNode[]>();
+    const map = new Map<string, TreeNode[]>();
     const ids = new Set(tree.map((n) => n.id));
     for (const node of tree) {
-      // Children of hidden parents (e.g. rows) never reach the tree; orphans go to the root.
-      const key = node.parentId && ids.has(node.parentId) ? node.parentId : null;
+      // Children of hidden parents (e.g. rows) never reach the tree; orphans go to the top.
+      const key = node.parentId && ids.has(node.parentId) ? node.parentId : `@${node.section}`;
       map.set(key, [...(map.get(key) ?? []), node]);
     }
     for (const list of map.values()) list.sort((a, b) => a.position - b.position);
     return map;
   }, [tree]);
   const byId = useMemo(() => new Map(tree.map((n) => [n.id, n])), [tree]);
+  const rootsOf = (section: TreeSection) => children.get(`@${section}`) ?? [];
 
-  /** Whether a dragged page may go under `parentId` (null: the top level), mirroring movePage's checks. */
-  function canDrop(draggedId: string, parentId: string | null) {
+  /** The teamspace a page lands in under `parentId`, or at the top of `section` (null: private). */
+  function spaceAt(parentId: string | null, section: TreeSection) {
+    if (parentId) return byId.get(parentId)?.teamspaceId ?? null;
+    return section === PRIVATE_SECTION ? null : section;
+  }
+
+  /**
+   * Whether a dragged page may go under `parentId`, or to the top of `section` when that is null,
+   * mirroring movePage's checks.
+   */
+  function canDrop(draggedId: string, parentId: string | null, section: TreeSection) {
     const dragged = byId.get(draggedId);
     if (!dragged || !canEdit(dragged)) return false;
     // Not into itself or one of its subpages: that would cut the branch off the tree.
     for (let id = parentId; id; id = byId.get(id)?.parentId ?? null) if (id === draggedId) return false;
+    if (!parentId) {
+      // The top of "shared" is not a place: those pages live elsewhere.
+      if (section === SHARED_SECTION) return false;
+      if (dragged.parentId === null && dragged.section === section) return true;
+      if (guest || dragged.level !== "full") return false;
+      return section === PRIVATE_SECTION || teamspaces.some((ts) => ts.id === section);
+    }
     if (parentId === dragged.parentId) return true;
     // Another parent changes who inherits access to the page: that takes full access.
     if (dragged.level !== "full") return false;
-    if (!parentId) return !guest;
     const parent = byId.get(parentId);
     return !!parent && canEdit(parent) && !(parent.kind === "database" && dragged.kind === "database");
+  }
+
+  function fold(section: string, open?: boolean) {
+    setFolded((prev) => {
+      const next = new Set(prev);
+      if (open ?? next.has(section)) next.delete(section);
+      else next.add(section);
+      saveSet(FOLDED_KEY, next);
+      return next;
+    });
   }
 
   function toggle(id: string, open?: boolean) {
@@ -219,23 +286,22 @@ export function Sidebar({
       const next = new Set(prev);
       if (open ?? !next.has(id)) next.add(id);
       else next.delete(id);
-      try {
-        localStorage.setItem(EXPANDED_KEY, JSON.stringify([...next]));
-      } catch {}
+      saveSet(EXPANDED_KEY, next);
       return next;
     });
   }
 
-  function create(parentId: string | null, kind: PageKind = "page") {
-    setActionError(false);
+  function create(parentId: string | null, kind: PageKind = "page", target?: Target) {
+    setActionError(null);
     startTransition(async () => {
       try {
-        const { id } = await createPageAction({ workspaceId, parentId, kind });
+        const { id } = await createPageAction({ workspaceId, parentId, kind, ...(parentId ? {} : { teamspaceId: target }) });
         if (parentId) toggle(parentId, true);
+        else if (target !== undefined) fold(target ?? PRIVATE_SECTION, true);
         markNewPage(id);
         router.push(`/w/${workspaceId}/p/${id}`);
       } catch {
-        setActionError(true);
+        setActionError(tc("genericError"));
       } finally {
         refresh();
       }
@@ -243,26 +309,36 @@ export function Sidebar({
   }
 
   function archive(id: string) {
-    setActionError(false);
+    setActionError(null);
     startTransition(async () => {
       try {
         await archivePageAction(id);
         if (activeId === id) router.refresh();
       } catch {
-        setActionError(true);
+        setActionError(tc("genericError"));
       } finally {
         refresh();
       }
     });
   }
 
-  function move(id: string, parentId: string | null, position: number) {
-    setTree((t) => t.map((n) => (n.id === id ? { ...n, parentId, position } : n)));
+  function placeName(space: string | null) {
+    return space ? (teamspaces.find((ts) => ts.id === space)?.name ?? t("teamspaces.another")) : t("sections.private");
+  }
+
+  function move(id: string, parentId: string | null, position: number, section: TreeSection) {
+    const dragged = byId.get(id);
+    const space = spaceAt(parentId, section);
+    // Another teamspace (or private) means other people see it: say so before it happens.
+    if (dragged && space !== dragged.teamspaceId && !confirm(t("pages.confirmMoveSpace", { place: placeName(space) }))) return;
+    setTree((t) =>
+      t.map((n) => (n.id === id ? { ...n, parentId, position, ...(parentId ? {} : { section, teamspaceId: space }) } : n)),
+    );
     if (parentId) toggle(parentId, true);
     setMoveError(false);
     startTransition(async () => {
       try {
-        await movePageAction(id, parentId, position);
+        await movePageAction(id, parentId, position, parentId ? undefined : space);
       } catch {
         // Usually access: a new parent needs full access on the page. The refresh puts it back.
         setMoveError(true);
@@ -278,9 +354,73 @@ export function Sidebar({
   }, [moveError]);
   useEffect(() => {
     if (!actionError) return;
-    const timer = setTimeout(() => setActionError(false), 5000);
+    const timer = setTimeout(() => setActionError(null), 5000);
     return () => clearTimeout(timer);
   }, [actionError]);
+
+  function leave(ts: TeamspaceSummary) {
+    if (!confirm(t("teamspaces.confirmLeave", { name: ts.name }))) return;
+    setActionError(null);
+    startTransition(async () => {
+      const result = await leaveTeamspaceAction(workspaceId, ts.id);
+      if (!result.ok) setActionError(result.error);
+      refresh();
+      router.refresh();
+    });
+  }
+
+  function openTemplates(target: Target) {
+    setDialogTarget(target);
+    setTemplatesOpen(true);
+  }
+
+  function openImport(target: Target) {
+    setDialogTarget(target);
+    setImportOpen(true);
+  }
+
+  /** The "+" menu of a section: what to add at its top. */
+  const newMenu = (target: string | null) => (close: () => void) => (
+    <>
+      <MenuItem
+        icon={<FileText className="h-4 w-4" />}
+        onClick={() => {
+          close();
+          create(null, "page", target);
+        }}
+      >
+        {t("pages.newPage")}
+      </MenuItem>
+      <MenuItem
+        icon={<Database className="h-4 w-4" />}
+        onClick={() => {
+          close();
+          create(null, "database", target);
+        }}
+      >
+        {t("pages.newDatabase")}
+      </MenuItem>
+      <MenuSeparator />
+      <MenuItem
+        icon={<LayoutTemplate className="h-4 w-4" />}
+        onClick={() => {
+          close();
+          openTemplates(target);
+        }}
+      >
+        {t("pages.fromTemplate")}
+      </MenuItem>
+      <MenuItem
+        icon={<Upload className="h-4 w-4" />}
+        onClick={() => {
+          close();
+          openImport(target);
+        }}
+      >
+        {t("pages.import")}
+      </MenuItem>
+    </>
+  );
 
   async function signOut() {
     // Edits made offline that never reached the server are lost with the offline copies.
@@ -293,8 +433,23 @@ export function Sidebar({
     router.refresh();
   }
 
-  const roots = children.get(null) ?? [];
   const accountPath = `/account?from=${encodeURIComponent(workspaceId)}`;
+  const treeProps: TreeContext = {
+    childrenOf: children,
+    expanded,
+    activeId,
+    activeViewId,
+    workspaceId,
+    onToggle: toggle,
+    onCreate: create,
+    onArchive: archive,
+    onMove: move,
+    dragging,
+    onDragging: setDragging,
+    canDrop,
+    offline,
+  };
+
   return (
     <>
       {sidebar?.drawerOpen && (
@@ -491,68 +646,7 @@ export function Sidebar({
           </div>
         )}
 
-        <div className="flex items-center justify-between px-4 pb-1 pt-2">
-          <span className="text-xs font-medium text-fg-muted">{t("pages.heading")}</span>
-          {topLevel && (
-            <Popover
-              align="end"
-              trigger={({ toggle }) => (
-                <IconButton
-                  label={t("pages.new")}
-                  title={needsServer(t("pages.new")) ?? t("pages.new")}
-                  onClick={toggle}
-                  disabled={offline}
-                  className="disabled:opacity-40 disabled:hover:bg-transparent"
-                >
-                  <Plus className="h-4 w-4" />
-                </IconButton>
-              )}
-            >
-              {(close) => (
-                <>
-                  <MenuItem
-                    icon={<FileText className="h-4 w-4" />}
-                    onClick={() => {
-                      close();
-                      create(null, "page");
-                    }}
-                  >
-                    {t("pages.newPage")}
-                  </MenuItem>
-                  <MenuItem
-                    icon={<Database className="h-4 w-4" />}
-                    onClick={() => {
-                      close();
-                      create(null, "database");
-                    }}
-                  >
-                    {t("pages.newDatabase")}
-                  </MenuItem>
-                  <MenuSeparator />
-                  <MenuItem
-                    icon={<LayoutTemplate className="h-4 w-4" />}
-                    onClick={() => {
-                      close();
-                      setTemplatesOpen(true);
-                    }}
-                  >
-                    {t("pages.fromTemplate")}
-                  </MenuItem>
-                  <MenuItem
-                    icon={<Upload className="h-4 w-4" />}
-                    onClick={() => {
-                      close();
-                      setImportOpen(true);
-                    }}
-                  >
-                    {t("pages.import")}
-                  </MenuItem>
-                </>
-              )}
-            </Popover>
-          )}
-        </div>
-
+        <div className="pt-2" />
         {moveError && (
           <p role="alert" className="mx-4 mb-1 text-xs text-danger">
             {t("pages.moveFailed")}
@@ -560,56 +654,133 @@ export function Sidebar({
         )}
         {actionError && (
           <p role="alert" className="mx-4 mb-1 text-xs text-danger">
-            {tc("genericError")}
+            {actionError}
           </p>
         )}
         <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label={t("pages.heading")}>
-          {roots.length === 0 && !topLevel && <p className="px-2 py-1.5 text-fg-muted">{t("pages.nothingShared")}</p>}
-          {roots.length === 0 && topLevel && (
-            <button
-              type="button"
-              onClick={() => create(null)}
-              disabled={offline}
-              title={needsServer(t("pages.createFirst"))}
-              className="w-full rounded-md px-2 py-1.5 text-left text-fg-muted hover:bg-bg-hover disabled:opacity-50 disabled:hover:bg-transparent"
+          {!guest && (
+            <SectionGroup
+              label={t("teamspaces.heading")}
+              open={!folded.has(TEAMSPACES_GROUP)}
+              onToggle={() => fold(TEAMSPACES_GROUP)}
+              actions={
+                <Popover
+                  align="end"
+                  trigger={({ toggle }) => (
+                    <IconButton label={t("teamspaces.options")} onClick={toggle}>
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    </IconButton>
+                  )}
+                >
+                  {(close) => (
+                    <>
+                      {canCreateTeamspace && (
+                        <MenuItem
+                          icon={<Plus className="h-4 w-4" />}
+                          disabled={offline}
+                          title={needsServer(t("teamspaces.new"))}
+                          onClick={() => {
+                            close();
+                            setTeamspaceDialog({});
+                          }}
+                        >
+                          {t("teamspaces.new")}
+                        </MenuItem>
+                      )}
+                      <MenuItem
+                        icon={<Users className="h-4 w-4" />}
+                        onClick={() => {
+                          close();
+                          router.push(`/w/${workspaceId}/settings?tab=teamspaces`);
+                        }}
+                      >
+                        {t("teamspaces.browse")}
+                      </MenuItem>
+                    </>
+                  )}
+                </Popover>
+              }
             >
-              {t("pages.createFirst")}
-            </button>
+              {teamspaces.length === 0 && (
+                <Link
+                  href={`/w/${workspaceId}/settings?tab=teamspaces`}
+                  className="block rounded-md px-2 py-1.5 text-xs text-fg-muted hover:bg-bg-hover"
+                >
+                  {t("teamspaces.none")}
+                </Link>
+              )}
+              <ul>
+                {teamspaces.map((ts) => (
+                  <TeamspaceSection
+                    key={ts.id}
+                    teamspace={ts}
+                    open={!folded.has(ts.id)}
+                    onToggle={() => fold(ts.id)}
+                    roots={rootsOf(ts.id)}
+                    newMenu={newMenu(ts.id)}
+                    onCreate={() => create(null, "page", ts.id)}
+                    onEdit={ts.canManage ? () => setTeamspaceDialog({ teamspace: ts }) : undefined}
+                    onLeave={ts.canLeave ? () => leave(ts) : undefined}
+                    tree={treeProps}
+                  />
+                ))}
+              </ul>
+            </SectionGroup>
           )}
-          <TreeLevel
-            nodes={roots}
-            depth={0}
-            childrenOf={children}
-            expanded={expanded}
-            activeId={activeId}
-            activeViewId={activeViewId}
-            workspaceId={workspaceId}
-            onToggle={toggle}
-            onCreate={create}
-            onArchive={archive}
-            onMove={move}
-            dragging={dragging}
-            onDragging={setDragging}
-            canDrop={canDrop}
-            offline={offline}
-          />
+          {rootsOf(SHARED_SECTION).length > 0 && (
+            <SectionGroup label={t("sections.shared")} open={!folded.has(SHARED_SECTION)} onToggle={() => fold(SHARED_SECTION)}>
+              <TreeLevel nodes={rootsOf(SHARED_SECTION)} depth={0} {...treeProps} />
+            </SectionGroup>
+          )}
+          {(topLevel || rootsOf(PRIVATE_SECTION).length > 0) && (
+            <SectionGroup
+              label={t("sections.private")}
+              open={!folded.has(PRIVATE_SECTION)}
+              onToggle={() => fold(PRIVATE_SECTION)}
+              drop={{ section: PRIVATE_SECTION, roots: rootsOf(PRIVATE_SECTION), ...treeProps }}
+              actions={
+                topLevel && (
+                  <Popover
+                    align="end"
+                    trigger={({ toggle }) => (
+                      <IconButton label={t("sections.newPrivate")} onClick={toggle} disabled={offline} className="disabled:opacity-40 disabled:hover:bg-transparent">
+                        <Plus className="h-3.5 w-3.5" />
+                      </IconButton>
+                    )}
+                  >
+                    {newMenu(null)}
+                  </Popover>
+                )
+              }
+            >
+              {rootsOf(PRIVATE_SECTION).length === 0 && topLevel && (
+                <button
+                  type="button"
+                  onClick={() => create(null, "page", null)}
+                  disabled={offline}
+                  title={needsServer(t("pages.createFirst"))}
+                  className="w-full rounded-md px-2 py-1.5 text-left text-fg-muted hover:bg-bg-hover disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  {t("pages.createFirst")}
+                </button>
+              )}
+              <TreeLevel nodes={rootsOf(PRIVATE_SECTION)} depth={0} {...treeProps} />
+            </SectionGroup>
+          )}
+          {guest && tree.length === 0 && !topLevel && <p className="px-2 py-1.5 text-fg-muted">{t("pages.nothingShared")}</p>}
         </nav>
 
         <div className="space-y-px border-t border-border p-2">
           {/* Templates live here rather than in the page tree; making pages from them needs the top level. */}
           {topLevel && (
-            <SidebarButton
-              icon={<LayoutTemplate className="h-4 w-4" />}
-              onClick={() => setTemplatesOpen(true)}
+            <SidebarButton icon={<LayoutTemplate className="h-4 w-4" />} onClick={() => openTemplates(undefined)}
               disabled={offline}
               title={needsServer(t("nav.templates"))}
             >
               {t("nav.templates")}
             </SidebarButton>
           )}
-          <SidebarButton
-            icon={<Upload className="h-4 w-4" />}
-            onClick={() => setImportOpen(true)}
+          <SidebarButton icon={<Upload className="h-4 w-4" />} onClick={() => openImport(undefined)}
             disabled={offline}
             title={needsServer(t("nav.import"))}
           >
@@ -636,14 +807,33 @@ export function Sidebar({
         onRead={refreshInbox}
       />
       <NewWorkspaceDialog open={newWorkspaceOpen} onClose={() => setNewWorkspaceOpen(false)} />
-      <TemplatesDialog workspaceId={workspaceId} open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
+      <TemplatesDialog
+        workspaceId={workspaceId}
+        open={templatesOpen}
+        onClose={() => setTemplatesOpen(false)}
+        teamspaceId={dialogTarget}
+      />
       <ImportDialog
         workspaceId={workspaceId}
         open={importOpen}
         onClose={() => setImportOpen(false)}
         tree={tree}
         topLevel={Boolean(topLevel)}
-        activeId={activeId}
+        // From a section's menu it starts at that section's top rather than at the open page.
+        activeId={dialogTarget === undefined ? activeId : null}
+        teamspaceId={dialogTarget}
+      />
+      <TeamspaceDialog
+        workspaceId={workspaceId}
+        open={teamspaceDialog !== null}
+        onClose={() => setTeamspaceDialog(null)}
+        teamspace={teamspaceDialog?.teamspace}
+        isWorkspaceOwner={workspace?.role === "owner"}
+        onSaved={(id) => {
+          if (!teamspaceDialog?.teamspace) fold(id, true);
+          setTeamspaceDialog(null);
+          refresh();
+        }}
       />
       <TrashDialog
         workspaceId={workspaceId}
@@ -655,6 +845,226 @@ export function Sidebar({
         }}
       />
     </>
+  );
+}
+
+/** Dropping a page on a section's heading puts it last at the top of that section. */
+type RootDrop = TreeContext & { section: TreeSection; roots: TreeNode[] };
+
+function useRootDrop(drop: RootDrop | undefined) {
+  const [over, setOver] = useState(false);
+  if (!drop) return { over: false, handlers: {} };
+  const { section, roots, dragging, onDragging, canDrop, onMove } = drop;
+  const handlers = {
+    onDragOver: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes(DRAG_TYPE) || !dragging || !canDrop(dragging, null, section)) return setOver(false);
+      e.preventDefault();
+      setOver(true);
+    },
+    onDragLeave: () => setOver(false),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      setOver(false);
+      onDragging(null);
+      const draggedId = e.dataTransfer.getData(DRAG_TYPE);
+      if (!draggedId || !canDrop(draggedId, null, section)) return;
+      const last = roots.filter((n) => n.id !== draggedId).at(-1);
+      onMove(draggedId, null, (last?.position ?? 0) + 1, section);
+    },
+  };
+  return { over, handlers };
+}
+
+/** A heading ("Teamspaces", "Shared", "Private") that folds what is under it. */
+function SectionGroup({
+  label,
+  open,
+  onToggle,
+  actions,
+  drop,
+  children,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  actions?: React.ReactNode;
+  drop?: RootDrop;
+  children: React.ReactNode;
+}) {
+  const { over, handlers } = useRootDrop(drop);
+  return (
+    <section className="mb-2" aria-label={label}>
+      <div
+        {...handlers}
+        className={cn("group/section flex h-7 items-center rounded-md pr-1 hover:bg-bg-hover", over && "bg-accent/15")}
+      >
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={onToggle}
+          className="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left text-xs font-medium text-fg-muted"
+        >
+          <span className="truncate">{label}</span>
+          {open ? (
+            <ChevronDown className="h-3 w-3 shrink-0 opacity-0 group-hover/section:opacity-100 pointer-coarse:opacity-100" />
+          ) : (
+            <ChevronRight className="h-3 w-3 shrink-0" />
+          )}
+        </button>
+        {actions && (
+          <div className="flex items-center opacity-0 group-hover/section:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
+            {actions}
+          </div>
+        )}
+      </div>
+      {open && children}
+    </section>
+  );
+}
+
+function TeamspaceIcon({ teamspace }: { teamspace: TeamspaceSummary }) {
+  if (teamspace.icon) return <span className="text-sm leading-none">{teamspace.icon}</span>;
+  return (
+    <span className="flex h-4 w-4 items-center justify-center rounded bg-fg-muted text-[10px] font-semibold text-bg">
+      {teamspace.name.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
+/** A teamspace the user is in: its heading row (a drop target) and, unfolded, its pages. */
+function TeamspaceSection({
+  teamspace,
+  open,
+  onToggle,
+  roots,
+  newMenu,
+  onCreate,
+  onEdit,
+  onLeave,
+  tree,
+}: {
+  teamspace: TeamspaceSummary;
+  open: boolean;
+  onToggle: () => void;
+  roots: TreeNode[];
+  newMenu: (close: () => void) => React.ReactNode;
+  onCreate: () => void;
+  onEdit?: () => void;
+  onLeave?: () => void;
+  tree: TreeContext;
+}) {
+  const t = useTranslations("sidebar");
+  const router = useRouter();
+  const { over, handlers } = useRootDrop({ ...tree, section: teamspace.id, roots });
+  return (
+    <li>
+      <div
+        {...handlers}
+        data-teamspace={teamspace.id}
+        className={cn("group relative flex h-7 items-center gap-0.5 rounded-md pr-1 pl-1 hover:bg-bg-hover", over && "bg-accent/15")}
+      >
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={onToggle}
+          title={teamspace.description || undefined}
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left"
+        >
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+            <span className="flex group-hover:hidden pointer-coarse:hidden">
+              <TeamspaceIcon teamspace={teamspace} />
+            </span>
+            {open ? (
+              <ChevronDown className="hidden h-3.5 w-3.5 text-fg-faint group-hover:block pointer-coarse:block" />
+            ) : (
+              <ChevronRight className="hidden h-3.5 w-3.5 text-fg-faint group-hover:block pointer-coarse:block" />
+            )}
+          </span>
+          <span className="truncate font-medium">{teamspace.name}</span>
+        </button>
+        <div className="hidden items-center group-hover:flex focus-within:flex pointer-coarse:flex">
+          <Popover
+            align="end"
+            trigger={({ toggle }) => (
+              <IconButton label={t("teamspaces.actions", { name: teamspace.name })} onClick={toggle}>
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </IconButton>
+            )}
+          >
+            {(close) => (
+              <>
+                {onEdit && (
+                  <MenuItem
+                    icon={<Settings className="h-4 w-4" />}
+                    disabled={tree.offline}
+                    onClick={() => {
+                      close();
+                      onEdit();
+                    }}
+                  >
+                    {t("teamspaces.edit")}
+                  </MenuItem>
+                )}
+                <MenuItem
+                  icon={<Users className="h-4 w-4" />}
+                  onClick={() => {
+                    close();
+                    router.push(`/w/${tree.workspaceId}/settings?tab=teamspaces`);
+                  }}
+                >
+                  {t("teamspaces.members")}
+                </MenuItem>
+                {onLeave && (
+                  <>
+                    <MenuSeparator />
+                    <MenuItem
+                      danger
+                      icon={<LeaveIcon className="h-4 w-4" />}
+                      disabled={tree.offline}
+                      onClick={() => {
+                        close();
+                        onLeave();
+                      }}
+                    >
+                      {t("teamspaces.leave")}
+                    </MenuItem>
+                  </>
+                )}
+              </>
+            )}
+          </Popover>
+          <Popover
+            align="end"
+            trigger={({ toggle }) => (
+              <IconButton
+                label={t("teamspaces.addPage", { name: teamspace.name })}
+                onClick={toggle}
+                disabled={tree.offline}
+                className="disabled:opacity-40 disabled:hover:bg-transparent"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </IconButton>
+            )}
+          >
+            {newMenu}
+          </Popover>
+        </div>
+      </div>
+      {open &&
+        (roots.length > 0 ? (
+          <TreeLevel nodes={roots} depth={1} {...tree} />
+        ) : (
+          <button
+            type="button"
+            onClick={onCreate}
+            disabled={tree.offline}
+            className="block w-full rounded-md py-1 pr-2 text-left text-xs text-fg-faint hover:bg-bg-hover disabled:hover:bg-transparent"
+            style={{ paddingLeft: 32 }}
+          >
+            {t("teamspaces.empty")}
+          </button>
+        ))}
+    </li>
   );
 }
 
@@ -746,9 +1156,8 @@ function SidebarButton({
 
 type DropTarget = { id: string; zone: "before" | "inside" | "after" } | null;
 
-type TreeProps = {
-  depth: number;
-  childrenOf: Map<string | null, TreeNode[]>;
+type TreeContext = {
+  childrenOf: Map<string, TreeNode[]>;
   expanded: Set<string>;
   activeId: string | null;
   activeViewId: string | null;
@@ -756,14 +1165,17 @@ type TreeProps = {
   onToggle: (id: string, open?: boolean) => void;
   onCreate: (parentId: string | null, kind?: PageKind) => void;
   onArchive: (id: string) => void;
-  onMove: (id: string, parentId: string | null, position: number) => void;
+  /** `section`: the section whose top it goes to when `parentId` is null. */
+  onMove: (id: string, parentId: string | null, position: number, section: TreeSection) => void;
   /** The page being dragged in this tree, if any. */
   dragging: string | null;
   onDragging: (id: string | null) => void;
-  canDrop: (draggedId: string, parentId: string | null) => boolean;
+  canDrop: (draggedId: string, parentId: string | null, section: TreeSection) => boolean;
   /** No server: no creating, trashing or moving pages. */
   offline: boolean;
 };
+
+type TreeProps = TreeContext & { depth: number };
 
 function TreeLevel({ nodes, ...props }: TreeProps & { nodes: TreeNode[] }) {
   return (
@@ -816,14 +1228,14 @@ function TreeItem({
     const zone = zoneFor(e);
     setDrop(null);
     onDragging(null);
-    if (!draggedId || draggedId === node.id || !canDrop(draggedId, parentFor(zone))) return;
+    if (!draggedId || draggedId === node.id || !canDrop(draggedId, parentFor(zone), node.section)) return;
     if (zone === "inside") {
       const last = kids[kids.length - 1];
-      onMove(draggedId, node.id, (last?.position ?? 0) + 1);
+      onMove(draggedId, node.id, (last?.position ?? 0) + 1, node.section);
     } else if (zone === "before") {
-      onMove(draggedId, node.parentId, prev ? (prev.position + node.position) / 2 : node.position - 1);
+      onMove(draggedId, node.parentId, prev ? (prev.position + node.position) / 2 : node.position - 1, node.section);
     } else {
-      onMove(draggedId, node.parentId, next ? (node.position + next.position) / 2 : node.position + 1);
+      onMove(draggedId, node.parentId, next ? (node.position + next.position) / 2 : node.position + 1, node.section);
     }
   }
 
@@ -841,7 +1253,7 @@ function TreeItem({
           if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
           const zone = zoneFor(e);
           // Not accepting the drop shows the "not allowed" cursor.
-          if (!dragging || !canDrop(dragging, parentFor(zone))) return setDrop(null);
+          if (!dragging || !canDrop(dragging, parentFor(zone), node.section)) return setDrop(null);
           e.preventDefault();
           setDrop({ id: node.id, zone });
         }}

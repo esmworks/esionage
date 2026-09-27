@@ -12,6 +12,8 @@ export async function createPageAction(input: {
   parentId?: string | null;
   kind?: PageKind;
   title?: string;
+  /** Top-level pages: a teamspace, null for a private page, undefined for the default teamspace. */
+  teamspaceId?: string | null;
 }) {
   const userId = await requireUserId();
   const seedNames = input.kind === "database" ? await databaseSeedNames() : undefined;
@@ -45,14 +47,16 @@ export async function deletePagePermanentlyAction(pageId: string) {
   await pages.deletePagePermanently(userId, pageId);
 }
 
-export async function movePageAction(pageId: string, parentId: string | null, position?: number) {
+/** `teamspaceId` (top level only): the teamspace to move it to, null for the private pages. */
+export async function movePageAction(pageId: string, parentId: string | null, position?: number, teamspaceId?: string | null) {
   const userId = await requireUserId();
-  await pages.movePage(userId, pageId, parentId, position);
+  await pages.movePage(userId, pageId, parentId, position, teamspaceId);
 }
 
-export async function getTreeAction(workspaceId: string) {
+/** The sidebar's tree and the teamspaces it has sections for. */
+export async function getSidebarAction(workspaceId: string) {
   const userId = await requireUserId();
-  return pages.getTree(userId, workspaceId);
+  return pages.getSidebar(userId, workspaceId);
 }
 
 export async function listTrashAction(workspaceId: string) {
