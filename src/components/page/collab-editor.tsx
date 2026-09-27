@@ -2,6 +2,7 @@
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
+import "katex/dist/katex.min.css";
 import { createExtension } from "@blocknote/core";
 import { CommentsExtension } from "@blocknote/core/comments";
 import { filterSuggestionItems } from "@blocknote/core/extensions";
@@ -26,6 +27,7 @@ import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { THREADS_MAP, type CommentAnchor } from "@/lib/comments";
 import { CommentsPanel } from "./comments-panel";
 import { CommentAuth, ServerThreadStore } from "./comment-store";
+import { PageTrailProvider, useContentSlashItems, type TrailCrumb } from "./content-blocks";
 import { LINKED_VIEW_BLOCK } from "@/lib/embed-blocks";
 import { EmbedHostProvider, type EmbedHost } from "./database-embed";
 import { FindBar } from "./find-bar";
@@ -57,6 +59,7 @@ export default function CollabEditor({
   level,
   workspaceId,
   pageId,
+  crumbs,
   commentsOpen,
   onCloseComments,
 }: {
@@ -71,6 +74,8 @@ export default function CollabEditor({
   /** The page being edited: new inline databases are created under it. */
   workspaceId: string;
   pageId: string;
+  /** The page and the pages above it, for breadcrumb blocks (the last one is the page itself). */
+  crumbs: TrailCrumb[];
   commentsOpen: boolean;
   onCloseComments: () => void;
 }) {
@@ -78,6 +83,7 @@ export default function CollabEditor({
   const tc = useTranslations("common");
   const dictionary = useEditorDictionary();
   const host = useMemo<EmbedHost>(() => ({ workspaceId, pageId, editable }), [workspaceId, pageId, editable]);
+  const trail = useMemo(() => ({ workspaceId, crumbs }), [workspaceId, crumbs]);
   // Block id where "Linked view of database" was chosen, while its database picker is open.
   const [pickAt, setPickAt] = useState<string | null>(null);
   const [embedError, setEmbedError] = useState<string | null>(null);
@@ -120,29 +126,31 @@ export default function CollabEditor({
   // Keyed by language so the new editor mounts into a fresh element.
   return (
     <EmbedHostProvider value={host}>
-      {/* Search works for everyone; replacing only for people who may edit. */}
-      <FindBar editor={editor} editable={editable} />
-      <BlockNoteView
-        key={locale}
-        editor={editor}
-        editable={editable}
-        slashMenu={false}
-        formattingToolbar={false}
-        className="esionage-editor"
-      >
-        <SlashMenu editor={editor} onCreateError={setEmbedError} onPickDatabase={setPickAt} />
-        {/* People who may only read get no toolbar; commenting shows it on read-only pages too. */}
-        {(editable || canComment) && (
-          <FormattingToolbarController
-            formattingToolbar={() => (
-              <FormattingToolbar>
-                {getFormattingToolbarItems().filter((item) => canComment || item.key !== "addCommentButton")}
-              </FormattingToolbar>
-            )}
-          />
-        )}
-        {commentsOpen && <CommentsPanel onClose={onCloseComments} />}
-      </BlockNoteView>
+      <PageTrailProvider value={trail}>
+        {/* Search works for everyone; replacing only for people who may edit. */}
+        <FindBar editor={editor} editable={editable} />
+        <BlockNoteView
+          key={locale}
+          editor={editor}
+          editable={editable}
+          slashMenu={false}
+          formattingToolbar={false}
+          className="esionage-editor"
+        >
+          <SlashMenu editor={editor} onCreateError={setEmbedError} onPickDatabase={setPickAt} />
+          {/* People who may only read get no toolbar; commenting shows it on read-only pages too. */}
+          {(editable || canComment) && (
+            <FormattingToolbarController
+              formattingToolbar={() => (
+                <FormattingToolbar>
+                  {getFormattingToolbarItems().filter((item) => canComment || item.key !== "addCommentButton")}
+                </FormattingToolbar>
+              )}
+            />
+          )}
+          {commentsOpen && <CommentsPanel onClose={onCloseComments} />}
+        </BlockNoteView>
+      </PageTrailProvider>
       {embedError && (
         <div role="alert" className="mx-4 mt-2 md:mx-[54px] flex items-center gap-2 rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-sm">
           <span className="flex-1 text-danger">{embedError}</span>
@@ -184,7 +192,7 @@ function selectionAnchor(editor: PageEditor): CommentAnchor | undefined {
   return { quote, blockId: typeof block.attrs.id === "string" ? block.attrs.id : undefined, offset: $from.parentOffset };
 }
 
-/** BlockNote's slash menu plus the database blocks. */
+/** BlockNote's slash menu plus the database and content blocks. */
 function SlashMenu({
   editor,
   onCreateError,
@@ -195,10 +203,13 @@ function SlashMenu({
   onPickDatabase: (at: string) => void;
 }) {
   const embedItems = useEmbedSlashItems(editor, { onCreateError, onPickDatabase });
+  const contentItems = useContentSlashItems(editor);
   return (
     <SuggestionMenuController
       triggerCharacter="/"
-      getItems={async (query) => filterSuggestionItems(withEmbedItems(getDefaultReactSlashMenuItems(editor), embedItems()), query)}
+      getItems={async (query) =>
+        filterSuggestionItems(withEmbedItems(getDefaultReactSlashMenuItems(editor), [...embedItems(), ...contentItems]), query)
+      }
     />
   );
 }

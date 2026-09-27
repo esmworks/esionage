@@ -166,7 +166,7 @@ describe("published body segments", () => {
       { type: "paragraph", content: "Three" },
     ]);
     const segments = await bodySegmentsFromYdoc(Y.encodeStateAsUpdate(doc));
-    expect(segments.map((s) => (s.kind === "html" ? "html" : s.type))).toEqual(["html", "database", "html", "linkedView", "html"]);
+    expect(segments.map((s) => (s.kind === "embed" ? s.type : s.kind))).toEqual(["html", "database", "html", "linkedView", "html"]);
     expect(segments[1]).toEqual({ kind: "embed", type: "database", databaseId: DB, view: null });
     expect(segments[3]).toEqual({
       kind: "embed",

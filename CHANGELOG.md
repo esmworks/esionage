@@ -24,6 +24,14 @@
   `create_database_row` uses that default too when no values are given.
 - **MCP:** `list_templates` lists workspace, built-in and row templates, and `create_page` and
   `create_database_row` take a `template_id`.
+- **Editor blocks:** callouts with an icon and a background color, equations in LaTeX (a block of
+  their own or inline in text, rendered with KaTeX), Mermaid diagrams with a live preview, a table of
+  contents that follows the page's headings and scrolls to them, and a breadcrumb of the pages above.
+  All are in the slash menu and show on published pages. In Markdown (export, MCP) a callout is a
+  GitHub alert (`> [!NOTE]`), equations are `$…$` and `$$…$$`, a diagram is a ```` ```mermaid ````
+  fence, and the table of contents and breadcrumb are `<!-- esionage:toc -->` and
+  `<!-- esionage:breadcrumb -->` lines; all of them are read back into blocks. Columns are left out:
+  BlockNote's multi-column package is GPL-3.0.
 - **"Can comment" access:** share a page so people can read and comment on it without editing it.
   Their comments mark the selected text on the server, so the page itself stays read-only for them.
 - **Comments on pages:** select text and choose Comment to start a thread; reply, react with emoji,

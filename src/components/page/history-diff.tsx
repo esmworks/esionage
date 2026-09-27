@@ -7,8 +7,10 @@ import {
   File as FileIcon,
   Image as ImageIcon,
   Music,
+  Route,
   Square,
   SquareCheck,
+  TableOfContents,
   Video,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
@@ -69,7 +71,20 @@ function BlockBody({ block, text }: { block: DiffBlock; text: ReactNode }) {
     case "quote":
       return <div className="whitespace-pre-wrap border-l-[3px] border-fg-faint pl-3">{text}</div>;
     case "codeBlock":
+    case "math":
+    case "mermaid":
       return <pre className="whitespace-pre-wrap rounded-md bg-bg-subtle px-3 py-2 font-mono text-sm">{text}</pre>;
+    case "callout":
+      return (
+        <div className="flex gap-2 rounded-md bg-bg-subtle px-3 py-2">
+          {block.icon && <span className="shrink-0 select-none">{block.icon}</span>}
+          <div className="min-w-0 flex-1 whitespace-pre-wrap">{text}</div>
+        </div>
+      );
+    case "tableOfContents":
+      return marker(<TableOfContents className="mt-1 h-4 w-4" />);
+    case "breadcrumb":
+      return marker(<Route className="mt-1 h-4 w-4" />);
     case "table":
       return <div className="whitespace-pre-wrap text-sm">{text}</div>;
     case "divider":
@@ -90,12 +105,17 @@ const BAR = { same: "border-transparent", added: "border-added-bar", removed: "b
 function ChangeRow({ change }: { change: BlockChange }) {
   const t = useTranslations("page.history");
   const te = useTranslations("page.embed");
+  const tb = useTranslations("page.blocks");
   const { block } = change;
   // A database block is only named: the version keeps which database, not its rows back then.
   // An empty block still takes a line (a no-break space), so an added or removed empty paragraph shows.
   const plain = isEmbedBlockType(block.type)
     ? te(block.type === DATABASE_BLOCK ? "label" : "linkedLabel")
-    : block.text || "\u00a0";
+    : block.type === "tableOfContents"
+      ? tb("toc.label")
+      : block.type === "breadcrumb"
+        ? tb("breadcrumb.label")
+        : block.text || "\u00a0";
   const text =
     change.op === "changed" ? (
       <Words words={change.words} />

@@ -152,6 +152,8 @@ export type DiffBlock = {
   ordinal?: number;
   language?: string;
   url?: string;
+  /** A callout's icon. */
+  icon?: string;
 };
 
 type InlineNode = { type?: string; text?: string; href?: string; content?: InlineNode[] | string; styles?: unknown };
@@ -204,6 +206,7 @@ export function flattenBlocks(blocks: readonly BlockInput[]): DiffBlock[] {
       if (typeof props.checked === "boolean") diffBlock.checked = props.checked;
       if (str("language")) diffBlock.language = str("language");
       if (MEDIA.has(block.type) && str("url")) diffBlock.url = str("url");
+      if (block.type === "callout" && str("icon")) diffBlock.icon = str("icon");
       if (block.type === "numberedListItem") {
         const start = Number(props.start);
         run = run === 0 && Number.isInteger(start) && start > 0 ? start : run + 1;

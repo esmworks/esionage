@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useRef, useState, useTransition, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ReactNode, type RefObject } from "react";
 import {
   archivePageAction,
   deletePagePermanentlyAction,
@@ -159,6 +159,11 @@ export function PageView({
   }
 
   const parents = crumbs.slice(0, -1);
+  // Breadcrumb blocks show the page's live title and icon, like the header.
+  const trail = useMemo(
+    () => [...crumbs.slice(0, -1), { id: page.id, title, icon, kind: page.kind }],
+    [crumbs, page.id, page.kind, title, icon],
+  );
 
   const iconPicker = (
     <IconPicker icon={icon} onChange={changeIcon} disabled={page.archived || !canEdit}>
@@ -301,6 +306,7 @@ export function PageView({
                 level={page.archived || info.level === "none" ? "view" : info.level}
                 workspaceId={workspaceId}
                 pageId={page.id}
+                crumbs={trail}
                 commentsOpen={commentsOpen}
                 onCloseComments={() => setCommentsOpen(false)}
               />

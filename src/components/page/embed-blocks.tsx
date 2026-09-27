@@ -1,6 +1,6 @@
 "use client";
 
-import { BlockNoteSchema, defaultBlockSpecs, type BlockNoteEditor, type PartialBlock } from "@blocknote/core";
+import { BlockNoteSchema, defaultBlockSpecs, defaultInlineContentSpecs, type BlockNoteEditor, type PartialBlock } from "@blocknote/core";
 import { createReactBlockSpec, type DefaultReactSuggestionItem } from "@blocknote/react";
 import { Database, Search, SquareArrowOutUpRight } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -16,11 +16,13 @@ import {
   serializeLinkedView,
   type LinkedView,
 } from "@/lib/embed-blocks";
+import { contentBlockSpecs, contentInlineSpecs } from "./content-blocks";
 import { DatabaseEmbed, useEmbedHost } from "./database-embed";
 
 /**
  * The page editor's schema: BlockNote's blocks plus the database blocks (configs shared with the
- * server in lib/embed-blocks). The blocks are self-contained widgets: not selectable as text, and
+ * server in lib/embed-blocks) and the content blocks (content-blocks.tsx, configs shared in
+ * lib/content-blocks). The database blocks are self-contained widgets: not selectable as text, and
  * every event inside them belongs to the database UI rather than the editor.
  */
 
@@ -63,7 +65,9 @@ export const pageEditorSchema = BlockNoteSchema.create({
     ...defaultBlockSpecs,
     database: DatabaseBlock(),
     linkedView: LinkedViewBlock(),
+    ...contentBlockSpecs,
   },
+  inlineContentSpecs: { ...defaultInlineContentSpecs, ...contentInlineSpecs },
 });
 
 export type PageEditor = BlockNoteEditor<
@@ -145,15 +149,17 @@ export function useEmbedSlashItems(
   }, [editor, host, t, onCreateError, onPickDatabase]);
 }
 
-/** Inserts the embed items after the last item of their group (BlockNote's "Advanced"). */
-export function withEmbedItems(items: DefaultReactSuggestionItem[], embeds: DefaultReactSuggestionItem[]) {
-  if (!embeds.length) return items;
-  let at = -1;
-  items.forEach((item, i) => {
-    if (item.group === embeds[0].group) at = i;
-  });
-  if (at < 0) return [...items, ...embeds];
-  return [...items.slice(0, at + 1), ...embeds, ...items.slice(at + 1)];
+/** Inserts each extra item after the last item of its group (e.g. BlockNote's "Advanced"), in order. */
+export function withEmbedItems(items: DefaultReactSuggestionItem[], extras: DefaultReactSuggestionItem[]) {
+  let out = items;
+  for (const extra of extras) {
+    let at = -1;
+    out.forEach((item, i) => {
+      if (item.group === extra.group) at = i;
+    });
+    out = at < 0 ? [...out, extra] : [...out.slice(0, at + 1), extra, ...out.slice(at + 1)];
+  }
+  return out;
 }
 
 /** Picks the database a new linked view shows: any database of the workspace the user can see. */

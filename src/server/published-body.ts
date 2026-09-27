@@ -1,5 +1,8 @@
 import * as Y from "yjs";
+import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { BREADCRUMB_BLOCK, MERMAID_BLOCK, TOC_BLOCK } from "@/lib/content-blocks";
+import { plainText } from "@/lib/content-markdown";
 import { isEmbedBlockType, parseLinkedView, type EmbedBlockType, type LinkedView } from "@/lib/embed-blocks";
 import { serverEditor as editor, type PageBlock } from "@/server/blocknote";
 
@@ -12,7 +15,9 @@ import { serverEditor as editor, type PageBlock } from "@/server/blocknote";
  * only http(s)/mailto links and http(s) or same-origin media before serializing.
  *
  * Database blocks are not serialized: the body comes back as HTML parts with the database blocks
- * between them, and the publication decides for each whether its database may be shown.
+ * between them, and the publication decides for each whether its database may be shown. Tables of
+ * contents, breadcrumbs and Mermaid diagrams come back between the parts too, for the page to
+ * draw. Equations are serialized: KaTeX builds them on the server (see server/blocknote.ts).
  */
 
 type Json = unknown;
@@ -81,20 +86,42 @@ function emptyLinesAsBreaks(html: string): string {
   return html.replaceAll("\uFFFC", "<br>");
 }
 
-/** A run of ordinary blocks as HTML, or a database block the page shows at that point. */
+/** A heading of the page, for a table of contents: `anchor` is the id its HTML heading carries. */
+export type BodyHeading = { anchor: string; level: number; text: string };
+
+/**
+ * A run of ordinary blocks as HTML, or a block the page draws itself at that point: a database, a
+ * table of contents (with every heading of the page), a breadcrumb or a Mermaid diagram (drawn in
+ * the visitor's browser, see components/published).
+ */
 export type BodySegment =
   | { kind: "html"; html: string }
-  | { kind: "embed"; type: EmbedBlockType; databaseId: string; view: LinkedView | null };
+  | { kind: "embed"; type: EmbedBlockType; databaseId: string; view: LinkedView | null }
+  | { kind: "toc"; headings: BodyHeading[] }
+  | { kind: "breadcrumb" }
+  | { kind: "mermaid"; source: string };
 
-/** A database block nested in another block (e.g. under a list item) is shown after that block. */
-function withoutNestedEmbeds(block: PageBlock, found: PageBlock[]): PageBlock {
+const isStandalone = (type: string) =>
+  isEmbedBlockType(type) || type === TOC_BLOCK || type === BREADCRUMB_BLOCK || type === MERMAID_BLOCK;
+
+/** A block drawn on its own nested in another block (e.g. under a list item) is shown after that block. */
+function withoutNestedStandalone(block: PageBlock, found: PageBlock[]): PageBlock {
   if (!block.children?.length) return block;
   const children: PageBlock[] = [];
   for (const child of block.children) {
-    if (isEmbedBlockType(child.type)) found.push(child);
-    else children.push(withoutNestedEmbeds(child, found));
+    if (isStandalone(child.type)) found.push(child);
+    else children.push(withoutNestedStandalone(child, found));
   }
   return { ...block, children } as PageBlock;
+}
+
+/** Headings of a run of blocks in the order its HTML has them (each block, then its children). */
+function runHeadings(blocks: PageBlock[], out: PageBlock[] = []): PageBlock[] {
+  for (const block of blocks) {
+    if (block.type === "heading") out.push(block);
+    if (block.children?.length) runHeadings(block.children, out);
+  }
+  return out;
 }
 
 export async function bodySegmentsFromYdoc(state: Uint8Array | null): Promise<BodySegment[]> {
@@ -104,14 +131,44 @@ export async function bodySegmentsFromYdoc(state: Uint8Array | null): Promise<Bo
     Y.applyUpdate(doc, state);
     const blocks = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
     const segments: BodySegment[] = [];
+    // Every heading of the page, filled in as the runs are written; tables of contents share it.
+    const headings: BodyHeading[] = [];
     let run: PageBlock[] = [];
     const flush = async () => {
       if (!run.length) return;
-      const html = emptyLinesAsBreaks(await editor.blocksToHTMLLossy(sanitizeBlocks(run)));
+      const inRun = runHeadings(run).map((block) => {
+        const heading = {
+          anchor: `heading-${headings.length + 1}`,
+          level: Number((block.props as { level?: unknown }).level) || 1,
+          text: blocksToPlainText([{ ...block, children: [] }]),
+        };
+        headings.push(heading);
+        return heading;
+      });
+      let html = emptyLinesAsBreaks(await editor.blocksToHTMLLossy(sanitizeBlocks(run)));
       run = [];
+      // The serializer escapes text, so "<h2" only ever starts a heading: the n-th one is the
+      // run's n-th heading block. The anchors are ours ("heading-3"), nothing from the document.
+      let n = 0;
+      html = html.replace(/<h([1-6])(?=[\s>])/g, (tag, level: string) => {
+        const heading = inRun[n++];
+        return heading ? `<h${level} id="${heading.anchor}"` : tag;
+      });
       if (html) segments.push({ kind: "html", html });
     };
-    const embed = async (block: PageBlock) => {
+    const standalone = async (block: PageBlock) => {
+      if (block.type === TOC_BLOCK || block.type === BREADCRUMB_BLOCK) {
+        await flush();
+        segments.push(block.type === TOC_BLOCK ? { kind: "toc", headings } : { kind: "breadcrumb" });
+        return;
+      }
+      if (block.type === MERMAID_BLOCK) {
+        const source = plainText(block.content);
+        if (!source.trim()) return;
+        await flush();
+        segments.push({ kind: "mermaid", source });
+        return;
+      }
       const props = block.props as { databaseId?: unknown; view?: unknown };
       if (typeof props.databaseId !== "string" || !props.databaseId || !isEmbedBlockType(block.type)) return;
       await flush();
@@ -123,13 +180,13 @@ export async function bodySegmentsFromYdoc(state: Uint8Array | null): Promise<Bo
       });
     };
     for (const block of blocks) {
-      if (isEmbedBlockType(block.type)) {
-        await embed(block);
+      if (isStandalone(block.type)) {
+        await standalone(block);
         continue;
       }
       const nested: PageBlock[] = [];
-      run.push(withoutNestedEmbeds(block, nested));
-      for (const inner of nested) await embed(inner);
+      run.push(withoutNestedStandalone(block, nested));
+      for (const inner of nested) await standalone(inner);
     }
     await flush();
     return segments;

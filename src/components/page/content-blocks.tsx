@@ -1,0 +1,373 @@
+"use client";
+
+import { SourceBlockWithPreviewExtension, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
+import {
+  createReactBlockSpec,
+  createReactInlineContentSpec,
+  PreviewPlaceholder,
+  SourceBlockWithPreview,
+  SourceInlineContentWithPreview,
+  useEditorChange,
+  type DefaultReactSuggestionItem,
+} from "@blocknote/react";
+import katex from "katex";
+import { Info, Radical, Route, Sigma, SmilePlus, TableOfContents, Workflow } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { createContext, useContext, useMemo, useState } from "react";
+import {
+  breadcrumbBlockConfig,
+  calloutBlockConfig,
+  DEFAULT_CALLOUT_ICON,
+  inlineMathConfig,
+  KATEX_OPTIONS,
+  mathBlockConfig,
+  mermaidBlockConfig,
+  tocBlockConfig,
+} from "@/lib/content-blocks";
+import { plainText } from "@/lib/content-markdown";
+import type { PageEditor } from "./embed-blocks";
+import { IconPicker } from "./icon-picker";
+import { MermaidImageView, useMermaid } from "./mermaid-diagram";
+import { HeadingList, Trail, type TrailCrumb } from "./page-outline";
+
+export type { TrailCrumb };
+
+/**
+ * The editor's side of the content blocks (configs shared with the server in lib/content-blocks):
+ * callouts, equations, Mermaid diagrams, a table of contents and a breadcrumb.
+ */
+
+// ---------------------------------------------------------------------------------------------
+// The page around the editor, for the breadcrumb
+
+/** The page being edited and the pages above it (the last crumb is the page itself). */
+const PageTrailContext = createContext<{ workspaceId: string; crumbs: TrailCrumb[] } | null>(null);
+export const PageTrailProvider = PageTrailContext.Provider;
+
+// ---------------------------------------------------------------------------------------------
+// Equations
+
+type Rendered = { node: HTMLElement | null; error: string | null };
+
+/**
+ * An equation built by KaTeX as DOM nodes (no HTML string), with `trust: false`. While a source
+ * doesn't parse, the last equation that did stays up and the error says why.
+ */
+function useKatex(source: string, displayMode: boolean): Rendered {
+  const current = useMemo<Rendered>(() => {
+    if (!source.trim()) return { node: null, error: null };
+    const node = document.createElement(displayMode ? "div" : "span");
+    try {
+      katex.render(source, node, { ...KATEX_OPTIONS, displayMode, throwOnError: true });
+      return { node, error: null };
+    } catch (error) {
+      return { node: null, error: error instanceof Error ? error.message : String(error) };
+    }
+  }, [source, displayMode]);
+  const [lastGood, setLastGood] = useState<{ source: string; node: HTMLElement | null }>({ source, node: current.node });
+  if (current.node && lastGood.node !== current.node) setLastGood({ source, node: current.node });
+  return { node: current.node ?? (source.trim() ? lastGood.node : null), error: current.error };
+}
+
+function KatexView({ node, inline }: { node: HTMLElement; inline?: boolean }) {
+  const Tag = inline ? "span" : "div";
+  return (
+    <Tag
+      className={inline ? undefined : "w-full"}
+      ref={(element: HTMLElement | null) => {
+        if (element && element.firstChild !== node) element.replaceChildren(node);
+      }}
+    />
+  );
+}
+
+/** MathML only, for copying out of the editor: other apps read it, and so does BlockNote's Markdown. */
+function MathMarkup({ source, displayMode }: { source: string; displayMode: boolean }) {
+  const Tag = displayMode ? "div" : "span";
+  return (
+    <Tag
+      ref={(element: HTMLElement | null) => {
+        if (!element || !source.trim()) return;
+        katex.render(source, element, { ...KATEX_OPTIONS, displayMode, throwOnError: false, output: "mathml" });
+      }}
+    />
+  );
+}
+
+const MathBlock = createReactBlockSpec(mathBlockConfig, {
+  meta: { code: true, hasPreview: true },
+  render: function MathBlockView({ block, editor, contentRef }) {
+    const t = useTranslations("page.blocks.math");
+    const source = plainText(block.content);
+    const { node, error } = useKatex(source, true);
+    return (
+      <SourceBlockWithPreview
+        block={block}
+        editor={editor}
+        contentRef={contentRef}
+        source={source}
+        preview={node ? <KatexView node={node} /> : undefined}
+        error={error}
+        emptySourcePlaceholder={<PreviewPlaceholder text={t("placeholder")} icon={<Sigma size={18} />} />}
+        errorPreview={t("error")}
+        sourcePlaceholder={t("sourcePlaceholder")}
+      />
+    );
+  },
+  toExternalHTML: ({ block }) => <MathMarkup source={plainText(block.content)} displayMode />,
+});
+
+const InlineMath = createReactInlineContentSpec(inlineMathConfig, {
+  meta: { code: true, hasPreview: true },
+  render: function InlineMathView({ inlineContent, editor, node, getPos, contentRef }) {
+    const t = useTranslations("page.blocks.inlineMath");
+    const source = plainText(inlineContent.content);
+    const rendered = useKatex(source, false);
+    return (
+      <SourceInlineContentWithPreview
+        editor={editor}
+        node={node}
+        getPos={getPos}
+        contentRef={contentRef}
+        source={source}
+        preview={rendered.node ? <KatexView node={rendered.node} inline /> : undefined}
+        error={rendered.error}
+        emptySourcePlaceholder={t("placeholder")}
+        errorPreview={t("error")}
+        sourcePlaceholder={t("sourcePlaceholder")}
+      />
+    );
+  },
+  toExternalHTML: ({ inlineContent }) => <MathMarkup source={plainText(inlineContent.content)} displayMode={false} />,
+});
+
+// ---------------------------------------------------------------------------------------------
+// Mermaid
+
+const MermaidBlock = createReactBlockSpec(mermaidBlockConfig, {
+  // Diagrams span lines: Enter adds a line in the source, the "OK" button closes it.
+  meta: { code: true, hasPreview: true, hardBreakShortcut: "enter" },
+  render: function MermaidBlockView({ block, editor, contentRef }) {
+    const t = useTranslations("page.blocks.mermaid");
+    const source = plainText(block.content);
+    const { image, error, pending } = useMermaid(source);
+    const preview = image ? (
+      <MermaidImageView image={image} label={t("label")} />
+    ) : pending && !error ? (
+      <p className="w-full py-6 text-center text-sm text-fg-muted">{t("loading")}</p>
+    ) : undefined;
+    return (
+      <SourceBlockWithPreview
+        block={block}
+        editor={editor}
+        contentRef={contentRef}
+        source={source}
+        preview={preview}
+        error={error}
+        emptySourcePlaceholder={<PreviewPlaceholder text={t("placeholder")} icon={<Workflow size={18} />} />}
+        errorPreview={t("error")}
+        sourcePlaceholder={t("sourcePlaceholder")}
+      />
+    );
+  },
+  toExternalHTML: ({ block }) => (
+    <pre>
+      <code className="language-mermaid">{plainText(block.content)}</code>
+    </pre>
+  ),
+});
+
+// ---------------------------------------------------------------------------------------------
+// Callout
+
+const CalloutBlock = createReactBlockSpec(calloutBlockConfig, {
+  render: function CalloutView({ block, editor, contentRef }) {
+    const t = useTranslations("page.blocks.callout");
+    const icon = block.props.icon;
+    const setIcon = (next: string | null) => {
+      if (editor.isEditable && editor.getBlock(block.id)) editor.updateBlock(block.id, { props: { icon: next ?? "" } });
+    };
+    return (
+      <div className="esionage-callout">
+        {(icon || editor.isEditable) && (
+          <div contentEditable={false} className="esionage-callout-icon">
+            <IconPicker icon={icon || null} onChange={setIcon} disabled={!editor.isEditable}>
+              {(toggle) => (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  aria-label={t("icon")}
+                  title={editor.isEditable ? t("icon") : undefined}
+                  className={
+                    editor.isEditable
+                      ? "flex h-7 w-7 items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/10"
+                      : "flex h-7 w-7 cursor-default items-center justify-center"
+                  }
+                >
+                  {icon || <SmilePlus className="h-4 w-4 text-fg-faint" />}
+                </button>
+              )}
+            </IconPicker>
+          </div>
+        )}
+        <div ref={contentRef} className="esionage-callout-text" />
+      </div>
+    );
+  },
+  toExternalHTML: ({ block, contentRef }) => (
+    <blockquote>
+      <p>
+        {block.props.icon ? `${block.props.icon} ` : null}
+        <span ref={contentRef} />
+      </p>
+    </blockquote>
+  ),
+});
+
+// ---------------------------------------------------------------------------------------------
+// Table of contents
+
+type Heading = { id: string; level: number; text: string };
+
+function headingsOf(editor: PageEditor): Heading[] {
+  const out: Heading[] = [];
+  const walk = (blocks: PageEditor["document"]) => {
+    for (const block of blocks) {
+      if (block.type === "heading") out.push({ id: block.id, level: Number(block.props.level) || 1, text: plainText(block.content) });
+      if (block.children.length) walk(block.children);
+    }
+  };
+  walk(editor.document);
+  return out;
+}
+
+const sameHeadings = (a: Heading[], b: Heading[]) =>
+  a.length === b.length && a.every((h, i) => h.id === b[i].id && h.level === b[i].level && h.text === b[i].text);
+
+const TocBlock = createReactBlockSpec(tocBlockConfig, {
+  render: function TocView({ editor }) {
+    const t = useTranslations("page.blocks.toc");
+    const tc = useTranslations("common");
+    const typed = editor as unknown as PageEditor;
+    const [headings, setHeadings] = useState(() => headingsOf(typed));
+    useEditorChange(() => {
+      const next = headingsOf(typed);
+      setHeadings((current) => (sameHeadings(current, next) ? current : next));
+    }, editor);
+    return (
+      <div contentEditable={false} className="w-full">
+        <HeadingList
+          headings={headings.map((h) => ({ key: h.id, level: h.level, text: h.text }))}
+          label={t("label")}
+          empty={t("empty")}
+          untitled={tc("untitled")}
+          link={(id) => ({
+            href: `#${id}`,
+            onClick: (event) => {
+              event.preventDefault();
+              const target = editor.domElement?.querySelector(`[data-node-type="blockOuter"][data-id="${CSS.escape(id)}"]`);
+              target?.scrollIntoView({ behavior: "smooth", block: "start" });
+            },
+          })}
+        />
+      </div>
+    );
+  },
+  toExternalHTML: () => <div />,
+});
+
+// ---------------------------------------------------------------------------------------------
+// Breadcrumb
+
+const BreadcrumbBlock = createReactBlockSpec(breadcrumbBlockConfig, {
+  render: function BreadcrumbView() {
+    const t = useTranslations("page.blocks.breadcrumb");
+    const tc = useTranslations("common");
+    const trail = useContext(PageTrailContext);
+    if (!trail) return null;
+    return (
+      <div contentEditable={false} className="w-full">
+        <Trail crumbs={trail.crumbs} href={(id) => `/w/${trail.workspaceId}/p/${id}`} label={t("label")} untitled={tc("untitled")} />
+      </div>
+    );
+  },
+  toExternalHTML: () => <div />,
+});
+
+// ---------------------------------------------------------------------------------------------
+// Schema parts and slash menu
+
+export const contentBlockSpecs = {
+  callout: CalloutBlock(),
+  math: MathBlock(),
+  mermaid: MermaidBlock(),
+  tableOfContents: TocBlock(),
+  breadcrumb: BreadcrumbBlock(),
+};
+
+export const contentInlineSpecs = { inlineMath: InlineMath };
+
+/**
+ * Opens the source popup of a new equation or diagram, so its source can be typed right away. A
+ * paragraph follows it, as after a database block: arrowing out of the closed popup needs a block
+ * to land in, and a collaborative editor keeps no empty line at the end of the page.
+ */
+function openSource(editor: PageEditor, blockId: string) {
+  if (!editor.getNextBlock(blockId)) editor.insertBlocks([{ type: "paragraph" }], blockId, "after");
+  editor.setTextCursorPosition(blockId, "end");
+  editor.getExtension(SourceBlockWithPreviewExtension)?.store.setState((state) => ({ ...state, popupOpen: blockId }));
+}
+
+/** Slash menu entries for the content blocks: the callout with the basic blocks, the rest with "Advanced". */
+export function useContentSlashItems(editor: PageEditor): DefaultReactSuggestionItem[] {
+  const t = useTranslations("page.blocks");
+  return useMemo(() => {
+    const basic = editor.dictionary.slash_menu.quote.group;
+    const advanced = editor.dictionary.slash_menu.table.group;
+    const item = (
+      key: "callout" | "math" | "inlineMath" | "mermaid" | "toc" | "breadcrumb",
+      group: string,
+      icon: React.JSX.Element,
+      onItemClick: () => void,
+    ): DefaultReactSuggestionItem => ({
+      title: t(`${key}.title`),
+      subtext: t(`${key}.subtext`),
+      aliases: t(`${key}.aliases`).split(" "),
+      group,
+      icon,
+      onItemClick,
+    });
+    return [
+      item("callout", basic, <Info size={18} />, () => {
+        insertOrUpdateBlockForSlashMenu(editor, { type: "callout", props: { icon: DEFAULT_CALLOUT_ICON, backgroundColor: "gray" } });
+      }),
+      item("math", advanced, <Sigma size={18} />, () => openSource(editor, insertOrUpdateBlockForSlashMenu(editor, { type: "math" }).id)),
+      item("inlineMath", advanced, <Radical size={18} />, () => {
+        editor.insertInlineContent([{ type: "inlineMath", props: {}, content: "" }], { updateSelection: true });
+        // Step into the new equation's source (the cursor is just after it), which opens its popup.
+        // After the Enter that picked the item: inside an equation, Enter steps back out of it.
+        setTimeout(() => {
+          const view = editor.prosemirrorView;
+          const { selection } = view.state;
+          if (selection.$from.nodeBefore?.type.name !== "inlineMath") return;
+          // Inserting leaves a text selection; its class makes the one inside the equation (the
+          // app doesn't depend on prosemirror-state itself).
+          const TextSelection = selection.constructor as unknown as {
+            create: (doc: typeof view.state.doc, pos: number) => typeof selection;
+          };
+          view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, selection.from - 1)));
+          view.focus();
+        });
+      }),
+      item("mermaid", advanced, <Workflow size={18} />, () =>
+        openSource(editor, insertOrUpdateBlockForSlashMenu(editor, { type: "mermaid" }).id),
+      ),
+      item("toc", advanced, <TableOfContents size={18} />, () => {
+        insertOrUpdateBlockForSlashMenu(editor, { type: "tableOfContents" });
+      }),
+      item("breadcrumb", advanced, <Route size={18} />, () => {
+        insertOrUpdateBlockForSlashMenu(editor, { type: "breadcrumb" });
+      }),
+    ];
+  }, [editor, t]);
+}
