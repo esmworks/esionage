@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Button, cn, MenuItem, MenuSeparator } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
-import { groupRows, positionBetween, type RowGroup } from "@/lib/properties";
+import { groupRows, isHiddenInView, orderGroups, positionBetween, type RowGroup } from "@/lib/properties";
 import { Floating, useFloating } from "./floating";
 import { isEmptyValue, OptionChip, PropertyDisplay } from "./property-cell";
 import { TITLE, type Property, type Row, type View } from "./types";
@@ -35,6 +35,9 @@ export function BoardView({
   const [dragId, setDragId] = useState<string | null>(null);
   const [drop, setDrop] = useState<{ group: string; index: number } | null>(null);
   const [editTitleOf, setEditTitleOf] = useState<string | null>(null);
+  // Column drag: the dragged column's key and the insertion index among the shown columns.
+  const [dragCol, setDragCol] = useState<string | null>(null);
+  const [colDrop, setColDrop] = useState<number | null>(null);
 
   if (!groupBy) {
     return (
@@ -55,14 +58,47 @@ export function BoardView({
     );
   }
 
-  const hidden = new Set(view.config.hidden ?? []);
-  const cardProps = properties.filter((p) => p.id !== groupBy.id && !hidden.has(p.id));
-  // The "no value" column only earns space when it has cards; while dragging it appears at the end
-  // (so the other columns don't shift) as a place to clear the value.
-  const [noValue, ...optionGroups] = groupRows(rows, groupBy);
-  const groups = noValue.rows.length ? [noValue, ...optionGroups] : dragId ? [...optionGroups, noValue] : optionGroups;
-  const manualOrder = !(view.config.sorts?.length);
+  const cardProps = properties.filter((p) => p.id !== groupBy.id && !isHiddenInView(view, p));
   const groupKey = (g: RowGroup<Row>) => g.option?.id ?? "";
+  const ordered = orderGroups(groupRows(rows, groupBy), view.config.groupOrder);
+  // The "no value" column only earns space when it has cards; while dragging a card it appears at
+  // the end (so the other columns don't shift) as a place to clear the value.
+  const noValue = ordered.find((g) => !g.option)!;
+  const groups = ordered.filter((g) => g.option || g.rows.length);
+  if (dragId && !noValue.rows.length) groups.push(noValue);
+  const manualOrder = !(view.config.sorts?.length);
+
+  const onColDragOver = (e: DragEvent<HTMLDivElement>) => {
+    if (dragCol === null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const cols = [...e.currentTarget.querySelectorAll<HTMLElement>("[data-col]")];
+    let index = cols.findIndex((el) => {
+      const r = el.getBoundingClientRect();
+      return e.clientX < r.left + r.width / 2;
+    });
+    if (index === -1) index = cols.length;
+    if (index !== colDrop) setColDrop(index);
+  };
+
+  const onColDrop = (e: DragEvent<HTMLDivElement>) => {
+    if (dragCol === null) return;
+    e.preventDefault();
+    const moved = dragCol;
+    const at = colDrop;
+    setDragCol(null);
+    setColDrop(null);
+    const shown = groups.map(groupKey);
+    const from = shown.indexOf(moved);
+    if (at === null || from === -1 || at === from || at === from + 1) return;
+    // Place it before the column it was dropped in front of; columns that aren't shown (an empty
+    // "no value") keep their place in the saved order.
+    const before = shown[at];
+    const order = ordered.map(groupKey).filter((k) => k !== moved);
+    const i = before === undefined ? order.length : order.indexOf(before);
+    order.splice(i, 0, moved);
+    void api.updateView(view, { config: { ...view.config, groupOrder: order } });
+  };
 
   const onDragOver = (e: DragEvent<HTMLDivElement>, group: RowGroup<Row>) => {
     if (!dragId) return;
@@ -81,6 +117,7 @@ export function BoardView({
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>, group: RowGroup<Row>) => {
+    if (dragCol !== null) return;
     e.preventDefault();
     const rowId = dragId ?? e.dataTransfer.getData("text/plain");
     const index = drop?.group === groupKey(group) ? drop.index : group.rows.length;
@@ -111,21 +148,52 @@ export function BoardView({
 
   return (
     <div className="page-gutter overflow-x-auto pb-6 [color-scheme:light_dark]">
-      <div className="flex w-max items-start gap-3">
-        {groups.map((group) => {
+      <div
+        className="flex w-max items-start gap-3"
+        onDragOver={onColDragOver}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setColDrop(null);
+        }}
+        onDrop={onColDrop}
+      >
+        {groups.map((group, i) => {
           const key = groupKey(group);
           const dropping = dragId !== null && drop?.group === key;
+          const colFrom = dragCol === null ? -1 : groups.findIndex((g) => groupKey(g) === dragCol);
+          const lineAt = colDrop !== null && colDrop !== colFrom && colDrop !== colFrom + 1 ? colDrop : null;
           return (
             <section
               key={key || "__none"}
+              data-col={key}
               aria-label={group.option?.name ?? t("board.noValue", { property: groupBy.name })}
               className={cn(
                 `tint-${group.option?.color ?? "gray"}`,
-                "group/col flex w-[17rem] shrink-0 flex-col rounded-xl bg-[var(--opt-tint)] p-2 transition-shadow",
+                "group/col relative flex w-[17rem] shrink-0 flex-col rounded-xl bg-[var(--opt-tint)] p-2 transition-[box-shadow,opacity]",
                 dropping && "ring-2 ring-accent/50",
+                dragCol === key && "opacity-50",
               )}
             >
-              <header className="flex h-8 items-center gap-2 px-1">
+              {lineAt === i && <ColumnDropLine side="left" />}
+              {lineAt === groups.length && i === groups.length - 1 && <ColumnDropLine side="right" />}
+              <header
+                draggable={!readOnly}
+                title={readOnly ? undefined : t("board.moveColumn")}
+                onDragStart={(e) => {
+                  const col = e.currentTarget.closest("section");
+                  if (col) {
+                    const r = col.getBoundingClientRect();
+                    e.dataTransfer.setDragImage(col, e.clientX - r.left, e.clientY - r.top);
+                  }
+                  e.dataTransfer.setData("application/x-esionage-column", key);
+                  e.dataTransfer.effectAllowed = "move";
+                  setDragCol(key);
+                }}
+                onDragEnd={() => {
+                  setDragCol(null);
+                  setColDrop(null);
+                }}
+                className={cn("flex h-8 items-center gap-2 px-1", !readOnly && "cursor-grab active:cursor-grabbing")}
+              >
                 {group.option ? (
                   <OptionChip option={group.option} className="font-medium" />
                 ) : (
@@ -203,7 +271,79 @@ export function BoardView({
             </section>
           );
         })}
+        {!readOnly && <NewGroup onCreate={(name) => api.createOption(groupBy.id, name)} />}
       </div>
+    </div>
+  );
+}
+
+function ColumnDropLine({ side }: { side: "left" | "right" }) {
+  return (
+    <div
+      aria-hidden
+      className={cn("absolute inset-y-0 w-0.5 rounded bg-accent", side === "left" ? "-left-[7px]" : "-right-[7px]")}
+    />
+  );
+}
+
+/** Adds an option to the grouping property, which shows up as a new column at the end. */
+function NewGroup({ onCreate }: { onCreate: (name: string) => Promise<unknown> }) {
+  const t = useTranslations("database.board");
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  // Enter or Escape ends the edit; the blur that follows must not end it a second time.
+  const done = useRef(false);
+  useEffect(() => {
+    if (editing) input.current?.focus();
+  }, [editing]);
+
+  const start = () => {
+    done.current = false;
+    setEditing(true);
+  };
+  const finish = async (save: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    const value = name.trim();
+    if (save && value) {
+      setSaving(true);
+      await onCreate(value);
+      setSaving(false);
+    }
+    setName("");
+    setEditing(false);
+  };
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={start}
+        className="flex h-9 w-44 shrink-0 items-center gap-1.5 rounded-lg px-2 text-sm text-fg-muted hover:bg-bg-hover hover:text-fg"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        {t("newGroup")}
+      </button>
+    );
+  }
+  return (
+    <div className="w-[17rem] shrink-0 rounded-xl bg-bg-subtle p-2">
+      <input
+        ref={input}
+        value={name}
+        disabled={saving}
+        placeholder={t("namePlaceholder")}
+        aria-label={t("groupNameLabel")}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={() => void finish(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void finish(true);
+          if (e.key === "Escape") void finish(false);
+        }}
+        className="h-8 w-full rounded-md border border-border bg-bg px-2 text-sm outline-none focus:border-accent"
+      />
     </div>
   );
 }

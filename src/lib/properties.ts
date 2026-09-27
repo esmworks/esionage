@@ -1,4 +1,13 @@
-import type { FilterOp, FilterRule, PropertyOptions, PropertyType, SelectOption, SortRule } from "@/db/schema/app";
+import type {
+  FilterOp,
+  FilterRule,
+  PropertyOptions,
+  PropertyType,
+  SelectOption,
+  SortRule,
+  ViewConfig,
+  ViewType,
+} from "@/db/schema/app";
 
 export const SELECT_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
 
@@ -323,4 +332,47 @@ export function groupRows<T extends { properties: Record<string, unknown> }>(
     (i === undefined ? none : groups[i]).rows.push(row);
   }
   return [none, ...groups];
+}
+
+/**
+ * Board cards stay short: long text and numbers start hidden there until the user shows them.
+ * Other views show every property unless hidden.
+ */
+export function hiddenByDefault(viewType: ViewType, propType: PropertyType): boolean {
+  return viewType === "board" && (propType === "text" || propType === "number");
+}
+
+export function isHiddenInView(
+  view: { type: ViewType; config: Pick<ViewConfig, "hidden" | "shown"> },
+  prop: { id: string; type: PropertyType },
+): boolean {
+  if (view.config.hidden?.includes(prop.id)) return true;
+  return hiddenByDefault(view.type, prop.type) && !view.config.shown?.includes(prop.id);
+}
+
+/** The config after flipping one property between shown and hidden. */
+export function toggleHiddenInView(
+  view: { type: ViewType; config: ViewConfig },
+  prop: { id: string; type: PropertyType },
+): ViewConfig {
+  const hide = !isHiddenInView(view, prop);
+  const hidden = (view.config.hidden ?? []).filter((id) => id !== prop.id);
+  const shown = (view.config.shown ?? []).filter((id) => id !== prop.id);
+  if (hide) hidden.push(prop.id);
+  else if (hiddenByDefault(view.type, prop.type)) shown.push(prop.id);
+  return { ...view.config, hidden, shown };
+}
+
+/** Puts board groups in the view's saved order; groups it doesn't list keep their relative order at the end. */
+export function orderGroups<T>(groups: RowGroup<T>[], order: string[] | undefined): RowGroup<T>[] {
+  if (!order?.length) return groups;
+  const rank = new Map(order.map((key, i) => [key, i]));
+  const keyed = groups.map((g, i) => ({ g, i, r: rank.get(g.option?.id ?? "") }));
+  keyed.sort((a, b) => {
+    if (a.r !== undefined && b.r !== undefined) return a.r - b.r;
+    if (a.r !== undefined) return -1;
+    if (b.r !== undefined) return 1;
+    return a.i - b.i;
+  });
+  return keyed.map((k) => k.g);
 }

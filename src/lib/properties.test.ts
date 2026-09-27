@@ -6,6 +6,10 @@ import {
   filterNeedsValue,
   filterOperators,
   groupRows,
+  hiddenByDefault,
+  isHiddenInView,
+  orderGroups,
+  toggleHiddenInView,
   isSortable,
   normalizeValue,
   positionBetween,
@@ -212,5 +216,38 @@ describe("relation values", () => {
     expect(ids([{ propertyId: "p_relation", op: "contains", value: "r2" }])).toEqual(["a"]);
     expect(ids([{ propertyId: "p_relation", op: "not_equals", value: "r2" }])).toEqual(["b", "c"]);
     expect(ids([{ propertyId: "p_relation", op: "is_empty" }])).toEqual(["c"]);
+  });
+});
+
+describe("view visibility", () => {
+  const text = { id: "t", type: "text" as const };
+  const sel = { id: "s", type: "select" as const };
+
+  it("hides text and numbers on boards until shown", () => {
+    expect(hiddenByDefault("board", "number")).toBe(true);
+    expect(hiddenByDefault("table", "text")).toBe(false);
+    expect(isHiddenInView({ type: "board", config: {} }, text)).toBe(true);
+    expect(isHiddenInView({ type: "board", config: {} }, sel)).toBe(false);
+    expect(isHiddenInView({ type: "table", config: {} }, text)).toBe(false);
+    expect(isHiddenInView({ type: "board", config: { shown: ["t"] } }, text)).toBe(false);
+  });
+
+  it("toggles between shown and hidden", () => {
+    const board = { type: "board" as const, config: {} };
+    const shown = toggleHiddenInView(board, text);
+    expect(shown).toEqual({ hidden: [], shown: ["t"] });
+    expect(toggleHiddenInView({ ...board, config: shown }, text)).toEqual({ hidden: ["t"], shown: [] });
+    expect(toggleHiddenInView(board, sel)).toEqual({ hidden: ["s"], shown: [] });
+    expect(toggleHiddenInView({ ...board, config: { hidden: ["s"] } }, sel)).toEqual({ hidden: [], shown: [] });
+  });
+});
+
+describe("orderGroups", () => {
+  it("follows the saved order and appends the rest", () => {
+    const groups = groupRows([], status);
+    const names = (order?: string[]) => orderGroups(groups, order).map((g) => g.option?.id ?? "");
+    expect(names()).toEqual(["", "o1", "o2", "o3"]);
+    expect(names(["o3", "", "o1"])).toEqual(["o3", "", "o1", "o2"]);
+    expect(names(["gone", "o2"])).toEqual(["o2", "", "o1", "o3"]);
   });
 });

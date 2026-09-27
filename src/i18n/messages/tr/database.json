@@ -135,7 +135,10 @@
     "new": "Yeni",
     "cardActions": "Kart işlemleri",
     "namePlaceholder": "Bir ad yazın…",
-    "nameLabel": "Ad"
+    "nameLabel": "Ad",
+    "newGroup": "Yeni grup",
+    "groupNameLabel": "Grup adı",
+    "moveColumn": "Sütunu taşımak için sürükleyin"
   },
   "cell": {
     "empty": "Boş",

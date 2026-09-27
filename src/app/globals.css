@@ -119,15 +119,19 @@
   color: var(--opt-fg);
 }
 
-/* Wide pages keep text aligned to a 1104px column while boards scroll edge to edge. */
-.page-gutter {
-  padding-inline: max(3rem, calc((100% - 1104px) / 2));
+/*
+ * Wide (database) pages use the full width like Notion's full-width pages: a 6rem gutter, easing
+ * down to 3rem on narrower windows, while boards and tables scroll edge to edge.
+ */
+.page-gutter,
+.page-gutter-table {
+  --gutter: max(3rem, min(6rem, calc((100% - 1104px) / 2)));
+  padding-inline: var(--gutter);
 }
 
 /* Tables start 2.5rem early so the row-handle column sits in the gutter and names line up with the title. */
 .page-gutter-table {
-  padding-inline: max(3rem, calc((100% - 1104px) / 2));
-  padding-inline-start: calc(max(3rem, calc((100% - 1104px) / 2)) - 2.5rem);
+  padding-inline-start: calc(var(--gutter) - 2.5rem);
 }
 
 /* Phones get the whole width; the sidebar is a drawer there. */

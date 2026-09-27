@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem, MenuSeparator } from "@/components/ui";
 import type { FilterOp, FilterRule, SortRule, ViewConfig, ViewType } from "@/db/schema/app";
 import { pageLabel } from "@/lib/labels";
-import { filterNeedsValue, filterOperators, isSortable } from "@/lib/properties";
+import { filterNeedsValue, filterOperators, isHiddenInView, isSortable, toggleHiddenInView } from "@/lib/properties";
 import { Floating, useFloating } from "./floating";
 import { useFormatDate } from "./property-cell";
 import { PropertyTypeIcon, ViewIcon } from "./property-icons";
@@ -257,7 +257,7 @@ export function ViewToolbar({
   const config = view.config;
   const filters = config.filters ?? [];
   const sorts = config.sorts ?? [];
-  const hidden = new Set(config.hidden ?? []);
+  const hiddenCount = properties.filter((p) => isHiddenInView(view, p)).length;
   const columns = columnsOf(properties, t("nameColumn"));
   const selectProps = properties.filter((p) => p.type === "select");
   const groupBy = selectProps.find((p) => p.id === config.groupBy) ?? selectProps[0];
@@ -379,7 +379,7 @@ export function ViewToolbar({
       <ToolbarButton
         icon={<EyeOff className="h-4 w-4" />}
         label={t("toolbar.properties")}
-        count={hidden.size || undefined}
+        count={hiddenCount || undefined}
         buttonRef={propsMenu.ref}
         onClick={propsMenu.toggle}
       />
@@ -388,17 +388,12 @@ export function ViewToolbar({
           <div className="px-2 pt-1 pb-1.5 text-xs text-fg-muted">{t("toolbar.shownInView")}</div>
           {!properties.length && <div className="px-2 pb-1.5 text-xs text-fg-faint">{t("toolbar.noProperties")}</div>}
           {properties.map((p) => {
-            const isHidden = hidden.has(p.id);
+            const isHidden = isHiddenInView(view, p);
             return (
               <button
                 key={p.id}
                 type="button"
-                onClick={() =>
-                  onConfig({
-                    ...config,
-                    hidden: isHidden ? [...hidden].filter((h) => h !== p.id) : [...hidden, p.id],
-                  })
-                }
+                onClick={() => onConfig(toggleHiddenInView(view, p))}
                 className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover"
               >
                 <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 text-fg-muted" />

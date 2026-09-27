@@ -135,7 +135,10 @@
     "new": "New",
     "cardActions": "Card actions",
     "namePlaceholder": "Type a name…",
-    "nameLabel": "Name"
+    "nameLabel": "Name",
+    "newGroup": "New group",
+    "groupNameLabel": "Group name",
+    "moveColumn": "Drag to move the column"
   },
   "cell": {
     "empty": "Empty",
