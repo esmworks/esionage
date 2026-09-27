@@ -93,6 +93,7 @@ export function Popover({
   children,
   align = "start",
   className,
+  wrapperClassName,
   open: controlledOpen,
   onOpenChange,
 }: {
@@ -100,6 +101,8 @@ export function Popover({
   children: ReactNode | ((close: () => void) => ReactNode);
   align?: "start" | "end";
   className?: string;
+  /** Classes for the element around the trigger (it is `relative inline-flex` by default). */
+  wrapperClassName?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -109,7 +112,7 @@ export function Popover({
   const close = () => setOpen(false);
   const ref = useDismiss<HTMLDivElement>(open, close);
   return (
-    <div ref={ref} className="relative inline-flex">
+    <div ref={ref} className={cn("relative inline-flex", wrapperClassName)}>
       {trigger({ open, toggle: () => setOpen(!open) })}
       {open && (
         <div

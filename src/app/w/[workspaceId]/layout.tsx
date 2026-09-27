@@ -1,5 +1,8 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { Sidebar } from "@/components/sidebar/sidebar";
+import { FloatingSidebarButton, SidebarProvider } from "@/components/sidebar/sidebar-context";
+import { parseSidebarCookie, SIDEBAR_COOKIE } from "@/lib/sidebar-layout";
 import { getMembership } from "@/server/access";
 import { getTree, listWorkspaces } from "@/server/pages";
 import { requireUser } from "@/server/session";
@@ -14,17 +17,26 @@ export default async function WorkspaceLayout({
   const user = await requireUser();
   const { workspaceId } = await params;
   if (!(await getMembership(user.id, workspaceId))) notFound();
-  const [workspaces, tree] = await Promise.all([listWorkspaces(user.id), getTree(user.id, workspaceId)]);
+  const [workspaces, tree, cookieStore] = await Promise.all([
+    listWorkspaces(user.id),
+    getTree(user.id, workspaceId),
+    cookies(),
+  ]);
 
   return (
-    <div className="flex h-full">
-      <Sidebar
-        workspaceId={workspaceId}
-        workspaces={workspaces}
-        initialTree={tree}
-        user={{ id: user.id, name: user.name, email: user.email }}
-      />
-      <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
-    </div>
+    <SidebarProvider initial={parseSidebarCookie(cookieStore.get(SIDEBAR_COOKIE)?.value)}>
+      <div className="flex h-full">
+        <Sidebar
+          workspaceId={workspaceId}
+          workspaces={workspaces}
+          initialTree={tree}
+          user={{ id: user.id, name: user.name, email: user.email }}
+        />
+        <main className="min-w-0 flex-1 overflow-y-auto">
+          <FloatingSidebarButton />
+          {children}
+        </main>
+      </div>
+    </SidebarProvider>
   );
 }

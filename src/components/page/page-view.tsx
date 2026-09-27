@@ -14,6 +14,7 @@ import {
 } from "@/app/actions/pages";
 import { Button, cn, IconButton, MenuItem, PageIcon, pageLabel, Popover } from "@/components/ui";
 import type { PageKind } from "@/db/schema/app";
+import { SidebarOpenButton } from "@/components/sidebar/sidebar-context";
 import { HistoryPanel } from "./history-panel";
 import { IconPicker } from "./icon-picker";
 import { setDocTitle, useDocTitle, usePageDoc } from "./use-page-doc";
@@ -120,6 +121,7 @@ export function PageView({
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-20 flex h-11 items-center justify-between gap-2 border-b border-transparent bg-bg/90 px-3 backdrop-blur">
         <nav className="flex min-w-0 items-center gap-1 text-sm text-fg-muted">
+          <SidebarOpenButton className="mr-1" />
           {parents.map((c) => (
             <span key={c.id} className="flex min-w-0 items-center gap-1">
               <Link
@@ -242,11 +244,23 @@ function TitleField({
   const t = useTranslations("page");
   const tc = useTranslations("common");
   const ref = useRef<HTMLTextAreaElement>(null);
+  // Grow with the text, and again when the width changes (sidebar resized or hidden).
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
+    const fit = () => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    let width = el.offsetWidth;
+    const observer = new ResizeObserver(() => {
+      if (el.offsetWidth === width) return;
+      width = el.offsetWidth;
+      fit();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [value]);
   return (
     <textarea

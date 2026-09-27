@@ -3,7 +3,7 @@
 import { Plus, TriangleAlert, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import type { ViewConfig, ViewType } from "@/db/schema/app";
 import { applyView, filterNeedsValue } from "@/lib/properties";
@@ -21,7 +21,12 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
   const { snapshot, rows, loadError, error, api } = useDatabase(databaseId);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [selectedViewId, setSelectedViewId] = useState<string | null>(() => searchParams.get("view"));
+  const viewParam = searchParams.get("view");
+  const [selectedViewId, setSelectedViewId] = useState<string | null>(viewParam);
+  // Sidebar view links change only the query string, so the page stays mounted: follow the URL.
+  useEffect(() => {
+    if (viewParam) setSelectedViewId(viewParam);
+  }, [viewParam]);
 
   const views = snapshot?.views ?? [];
   const view = views.find((v) => v.id === selectedViewId) ?? views[0] ?? null;
@@ -220,18 +225,16 @@ export function DatabasePage({ workspaceId, databaseId }: { workspaceId: string;
               />
             </div>
           ) : (
-            <div className="page-gutter">
-              <TableView
-                workspaceId={workspaceId}
-                databaseId={databaseId}
-                view={view}
-                properties={snapshot.properties}
-                rows={visibleRows}
-                api={api}
-                readOnly={readOnly}
-                filtered={rows.length > 0}
-              />
-            </div>
+            <TableView
+              workspaceId={workspaceId}
+              databaseId={databaseId}
+              view={view}
+              properties={snapshot.properties}
+              rows={visibleRows}
+              api={api}
+              readOnly={readOnly}
+              filtered={rows.length > 0}
+            />
           )}
         </div>
       </div>

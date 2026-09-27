@@ -71,7 +71,7 @@ export function TableView({
   const totalWidth = 32 + NAME_WIDTH + visible.reduce((sum, p) => sum + colWidth(p), 0) + (readOnly ? 0 : 36);
 
   return (
-    <div className="-mx-2 overflow-x-auto pb-3 [color-scheme:light_dark]">
+    <div className="page-gutter-table overflow-x-auto pb-3 [color-scheme:light_dark]">
       <table className="table-fixed border-collapse text-sm" style={{ width: totalWidth }}>
         <colgroup>
           <col style={{ width: 32 }} />

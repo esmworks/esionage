@@ -6,8 +6,14 @@
   },
   "nav": {
     "search": "Ara",
+    "home": "Ana sayfa",
     "settings": "Ayarlar",
     "trash": "Çöp kutusu"
+  },
+  "toggle": {
+    "open": "Kenar çubuğunu aç",
+    "close": "Kenar çubuğunu gizle",
+    "resize": "Genişliği ayarlamak için sürükleyin"
   },
   "pages": {
     "heading": "Sayfalar",

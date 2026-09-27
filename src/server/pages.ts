@@ -10,6 +10,7 @@ import {
   workspaceMember,
   type PageKind,
   user,
+  type ViewType,
 } from "@/db/schema";
 import { AccessError, requireMembership, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
@@ -22,7 +23,11 @@ export type TreeNode = {
   title: string;
   icon: string | null;
   position: number;
+  /** Databases only: their views, listed under the database in the sidebar. */
+  views?: TreeView[];
 };
+
+export type TreeView = { id: string; name: string; type: ViewType };
 
 export async function listWorkspaces(userId: string) {
   return db
@@ -52,6 +57,14 @@ export async function getTree(userId: string, workspaceId: string): Promise<Tree
       and (parent.id is null or parent.kind <> 'database')
     order by p.position, p.created_at
   `);
+  const views = await db
+    .select({ id: databaseView.id, name: databaseView.name, type: databaseView.type, databaseId: databaseView.databaseId })
+    .from(databaseView)
+    .innerJoin(page, eq(page.id, databaseView.databaseId))
+    .where(and(eq(page.workspaceId, workspaceId), isNull(page.archivedAt)))
+    .orderBy(asc(databaseView.position));
+  const viewsOf = new Map<string, TreeView[]>();
+  for (const { databaseId, ...v } of views) viewsOf.set(databaseId, [...(viewsOf.get(databaseId) ?? []), v]);
   return rows.map((r) => ({
     id: r.id,
     parentId: r.parent_id,
@@ -59,6 +72,7 @@ export async function getTree(userId: string, workspaceId: string): Promise<Tree
     title: r.title,
     icon: r.icon,
     position: Number(r.position),
+    ...(r.kind === "database" ? { views: viewsOf.get(r.id) ?? [] } : {}),
   }));
 }
 

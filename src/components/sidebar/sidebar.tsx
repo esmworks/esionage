@@ -3,8 +3,10 @@
 import {
   ChevronDown,
   ChevronRight,
+  ChevronsLeft,
   Database,
   FileText,
+  House,
   LogOut,
   MoreHorizontal,
   Plus,
@@ -14,16 +16,19 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { archivePageAction, createPageAction, getTreeAction, movePageAction } from "@/app/actions/pages";
 import { useChannel } from "@/components/collab/use-channel";
+import { ViewIcon } from "@/components/database/property-icons";
 import { cn, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, Popover } from "@/components/ui";
 import type { PageKind } from "@/db/schema/app";
 import { authClient } from "@/lib/auth-client";
 import type { TreeNode } from "@/server/pages";
 import { NewWorkspaceDialog } from "./new-workspace-dialog";
 import { SearchDialog } from "./search-dialog";
+import { SIDEBAR_WIDTH } from "@/lib/sidebar-layout";
+import { useSidebar } from "./sidebar-context";
 import { TrashDialog } from "./trash-dialog";
 
 type Workspace = { id: string; name: string; icon: string | null; role: string };
@@ -53,6 +58,8 @@ export function Sidebar({
   const t = useTranslations("sidebar");
   const pathname = usePathname();
   const activeId = /\/p\/([\w-]+)/.exec(pathname)?.[1] ?? null;
+  const activeViewId = useSearchParams().get("view");
+  const sidebar = useSidebar();
   const [tree, setTree] = useState(initialTree);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [searchOpen, setSearchOpen] = useState(false);
@@ -140,154 +147,220 @@ export function Sidebar({
   }
 
   const roots = children.get(null) ?? [];
-
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-bg-subtle text-sm">
-      <div className="p-2">
-        <Popover
-          trigger={({ toggle }) => (
-            <button
-              type="button"
-              onClick={toggle}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-bg-hover"
+    <>
+      {sidebar?.drawerOpen && (
+        <div aria-hidden className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={sidebar.close} />
+      )}
+      <aside
+        // Desktop: an in-flow column the user can collapse and resize. Phones: a drawer over the page.
+        style={{ "--sidebar-w": `${sidebar?.width ?? 256}px` } as React.CSSProperties}
+        className={cn(
+          "relative flex shrink-0 flex-col border-r border-border bg-bg-subtle text-sm",
+          "max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[min(18rem,85vw)] max-md:shadow-xl md:w-[var(--sidebar-w)]",
+          sidebar?.collapsed && "md:hidden",
+          !sidebar?.drawerOpen && "max-md:hidden",
+        )}
+      >
+        {sidebar && <ResizeHandle />}
+        <div className="p-2">
+          <div className="group/head flex items-center gap-1">
+            <Popover
+              trigger={({ toggle }) => (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left hover:bg-bg-hover"
+                >
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-fg text-[11px] font-semibold text-bg">
+                    {workspace?.icon ?? workspace?.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="flex-1 truncate font-medium">{workspace?.name}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-fg-muted" />
+                </button>
+              )}
+              className="w-64"
+              wrapperClassName="flex min-w-0 flex-1"
             >
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-fg text-[11px] font-semibold text-bg">
-                {workspace?.icon ?? workspace?.name.slice(0, 1).toUpperCase()}
-              </span>
-              <span className="flex-1 truncate font-medium">{workspace?.name}</span>
-              <ChevronDown className="h-3.5 w-3.5 text-fg-muted" />
-            </button>
-          )}
-          className="w-64"
-        >
-          {(close) => (
-            <>
-              <div className="px-2 py-1.5 text-xs text-fg-muted">{user.email}</div>
-              {workspaces.map((w) => (
+              {(close) => (
+                <>
+                  <div className="px-2 py-1.5 text-xs text-fg-muted">{user.email}</div>
+                  {workspaces.map((w) => (
+                    <MenuItem
+                      key={w.id}
+                      active={w.id === workspaceId}
+                      onClick={() => {
+                        close();
+                        router.push(`/w/${w.id}`);
+                      }}
+                    >
+                      {w.name}
+                    </MenuItem>
+                  ))}
+                  <MenuItem
+                    icon={<Plus className="h-4 w-4" />}
+                    onClick={() => {
+                      close();
+                      setNewWorkspaceOpen(true);
+                    }}
+                  >
+                    {t("workspaceMenu.newWorkspace")}
+                  </MenuItem>
+                  <MenuSeparator />
+                  <MenuItem
+                    icon={<Settings className="h-4 w-4" />}
+                    onClick={() => {
+                      close();
+                      router.push(`/w/${workspaceId}/settings`);
+                    }}
+                  >
+                    {t("workspaceMenu.settingsAndMembers")}
+                  </MenuItem>
+                  <MenuItem icon={<LogOut className="h-4 w-4" />} onClick={signOut}>
+                    {t("workspaceMenu.signOut")}
+                  </MenuItem>
+                </>
+              )}
+            </Popover>
+            {sidebar && (
+              <IconButton
+                label={t("toggle.close")}
+                title={`${t("toggle.close")} (⌘\\)`}
+                onClick={sidebar.toggle}
+                className="h-7 w-7 md:opacity-0 md:group-hover/head:opacity-100 md:focus-visible:opacity-100"
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </IconButton>
+            )}
+          </div>
+
+          <div className="mt-1 space-y-px">
+            <SidebarButton icon={<Search className="h-4 w-4" />} onClick={() => setSearchOpen(true)} hint="⌘K">
+              {t("nav.search")}
+            </SidebarButton>
+            <SidebarButton icon={<House className="h-4 w-4" />} href={`/w/${workspaceId}`} active={pathname === `/w/${workspaceId}`}>
+              {t("nav.home")}
+            </SidebarButton>
+            <SidebarButton
+              icon={<Settings className="h-4 w-4" />}
+              href={`/w/${workspaceId}/settings`}
+              active={pathname.startsWith(`/w/${workspaceId}/settings`)}
+            >
+              {t("nav.settings")}
+            </SidebarButton>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between px-4 pb-1 pt-2">
+          <span className="text-xs font-medium text-fg-muted">{t("pages.heading")}</span>
+          <Popover
+            align="end"
+            trigger={({ toggle }) => (
+              <IconButton label={t("pages.new")} onClick={toggle}>
+                <Plus className="h-4 w-4" />
+              </IconButton>
+            )}
+          >
+            {(close) => (
+              <>
                 <MenuItem
-                  key={w.id}
-                  active={w.id === workspaceId}
+                  icon={<FileText className="h-4 w-4" />}
                   onClick={() => {
                     close();
-                    router.push(`/w/${w.id}`);
+                    create(null, "page");
                   }}
                 >
-                  {w.name}
+                  {t("pages.newPage")}
                 </MenuItem>
-              ))}
-              <MenuItem
-                icon={<Plus className="h-4 w-4" />}
-                onClick={() => {
-                  close();
-                  setNewWorkspaceOpen(true);
-                }}
-              >
-                {t("workspaceMenu.newWorkspace")}
-              </MenuItem>
-              <MenuSeparator />
-              <MenuItem
-                icon={<Settings className="h-4 w-4" />}
-                onClick={() => {
-                  close();
-                  router.push(`/w/${workspaceId}/settings`);
-                }}
-              >
-                {t("workspaceMenu.settingsAndMembers")}
-              </MenuItem>
-              <MenuItem icon={<LogOut className="h-4 w-4" />} onClick={signOut}>
-                {t("workspaceMenu.signOut")}
-              </MenuItem>
-            </>
-          )}
-        </Popover>
+                <MenuItem
+                  icon={<Database className="h-4 w-4" />}
+                  onClick={() => {
+                    close();
+                    create(null, "database");
+                  }}
+                >
+                  {t("pages.newDatabase")}
+                </MenuItem>
+              </>
+            )}
+          </Popover>
+        </div>
 
-        <div className="mt-1 space-y-px">
-          <SidebarButton icon={<Search className="h-4 w-4" />} onClick={() => setSearchOpen(true)} hint="⌘K">
-            {t("nav.search")}
-          </SidebarButton>
-          <SidebarButton icon={<Settings className="h-4 w-4" />} href={`/w/${workspaceId}/settings`}>
-            {t("nav.settings")}
+        <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label={t("pages.heading")}>
+          {roots.length === 0 && (
+            <button
+              type="button"
+              onClick={() => create(null)}
+              className="w-full rounded-md px-2 py-1.5 text-left text-fg-muted hover:bg-bg-hover"
+            >
+              {t("pages.createFirst")}
+            </button>
+          )}
+          <TreeLevel
+            nodes={roots}
+            depth={0}
+            childrenOf={children}
+            expanded={expanded}
+            activeId={activeId}
+            activeViewId={activeViewId}
+            workspaceId={workspaceId}
+            onToggle={toggle}
+            onCreate={create}
+            onArchive={archive}
+            onMove={move}
+          />
+        </nav>
+
+        <div className="border-t border-border p-2">
+          <SidebarButton icon={<Trash2 className="h-4 w-4" />} onClick={() => setTrashOpen(true)}>
+            {t("nav.trash")}
           </SidebarButton>
         </div>
-      </div>
 
-      <div className="flex items-center justify-between px-4 pb-1 pt-2">
-        <span className="text-xs font-medium text-fg-muted">{t("pages.heading")}</span>
-        <Popover
-          align="end"
-          trigger={({ toggle }) => (
-            <IconButton label={t("pages.new")} onClick={toggle}>
-              <Plus className="h-4 w-4" />
-            </IconButton>
-          )}
-        >
-          {(close) => (
-            <>
-              <MenuItem
-                icon={<FileText className="h-4 w-4" />}
-                onClick={() => {
-                  close();
-                  create(null, "page");
-                }}
-              >
-                {t("pages.newPage")}
-              </MenuItem>
-              <MenuItem
-                icon={<Database className="h-4 w-4" />}
-                onClick={() => {
-                  close();
-                  create(null, "database");
-                }}
-              >
-                {t("pages.newDatabase")}
-              </MenuItem>
-            </>
-          )}
-        </Popover>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label={t("pages.heading")}>
-        {roots.length === 0 && (
-          <button
-            type="button"
-            onClick={() => create(null)}
-            className="w-full rounded-md px-2 py-1.5 text-left text-fg-muted hover:bg-bg-hover"
-          >
-            {t("pages.createFirst")}
-          </button>
-        )}
-        <TreeLevel
-          nodes={roots}
-          depth={0}
-          childrenOf={children}
-          expanded={expanded}
-          activeId={activeId}
+        <SearchDialog workspaceId={workspaceId} open={searchOpen} onClose={() => setSearchOpen(false)} />
+        <NewWorkspaceDialog open={newWorkspaceOpen} onClose={() => setNewWorkspaceOpen(false)} />
+        <TrashDialog
           workspaceId={workspaceId}
-          onToggle={toggle}
-          onCreate={create}
-          onArchive={archive}
-          onMove={move}
+          open={trashOpen}
+          onClose={() => setTrashOpen(false)}
+          onChange={() => {
+            refresh();
+            router.refresh();
+          }}
         />
-      </nav>
+      </aside>
+    </>
+  );
+}
 
-      <div className="border-t border-border p-2">
-        <SidebarButton icon={<Trash2 className="h-4 w-4" />} onClick={() => setTrashOpen(true)}>
-          {t("nav.trash")}
-        </SidebarButton>
-      </div>
-
-      <SearchDialog workspaceId={workspaceId} open={searchOpen} onClose={() => setSearchOpen(false)} />
-      <NewWorkspaceDialog open={newWorkspaceOpen} onClose={() => setNewWorkspaceOpen(false)} />
-      <TrashDialog
-        workspaceId={workspaceId}
-        open={trashOpen}
-        onClose={() => setTrashOpen(false)}
-        onChange={() => {
-          refresh();
-          router.refresh();
-        }}
-      />
-    </aside>
+/** Drag the sidebar's right edge to resize it; double-click restores the default width. */
+function ResizeHandle() {
+  const t = useTranslations("sidebar.toggle");
+  const sidebar = useSidebar();
+  const start = useRef<{ x: number; width: number } | null>(null);
+  if (!sidebar) return null;
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={t("resize")}
+      title={t("resize")}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        start.current = { x: e.clientX, width: sidebar.width };
+      }}
+      onPointerMove={(e) => {
+        if (start.current) sidebar.setWidth(start.current.width + e.clientX - start.current.x);
+      }}
+      onPointerUp={(e) => {
+        if (!start.current) return;
+        sidebar.setWidth(start.current.width + e.clientX - start.current.x, true);
+        start.current = null;
+      }}
+      onDoubleClick={() => sidebar.setWidth(SIDEBAR_WIDTH.default, true)}
+      className="absolute inset-y-0 -right-1 z-10 hidden w-2 cursor-col-resize after:absolute after:inset-y-0 after:left-[3px] after:w-0.5 after:transition-colors hover:after:bg-accent/60 md:block"
+    />
   );
 }
 
@@ -297,14 +370,19 @@ function SidebarButton({
   onClick,
   href,
   hint,
+  active,
 }: {
   icon: React.ReactNode;
   children: React.ReactNode;
   onClick?: () => void;
   href?: string;
   hint?: string;
+  active?: boolean;
 }) {
-  const className = "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-fg-muted hover:bg-bg-hover hover:text-fg";
+  const className = cn(
+    "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-fg-muted hover:bg-bg-hover hover:text-fg",
+    active && "bg-bg-active font-medium text-fg hover:bg-bg-active",
+  );
   const content = (
     <>
       {icon}
@@ -330,6 +408,7 @@ type TreeProps = {
   childrenOf: Map<string | null, TreeNode[]>;
   expanded: Set<string>;
   activeId: string | null;
+  activeViewId: string | null;
   workspaceId: string;
   onToggle: (id: string, open?: boolean) => void;
   onCreate: (parentId: string | null, kind?: PageKind) => void;
@@ -355,7 +434,7 @@ function TreeItem({
   next,
   ...props
 }: TreeProps & { node: TreeNode; prev?: TreeNode; next?: TreeNode }) {
-  const { depth, childrenOf, expanded, activeId, workspaceId, onToggle, onCreate, onArchive, onMove } = props;
+  const { depth, childrenOf, expanded, activeId, activeViewId, workspaceId, onToggle, onCreate, onArchive, onMove } = props;
   const t = useTranslations("sidebar");
   const tc = useTranslations("common");
   const kids = childrenOf.get(node.id) ?? [];
@@ -363,6 +442,11 @@ function TreeItem({
   const [drop, setDrop] = useState<DropTarget>(null);
   // Database rows are not shown in the tree; dropping into a database would turn a page into a row.
   const canNest = node.kind === "page";
+  // Databases expand to their views instead of child pages.
+  const views = node.kind === "database" ? (node.views ?? []) : [];
+  const expandable = canNest || views.length > 0;
+  const active = activeId === node.id;
+  const currentViewId = active ? (activeViewId && views.some((v) => v.id === activeViewId) ? activeViewId : views[0]?.id) : null;
 
   function zoneFor(e: React.DragEvent<HTMLDivElement>): "before" | "inside" | "after" {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -405,7 +489,8 @@ function TreeItem({
         onDrop={onDrop}
         className={cn(
           "group relative flex h-7 items-center gap-0.5 rounded-md pr-1 hover:bg-bg-hover",
-          activeId === node.id && "bg-bg-active font-medium hover:bg-bg-active",
+          // An open database highlights its current view row instead.
+          active && !(isOpen && currentViewId) && "bg-bg-active font-medium hover:bg-bg-active",
           drop?.zone === "inside" && "bg-accent/15",
         )}
         style={{ paddingLeft: 4 + depth * 14 }}
@@ -415,25 +500,28 @@ function TreeItem({
             className={cn("pointer-events-none absolute left-1 right-1 h-0.5 rounded bg-accent", drop.zone === "before" ? "top-0" : "bottom-0")}
           />
         )}
+        {/* The icon doubles as the expand toggle: it turns into a chevron on hover (always on touch). */}
         <button
           type="button"
           aria-label={isOpen ? t("pages.collapse") : t("pages.expand")}
-          // Databases list their rows on the database page, not in the tree.
-          disabled={!canNest}
+          aria-expanded={expandable ? isOpen : undefined}
+          disabled={!expandable}
           onClick={() => onToggle(node.id)}
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-fg-faint hover:bg-bg-active hover:text-fg disabled:hover:bg-transparent"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-fg-faint hover:bg-bg-active hover:text-fg disabled:hover:bg-transparent"
         >
-          {!canNest || (kids.length === 0 && !isOpen) ? (
+          <span className={cn("flex", expandable && "group-hover:hidden pointer-coarse:hidden")}>
             <PageIcon icon={node.icon} kind={node.kind} className="text-sm" />
-          ) : isOpen ? (
-            <ChevronDown className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5" />
-          )}
+          </span>
+          {expandable &&
+            (isOpen ? (
+              <ChevronDown className="hidden h-3.5 w-3.5 group-hover:block pointer-coarse:block" />
+            ) : (
+              <ChevronRight className="hidden h-3.5 w-3.5 group-hover:block pointer-coarse:block" />
+            ))}
         </button>
-        <Link href={`/w/${workspaceId}/p/${node.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-1">
-          {canNest && (kids.length > 0 || isOpen) && (
-            <PageIcon icon={node.icon} kind={node.kind} className="text-sm" />
+        <Link href={`/w/${workspaceId}/p/${node.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-1 pl-0.5">
+          {expandable && (
+            <PageIcon icon={node.icon} kind={node.kind} className="hidden text-sm pointer-coarse:inline" />
           )}
           <span className="truncate">{pageLabel(node.title, tc("untitled"))}</span>
         </Link>
@@ -466,6 +554,28 @@ function TreeItem({
           )}
         </div>
       </div>
+      {isOpen && views.length > 0 && (
+        <ul>
+          {views.map((v) => (
+            <li key={v.id}>
+              <Link
+                href={`/w/${workspaceId}/p/${node.id}?view=${v.id}`}
+                aria-current={v.id === currentViewId ? "page" : undefined}
+                className={cn(
+                  "flex h-7 items-center gap-1.5 rounded-md pr-2 text-fg-muted hover:bg-bg-hover hover:text-fg",
+                  v.id === currentViewId && "bg-bg-active font-medium text-fg hover:bg-bg-active",
+                )}
+                style={{ paddingLeft: 4 + (depth + 1) * 14 }}
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+                  <ViewIcon type={v.type} className="h-3.5 w-3.5" />
+                </span>
+                <span className="truncate">{v.name}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
       {isOpen && canNest && (
         kids.length > 0 ? (
           <TreeLevel nodes={kids} {...props} depth={depth + 1} />

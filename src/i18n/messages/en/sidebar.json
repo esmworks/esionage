@@ -6,8 +6,14 @@
   },
   "nav": {
     "search": "Search",
+    "home": "Home",
     "settings": "Settings",
     "trash": "Trash"
+  },
+  "toggle": {
+    "open": "Open sidebar",
+    "close": "Hide sidebar",
+    "resize": "Drag to resize"
   },
   "pages": {
     "heading": "Pages",

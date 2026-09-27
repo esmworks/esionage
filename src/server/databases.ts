@@ -53,6 +53,10 @@ function notifyRows(databaseId: string) {
 function notifySchema(databaseId: string) {
   getCollab().broadcast(`db:${databaseId}`, "schema");
 }
+/** The sidebar lists database views, so adding, renaming or removing one refreshes the tree. */
+function notifyTree(workspaceId: string) {
+  getCollab().broadcast(`ws:${workspaceId}`, "tree");
+}
 
 export async function getProperties(databaseId: string) {
   return db
@@ -399,7 +403,7 @@ export async function deleteProperty(userId: string, propertyId: string) {
 }
 
 export async function addView(userId: string, databaseId: string, input: { name: string; type: ViewType }) {
-  await requireDatabase(userId, databaseId);
+  const database = await requireDatabase(userId, databaseId);
   const props = await getProperties(databaseId);
   const config: ViewConfig = {};
   if (input.type === "board") config.groupBy = props.find((p) => p.type === "select")?.id;
@@ -423,14 +427,15 @@ export async function addView(userId: string, databaseId: string, input: { name:
     })
     .returning();
   notifySchema(databaseId);
+  notifyTree(database.workspaceId);
   return created;
 }
 
 async function requireView(userId: string, viewId: string) {
   const [view] = await db.select().from(databaseView).where(eq(databaseView.id, viewId));
   if (!view) throw new AccessError();
-  await requireDatabase(userId, view.databaseId);
-  return view;
+  const database = await requireDatabase(userId, view.databaseId);
+  return { ...view, workspaceId: database.workspaceId };
 }
 
 export async function updateView(userId: string, viewId: string, patch: { name?: string; config?: ViewConfig }) {
@@ -443,6 +448,7 @@ export async function updateView(userId: string, viewId: string, patch: { name?:
     })
     .where(eq(databaseView.id, viewId));
   notifySchema(view.databaseId);
+  if (patch.name !== undefined) notifyTree(view.workspaceId);
 }
 
 export async function deleteView(userId: string, viewId: string) {
@@ -454,6 +460,7 @@ export async function deleteView(userId: string, viewId: string) {
   if (count <= 1) throw withCode(new Error("A database needs at least one view"), "lastView");
   await db.delete(databaseView).where(eq(databaseView.id, viewId));
   notifySchema(view.databaseId);
+  notifyTree(view.workspaceId);
 }
 
 /** Reorders a row (board drag) and optionally changes its group value in one step. */

@@ -8,12 +8,10 @@ import {
   ChevronDown,
   Eye,
   EyeOff,
-  Kanban,
   ListFilter,
   Pencil,
   Plus,
   Rows3,
-  Sheet,
   Trash2,
   X,
 } from "lucide-react";
@@ -25,17 +23,12 @@ import { pageLabel } from "@/lib/labels";
 import { filterNeedsValue, filterOperators, isSortable } from "@/lib/properties";
 import { Floating, useFloating } from "./floating";
 import { useFormatDate } from "./property-cell";
-import { PropertyTypeIcon } from "./property-icons";
+import { PropertyTypeIcon, ViewIcon } from "./property-icons";
 import { linkedRows, useRelations } from "./relation-context";
 import { TITLE, type Property, type View } from "./types";
 
-const VIEW_ICONS = { table: Sheet, board: Kanban, calendar: CalendarDays } as const;
 export const VIEW_TYPES = ["table", "board", "calendar"] as const satisfies readonly ViewType[];
-
-export function ViewIcon({ type, className }: { type: ViewType; className?: string }) {
-  const Icon = VIEW_ICONS[type] ?? Sheet;
-  return <Icon className={className ?? "h-3.5 w-3.5"} strokeWidth={1.75} aria-hidden />;
-}
+export { ViewIcon };
 
 export function ViewTabs({
   views,

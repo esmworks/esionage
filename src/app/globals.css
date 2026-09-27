@@ -124,6 +124,22 @@
   padding-inline: max(3rem, calc((100% - 1104px) / 2));
 }
 
+/* Tables start 2.5rem early so the row-handle column sits in the gutter and names line up with the title. */
+.page-gutter-table {
+  padding-inline: max(3rem, calc((100% - 1104px) / 2));
+  padding-inline-start: calc(max(3rem, calc((100% - 1104px) / 2)) - 2.5rem);
+}
+
+/* Phones get the whole width; the sidebar is a drawer there. */
+@media (max-width: 767px) {
+  .page-gutter {
+    padding-inline: 1rem;
+  }
+  .page-gutter-table {
+    padding-inline: 0 1rem;
+  }
+}
+
 .board-card {
   background: var(--opt-card, var(--bg));
   box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.06), 0 1px 3px rgba(15, 15, 15, 0.08);
