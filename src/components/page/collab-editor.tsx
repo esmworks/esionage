@@ -34,6 +34,7 @@ import { FindBar } from "./find-bar";
 import { FindReplace } from "./find-replace";
 import { DatabasePicker, pageEditorSchema, placeEmbedBlock, useEmbedSlashItems, withEmbedItems, type PageEditor } from "./embed-blocks";
 import { userColor, type PageDoc } from "./use-page-doc";
+import { PasteLinkMenu, useWebSlashItems } from "./web-blocks";
 
 /**
  * y-prosemirror's undo plugin keeps its Y.UndoManager in plugin state but destroys it whenever the
@@ -138,6 +139,7 @@ export default function CollabEditor({
           className="esionage-editor"
         >
           <SlashMenu editor={editor} onCreateError={setEmbedError} onPickDatabase={setPickAt} />
+          <PasteLinkMenu editor={editor} />
           {/* People who may only read get no toolbar; commenting shows it on read-only pages too. */}
           {(editable || canComment) && (
             <FormattingToolbarController
@@ -204,11 +206,12 @@ function SlashMenu({
 }) {
   const embedItems = useEmbedSlashItems(editor, { onCreateError, onPickDatabase });
   const contentItems = useContentSlashItems(editor);
+  const webItems = useWebSlashItems(editor);
   return (
     <SuggestionMenuController
       triggerCharacter="/"
       getItems={async (query) =>
-        filterSuggestionItems(withEmbedItems(getDefaultReactSlashMenuItems(editor), [...embedItems(), ...contentItems]), query)
+        filterSuggestionItems(withEmbedItems(getDefaultReactSlashMenuItems(editor), [...embedItems(), ...contentItems, ...webItems]), query)
       }
     />
   );

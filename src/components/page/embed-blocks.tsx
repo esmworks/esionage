@@ -18,6 +18,7 @@ import {
 } from "@/lib/embed-blocks";
 import { contentBlockSpecs, contentInlineSpecs } from "./content-blocks";
 import { DatabaseEmbed, useEmbedHost } from "./database-embed";
+import { webBlockSpecs } from "./web-blocks";
 
 /**
  * The page editor's schema: BlockNote's blocks plus the database blocks (configs shared with the
@@ -66,6 +67,7 @@ export const pageEditorSchema = BlockNoteSchema.create({
     database: DatabaseBlock(),
     linkedView: LinkedViewBlock(),
     ...contentBlockSpecs,
+    ...webBlockSpecs,
   },
   inlineContentSpecs: { ...defaultInlineContentSpecs, ...contentInlineSpecs },
 });

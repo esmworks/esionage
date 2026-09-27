@@ -29,6 +29,8 @@ import {
   splitMarkdownReferences,
   isEmbedBlockType,
 } from "@/lib/embed-blocks";
+import { restoreBookmarks } from "@/lib/web-blocks";
+import { webBlockServerSpecs } from "./web-blocks";
 
 /**
  * The page body schema on the server: BlockNote's blocks plus the database blocks and the content
@@ -120,6 +122,7 @@ export const pageSchema = BlockNoteSchema.create({
     database: createBlockSpec(databaseBlockConfig, marker("database"))(),
     linkedView: createBlockSpec(linkedViewBlockConfig, marker("linkedView"))(),
     ...contentBlockSpecs,
+    ...webBlockServerSpecs,
   },
   inlineContentSpecs: { ...defaultInlineContentSpecs, inlineMath },
 });
@@ -181,5 +184,7 @@ export async function markdownToBlocks(
       "markdown" in part ? { blocks: await parseMarkdown(part.markdown) } : part,
     ),
   );
-  return mergeReferencedBlocks(parts, existing, { keepMissingInline });
+  const blocks = mergeReferencedBlocks(parts, existing, { keepMissingInline });
+  // A rewrite of the whole body (not an append) gets the page's bookmarks back from their link lines.
+  return keepMissingInline ? restoreBookmarks(blocks, existing) : blocks;
 }

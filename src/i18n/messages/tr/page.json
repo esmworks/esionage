@@ -255,5 +255,44 @@
       "aliases": "breadcrumb sayfa yolu üst sayfalar konum",
       "label": "Sayfa yolu"
     }
+  },
+  "web": {
+    "bookmark": {
+      "title": "Web yer imi",
+      "subtext": "Başlığı ve görseliyle kart olarak gösterilen bir bağlantı",
+      "aliases": "yer imi bağlantı link url web kart önizleme bookmark",
+      "placeholder": "Yer imi için bir bağlantı yapıştırın",
+      "submit": "Yer imi ekle",
+      "loading": "Sayfa getiriliyor…",
+      "refresh": "Önizlemeyi yenile",
+      "label": "Yer imi"
+    },
+    "embed": {
+      "title": "Gömülü içerik",
+      "subtext": "YouTube, Figma, Google Dokümanlar, Haritalar ve dahası",
+      "aliases": "göm gömülü embed iframe youtube vimeo loom figma google dokümanlar tablolar slaytlar codepen spotify harita video",
+      "placeholder": "Gömmek için bir bağlantı yapıştırın",
+      "submit": "Göm",
+      "providers": "YouTube, Vimeo, Loom, Figma, yayımlanmış Google Dokümanlar, E-Tablolar ve Slaytlar, CodePen, Spotify ve Google Haritalar. Diğer bağlantılar yer imi olur.",
+      "frameTitle": "{host} kaynağından gömülü içerik",
+      "label": "Gömülü içerik"
+    },
+    "paste": {
+      "label": "Şu şekilde yapıştır",
+      "bookmark": "Yer imi",
+      "embed": "Gömülü içerik",
+      "keep": "Bağlantı olarak bırak"
+    },
+    "invalidUrl": "https://example.com gibi bir web adresi girin",
+    "errors": {
+      "accessDenied": "Bu sayfayı düzenleyemezsiniz.",
+      "rateLimited": "Aynı anda çok fazla bağlantı önizlemesi istendi. Bir dakika sonra tekrar deneyin.",
+      "invalidUrl": "Bu bir web adresi değil.",
+      "blocked": "Bu adres önizlenemez.",
+      "unreachable": "Sayfaya ulaşılamadı.",
+      "timeout": "Sayfa çok geç yanıt verdi.",
+      "tooManyRedirects": "Sayfa çok fazla yönlendirme yapıyor.",
+      "httpError": "Sayfa bir hata döndürdü."
+    }
   }
 }

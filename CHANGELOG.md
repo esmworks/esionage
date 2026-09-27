@@ -4,6 +4,21 @@
 
 ### Added
 
+- **Web bookmarks and embeds:** "Web bookmark" and "Embed" in the slash menu, and pasting a lone
+  link into an empty line offers Bookmark, Embed (for supported sites) or Keep as link. A bookmark
+  is a card with the page's title, description, icon and preview image; the server fetches them
+  once (Open Graph and meta tags) and stores them in the block, and "Refresh preview" fetches them
+  again. The fetch needs edit access to the page, is rate limited per user and guarded against
+  server-side request forgery: http(s) on web ports only, every resolved address must be public
+  (no private, loopback, link-local, CGNAT, multicast or IPv6 ULA/link-local), each of at most
+  three redirects is checked again, 5 s and 1 MB at most, head only. Preview images are hotlinked
+  with `referrerPolicy="no-referrer"` rather than proxied. Embeds show YouTube (via
+  youtube-nocookie), Vimeo, Loom, Figma, published Google Docs/Sheets/Slides, CodePen, Spotify and
+  Google Maps in a sandboxed, lazy iframe whose address is always rebuilt from the pasted URL;
+  other links become bookmarks. Both show on published pages. In Markdown (export, MCP) a bookmark
+  is a `[Title](url)` line, which a rewrite of the page turns back into that bookmark (other link
+  lines stay links; `<!-- esionage:bookmark -->` after a link makes a new one), and an embed is
+  `[url](url) <!-- esionage:embed -->`. PDF embeds are still to come.
 - **Presence:** the page header shows who else has the page open, as avatars in their cursor
   colors with "+N" for more than four; click them for everyone's names. People who can only view
   the page count too, each person shows once however many tabs they have open, and you don't see

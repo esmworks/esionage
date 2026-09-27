@@ -5,6 +5,8 @@ import { PropertyDisplay } from "@/components/database/property-cell";
 import { PropertyTypeIcon } from "@/components/database/property-icons";
 import { PublishedMermaid } from "@/components/page/mermaid-diagram";
 import { HeadingList, Trail } from "@/components/page/page-outline";
+import { BookmarkCard, EmbedFrame } from "@/components/page/web-card";
+import { displayHost } from "@/lib/web-blocks";
 import { PageIcon } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
 import type { PublishedPage } from "@/server/publication";
@@ -19,10 +21,11 @@ const cn = (...classes: (string | false | null | undefined)[]) => classes.filter
  * without a session: no editor, no client data fetching.
  */
 export async function PublishedView({ data }: { data: PublishedPage }) {
-  const [t, tc, tb, format] = await Promise.all([
+  const [t, tc, tb, tw, format] = await Promise.all([
     getTranslations("publish"),
     getTranslations("common"),
     getTranslations("page.blocks"),
+    getTranslations("page.web"),
     getFormatter(),
   ]);
   const untitled = tc("untitled");
@@ -119,6 +122,14 @@ export async function PublishedView({ data }: { data: PublishedPage }) {
               ) : block.kind === "mermaid" ? (
                 <div key={i} className={cn(styles.body, "my-2 px-4 sm:px-[54px]")}>
                   <PublishedMermaid source={block.source} label={tb("mermaid.label")} />
+                </div>
+              ) : block.kind === "bookmark" ? (
+                <div key={i} className="my-2 px-4 sm:px-[54px]">
+                  <BookmarkCard bookmark={block.bookmark} />
+                </div>
+              ) : block.kind === "webEmbed" ? (
+                <div key={i} className="my-2 px-4 sm:px-[54px]">
+                  <EmbedFrame url={block.url} embed={block.embed} title={tw("embed.frameTitle", { host: displayHost(block.url) })} />
                 </div>
               ) : block.database ? (
                 <section key={i} className="my-4">

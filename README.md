@@ -11,6 +11,9 @@ approve them over OAuth.
   over titles and content.
 - **Rich blocks**: callouts, LaTeX equations (block and inline, KaTeX), Mermaid diagrams with a
   live preview, a table of contents and a breadcrumb, also on published pages and in Markdown.
+- **Web bookmarks and embeds**: link cards with the page's title, description and image (fetched
+  once on the server behind an SSRF guard), and YouTube, Vimeo, Loom, Figma, Google Docs, CodePen,
+  Spotify and Google Maps embeds in sandboxed iframes.
 - **Realtime collaboration**: several people can edit the same page at once (Yjs over WebSocket
   via Hocuspocus), with live cursors. The page header shows who else has the page open, including
   people who can only view it.

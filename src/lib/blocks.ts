@@ -2,6 +2,8 @@
 type InlineNode = { type: string; text?: string; content?: InlineNode[] | string };
 type TableContent = { type: "tableContent"; rows: { cells: (InlineNode[] | { content: InlineNode[] })[] }[] };
 export type BlockLike = {
+  type?: string;
+  props?: Record<string, unknown>;
   content?: InlineNode[] | TableContent | string;
   children?: BlockLike[];
 };
@@ -14,6 +16,10 @@ function inlineText(nodes: InlineNode[] | string | undefined): string {
 
 function blockText(block: BlockLike): string {
   const { content } = block;
+  // A bookmark has no text of its own; its page's title and description are what people search for.
+  if (block.type === "bookmark") {
+    return [block.props?.title, block.props?.description].filter((v) => typeof v === "string" && v).join(" ");
+  }
   if (!content) return "";
   if (typeof content === "string" || Array.isArray(content)) return inlineText(content);
   if (content.type === "tableContent") {

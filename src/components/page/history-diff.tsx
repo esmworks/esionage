@@ -1,11 +1,13 @@
 "use client";
 
 import {
+  Bookmark,
   ChevronRight,
   ChevronsUpDown,
   Database,
   File as FileIcon,
   Image as ImageIcon,
+  MonitorPlay,
   Music,
   Route,
   Square,
@@ -38,7 +40,14 @@ function Words({ words }: { words: WordSegment[] }) {
   );
 }
 
-const MEDIA_ICONS: Record<string, typeof FileIcon> = { image: ImageIcon, video: Video, audio: Music, file: FileIcon };
+const MEDIA_ICONS: Record<string, typeof FileIcon> = {
+  image: ImageIcon,
+  video: Video,
+  audio: Music,
+  file: FileIcon,
+  bookmark: Bookmark,
+  webEmbed: MonitorPlay,
+};
 
 /** A block drawn by its type, close to how the editor shows it, with `text` as its content. */
 function BlockBody({ block, text }: { block: DiffBlock; text: ReactNode }) {

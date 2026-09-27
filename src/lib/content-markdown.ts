@@ -11,6 +11,7 @@ import {
   TOC_BLOCK,
   type AlertKind,
 } from "./content-blocks";
+import { BOOKMARK_BLOCK, markdownLinkDestination, markdownLinkText, parseWebUrl, WEB_EMBED_BLOCK } from "./web-blocks";
 
 /**
  * The Markdown form of the content blocks (see lib/content-blocks), on top of what BlockNote's own
@@ -32,6 +33,10 @@ import {
  *
  *   <!-- esionage:toc -->         a table of contents
  *   <!-- esionage:breadcrumb -->  a breadcrumb
+ *
+ *   [Title](https://…)                              a bookmark (reads back as a link, see
+ *                                                   lib/web-blocks restoreBookmarks)
+ *   [https://…](https://…) <!-- esionage:embed -->  an embed
  *
  * BlockNote would mangle the sources (Markdown escapes and emphasis inside LaTeX, KaTeX markup
  * written out as text), so these blocks never go through its converters as themselves: on the way
@@ -117,6 +122,15 @@ export function prepareMarkdownExport<B extends MdBlock>(blocks: B[], nonce: str
           return paragraph(blockToken("<!-- esionage:toc -->"));
         case BREADCRUMB_BLOCK:
           return paragraph(blockToken("<!-- esionage:breadcrumb -->"));
+        case BOOKMARK_BLOCK:
+        case WEB_EMBED_BLOCK: {
+          // A bookmark or embed without a (valid) URL yet has nothing to write.
+          const url = parseWebUrl(block.props?.url)?.href;
+          if (!url) return paragraph("");
+          const title = block.type === BOOKMARK_BLOCK ? String(block.props?.title ?? "").trim() : "";
+          const link = `[${markdownLinkText(title || url)}](${markdownLinkDestination(url)})`;
+          return paragraph(blockToken(block.type === WEB_EMBED_BLOCK ? `${link} <!-- esionage:embed -->` : link));
+        }
         case CALLOUT_BLOCK: {
           const i = callouts.push({
             kind: alertKindForColor(String(block.props?.backgroundColor ?? "")),
@@ -168,7 +182,9 @@ export function prepareMarkdownExport<B extends MdBlock>(blocks: B[], nonce: str
 type Pending =
   | { type: typeof MATH_BLOCK; latex: string }
   | { type: typeof TOC_BLOCK | typeof BREADCRUMB_BLOCK }
-  | { type: typeof CALLOUT_BLOCK; kind: AlertKind; markdown: string };
+  | { type: typeof CALLOUT_BLOCK; kind: AlertKind; markdown: string }
+  | { type: typeof BOOKMARK_BLOCK; url: string; title: string }
+  | { type: typeof WEB_EMBED_BLOCK; url: string };
 
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
 const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})\s*$/;
@@ -176,6 +192,9 @@ const CALLOUT_START = new RegExp(`^ {0,3}> ?\\[!(${ALERT_KINDS.join("|")})\\][ \
 const QUOTE_LINE = /^ {0,3}> ?(.*)$/;
 const MATH_OPEN = /^ {0,3}\$\$(.*)$/;
 const MARKER_LINE = /^ {0,3}<!--\s*esionage:(toc|breadcrumb)\s*-->\s*$/;
+/** `[text](url) <!-- esionage:embed -->` (or a bare URL before the marker); "bookmark" likewise. */
+const WEB_LINE =
+  /^ {0,3}(?:\[((?:\\.|[^\\\]])*)\]\((<[^<>\n]*>|[^\s()<>]+)\)|<?(https?:\/\/[^\s<>]+?)>?)\s*<!--\s*esionage:(embed|bookmark)\s*-->\s*$/i;
 
 /**
  * Swaps the Markdown forms above for tokens BlockNote's parser keeps as plain text. Only lines of
@@ -207,6 +226,13 @@ export function prepareMarkdownImport(markdown: string, nonce: string) {
     const marker = MARKER_LINE.exec(line);
     if (marker) {
       blockLine({ type: marker[1] === "toc" ? TOC_BLOCK : BREADCRUMB_BLOCK });
+      continue;
+    }
+    const web = WEB_LINE.exec(line);
+    const webUrl = web ? parseWebUrl((web[2] ?? web[3]).replace(/^<|>$/g, ""))?.href : undefined;
+    if (web && webUrl) {
+      if (web[4].toLowerCase() === "embed") blockLine({ type: WEB_EMBED_BLOCK, url: webUrl });
+      else blockLine({ type: BOOKMARK_BLOCK, url: webUrl, title: (web[1] ?? "").replace(/\\(.)/g, "$1").trim() });
       continue;
     }
     const callout = CALLOUT_START.exec(line);
@@ -357,6 +383,13 @@ export async function finishMarkdownImport<B extends MdBlock>(
       case TOC_BLOCK:
       case BREADCRUMB_BLOCK:
         return { type: pending.type, children: [] } as unknown as B;
+      case WEB_EMBED_BLOCK:
+        return { type: WEB_EMBED_BLOCK, props: { url: pending.url }, children: [] } as unknown as B;
+      case BOOKMARK_BLOCK: {
+        // The link text is the title until the details are fetched; a bare URL has none.
+        const title = pending.title === pending.url ? "" : pending.title;
+        return { type: BOOKMARK_BLOCK, props: { url: pending.url, title }, children: [] } as unknown as B;
+      }
       case CALLOUT_BLOCK: {
         // The first paragraph is the callout's text; anything after it is nested under it.
         const inner = pending.markdown.trim() ? await parse(pending.markdown) : [];

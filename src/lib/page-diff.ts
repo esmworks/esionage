@@ -196,6 +196,7 @@ export function flattenBlocks(blocks: readonly BlockInput[]): DiffBlock[] {
       const str = (name: string) => (typeof props[name] === "string" ? (props[name] as string) : "");
       let text = contentText(block.content);
       if (MEDIA.has(block.type)) text = str("caption") || str("name") || str("url");
+      if (block.type === "bookmark" || block.type === "webEmbed") text = str("title") || str("url");
       const diffBlock: DiffBlock = {
         type: block.type,
         depth,
@@ -205,7 +206,7 @@ export function flattenBlocks(blocks: readonly BlockInput[]): DiffBlock[] {
       if (typeof props.level === "number") diffBlock.level = props.level;
       if (typeof props.checked === "boolean") diffBlock.checked = props.checked;
       if (str("language")) diffBlock.language = str("language");
-      if (MEDIA.has(block.type) && str("url")) diffBlock.url = str("url");
+      if ((MEDIA.has(block.type) || block.type === "bookmark" || block.type === "webEmbed") && str("url")) diffBlock.url = str("url");
       if (block.type === "callout" && str("icon")) diffBlock.icon = str("icon");
       if (block.type === "numberedListItem") {
         const start = Number(props.start);

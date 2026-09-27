@@ -4,6 +4,7 @@ import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { BREADCRUMB_BLOCK, MERMAID_BLOCK, TOC_BLOCK } from "@/lib/content-blocks";
 import { plainText } from "@/lib/content-markdown";
 import { isEmbedBlockType, parseLinkedView, type EmbedBlockType, type LinkedView } from "@/lib/embed-blocks";
+import { BOOKMARK_BLOCK, embedFor, isWebBlockType, parseWebUrl, type EmbedTarget } from "@/lib/web-blocks";
 import { serverEditor as editor, type PageBlock } from "@/server/blocknote";
 
 /**
@@ -17,7 +18,8 @@ import { serverEditor as editor, type PageBlock } from "@/server/blocknote";
  * Database blocks are not serialized: the body comes back as HTML parts with the database blocks
  * between them, and the publication decides for each whether its database may be shown. Tables of
  * contents, breadcrumbs and Mermaid diagrams come back between the parts too, for the page to
- * draw. Equations are serialized: KaTeX builds them on the server (see server/blocknote.ts).
+ * draw, and so do bookmarks and embeds (an iframe only for an allowlisted provider, see
+ * lib/web-blocks). Equations are serialized: KaTeX builds them on the server (see server/blocknote.ts).
  */
 
 type Json = unknown;
@@ -99,10 +101,39 @@ export type BodySegment =
   | { kind: "embed"; type: EmbedBlockType; databaseId: string; view: LinkedView | null }
   | { kind: "toc"; headings: BodyHeading[] }
   | { kind: "breadcrumb" }
-  | { kind: "mermaid"; source: string };
+  | { kind: "mermaid"; source: string }
+  | { kind: "bookmark"; bookmark: PublishedBookmark }
+  /** An embed of an allowlisted provider; any other URL comes back as a bookmark. */
+  | { kind: "webEmbed"; url: string; embed: EmbedTarget };
+
+/** A bookmark card's details, every URL checked to be http(s). */
+export type PublishedBookmark = { url: string; title: string; description: string; image: string; favicon: string; siteName: string };
 
 const isStandalone = (type: string) =>
-  isEmbedBlockType(type) || type === TOC_BLOCK || type === BREADCRUMB_BLOCK || type === MERMAID_BLOCK;
+  isEmbedBlockType(type) || isWebBlockType(type) || type === TOC_BLOCK || type === BREADCRUMB_BLOCK || type === MERMAID_BLOCK;
+
+/** A bookmark or embed block as the published page draws it, or null when it has no valid URL. */
+function webSegment(block: PageBlock): BodySegment | null {
+  const props = block.props as Record<string, unknown>;
+  const url = parseWebUrl(props.url)?.href;
+  if (!url) return null;
+  if (block.type !== BOOKMARK_BLOCK) {
+    const embed = embedFor(url);
+    if (embed) return { kind: "webEmbed", url, embed };
+  }
+  const text = (name: string) => (typeof props[name] === "string" ? (props[name] as string) : "");
+  return {
+    kind: "bookmark",
+    bookmark: {
+      url,
+      title: text("title"),
+      description: text("description"),
+      image: parseWebUrl(props.image)?.href ?? "",
+      favicon: parseWebUrl(props.favicon)?.href ?? "",
+      siteName: text("siteName"),
+    },
+  };
+}
 
 /** A block drawn on its own nested in another block (e.g. under a list item) is shown after that block. */
 function withoutNestedStandalone(block: PageBlock, found: PageBlock[]): PageBlock {
@@ -160,6 +191,13 @@ export async function bodySegmentsFromYdoc(state: Uint8Array | null): Promise<Bo
       if (block.type === TOC_BLOCK || block.type === BREADCRUMB_BLOCK) {
         await flush();
         segments.push(block.type === TOC_BLOCK ? { kind: "toc", headings } : { kind: "breadcrumb" });
+        return;
+      }
+      if (isWebBlockType(block.type)) {
+        const segment = webSegment(block);
+        if (!segment) return;
+        await flush();
+        segments.push(segment);
         return;
       }
       if (block.type === MERMAID_BLOCK) {

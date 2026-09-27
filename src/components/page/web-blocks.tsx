@@ -1,0 +1,438 @@
+"use client";
+
+import { insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
+import { createReactBlockSpec, type DefaultReactSuggestionItem } from "@blocknote/react";
+import { Bookmark, Link2, MonitorPlay, RefreshCw } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
+import { fetchLinkPreviewAction } from "@/app/actions/link-preview";
+import { cn } from "@/components/ui";
+import {
+  BOOKMARK_BLOCK,
+  bookmarkBlockConfig,
+  displayHost,
+  embedFor,
+  isLoneUrl,
+  parseWebUrl,
+  WEB_EMBED_BLOCK,
+  webEmbedBlockConfig,
+} from "@/lib/web-blocks";
+import { useEmbedHost } from "./database-embed";
+import type { PageEditor } from "./embed-blocks";
+import { BookmarkCard, EmbedFrame } from "./web-card";
+
+/**
+ * The editor's side of the web blocks (configs shared with the server in lib/web-blocks): a
+ * bookmark card and an embed. Both are widgets like the database blocks, so events inside them
+ * (typing a URL, clicking the card) belong to them rather than the editor.
+ */
+
+/** Blocks just added from the slash menu: their URL field takes the focus once. */
+const justInserted = new Set<string>();
+/** Bookmarks whose details are being fetched in this tab, so a block fetches once at a time. */
+const fetching = new Set<string>();
+
+type AnyEditor = { isEditable: boolean };
+
+/** Whether this viewer may change the block: the editor is editable and the page allows it. */
+function useCanEdit(editor: AnyEditor) {
+  const host = useEmbedHost();
+  return Boolean(host?.editable && editor.isEditable);
+}
+
+/** The field where a new bookmark or embed gets its URL. */
+function UrlForm({
+  blockId,
+  kind,
+  onSubmit,
+}: {
+  blockId: string;
+  kind: "bookmark" | "embed";
+  onSubmit: (url: string) => void;
+}) {
+  const t = useTranslations("page.web");
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [focus] = useState(() => justInserted.delete(blockId));
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const url = parseWebUrl(value);
+    if (!url) {
+      setError(t("invalidUrl"));
+      return;
+    }
+    onSubmit(url.href);
+  };
+  return (
+    // The browser's own URL check would refuse "example.com"; parseWebUrl accepts it.
+    <form onSubmit={submit} noValidate className="w-full">
+      <div className="flex w-full items-center gap-2 rounded-md border border-border bg-bg-subtle px-3 py-1.5">
+        {kind === "bookmark" ? <Bookmark className="h-4 w-4 shrink-0 text-fg-muted" /> : <MonitorPlay className="h-4 w-4 shrink-0 text-fg-muted" />}
+        <input
+          autoFocus={focus}
+          value={value}
+          onChange={(event) => {
+            setValue(event.target.value);
+            setError(null);
+          }}
+          type="url"
+          inputMode="url"
+          placeholder={t(kind === "bookmark" ? "bookmark.placeholder" : "embed.placeholder")}
+          aria-label={t(kind === "bookmark" ? "bookmark.placeholder" : "embed.placeholder")}
+          className="h-7 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-fg-faint"
+        />
+        <button type="submit" className="shrink-0 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-fg hover:opacity-90">
+          {t(kind === "bookmark" ? "bookmark.submit" : "embed.submit")}
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="mt-1 text-xs text-danger">
+          {error}
+        </p>
+      )}
+      {kind === "embed" && !error && <p className="mt-1 text-xs text-fg-faint">{t("embed.providers")}</p>}
+    </form>
+  );
+}
+
+/** Puts the cursor in the block after `blockId` (adding a paragraph when there is none). */
+function moveCursorAfter(editor: PageEditor, blockId: string) {
+  if (!editor.getBlock(blockId)) return;
+  const next = editor.getNextBlock(blockId) ?? editor.insertBlocks([{ type: "paragraph" }], blockId, "after")[0];
+  editor.setTextCursorPosition(next, "start");
+  editor.focus();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Bookmark
+
+const BookmarkBlock = createReactBlockSpec(bookmarkBlockConfig, {
+  meta: { selectable: false },
+  render: function BookmarkBlockView({ block, editor: anyEditor }) {
+    const t = useTranslations("page.web");
+    const editor = anyEditor as unknown as PageEditor;
+    const host = useEmbedHost();
+    const canEdit = useCanEdit(anyEditor);
+    const { url, fetchedAt } = block.props;
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const refresh = useCallback(async () => {
+      if (!host || !url || fetching.has(block.id)) return;
+      fetching.add(block.id);
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetchLinkPreviewAction(host.pageId, url);
+        const current = editor.getBlock(block.id);
+        // The block may have gone, or point elsewhere now.
+        if (!current || current.type !== BOOKMARK_BLOCK || current.props.url !== url) return;
+        if (res.ok) {
+          editor.updateBlock(block.id, { props: { ...res.data, url } });
+        } else {
+          setError(res.error);
+          // Tried: don't fetch again on every visit; "Refresh" tries again.
+          if (!current.props.fetchedAt) editor.updateBlock(block.id, { props: { fetchedAt: new Date().toISOString() } });
+        }
+      } catch {
+        setError(t("errors.unreachable"));
+      } finally {
+        fetching.delete(block.id);
+        setLoading(false);
+      }
+    }, [host, url, block.id, editor, t]);
+
+    // A bookmark written without its details (just made, or written as Markdown by MCP) gets them
+    // the first time someone who may edit the page sees it.
+    useEffect(() => {
+      if (canEdit && url && !fetchedAt) void refresh();
+    }, [canEdit, url, fetchedAt, refresh]);
+
+    if (!url) {
+      if (!canEdit) return null;
+      return (
+        <div contentEditable={false} className="w-full">
+          <UrlForm
+            blockId={block.id}
+            kind="bookmark"
+            onSubmit={(next) => {
+              editor.updateBlock(block.id, { props: { url: next, title: "", description: "", image: "", favicon: "", siteName: "", fetchedAt: "" } });
+              moveCursorAfter(editor, block.id);
+            }}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div contentEditable={false} className="group/bookmark relative w-full">
+        {loading && !block.props.title ? (
+          <div className="flex w-full flex-col gap-1 rounded-md border border-border px-3.5 py-3 text-sm">
+            <span className="text-fg-muted">{t("bookmark.loading")}</span>
+            <span className="truncate text-xs text-fg-faint">{displayHost(url)}</span>
+          </div>
+        ) : (
+          <BookmarkCard bookmark={block.props} />
+        )}
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={loading}
+            aria-label={t("bookmark.refresh")}
+            title={t("bookmark.refresh")}
+            className={cn(
+              "absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-bg text-fg-muted shadow-sm hover:bg-bg-hover hover:text-fg",
+              "opacity-0 transition-opacity focus-visible:opacity-100 group-hover/bookmark:opacity-100",
+              loading && "opacity-100",
+            )}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+          </button>
+        )}
+        {error && (
+          <p role="alert" className="mt-1 text-xs text-danger">
+            {error}
+          </p>
+        )}
+      </div>
+    );
+  },
+  toExternalHTML: ({ block }) => (
+    <p>
+      <a href={parseWebUrl(block.props.url)?.href}>{block.props.title || block.props.url}</a>
+    </p>
+  ),
+});
+
+// ---------------------------------------------------------------------------------------------
+// Embed
+
+const WebEmbedBlock = createReactBlockSpec(webEmbedBlockConfig, {
+  meta: { selectable: false },
+  render: function WebEmbedBlockView({ block, editor: anyEditor }) {
+    const t = useTranslations("page.web");
+    const editor = anyEditor as unknown as PageEditor;
+    const canEdit = useCanEdit(anyEditor);
+    const url = parseWebUrl(block.props.url)?.href ?? "";
+    const embed = useMemo(() => embedFor(url), [url]);
+
+    if (!url) {
+      if (!canEdit) return null;
+      return (
+        <div contentEditable={false} className="w-full">
+          <UrlForm
+            blockId={block.id}
+            kind="embed"
+            onSubmit={(next) => {
+              // Sites that can't be embedded become a bookmark instead.
+              if (embedFor(next)) editor.updateBlock(block.id, { props: { url: next } });
+              else editor.updateBlock(block.id, { type: BOOKMARK_BLOCK, props: { url: next } });
+              moveCursorAfter(editor, block.id);
+            }}
+          />
+        </div>
+      );
+    }
+    return (
+      <div contentEditable={false} className="w-full">
+        {embed ? (
+          <EmbedFrame url={url} embed={embed} title={t("embed.frameTitle", { host: displayHost(url) })} />
+        ) : (
+          <BookmarkCard bookmark={{ url, title: "", description: "", image: "", favicon: "" }} />
+        )}
+      </div>
+    );
+  },
+  toExternalHTML: ({ block }) => (
+    <p>
+      <a href={parseWebUrl(block.props.url)?.href}>{block.props.url}</a>
+    </p>
+  ),
+});
+
+export const webBlockSpecs = {
+  bookmark: BookmarkBlock(),
+  webEmbed: WebEmbedBlock(),
+};
+
+// ---------------------------------------------------------------------------------------------
+// Slash menu
+
+/** "Web bookmark" and "Embed" in the slash menu, with BlockNote's media blocks. */
+export function useWebSlashItems(editor: PageEditor): DefaultReactSuggestionItem[] {
+  const t = useTranslations("page.web");
+  const host = useEmbedHost();
+  return useMemo(() => {
+    if (!host?.editable) return [];
+    const group = editor.dictionary.slash_menu.image.group;
+    const insert = (type: typeof BOOKMARK_BLOCK | typeof WEB_EMBED_BLOCK) => {
+      const block = insertOrUpdateBlockForSlashMenu(editor, { type });
+      justInserted.add(block.id);
+      if (!editor.getNextBlock(block.id)) editor.insertBlocks([{ type: "paragraph" }], block.id, "after");
+    };
+    return [
+      {
+        title: t("bookmark.title"),
+        subtext: t("bookmark.subtext"),
+        aliases: t("bookmark.aliases").split(" "),
+        group,
+        icon: <Bookmark size={18} />,
+        onItemClick: () => insert(BOOKMARK_BLOCK),
+      },
+      {
+        title: t("embed.title"),
+        subtext: t("embed.subtext"),
+        aliases: t("embed.aliases").split(" "),
+        group,
+        icon: <MonitorPlay size={18} />,
+        onItemClick: () => insert(WEB_EMBED_BLOCK),
+      },
+    ];
+  }, [editor, host, t]);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Pasting a link
+
+type PastedLink = { blockId: string; url: string; top: number; left: number };
+
+/** Whether a block is a paragraph holding exactly `url` (as a link or as text). */
+function holdsOnly(editor: PageEditor, blockId: string, url: string) {
+  const block = editor.getBlock(blockId);
+  if (!block || block.type !== "paragraph" || !Array.isArray(block.content)) return false;
+  const text = block.content
+    .map((node) => (node.type === "text" ? node.text : node.type === "link" ? node.content.map((c) => c.text).join("") : "￼"))
+    .join("")
+    .trim();
+  return text === url;
+}
+
+/**
+ * After a lone URL is pasted into an empty line, offers to turn it into a bookmark or an embed (or
+ * leave it a link). The paste itself happens as usual; the menu only changes the block afterwards.
+ * Arrow keys pick an option and Enter takes it; any other key, a click elsewhere or scrolling
+ * closes the menu and leaves the link.
+ */
+export function PasteLinkMenu({ editor }: { editor: PageEditor }) {
+  const t = useTranslations("page.web.paste");
+  const canEdit = useCanEdit(editor);
+  const [pasted, setPasted] = useState<PastedLink | null>(null);
+  const [active, setActive] = useState(-1);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!canEdit) return;
+    const onPaste = (event: ClipboardEvent) => {
+      const root = editor.domElement;
+      if (!root || !(event.target instanceof Node) || !root.contains(event.target)) return;
+      const text = event.clipboardData?.getData("text/plain") ?? "";
+      if (!isLoneUrl(text)) return;
+      const cursor = editor.getTextCursorPosition().block;
+      const empty = cursor.type === "paragraph" && Array.isArray(cursor.content) && cursor.content.length === 0;
+      if (!empty || !editor.prosemirrorState.selection.empty) return;
+      const url = text.trim();
+      const blockId = cursor.id;
+      // Let the paste land first, then offer the menu under the new link.
+      setTimeout(() => {
+        if (!holdsOnly(editor, blockId, url)) return;
+        const element = root.querySelector(`[data-node-type="blockOuter"][data-id="${CSS.escape(blockId)}"]`);
+        const rect = element?.getBoundingClientRect();
+        if (!rect) return;
+        setActive(-1);
+        setPasted({ blockId, url, top: rect.bottom + 4, left: rect.left });
+      });
+    };
+    document.addEventListener("paste", onPaste, true);
+    return () => document.removeEventListener("paste", onPaste, true);
+  }, [editor, canEdit]);
+
+  const embeddable = pasted ? embedFor(pasted.url) !== null : false;
+  const options = useMemo(() => {
+    const list: { key: "bookmark" | "embed" | "keep"; icon: React.JSX.Element }[] = [{ key: "bookmark", icon: <Bookmark className="h-4 w-4" /> }];
+    if (embeddable) list.push({ key: "embed", icon: <MonitorPlay className="h-4 w-4" /> });
+    list.push({ key: "keep", icon: <Link2 className="h-4 w-4" /> });
+    return list;
+  }, [embeddable]);
+
+  const choose = useCallback(
+    (key: "bookmark" | "embed" | "keep") => {
+      const current = pasted;
+      setPasted(null);
+      if (!current || key === "keep" || !holdsOnly(editor, current.blockId, current.url)) return;
+      const url = parseWebUrl(current.url)?.href;
+      if (!url) return;
+      editor.updateBlock(current.blockId, key === "embed" ? { type: WEB_EMBED_BLOCK, props: { url } } : { type: BOOKMARK_BLOCK, props: { url } });
+      moveCursorAfter(editor, current.blockId);
+    },
+    [editor, pasted],
+  );
+
+  useEffect(() => {
+    if (!pasted) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        setActive((i) => (i < 0 ? (step > 0 ? 0 : options.length - 1) : (i + step + options.length) % options.length));
+        return;
+      }
+      if (event.key === "Enter" && active >= 0) {
+        event.preventDefault();
+        event.stopPropagation();
+        choose(options[active].key);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) return;
+      setPasted(null);
+    };
+    const onPointer = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setPasted(null);
+    };
+    const close = () => setPasted(null);
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("mousedown", onPointer, true);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("mousedown", onPointer, true);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [pasted, active, options, choose]);
+
+  if (!pasted) return null;
+  return createPortal(
+    <div
+      ref={menuRef}
+      role="menu"
+      aria-label={t("label")}
+      style={{ top: pasted.top, left: Math.max(8, Math.min(pasted.left, window.innerWidth - 232)) }}
+      className="fixed z-50 w-56 rounded-md border border-border bg-bg p-1 text-sm shadow-lg"
+    >
+      <p className="px-2 pb-1 pt-0.5 text-xs text-fg-muted">{t("label")}</p>
+      {options.map((option, i) => (
+        <button
+          key={option.key}
+          type="button"
+          role="menuitem"
+          onMouseDown={(event) => event.preventDefault()}
+          onMouseEnter={() => setActive(i)}
+          onClick={() => choose(option.key)}
+          className={cn("flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-fg", i === active && "bg-bg-hover")}
+        >
+          <span className="text-fg-muted">{option.icon}</span>
+          {t(option.key)}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  );
+}

@@ -13,7 +13,8 @@ import { AccessError, accessRank, pageVisibleTo, requireMembership, requirePageA
 import { rowCovers, type DatabaseProperty } from "@/server/databases";
 import { computeDerived } from "@/server/derived";
 import { canPublish } from "@/server/workspaces";
-import type { BodyHeading } from "@/server/published-body";
+import type { BodyHeading, PublishedBookmark } from "@/server/published-body";
+import type { EmbedTarget } from "@/lib/web-blocks";
 
 /**
  * Publish to web: a published page and its live subpages can be read by anyone holding the link
@@ -232,6 +233,8 @@ export type PublishedBlock =
   | { kind: "toc"; headings: BodyHeading[] }
   | { kind: "breadcrumb" }
   | { kind: "mermaid"; source: string }
+  | { kind: "bookmark"; bookmark: PublishedBookmark }
+  | { kind: "webEmbed"; url: string; embed: EmbedTarget }
   | {
       kind: "embed";
       type: EmbedBlockType;

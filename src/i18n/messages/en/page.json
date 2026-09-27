@@ -255,5 +255,44 @@
       "aliases": "breadcrumb path parents location",
       "label": "Breadcrumb"
     }
+  },
+  "web": {
+    "bookmark": {
+      "title": "Web bookmark",
+      "subtext": "A link shown as a card with its title and image",
+      "aliases": "bookmark link url web card preview",
+      "placeholder": "Paste a link to bookmark",
+      "submit": "Bookmark",
+      "loading": "Fetching the page…",
+      "refresh": "Refresh preview",
+      "label": "Bookmark"
+    },
+    "embed": {
+      "title": "Embed",
+      "subtext": "YouTube, Figma, Google Docs, Maps and more",
+      "aliases": "embed iframe youtube vimeo loom figma google docs sheets slides codepen spotify maps video",
+      "placeholder": "Paste a link to embed",
+      "submit": "Embed",
+      "providers": "YouTube, Vimeo, Loom, Figma, published Google Docs, Sheets and Slides, CodePen, Spotify and Google Maps. Other links become a bookmark.",
+      "frameTitle": "Embedded content from {host}",
+      "label": "Embed"
+    },
+    "paste": {
+      "label": "Paste as",
+      "bookmark": "Bookmark",
+      "embed": "Embed",
+      "keep": "Keep as link"
+    },
+    "invalidUrl": "Enter a web address, like https://example.com",
+    "errors": {
+      "accessDenied": "You can't edit this page.",
+      "rateLimited": "Too many link previews at once. Try again in a minute.",
+      "invalidUrl": "That isn't a web address.",
+      "blocked": "This address can't be previewed.",
+      "unreachable": "Couldn't reach the page.",
+      "timeout": "The page took too long to answer.",
+      "tooManyRedirects": "The page redirects too many times.",
+      "httpError": "The page answered with an error."
+    }
   }
 }
