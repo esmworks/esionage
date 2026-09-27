@@ -12,6 +12,7 @@ import {
   type TeamspaceRole,
   type WorkspaceRole,
 } from "@/db/schema";
+import { TeamspaceError } from "@/lib/teamspace-error";
 import { AccessError, isGuest, requireMember } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 
@@ -28,27 +29,7 @@ import { getCollab } from "@/server/collab/bridge";
  * the owners of a `closed` or `private` one add them.
  */
 
-export type TeamspaceErrorCode =
-  | "nameRequired"
-  | "creationRestricted"
-  | "ownersOnly"
-  | "cannotLeaveDefault"
-  | "lastOwner"
-  | "notJoinable"
-  | "archived"
-  | "notMember"
-  | "invalidAccess";
-
-/** An expected failure the UI translates by `code`; the English message is for logs and MCP. */
-export class TeamspaceError extends Error {
-  readonly code: TeamspaceErrorCode;
-
-  constructor(code: TeamspaceErrorCode, message: string) {
-    super(message);
-    this.name = "TeamspaceError";
-    this.code = code;
-  }
-}
+export { TeamspaceError, type TeamspaceErrorCode } from "@/lib/teamspace-error";
 
 export const isTeamspaceAccess = (value: unknown): value is TeamspaceAccess =>
   (TEAMSPACE_ACCESS as readonly unknown[]).includes(value);

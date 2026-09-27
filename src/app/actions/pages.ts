@@ -53,11 +53,6 @@ export async function movePageAction(pageId: string, parentId: string | null, po
   await pages.movePage(userId, pageId, parentId, position, teamspaceId);
 }
 
-export async function getTreeAction(workspaceId: string) {
-  const userId = await requireUserId();
-  return pages.getTree(userId, workspaceId);
-}
-
 /** The sidebar's tree and the teamspaces it has sections for. */
 export async function getSidebarAction(workspaceId: string) {
   const userId = await requireUserId();

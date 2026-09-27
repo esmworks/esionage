@@ -34,6 +34,8 @@ const { mentionCandidates } = await import("@/server/mentions");
 const { planExport } = await import("@/server/export");
 const { listPagePermissions, setPagePermission } = await import("@/server/permissions");
 const { removeMember, setMemberRole, updateWorkspaceSettings } = await import("@/server/workspaces");
+const { handleApiRequest } = await import("@/server/api");
+const { createApiToken } = await import("@/server/api/tokens");
 const {
   addTeamspaceMembers,
   canCreateTeamspace,
@@ -372,13 +374,53 @@ try {
   check(!moved.isError && (await spaceOf(viaMcp.id)) === null, "MCP move_page to private", moved.text);
   check((await levels(viaMcp.id, bob)) === "none", "…closes it to others");
   const toClosed = await callTool(bob, "move_page", { page_id: bobs.id, parent_id: null, teamspace_id: closed.id }, true);
-  check(toClosed.isError && (await spaceOf(bobs.id)) === general, "MCP move_page into a teamspace bob isn't in is refused");
+  check(toClosed.isError && /Join the teamspace/.test(toClosed.text) && (await spaceOf(bobs.id)) === general, "MCP move_page into a teamspace bob isn't in is refused");
   const mcpCreated = await callTool(owner, "create_page", { workspace_id: workspaceId, title: `${RUN} mcp private` }, true);
   check((await spaceOf(mcpCreated.data.id)) === null, "MCP create_page without teamspace_id makes a private page");
   const mcpInTeam = await callTool(owner, "create_page", { teamspace_id: open.id, title: `${RUN} mcp team` }, true);
   check((await spaceOf(mcpInTeam.data.id)) === open.id, "MCP create_page with teamspace_id puts it there", mcpInTeam.text);
   const mcpRefused = await callTool(bob, "create_page", { teamspace_id: secret.id, title: "x" }, true);
   check(mcpRefused.isError && /Unknown teamspace_id/.test(mcpRefused.text), "MCP create_page in a hidden teamspace reads as unknown");
+
+  // The REST API goes through the same operations.
+  const bobToken = (await createApiToken(bob, { name: RUN, scopes: ["pages:read", "pages:write"] })).secret;
+  const ownerToken = (await createApiToken(owner, { name: RUN, scopes: ["pages:read", "pages:write"] })).secret;
+  const api = async (token: string, method: string, path: string, body?: unknown) => {
+    const res = await handleApiRequest(
+      new Request(`http://localhost/api/v1${path}`, {
+        method,
+        headers: { authorization: `Bearer ${token}`, ...(body ? { "content-type": "application/json" } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      }),
+    );
+    const text = await res.text();
+    return { status: res.status, text, data: text ? JSON.parse(text) : null };
+  };
+  const restSpaces = await api(bobToken, "GET", `/workspaces/${workspaceId}/teamspaces`);
+  check(
+    restSpaces.status === 200 && restSpaces.text.includes(closed.id) && !restSpaces.text.includes(secret.id) && !restSpaces.text.includes(alicePriv.id),
+    "REST lists the teamspaces bob can see, private ones left out",
+    restSpaces,
+  );
+  // The closed teamspace's page was shared with bob by name above; the rest stays hidden.
+  const stillHidden = [sePage.id, prPage.id, prChild.id];
+  const restSearch = await api(bobToken, "GET", `/search?query=${encodeURIComponent(RUN)}&workspace_id=${workspaceId}&limit=50`);
+  check(
+    restSearch.status === 200 && !stillHidden.some((id) => restSearch.text.includes(id)) && restSearch.text.includes(clPage.id),
+    "REST search leaves hidden pages out and finds the one shared by name",
+    restSearch.status,
+  );
+  const restSecretList = await api(bobToken, "GET", `/workspaces/${workspaceId}/pages?teamspace_id=${secret.id}`);
+  check(!restSecretList.text.includes(sePage.id), "REST page lists leave a hidden teamspace's pages out");
+  check((await api(bobToken, "GET", `/pages/${prPage.id}`)).status === 404, "REST reading someone's private page is not found");
+  const restPrivate = await api(ownerToken, "POST", "/pages", { workspace_id: workspaceId, title: `${RUN} rest private` });
+  check(restPrivate.status === 201 && (await spaceOf(restPrivate.data.id)) === null, "REST creates top-level pages private by default", restPrivate);
+  const restTeam = await api(ownerToken, "POST", "/pages", { workspace_id: workspaceId, title: `${RUN} rest team`, teamspace_id: open.id });
+  check(restTeam.status === 201 && (await spaceOf(restTeam.data.id)) === open.id && restTeam.data.teamspace === open.name, "…or in the teamspace named", restTeam);
+  const restMove = await api(bobToken, "POST", `/pages/${bobs.id}/move`, { parent_id: null, teamspace_id: closed.id });
+  check(restMove.status === 403 && (await spaceOf(bobs.id)) === general, "REST won't move a page into a teamspace bob isn't in", restMove);
+  const restMoveOk = await api(ownerToken, "POST", `/pages/${restPrivate.data.id}/move`, { parent_id: null, teamspace_id: general });
+  check(restMoveOk.status === 200 && (await spaceOf(restPrivate.data.id)) === general, "REST moves a page into a teamspace", restMoveOk);
 
   // Duplicates stay in their teamspace.
   const copy = await duplicatePage({ userId: owner }, clPage.id, " (copy)");

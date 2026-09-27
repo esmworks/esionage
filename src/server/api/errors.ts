@@ -2,6 +2,7 @@ import { CommentError } from "@/lib/comments";
 import { PropertyValueError } from "@/lib/properties";
 import { AccessError } from "@/server/access";
 import { ToolInputError } from "@/server/mcp/format";
+import { TeamspaceError } from "@/lib/teamspace-error";
 
 /** Every error code the REST API answers with, for the docs. */
 export const API_ERROR_CODES = {
@@ -46,6 +47,7 @@ export function apiErrorFor(error: unknown): ApiError {
   if (error instanceof AccessError) return new ApiError(404, "not_found", "Not found or access denied");
   if (error instanceof ToolInputError) return new ApiError(400, "invalid_request", error.message);
   if (error instanceof PropertyValueError) return new ApiError(400, "invalid_property_value", error.message);
+  if (error instanceof TeamspaceError) return new ApiError(403, "forbidden", error.message);
   if (error instanceof CommentError) {
     if (error.code === "notFound") return new ApiError(404, "not_found", error.message);
     if (error.code === "notAllowed") return new ApiError(403, "forbidden", error.message);

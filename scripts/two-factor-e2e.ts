@@ -377,11 +377,11 @@ async function main() {
   check(csv.status === 403, "…and its exports", csv.status);
 
   // Server actions, API routes and the collab websocket hold the member back too.
-  const tree = await callAction(member.jar, settingsPath, PAGES_ACTIONS, "getTreeAction", [workspaceId]);
+  const tree = await callAction(member.jar, settingsPath, PAGES_ACTIONS, "getSidebarAction", [workspaceId]);
   check(tree.status === 500 && !tree.text.includes("Plan"), "a server action refuses the member", tree);
   const search = await callAction(member.jar, settingsPath, PAGES_ACTIONS, "searchAction", [workspaceId, "Plan"]);
   check(search.status === 500 && !search.text.includes("Plan"), "…search too", search);
-  const ownerTree = await callAction(first.jar, settingsPath, PAGES_ACTIONS, "getTreeAction", [workspaceId]);
+  const ownerTree = await callAction(first.jar, settingsPath, PAGES_ACTIONS, "getSidebarAction", [workspaceId]);
   check(ownerTree.status === 200 && ownerTree.text.includes("Plan"), "…while the owner's calls work", ownerTree.status);
   const heldFile = await fetch(`${BASE}/api/files/${uploaded.id}`, { headers: { cookie: member.jar.header() } });
   check(heldFile.status === 404, "the file route doesn't serve the member", heldFile.status);
@@ -409,7 +409,7 @@ async function main() {
 
   // Someone held back can still leave: nobody should have to set up two-step verification to get out.
   await db.insert(workspaceMember).values({ workspaceId, userId: outsider.id, role: "member" });
-  const heldTree = await callAction(outsider.jar, settingsPath, PAGES_ACTIONS, "getTreeAction", [workspaceId]);
+  const heldTree = await callAction(outsider.jar, settingsPath, PAGES_ACTIONS, "getSidebarAction", [workspaceId]);
   check(heldTree.status === 500, "a member without it is held back", heldTree.status);
   const left = await callAction(outsider.jar, settingsPath, "src/app/actions/workspaces.ts", "removeMemberAction", [
     workspaceId,
@@ -424,7 +424,7 @@ async function main() {
   await enableTwoFactor(member.jar);
   const inside = await open(`/w/${workspaceId}`, member.jar);
   check(inside.status === 200, "once set up, the member gets in", inside);
-  const treeAfter = await callAction(member.jar, settingsPath, PAGES_ACTIONS, "getTreeAction", [workspaceId]);
+  const treeAfter = await callAction(member.jar, settingsPath, PAGES_ACTIONS, "getSidebarAction", [workspaceId]);
   check(treeAfter.status === 200 && treeAfter.text.includes("Plan"), "…server actions answer them", treeAfter.status);
   const fileAfter = await fetch(`${BASE}/api/files/${uploaded.id}`, { headers: { cookie: member.jar.header() } });
   check(fileAfter.status === 200 && (await fileAfter.text()) === "hello", "…the file route serves them", fileAfter.status);

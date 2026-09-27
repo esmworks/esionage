@@ -4,6 +4,44 @@
 
 ### Added
 
+- **Teamspaces** (#36): pages and people are grouped into teamspaces. Every workspace gets a
+  *General* teamspace (default: everyone is in it and stays in it, new members included); all
+  existing top-level pages move into it with their subpages, so nobody's access changes, except
+  a guest's private pages, which stay private. Access types: **default**, **open** (visible to
+  every member, who can join; until then they read and comment), **closed** (visible, but its
+  pages open only to its members, whom its owners add; no join requests) and **private** (only its
+  members see it, workspace owners included). Pages outside any teamspace are **private** to their
+  creator unless shared. Owners and members only: guests are never in teamspaces and keep getting
+  single pages. The rule lives in SQL (`page_access_level`), so the sidebar, search, @-mentions,
+  exports, sharing, MCP, the REST API and live collaboration all follow it.
+  - **Sidebar:** a *Teamspaces* heading with a section per teamspace you're in (new page, new
+    database, from a template, import, edit, leave), *Shared* for pages shared with you from
+    elsewhere and *Private* for your own. Dragging a page onto another teamspace or onto Private
+    moves it there after a confirmation; the Move dialog lists teamspaces and Private too.
+  - **Settings → Teamspaces:** active and archived teamspaces with search and owner/access
+    filters, members and owners, a row menu (edit, members, join, leave, archive), the default
+    teamspaces (always in effect, no "update" step) and "Only workspace owners can create
+    teamspaces". The members table gets a Teamspaces column.
+  - **Who may do what:** creating needs a member when the workspace allows it, else an owner;
+    managing a teamspace needs one of its owners (or a workspace owner, except for a private one
+    they aren't in); making a teamspace default, or not default any more, needs a workspace owner
+    (everyone stays in a former default teamspace until they leave). Every teamspace keeps an
+    owner: the last one can't leave, and someone leaving the workspace hands theirs to the
+    teamspace's oldest member, else to the owner who removed them. Archiving hides a teamspace and
+    stops new pages in it; its pages keep their access.
+  - **Moving:** a page moved to another teamspace, or to Private, takes the access of its new place
+    with all its subpages; its own "everyone" entry is dropped and people shared by name keep
+    theirs. Restoring a page whose parent is still in the trash keeps the access it inherited.
+  - **Where new pages go:** the teamspace you add them in; from Home, the first default teamspace;
+    from MCP or the REST API without `teamspace_id`, Private. Duplicates stay in their teamspace;
+    copies of published pages are private.
+  - **MCP and REST:** `list_teamspaces` / `GET /workspaces/{id}/teamspaces`; `teamspace_id` on
+    `create_page`, `create_database`, `move_page` and `list_pages` (and their REST endpoints);
+    pages report their teamspace.
+  - Migration `0021_teamspaces`. Top-level pages that older code creates without a teamspace and
+    without an "everyone" entry are sent to the first default teamspace when their transaction
+    ends, so they keep the access they had.
+
 - **Export as PDF** (#47): "Export as PDF" in the page menu opens the page's print view
   (`/print/<page id>`) in a new tab and the browser's print dialog once its images, fonts and
   Mermaid diagrams have loaded ("Save as PDF"). The view draws the page like its published version
