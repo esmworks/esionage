@@ -407,3 +407,47 @@
 .esionage-editor .bn-block-outer {
   scroll-margin-top: 4rem;
 }
+
+/*
+ * Mentions: inline text with a small icon, no chip background until hovered. Page mentions are
+ * underlined like links; ones that can't be opened (no access, deleted) are muted.
+ */
+.esionage-mention {
+  border-radius: 3px;
+  padding: 0 2px;
+  margin: 0 -1px;
+  color: var(--fg);
+  text-decoration: none;
+  cursor: pointer;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.esionage-mention:hover {
+  background: var(--bg-hover);
+}
+.esionage-mention-icon {
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  margin-right: 0.2em;
+  vertical-align: -0.12em;
+  color: var(--fg-muted);
+}
+.esionage-mention-emoji {
+  margin-right: 0.2em;
+}
+.esionage-mention-page .esionage-mention-label {
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--fg-faint);
+  text-underline-offset: 2px;
+}
+.esionage-mention-muted,
+.esionage-mention-muted .esionage-mention-icon {
+  color: var(--fg-faint);
+  cursor: default;
+}
+.esionage-mention-muted .esionage-mention-label {
+  text-decoration: none;
+  font-weight: 400;
+}

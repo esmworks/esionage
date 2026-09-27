@@ -40,8 +40,12 @@ approve them over OAuth.
 - **Comments**: select text and comment on it; reply, react, resolve and reopen threads, live for
   everyone on the page. People who can comment on a page (or edit it) write comments and viewers
   read along; full access also deletes other people's comments.
-- **Inbox**: a notification when someone assigns you to a row, shares a page with you or replies in
-  a comment thread you're in, with an email a little later. Choose per kind whether it shows in the inbox and whether it comes by email.
+- **Mentions and page links**: `@` mentions people, pages (with their live title, or "No access")
+  and dates with optional reminders; "Link to page" blocks; a "Linked from" list of backlinks on
+  every page.
+- **Inbox**: a notification when someone assigns you to a row, shares a page with you, replies in
+  a comment thread you're in or mentions you, and when a reminder you set is due, with an email a
+  little later. Choose per kind whether it shows in the inbox and whether it comes by email.
 - **Page history**: versions are saved automatically while you edit and before every AI edit.
   You can preview and restore any version, and see what changed since it or since the version
   before, and who (or which AI app) changed it.
@@ -212,6 +216,8 @@ The client opens a browser window where you sign in and approve access. The tool
 - **Page history:** `list_page_history`, `get_page_version`, `diff_page_version`, `restore_page_version`.
 - **Templates:** `list_templates`; `create_page` and `create_database_row` take a `template_id`.
 - **Comments:** `list_comments`, `add_comment` (start a thread on quoted text, or reply).
+- **Mentions:** page bodies read and write mentions as Markdown: `[Title](/w/<workspace>/p/<page>)`
+  for a page, `@Name` for a person, `@YYYY-MM-DD` for a date (see `src/lib/mentions.ts`).
 - **Inbox:** `list_notifications`, when the user also grants the `notifications:read` permission.
 - **Files:** `attach_file` uploads an image, video, audio or other file to a page from a public
   URL or base64 data, when the user also grants the `files:write` permission. URLs that lead to

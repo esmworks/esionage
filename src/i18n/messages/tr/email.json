@@ -55,5 +55,20 @@
     "body": "Yorum, {workspace} çalışma alanındaki “{page}” sayfasında. Sayfadan yanıtlayabilir ya da çözüldü olarak işaretleyebilirsiniz.",
     "action": "Sayfayı aç",
     "optOut": "Bu yorum konusuna katıldığınız için bu e-postaları alıyorsunuz. Ayarlar > Tercihler'den kapatabilirsiniz."
+  },
+  "mention": {
+    "subject": "{actor}, “{page}” sayfasında sizden bahsetti",
+    "heading": "{actor}, “{page}” sayfasında sizden bahsetti",
+    "body": "Bahsetme, {workspace} çalışma alanındaki “{page}” sayfasında.",
+    "action": "Sayfayı aç",
+    "someone": "Biri",
+    "optOut": "Biri sizden bahsettiği için bu e-postaları alıyorsunuz. Ayarlar > Tercihler'den kapatabilirsiniz."
+  },
+  "reminder": {
+    "subject": "Hatırlatma: “{page}” sayfasındaki {date}",
+    "heading": "Hatırlatma: {date}",
+    "body": "{workspace} çalışma alanındaki “{page}” sayfasında {date} için hatırlatma istemiştiniz.",
+    "action": "Sayfayı aç",
+    "optOut": "Hatırlatma kurduğunuz için bu e-postaları alıyorsunuz. Ayarlar > Tercihler'den kapatabilirsiniz."
   }
 }

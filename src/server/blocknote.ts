@@ -21,6 +21,7 @@ import {
   tocBlockConfig,
 } from "@/lib/content-blocks";
 import { finishMarkdownImport, plainText, prepareMarkdownExport, prepareMarkdownImport } from "@/lib/content-markdown";
+import { carryOverMentions, mentionConfig, mentionPlainText, pageLinkBlockConfig, type MentionPerson } from "@/lib/mentions";
 import {
   databaseBlockConfig,
   linkedViewBlockConfig,
@@ -116,6 +117,19 @@ const inlineMath = createInlineContentSpec(inlineMathConfig, {
   toExternalHTML: (inlineContent) => ({ dom: mathElement("span", plainText(inlineContent.content), false) }),
 });
 
+/**
+ * A mention on the server: people and dates as their text, pages as nothing (their title isn't the
+ * mention's to show). Published pages resolve mentions before serializing (see published-body.ts).
+ */
+const mention = createInlineContentSpec(mentionConfig, {
+  render: (inlineContent) => {
+    const dom = document.createElement("span");
+    dom.setAttribute("data-esionage-mention", inlineContent.props.kind);
+    dom.textContent = mentionPlainText(inlineContent.props);
+    return { dom };
+  },
+});
+
 export const pageSchema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
@@ -123,8 +137,9 @@ export const pageSchema = BlockNoteSchema.create({
     linkedView: createBlockSpec(linkedViewBlockConfig, marker("linkedView"))(),
     ...contentBlockSpecs,
     ...webBlockServerSpecs,
+    pageLink: createBlockSpec(pageLinkBlockConfig, marker("pageLink"))(),
   },
-  inlineContentSpecs: { ...defaultInlineContentSpecs, inlineMath },
+  inlineContentSpecs: { ...defaultInlineContentSpecs, inlineMath, mention },
 });
 
 /**
@@ -142,11 +157,12 @@ type PartialPageBlock = PartialBlock<typeof pageSchema.blockSchema, typeof pageS
  * Markdown of a page body. Database blocks become their reference line (see lib/embed-blocks):
  * each is written as a paragraph holding a one-off token, which the Markdown serializer leaves as
  * it is, and the token is swapped for the line afterwards. Content blocks take their Markdown
- * forms the same way (see lib/content-markdown).
+ * forms the same way (see lib/content-markdown), and so do mentions and page links (lib/mentions),
+ * whose links point into `workspaceId` (the page's workspace).
  */
-export async function blocksToMarkdown(blocks: PageBlock[]): Promise<string> {
+export async function blocksToMarkdown(blocks: PageBlock[], { workspaceId }: { workspaceId?: string } = {}): Promise<string> {
   const nonce = randomBytes(6).toString("hex");
-  const content = prepareMarkdownExport(blocks, nonce);
+  const content = prepareMarkdownExport(blocks, nonce, { workspaceId });
   const lines: string[] = [];
   const replace = (list: PageBlock[]): PartialPageBlock[] =>
     list.flatMap((block): PartialPageBlock[] => {
@@ -162,29 +178,46 @@ export async function blocksToMarkdown(blocks: PageBlock[]): Promise<string> {
   return markdown.replace(new RegExp(`esionage${nonce}embed(\\d+)x`, "g"), (_, i: string) => lines[Number(i)] ?? "");
 }
 
-/** Blocks for Markdown, with the content blocks' Markdown forms (see lib/content-markdown). */
-async function parseMarkdown(markdown: string): Promise<PageBlock[]> {
+export type MentionContext = {
+  /** People `@Name` may mention: the page's workspace. */
+  people?: MentionPerson[];
+  /** The app's origin: absolute links to its pages become page mentions too. */
+  appUrl?: string;
+};
+
+/** Blocks for Markdown, with the content blocks' and mentions' Markdown forms (see lib/content-markdown). */
+async function parseMarkdown(markdown: string, context: MentionContext): Promise<PageBlock[]> {
   const nonce = randomBytes(6).toString("hex");
-  const prepared = prepareMarkdownImport(markdown, nonce);
+  const prepared = prepareMarkdownImport(markdown, nonce, context);
   const blocks = (await serverEditor.tryParseMarkdownToBlocks(prepared.markdown)) as PageBlock[];
-  return finishMarkdownImport(blocks, prepared, nonce, parseMarkdown);
+  return finishMarkdownImport(blocks, prepared, nonce, (inner) => parseMarkdown(inner, context), context);
 }
 
 /**
  * Blocks for Markdown written into a page (MCP, new pages), given the page's current blocks.
- * Reference lines become database blocks; see mergeReferencedBlocks for what carries over.
+ * Reference lines become database blocks; see mergeReferencedBlocks for what carries over. People
+ * and dates mentioned before keep their mention's identity (see carryOverMentions).
  */
 export async function markdownToBlocks(
   markdown: string,
   existing: PageBlock[] = [],
-  { keepMissingInline = true }: { keepMissingInline?: boolean } = {},
+  {
+    keepMissingInline = true,
+    carryOver = true,
+    ...context
+  }: {
+    keepMissingInline?: boolean;
+    /** False when the Markdown is added to the page (not a rewrite of it): its mentions are all new. */
+    carryOver?: boolean;
+  } & MentionContext = {},
 ): Promise<PageBlock[]> {
   const parts = await Promise.all(
     splitMarkdownReferences(markdown).map(async (part) =>
-      "markdown" in part ? { blocks: await parseMarkdown(part.markdown) } : part,
+      "markdown" in part ? { blocks: await parseMarkdown(part.markdown, context) } : part,
     ),
   );
   const blocks = mergeReferencedBlocks(parts, existing, { keepMissingInline });
+  carryOverMentions(blocks, carryOver ? existing : []);
   // A rewrite of the whole body (not an append) gets the page's bookmarks back from their link lines.
   return keepMissingInline ? restoreBookmarks(blocks, existing) : blocks;
 }

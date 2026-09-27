@@ -55,5 +55,20 @@
     "body": "The comment is on “{page}” in {workspace}. Reply or resolve it from the page.",
     "action": "Open page",
     "optOut": "You get these because you took part in this comment thread. You can turn them off in Settings > Preferences."
+  },
+  "mention": {
+    "subject": "{actor} mentioned you on “{page}”",
+    "heading": "{actor} mentioned you on “{page}”",
+    "body": "The mention is on “{page}” in {workspace}.",
+    "action": "Open page",
+    "someone": "Someone",
+    "optOut": "You get these because someone mentioned you. You can turn them off in Settings > Preferences."
+  },
+  "reminder": {
+    "subject": "Reminder: {date} on “{page}”",
+    "heading": "Reminder: {date}",
+    "body": "You asked to be reminded of {date} on “{page}” in {workspace}.",
+    "action": "Open page",
+    "optOut": "You get these because you set a reminder. You can turn them off in Settings > Preferences."
   }
 }

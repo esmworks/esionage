@@ -11,8 +11,11 @@ import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { CommentError, plainComment, plainThread, THREADS_MAP, type CommentOp, type PlainThread } from "@/lib/comments";
 import { markdownImageHint, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { migrateDocTitle, readDocTitle, writeDocTitle } from "@/lib/collab-title";
+import { requestLocale } from "@/i18n/config";
+import { env } from "@/lib/env";
 import { AccessError } from "@/server/access";
 import { blocksToMarkdown, markdownToBlocks, serverEditor as editor } from "@/server/blocknote";
+import { mentionablePeople, syncPageReferences } from "@/server/mentions";
 import { authorizeCollab, parseDocName as parseName } from "./authorize";
 import type { Channel, CollabService, CommentActor, CommentOpResult, PageContent, WriteActor } from "./bridge";
 import { anchorThread, reanchor, threadQuotes } from "./comment-marks";
@@ -20,7 +23,8 @@ import { stampPresence } from "./presence";
 import { touchesThreads } from "./thread-guard";
 import { verifyCollabToken } from "./token";
 
-type Context = { userId?: string; userName?: string; oauthClientId?: string | null };
+/** `locale`: the interface language of the browser that connected, for emails about its changes. */
+type Context = { userId?: string; userName?: string; oauthClientId?: string | null; locale?: string };
 
 const AUTO_SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
 const debug = process.env.COLLAB_DEBUG ? (...args: unknown[]) => console.log("[collab]", ...args) : () => {};
@@ -68,10 +72,16 @@ function withoutTrailingEmpty<B extends { type: string; children: unknown[] }>(b
   );
 }
 
-async function deriveContent(doc: Y.Doc) {
+/** The body as blocks, Markdown and text. `workspaceId` is the page's: page mentions link into it. */
+async function deriveContent(doc: Y.Doc, workspaceId?: string) {
   const blocks = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
-  const markdown = (await blocksToMarkdown(blocks)).trim();
+  const markdown = (await blocksToMarkdown(blocks, { workspaceId })).trim();
   return { blocks, markdown, text: blocksToPlainText(blocks) };
+}
+
+async function workspaceOf(pageId: string) {
+  const [row] = await db.select({ workspaceId: page.workspaceId }).from(page).where(eq(page.id, pageId)).limit(1);
+  return row?.workspaceId;
 }
 
 async function insertSnapshot(
@@ -81,7 +91,7 @@ async function insertSnapshot(
   actor: { userId?: string | null; oauthClientId?: string | null },
   fallbackTitle: string,
 ) {
-  const { markdown } = await deriveContent(doc);
+  const { markdown } = await deriveContent(doc, await workspaceOf(pageId));
   await db.insert(pageSnapshot).values({
     pageId,
     title: readTitle(doc) ?? fallbackTitle,
@@ -155,7 +165,8 @@ export function createCollab() {
     hocuspocus.documents.get(channel)?.broadcastStateless(event);
   };
 
-  const persistPage = async (pageId: string, doc: Document, userId?: string) => {
+  const persistPage = async (pageId: string, doc: Document, context?: Context) => {
+    const userId = context?.userId;
     const [row] = await db
       .select({
         title: page.title,
@@ -169,7 +180,7 @@ export function createCollab() {
       .where(eq(page.id, pageId))
       .limit(1);
     if (!row) return; // deleted while open
-    const { markdown, text } = await deriveContent(doc);
+    const { blocks, markdown, text } = await deriveContent(doc, row.workspaceId);
     const title = readTitle(doc) ?? row.title;
     // Comments and their marks change the document but not the page: they don't count as edits.
     const edited = title !== row.title || row.markdownHash !== createHash("md5").update(markdown).digest("hex");
@@ -183,6 +194,8 @@ export function createCollab() {
         ...(!edited ? { updatedAt: sql`${page.updatedAt}` } : userId ? { updatedBy: userId } : {}),
       })
       .where(eq(page.id, pageId));
+    // Every save, not only edits: a reminder changes the document but not its Markdown.
+    await syncPageReferences(pageId, row.workspaceId, blocks, userId ?? null, context?.locale ?? null);
     if (!edited) return;
     if (title !== row.title) {
       broadcast(`ws:${row.workspaceId}`, "tree");
@@ -200,7 +213,7 @@ export function createCollab() {
   const extension: Extension<Context> = {
     extensionName: "esionage",
 
-    async onAuthenticate({ token, documentName, connectionConfig }) {
+    async onAuthenticate({ token, documentName, connectionConfig, requestHeaders }) {
       const user = verifyCollabToken(token);
       const target = parseName(documentName);
       if (!user || !target) throw new Error("unauthorized");
@@ -212,7 +225,7 @@ export function createCollab() {
         if (error instanceof AccessError) throw new Error("forbidden");
         throw error;
       }
-      return { userId: user.userId, userName: user.userName } satisfies Context;
+      return { userId: user.userId, userName: user.userName, locale: requestLocale(requestHeaders) } satisfies Context;
     },
 
     async onLoadDocument({ documentName, document }) {
@@ -249,7 +262,7 @@ export function createCollab() {
       const target = parseName(documentName);
       if (target?.kind !== "page") return;
       try {
-        await persistPage(target.id, document, lastContext?.userId);
+        await persistPage(target.id, document, lastContext);
       } catch (error) {
         // Hocuspocus swallows hook errors; a failed save must be visible in the logs.
         console.error(`[collab] failed to persist ${documentName}`, error);
@@ -288,13 +301,16 @@ export function createCollab() {
   const writeBlocks = async (
     pageId: string,
     actor: WriteActor,
-    build: (existing: Awaited<ReturnType<typeof deriveContent>>["blocks"]) => Promise<typeof existing>,
+    build: (
+      existing: Awaited<ReturnType<typeof deriveContent>>["blocks"],
+      mentions: NonNullable<Parameters<typeof markdownToBlocks>[2]>,
+    ) => Promise<typeof existing>,
     snapshot: boolean,
   ) => {
     await transactPage(pageId, actor, async (doc) => {
       if (snapshot) await snapshotBefore(pageId, doc, "before_mcp_write", actor);
       const existing = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
-      const next = await build(existing);
+      const next = await build(existing, { people: await mentionablePeople(pageId), appUrl: env.appUrl });
       doc.transact(
         () =>
           keepingComments(doc, () => {
@@ -310,8 +326,8 @@ export function createCollab() {
     async readPage(pageId): Promise<PageContent> {
       const live = hocuspocus.documents.get(pageDocName(pageId));
       if (live) {
-        const { markdown, text } = await deriveContent(live);
-        const [row] = await db.select({ title: page.title }).from(page).where(eq(page.id, pageId)).limit(1);
+        const [row] = await db.select({ title: page.title, workspaceId: page.workspaceId }).from(page).where(eq(page.id, pageId)).limit(1);
+        const { markdown, text } = await deriveContent(live, row?.workspaceId);
         return { title: readTitle(live) ?? row?.title ?? "", markdown, text };
       }
       const [row] = await db
@@ -396,14 +412,17 @@ export function createCollab() {
 
     async replaceContent(pageId, markdown, actor, snapshot = false) {
       // Database blocks the Markdown names keep their settings; inline databases it leaves out stay.
-      await writeBlocks(pageId, actor, async (existing) => markdownToBlocks(markdown, existing), snapshot);
+      await writeBlocks(pageId, actor, async (existing, mentions) => markdownToBlocks(markdown, existing, mentions), snapshot);
     },
 
     async appendContent(pageId, markdown, actor, snapshot = false) {
       await writeBlocks(
         pageId,
         actor,
-        async (existing) => [...withoutTrailingEmpty(existing), ...(await markdownToBlocks(markdown, existing, { keepMissingInline: false }))],
+        async (existing, mentions) => [
+          ...withoutTrailingEmpty(existing),
+          ...(await markdownToBlocks(markdown, existing, { ...mentions, keepMissingInline: false, carryOver: false })),
+        ],
         snapshot,
       );
     },

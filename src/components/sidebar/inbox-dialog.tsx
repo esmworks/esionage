@@ -5,10 +5,14 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { listInboxAction, markReadAction } from "@/app/actions/notifications";
 import { Button, cn, Dialog, PageIcon, pageLabel } from "@/components/ui";
+import { formatIsoDate } from "@/lib/mentions";
 import { relativeTime } from "@/lib/relative-time";
 import type { InboxItem } from "@/server/notifications";
 
-/** The workspace inbox: rows the user was assigned to and pages shared with them, newest first; opening one marks it read. */
+/**
+ * The workspace inbox: rows the user was assigned to, pages shared with them, comments, mentions and
+ * reminders, newest first; opening one marks it read.
+ */
 export function InboxDialog({
   workspaceId,
   open,
@@ -98,7 +102,11 @@ export function InboxDialog({
                     ? t("pageShared", { actor: item.actorName || t("someone") })
                     : item.kind === "comment"
                       ? t("comment", { actor: item.actorName || t("someone") })
-                      : t("assignment", { actor: item.actorName || t("someone"), property: item.propertyName ?? "" })}
+                      : item.kind === "mention"
+                        ? t("mention", { actor: item.actorName || t("someone") })
+                        : item.kind === "reminder"
+                          ? t("reminder", { date: item.reminderDate ? formatIsoDate(item.reminderDate, locale) : "" })
+                          : t("assignment", { actor: item.actorName || t("someone"), property: item.propertyName ?? "" })}
                   {item.databaseTitle !== null && <> · {pageLabel(item.databaseTitle, tc("untitled"))}</>}
                 </span>
               </span>

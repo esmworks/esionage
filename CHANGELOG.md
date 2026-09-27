@@ -31,6 +31,24 @@
 - **MCP:** `attach_file` uploads a file to a page from a URL or base64 data and adds it to the
   body. It needs the new `files:write` scope; apps registered earlier may request it too. URLs
   that resolve to private, loopback or link-local addresses, or redirect to them, are refused.
+- **Mentions and page links:** type `@` in a page to mention a person, a page or a date. A page
+  mention shows the page's current icon and title and follows renames; a page you can't open shows
+  as "No access" without its title, and one that was deleted as "Deleted page". "Link to page" in
+  the slash menu adds a page link on a line of its own. Mentioned people get an inbox notification
+  (and an email a minute later) once per mention, only if they can open the page, and not again when
+  the page is saved; taking the mention out before they read it takes the notification back. Click
+  a date to set a reminder (on the day, a day or a week before, at 9:00): it reaches the inbox and
+  email of whoever set it. Pages list the pages linking to them under "Linked from", as far as the
+  reader can see them. Mentions and reminders have their own notification preferences. The server
+  finds new mentions, links and reminders when it saves a page, whoever made the change.
+- **Mentions in Markdown and MCP:** a page mention is a link to the page
+  (`[Title](/w/<workspace>/p/<page>)`, any link to a page of the app becomes one), a Link to page
+  block is that link alone on its line followed by `<!-- esionage:page-link -->`, a person is
+  `@Name` and a date `@2026-10-01`. Exports and MCP's `get_page` show each linked page's current
+  title, or "No access"; writing the Markdown back keeps mentions (nobody is notified twice) and
+  reminders. `get_page` lists the pages linking to a page under `linked_from`, and
+  `list_notifications` includes mentions and reminders. Published pages link mentions of pages that
+  are published too and show others as plain text.
 - **Presence:** the page header shows who else has the page open, as avatars in their cursor
   colors with "+N" for more than four; click them for everyone's names. People who can only view
   the page count too, each person shows once however many tabs they have open, and you don't see

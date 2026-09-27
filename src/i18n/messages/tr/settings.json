@@ -216,6 +216,12 @@
     "commentTitle": "Yorumlar",
     "commentDescription": "Yorum başlattığınız ya da yanıt verdiğiniz bir konuya biri yeni yorum yazar.",
     "commentChannel": "Yorumlar: {channel}",
+    "mentionTitle": "Bahsetmeler",
+    "mentionDescription": "Biri bir sayfada @ ile sizden bahseder.",
+    "mentionChannel": "Bahsetmeler: {channel}",
+    "reminderTitle": "Hatırlatmalar",
+    "reminderDescription": "Bir sayfadaki tarihe kurduğunuz hatırlatmanın zamanı gelir.",
+    "reminderChannel": "Hatırlatmalar: {channel}",
     "mailOff": "Bu sunucuda e-posta gönderimi kapalı olduğu için şu an e-posta gitmiyor."
   }
 }

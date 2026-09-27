@@ -12,6 +12,18 @@ import {
   type AlertKind,
 } from "./content-blocks";
 import { BOOKMARK_BLOCK, markdownLinkDestination, markdownLinkText, parseWebUrl, WEB_EMBED_BLOCK } from "./web-blocks";
+import {
+  EMPTY_MENTION,
+  linkedPageId,
+  MENTION,
+  mentionProps,
+  mentionText,
+  PAGE_LINK_BLOCK,
+  PAGE_LINK_MARKER,
+  pageLinkMarkdown,
+  splitMentionText,
+  type MentionPerson,
+} from "./mentions";
 
 /**
  * The Markdown form of the content blocks (see lib/content-blocks), on top of what BlockNote's own
@@ -37,6 +49,7 @@ import { BOOKMARK_BLOCK, markdownLinkDestination, markdownLinkText, parseWebUrl,
  *   [Title](https://…)                              a bookmark (reads back as a link, see
  *                                                   lib/web-blocks restoreBookmarks)
  *   [https://…](https://…) <!-- esionage:embed -->  an embed
+ * and mentions and page links (see lib/mentions for their forms).
  *
  * BlockNote would mangle the sources (Markdown escapes and emphasis inside LaTeX, KaTeX markup
  * written out as text), so these blocks never go through its converters as themselves: on the way
@@ -68,7 +81,12 @@ const TOKEN_LINE = (nonce: string) => new RegExp(`^([ \\t]*)esionage${nonce}b(\\
  * Prepares blocks for BlockNote's Markdown serializer: returns blocks it can write and a function
  * that turns what it wrote into the final Markdown.
  */
-export function prepareMarkdownExport<B extends MdBlock>(blocks: B[], nonce: string) {
+export function prepareMarkdownExport<B extends MdBlock>(
+  blocks: B[],
+  nonce: string,
+  /** The page's workspace, for the links page mentions are written as. */
+  { workspaceId = "-" }: { workspaceId?: string } = {},
+) {
   const blockMarkdown: string[] = [];
   const inlineMarkdown: string[] = [];
   const callouts: { kind: AlertKind; icon: string }[] = [];
@@ -98,6 +116,12 @@ export function prepareMarkdownExport<B extends MdBlock>(blocks: B[], nonce: str
         return { ...node, text: node.text.replaceAll("$", dollarToken) };
       }
       if (node?.type === "link") return { ...node, content: inline(node.content) };
+      if (node?.type === MENTION) {
+        const props = mentionProps((node as { props?: unknown }).props);
+        const markdown =
+          props.kind === "page" ? (props.pageId ? pageLinkMarkdown("page", workspaceId, props.pageId) : "") : mentionText(props);
+        return { type: "text", text: `esionage${nonce}i${inlineMarkdown.push(markdown) - 1}x`, styles: {} };
+      }
       if (node?.type !== INLINE_MATH) return node;
       // $…$ can't span lines; an empty equation writes nothing.
       const latex = plainText(node.content).replace(/\s*\n\s*/g, " ").trim();
@@ -130,6 +154,10 @@ export function prepareMarkdownExport<B extends MdBlock>(blocks: B[], nonce: str
           const title = block.type === BOOKMARK_BLOCK ? String(block.props?.title ?? "").trim() : "";
           const link = `[${markdownLinkText(title || url)}](${markdownLinkDestination(url)})`;
           return paragraph(blockToken(block.type === WEB_EMBED_BLOCK ? `${link} <!-- esionage:embed -->` : link));
+        }
+        case PAGE_LINK_BLOCK: {
+          const pageId = String(block.props?.pageId ?? "");
+          return paragraph(blockToken(pageId ? `${pageLinkMarkdown("page", workspaceId, pageId)} ${PAGE_LINK_MARKER}` : ""));
         }
         case CALLOUT_BLOCK: {
           const i = callouts.push({
@@ -184,7 +212,8 @@ type Pending =
   | { type: typeof TOC_BLOCK | typeof BREADCRUMB_BLOCK }
   | { type: typeof CALLOUT_BLOCK; kind: AlertKind; markdown: string }
   | { type: typeof BOOKMARK_BLOCK; url: string; title: string }
-  | { type: typeof WEB_EMBED_BLOCK; url: string };
+  | { type: typeof WEB_EMBED_BLOCK; url: string }
+  | { type: typeof PAGE_LINK_BLOCK; pageId: string };
 
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
 const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})\s*$/;
@@ -195,12 +224,14 @@ const MARKER_LINE = /^ {0,3}<!--\s*esionage:(toc|breadcrumb)\s*-->\s*$/;
 /** `[text](url) <!-- esionage:embed -->` (or a bare URL before the marker); "bookmark" likewise. */
 const WEB_LINE =
   /^ {0,3}(?:\[((?:\\.|[^\\\]])*)\]\((<[^<>\n]*>|[^\s()<>]+)\)|<?(https?:\/\/[^\s<>]+?)>?)\s*<!--\s*esionage:(embed|bookmark)\s*-->\s*$/i;
+/** A link alone on its line, then the page-link marker: `[Title](/w/…/p/…) <!-- esionage:page-link -->`. */
+const PAGE_LINK_LINE = /^ {0,3}\[(?:[^\]\\]|\\.)*\]\(\s*<?([^)\s>]+)>?\s*\)\s*<!--\s*esionage:page-link\s*-->\s*$/;
 
 /**
  * Swaps the Markdown forms above for tokens BlockNote's parser keeps as plain text. Only lines of
  * their own count for blocks (not ones inside lists or quotes), and nothing inside fenced code.
  */
-export function prepareMarkdownImport(markdown: string, nonce: string) {
+export function prepareMarkdownImport(markdown: string, nonce: string, { appUrl }: { appUrl?: string } = {}) {
   const blocks: Pending[] = [];
   const inlines: string[] = [];
   const out: string[] = [];
@@ -233,6 +264,12 @@ export function prepareMarkdownImport(markdown: string, nonce: string) {
     if (web && webUrl) {
       if (web[4].toLowerCase() === "embed") blockLine({ type: WEB_EMBED_BLOCK, url: webUrl });
       else blockLine({ type: BOOKMARK_BLOCK, url: webUrl, title: (web[1] ?? "").replace(/\\(.)/g, "$1").trim() });
+      continue;
+    }
+    const pageLink = PAGE_LINK_LINE.exec(line);
+    const linkedId = pageLink ? linkedPageId(pageLink[1], appUrl) : null;
+    if (linkedId) {
+      blockLine({ type: PAGE_LINK_BLOCK, pageId: linkedId });
       continue;
     }
     const callout = CALLOUT_START.exec(line);
@@ -328,13 +365,16 @@ function closingDollar(line: string, from: number, delimiter: string): number {
 
 /**
  * Turns the tokens left by prepareMarkdownImport back into blocks and inline equations, and code
- * blocks in the "mermaid" language into diagrams. `parse` reads a callout's own Markdown.
+ * blocks in the "mermaid" language into diagrams. `parse` reads a callout's own Markdown. Links to
+ * pages of the app become page mentions, and `@Name` (for `people`) and `@YYYY-MM-DD` in text
+ * become person and date mentions (without ids: see carryOverMentions).
  */
 export async function finishMarkdownImport<B extends MdBlock>(
   blocks: B[],
   prepared: { blocks: Pending[]; inlines: string[] },
   nonce: string,
   parse: (markdown: string) => Promise<B[]>,
+  { people = [], appUrl }: { people?: MentionPerson[]; appUrl?: string } = {},
 ): Promise<B[]> {
   const blockToken = new RegExp(`^esionage${nonce}b(\\d+)x$`);
   const inlineToken = new RegExp(`esionage${nonce}i(\\d+)x`, "g");
@@ -353,13 +393,22 @@ export async function finishMarkdownImport<B extends MdBlock>(
   };
   // Where an equation can't go (a link's text), its token becomes the $…$ it came from.
   const restore = (text: string) => text.replace(inlineToken, (_, i: string) => `$${prepared.inlines[Number(i)]}$`);
+  const mention = (props: Partial<typeof EMPTY_MENTION>) => ({ type: MENTION, props: { ...EMPTY_MENTION, ...props } }) as Inline;
+  const splitMentions = (node: Inline): Inline[] => {
+    if (node?.type !== "text" || typeof node.text !== "string" || !node.text.includes("@") || node.styles?.code) return [node];
+    return splitMentionText(node.text, people).map((piece) => ("text" in piece ? { ...node, text: piece.text } : mention(piece.mention)));
+  };
   const inline = (content: unknown): unknown => {
     if (Array.isArray(content)) {
       return content.flatMap((node: Inline) => {
+        if (node?.type === "link") {
+          const pageId = linkedPageId(node.href, appUrl);
+          if (pageId) return [mention({ kind: "page", pageId })];
+        }
         if (node?.type === "link" && Array.isArray(node.content)) {
           return [{ ...node, content: node.content.map((n: Inline) => (typeof n.text === "string" ? { ...n, text: restore(n.text) } : n)) }];
         }
-        return splitText(node);
+        return splitText(node).flatMap(splitMentions);
       });
     }
     if (isObject(content) && content.type === "tableContent" && Array.isArray(content.rows)) {
@@ -390,6 +439,8 @@ export async function finishMarkdownImport<B extends MdBlock>(
         const title = pending.title === pending.url ? "" : pending.title;
         return { type: BOOKMARK_BLOCK, props: { url: pending.url, title }, children: [] } as unknown as B;
       }
+      case PAGE_LINK_BLOCK:
+        return { type: PAGE_LINK_BLOCK, props: { pageId: pending.pageId }, children: [] } as unknown as B;
       case CALLOUT_BLOCK: {
         // The first paragraph is the callout's text; anything after it is nested under it.
         const inner = pending.markdown.trim() ? await parse(pending.markdown) : [];

@@ -20,6 +20,7 @@ import { SidebarOpenButton } from "@/components/sidebar/sidebar-context";
 import type { PageHeaderInfo } from "@/server/page-meta";
 import { HistoryPanel } from "./history-panel";
 import { IconPicker } from "./icon-picker";
+import { Backlinks } from "./mentions";
 import { takeNewPage } from "./new-page-focus";
 import { hasLevel, PageHeaderActions } from "./page-header-actions";
 import { setDocTitle, useDocTitle, usePageDoc, type ConnectionState } from "./use-page-doc";
@@ -316,6 +317,8 @@ export function PageView({
             )}
           </div>
         )}
+        {/* Databases too: a page can mention one. */}
+        <Backlinks workspaceId={workspaceId} pageId={page.id} />
       </div>
 
       {historyOpen && (

@@ -74,6 +74,11 @@ const files = vi.hoisted(() => {
   return { FileError, uploadFile: vi.fn(), uploadFromUrl: vi.fn() };
 });
 vi.mock("@/server/files", () => files);
+const mentions = vi.hoisted(() => ({
+  labelPageLinks: vi.fn(async (_userId: string, markdown: string) => markdown),
+  listBacklinks: vi.fn(async () => []),
+}));
+vi.mock("@/server/mentions", () => mentions);
 
 const page = {
   id: "page-1",

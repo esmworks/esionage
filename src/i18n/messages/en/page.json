@@ -254,6 +254,11 @@
       "subtext": "The pages above this one, as links",
       "aliases": "breadcrumb path parents location",
       "label": "Breadcrumb"
+    },
+    "pageLink": {
+      "title": "Link to page",
+      "subtext": "A link to another page, with its live title",
+      "aliases": "link page mention reference"
     }
   },
   "web": {
@@ -299,5 +304,38 @@
     "tooLarge": "{name} is too large. Files can be at most {limit}.",
     "quotaExceeded": "{name} wasn't uploaded: this workspace has used its {limit} of file storage.",
     "failed": "Couldn't upload {name}."
+  },
+  "mention": {
+    "people": "People",
+    "pages": "Pages",
+    "dates": "Dates",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "yesterday": "Yesterday",
+    "nextWeek": "Next week",
+    "noAccess": "No access",
+    "deleted": "Deleted page",
+    "loading": "Loading…",
+    "personLeft": "{name} (no longer in the workspace)",
+    "date": "Date",
+    "reminder": "Reminder",
+    "remindNone": "No reminder",
+    "remindSameDay": "On the day, 9:00",
+    "remindDayBefore": "The day before, 9:00",
+    "remindWeekBefore": "A week before, 9:00",
+    "reminderSet": "Reminder: {when}",
+    "reminderHint": "You'll get it in your inbox and by email.",
+    "reminderPast": "That time has passed; pick a later date or reminder.",
+    "done": "Done"
+  },
+  "pageLinkPicker": {
+    "title": "Link to page",
+    "search": "Search pages…",
+    "empty": "No pages found",
+    "failed": "Couldn't load pages."
+  },
+  "backlinks": {
+    "title": "Linked from",
+    "count": "{count, plural, one {# page links here} other {# pages link here}}"
   }
 }

@@ -1,5 +1,7 @@
+import { MENTION, mentionPlainText } from "./mentions";
+
 /** Minimal structural view of BlockNote blocks; enough to extract searchable text. */
-type InlineNode = { type: string; text?: string; content?: InlineNode[] | string };
+type InlineNode = { type: string; text?: string; content?: InlineNode[] | string; props?: unknown };
 type TableContent = { type: "tableContent"; rows: { cells: (InlineNode[] | { content: InlineNode[] })[] }[] };
 export type BlockLike = {
   type?: string;
@@ -11,7 +13,8 @@ export type BlockLike = {
 function inlineText(nodes: InlineNode[] | string | undefined): string {
   if (!nodes) return "";
   if (typeof nodes === "string") return nodes;
-  return nodes.map((n) => (typeof n.text === "string" ? n.text : inlineText(n.content))).join("");
+  // People and dates read as "@Name" and "@2026-10-01"; a page mention adds no text (see lib/mentions).
+  return nodes.map((n) => (typeof n.text === "string" ? n.text : n.type === MENTION ? mentionPlainText(n.props) : inlineText(n.content))).join("");
 }
 
 function blockText(block: BlockLike): string {

@@ -3,6 +3,7 @@ import type { Locale } from "@/i18n/config";
 import type { WorkspaceRole } from "@/db/schema";
 import { emailMessages } from "@/i18n/messages/email";
 import { env } from "@/lib/env";
+import { formatIsoDate } from "@/lib/mentions";
 
 export type EmailContent = {
   subject: string;
@@ -162,6 +163,34 @@ export function commentEmail(
     heading: t("comment.heading", names),
     paragraphs: [t("comment.quote", { text }), t("comment.body", names), t("comment.optOut")],
     action: { label: t("comment.action"), url: comment.link },
+  });
+}
+
+export function mentionEmail(
+  locale: Locale,
+  mention: { actorName: string; pageTitle: string; workspaceName: string; link: string },
+): RenderedEmail {
+  const t = emailTranslator(locale);
+  const names = { actor: mention.actorName || t("mention.someone"), page: mention.pageTitle, workspace: mention.workspaceName };
+  return renderEmail(locale, {
+    subject: t("mention.subject", names),
+    heading: t("mention.heading", names),
+    paragraphs: [t("mention.body", names), t("mention.optOut")],
+    action: { label: t("mention.action"), url: mention.link },
+  });
+}
+
+export function reminderEmail(
+  locale: Locale,
+  reminder: { date: string; pageTitle: string; workspaceName: string; link: string },
+): RenderedEmail {
+  const t = emailTranslator(locale);
+  const names = { date: formatIsoDate(reminder.date, locale, "long"), page: reminder.pageTitle, workspace: reminder.workspaceName };
+  return renderEmail(locale, {
+    subject: t("reminder.subject", names),
+    heading: t("reminder.heading", names),
+    paragraphs: [t("reminder.body", names), t("reminder.optOut")],
+    action: { label: t("reminder.action"), url: reminder.link },
   });
 }
 

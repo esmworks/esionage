@@ -1,0 +1,630 @@
+"use client";
+
+import { createReactBlockSpec, createReactInlineContentSpec, SuggestionMenuController, type DefaultReactSuggestionItem } from "@blocknote/react";
+import { Bell, CalendarDays, CircleUser, FileX2, Link2, Lock, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import { createPortal } from "react-dom";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
+import { backlinksAction, mentionCandidatesAction, resolvePagesAction } from "@/app/actions/mentions";
+import { useChannel } from "@/components/collab/use-channel";
+import { cn, Dialog, PageIcon, pageLabel } from "@/components/ui";
+import {
+  formatIsoDate,
+  isIsoDate,
+  localIsoDate,
+  localReminderAt,
+  mentionConfig,
+  mentionProps,
+  newMentionId,
+  pageLinkBlockConfig,
+  pagePath,
+  type MentionProps,
+} from "@/lib/mentions";
+import type { MentionCandidates, PageRef } from "@/server/mentions";
+import type { PageEditor } from "./embed-blocks";
+
+/**
+ * The editor's side of mentions and page links (configs shared with the server in lib/mentions):
+ * the `@` menu, mention chips, the "Link to page" block and its picker, and the page's backlinks.
+ */
+
+// ---------------------------------------------------------------------------------------------
+// Live titles of mentioned pages
+
+/**
+ * What the browser knows about mentioned pages, shared by every chip on the page: fetched in one
+ * batch per render pass, and fetched again when the workspace's page tree changes (renames, icons,
+ * the trash), so chips follow the pages they point at.
+ */
+const refs = new Map<string, PageRef>();
+const listeners = new Set<() => void>();
+const wanted = new Set<string>();
+let batch: ReturnType<typeof setTimeout> | null = null;
+
+function notify() {
+  for (const listener of listeners) listener();
+}
+
+async function fetchRefs(ids: string[]) {
+  if (!ids.length) return;
+  try {
+    for (const ref of await resolvePagesAction(ids)) refs.set(ref.id, ref);
+    notify();
+  } catch {
+    // Offline or signed out: chips keep what they showed.
+  }
+}
+
+function requestRef(id: string) {
+  if (!id || refs.has(id) || wanted.has(id)) return;
+  wanted.add(id);
+  batch ??= setTimeout(() => {
+    batch = null;
+    const ids = [...wanted];
+    wanted.clear();
+    void fetchRefs(ids);
+  }, 10);
+}
+
+/** Fetches every known page again (their titles, icons or access may have changed). */
+export function refreshPageRefs() {
+  void fetchRefs([...refs.keys()]);
+}
+
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+
+function usePageRef(pageId: string): PageRef | undefined {
+  const ref = useSyncExternalStore(
+    subscribe,
+    () => refs.get(pageId),
+    () => undefined,
+  );
+  useEffect(() => requestRef(pageId), [pageId]);
+  return ref;
+}
+
+/** Keeps mentioned pages' titles live while a page of `workspaceId` is open. */
+export function usePageRefUpdates(workspaceId: string) {
+  useChannel(`ws:${workspaceId}`, (event) => {
+    if (event === "tree") refreshPageRefs();
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Chips
+
+function openPage(event: MouseEvent, href: string, push: (href: string) => void) {
+  // New tab and friends keep the browser's behaviour.
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  push(href);
+}
+
+/** A mentioned page: its live icon and title, or a note that names nothing. */
+function PageMentionChip({ pageId }: { pageId: string }) {
+  const t = useTranslations("page.mention");
+  const tc = useTranslations("common");
+  const router = useRouter();
+  const ref = usePageRef(pageId);
+  if (!ref) {
+    return (
+      <span className="esionage-mention esionage-mention-page esionage-mention-muted">
+        <Link2 className="esionage-mention-icon" aria-hidden />
+        <span className="esionage-mention-label">{t("loading")}</span>
+      </span>
+    );
+  }
+  if (ref.status !== "ok") {
+    const Icon = ref.status === "noAccess" ? Lock : FileX2;
+    return (
+      <span className="esionage-mention esionage-mention-page esionage-mention-muted" data-mention-status={ref.status}>
+        <Icon className="esionage-mention-icon" aria-hidden />
+        <span className="esionage-mention-label">{t(ref.status === "noAccess" ? "noAccess" : "deleted")}</span>
+      </span>
+    );
+  }
+  const href = pagePath(ref.workspaceId, ref.id);
+  return (
+    <a href={href} className="esionage-mention esionage-mention-page" onClick={(e) => openPage(e, href, router.push)} data-mention-status="ok">
+      {ref.icon ? (
+        <span className="esionage-mention-emoji" aria-hidden>
+          {ref.icon}
+        </span>
+      ) : (
+        <PageIcon icon={null} kind={ref.kind} className="esionage-mention-icon" />
+      )}
+      <span className="esionage-mention-label">{pageLabel(ref.title, tc("untitled"))}</span>
+    </a>
+  );
+}
+
+function PersonMentionChip({ name }: { name: string }) {
+  return (
+    <span className="esionage-mention esionage-mention-user">
+      <CircleUser className="esionage-mention-icon" aria-hidden />
+      <span className="esionage-mention-label">{name || "…"}</span>
+    </span>
+  );
+}
+
+const REMINDER_DAYS = [0, 1, 7] as const;
+type ReminderChoice = (typeof REMINDER_DAYS)[number] | "none" | "custom";
+
+/** Which of the offered reminders `remindAt` is for `date`, in this browser's time zone. */
+function reminderChoice(date: string, remindAt: string): ReminderChoice {
+  if (!remindAt) return "none";
+  return REMINDER_DAYS.find((days) => localReminderAt(date, days) === new Date(remindAt).toISOString()) ?? "custom";
+}
+
+function DateMentionChip({ props, onChange }: { props: MentionProps; onChange: ((next: Partial<MentionProps>) => void) | null }) {
+  const locale = useLocale();
+  const t = useTranslations("page.mention");
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLSpanElement>(null);
+  const when = props.remindAt ? new Date(props.remindAt).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }) : null;
+  return (
+    <>
+      <span
+        ref={anchor}
+        className="esionage-mention esionage-mention-date"
+        title={when ? t("reminderSet", { when }) : undefined}
+        onClick={onChange ? () => setOpen((v) => !v) : undefined}
+        style={onChange ? undefined : { cursor: "default" }}
+      >
+        <CalendarDays className="esionage-mention-icon" aria-hidden />
+        <span className="esionage-mention-label">{formatIsoDate(props.date, locale)}</span>
+        {props.remindAt && <Bell className="esionage-mention-icon" style={{ marginLeft: "0.25em", marginRight: 0 }} aria-label={t("reminder")} />}
+      </span>
+      {open && onChange && anchor.current && (
+        <DatePopover anchor={anchor.current} props={props} onChange={onChange} onClose={() => setOpen(false)} />
+      )}
+    </>
+  );
+}
+
+/**
+ * Changes a date mention and its reminder. It sits in a portal outside the editor, so typing in it
+ * never reaches the document.
+ */
+function DatePopover({
+  anchor,
+  props,
+  onChange,
+  onClose,
+}: {
+  anchor: HTMLElement;
+  props: MentionProps;
+  onChange: (next: Partial<MentionProps>) => void;
+  onClose: () => void;
+}) {
+  const t = useTranslations("page.mention");
+  const locale = useLocale();
+  const ref = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const choice = reminderChoice(props.date, props.remindAt);
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const rect = anchor.getBoundingClientRect();
+      setPosition({ top: rect.bottom + 4, left: Math.max(8, Math.min(rect.left, window.innerWidth - 288)) });
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [anchor]);
+
+  useEffect(() => {
+    const onDown = (e: globalThis.MouseEvent) => {
+      const target = e.target as Node;
+      if (!ref.current?.contains(target) && !anchor.contains(target)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [anchor, onClose]);
+
+  const setDate = (date: string) => {
+    if (!isIsoDate(date)) return;
+    // A reminder "the day before" stays the day before the new date.
+    const remindAt = typeof choice === "number" ? localReminderAt(date, choice) : props.remindAt;
+    onChange({ date, remindAt });
+  };
+  const setReminder = (next: ReminderChoice) => {
+    if (next === "custom") return;
+    onChange({ remindAt: next === "none" ? "" : localReminderAt(props.date, next), id: props.id || newMentionId() });
+  };
+  const past = props.remindAt && new Date(props.remindAt).getTime() < Date.now();
+  const label = (days: (typeof REMINDER_DAYS)[number]) =>
+    days === 0 ? t("remindSameDay") : days === 1 ? t("remindDayBefore") : t("remindWeekBefore");
+
+  if (!position) return null;
+  return createPortal(
+    <div
+      ref={ref}
+      role="dialog"
+      aria-label={t("date")}
+      style={{ position: "fixed", top: position.top, left: position.left }}
+      className="z-50 w-72 rounded-lg border border-border bg-bg p-3 text-sm shadow-lg"
+    >
+      <label className="block text-xs text-fg-muted" htmlFor="mention-date">
+        {t("date")}
+      </label>
+      <input
+        id="mention-date"
+        type="date"
+        value={props.date}
+        onChange={(e) => setDate(e.target.value)}
+        className="mt-1 h-8 w-full rounded-md border border-border bg-bg px-2 outline-none focus:border-accent"
+      />
+      <p className="mt-3 text-xs text-fg-muted">{t("reminder")}</p>
+      <div className="mt-1 flex flex-col">
+        {(["none", ...REMINDER_DAYS] as const).map((option) => (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={choice === option}
+            onClick={() => setReminder(option)}
+            className={cn("flex items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-bg-hover", choice === option && "bg-bg-active")}
+          >
+            {option === "none" ? t("remindNone") : label(option)}
+          </button>
+        ))}
+      </div>
+      {props.remindAt && (
+        <p className={cn("mt-2 text-xs", past ? "text-danger" : "text-fg-muted")}>
+          {past
+            ? t("reminderPast")
+            : `${t("reminderSet", { when: new Date(props.remindAt).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }) })}. ${t("reminderHint")}`}
+        </p>
+      )}
+      <div className="mt-3 flex justify-end">
+        <button type="button" onClick={onClose} className="rounded-md border border-border px-2.5 py-1 hover:bg-bg-hover">
+          {t("done")}
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+const Mention = createReactInlineContentSpec(mentionConfig, {
+  render: function MentionView({ inlineContent, updateInlineContent, editor }) {
+    const props = mentionProps(inlineContent.props);
+    const change = useCallback(
+      (next: Partial<MentionProps>) => updateInlineContent({ type: "mention", props: { ...props, ...next } }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [updateInlineContent, JSON.stringify(props)],
+    );
+    if (props.kind === "page") return <PageMentionChip pageId={props.pageId} />;
+    if (props.kind === "user") return <PersonMentionChip name={props.name} />;
+    return <DateMentionChip props={props} onChange={editor.isEditable ? change : null} />;
+  },
+  // Copied out of the editor: plain text and links other apps understand, never a title the
+  // browser doesn't already show.
+  toExternalHTML: function MentionHTML({ inlineContent }) {
+    const props = mentionProps(inlineContent.props);
+    if (props.kind === "user") return <span>@{props.name}</span>;
+    if (props.kind === "date") return <span>{props.date}</span>;
+    const ref = refs.get(props.pageId);
+    return ref?.status === "ok" ? <a href={pagePath(ref.workspaceId, ref.id)}>{ref.title}</a> : <span />;
+  },
+});
+
+// ---------------------------------------------------------------------------------------------
+// "Link to page" block
+
+const PageLinkBlock = createReactBlockSpec(pageLinkBlockConfig, {
+  render: function PageLinkView({ block }) {
+    const t = useTranslations("page.mention");
+    const tc = useTranslations("common");
+    const router = useRouter();
+    const ref = usePageRef(block.props.pageId);
+    const row = "flex w-full items-center gap-2 rounded-md px-1 py-1";
+    if (!block.props.pageId) return <div className="w-full" />;
+    if (!ref || ref.status !== "ok") {
+      const Icon = !ref ? Link2 : ref.status === "noAccess" ? Lock : FileX2;
+      return (
+        <div contentEditable={false} className={cn(row, "text-fg-faint")} data-mention-status={ref?.status ?? "loading"}>
+          <Icon className="h-4 w-4 shrink-0" aria-hidden />
+          <span>{!ref ? t("loading") : t(ref.status === "noAccess" ? "noAccess" : "deleted")}</span>
+        </div>
+      );
+    }
+    const href = pagePath(ref.workspaceId, ref.id);
+    return (
+      <div contentEditable={false} className="w-full">
+        <a href={href} onClick={(e) => openPage(e, href, router.push)} className={cn(row, "hover:bg-bg-hover")} data-mention-status="ok">
+          <PageIcon icon={ref.icon} kind={ref.kind} className="shrink-0 text-base" />
+          <span className="truncate font-medium underline decoration-fg-faint underline-offset-2">{pageLabel(ref.title, tc("untitled"))}</span>
+        </a>
+      </div>
+    );
+  },
+  toExternalHTML: function PageLinkHTML({ block }) {
+    const ref = refs.get(block.props.pageId);
+    return ref?.status === "ok" ? (
+      <p>
+        <a href={pagePath(ref.workspaceId, ref.id)}>{ref.title}</a>
+      </p>
+    ) : (
+      <p />
+    );
+  },
+});
+
+export const mentionInlineSpecs = { mention: Mention };
+export const mentionBlockSpecs = { pageLink: PageLinkBlock() };
+
+/** The "Link to page" slash menu entry, with the basic blocks. */
+export function usePageLinkSlashItem(editor: PageEditor, onPick: (at: string) => void): DefaultReactSuggestionItem[] {
+  const t = useTranslations("page.blocks.pageLink");
+  return useMemo(
+    () => [
+      {
+        title: t("title"),
+        subtext: t("subtext"),
+        aliases: t("aliases").split(" "),
+        group: editor.dictionary.slash_menu.quote.group,
+        icon: <Link2 size={18} />,
+        onItemClick: () => onPick(editor.getTextCursorPosition().block.id),
+      },
+    ],
+    [editor, t, onPick],
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// The @ menu
+
+type DateItem = { key: "today" | "tomorrow" | "yesterday" | "nextWeek"; days: number };
+const DATE_ITEMS: DateItem[] = [
+  { key: "today", days: 0 },
+  { key: "tomorrow", days: 1 },
+  { key: "yesterday", days: -1 },
+  { key: "nextWeek", days: 7 },
+];
+
+/** `@` in the editor: people of the workspace, pages the user can see, and dates. */
+export function MentionMenu({ editor, workspaceId, pageId }: { editor: PageEditor; workspaceId: string; pageId: string }) {
+  const t = useTranslations("page.mention");
+  const tc = useTranslations("common");
+  const locale = useLocale();
+  // The last answer, so typing doesn't flash an empty menu while the next one loads.
+  const last = useRef<MentionCandidates>({ people: [], pages: [] });
+
+  const insert = useCallback(
+    (props: Partial<MentionProps>) => {
+      editor.insertInlineContent([{ type: "mention", props: { ...props } }, " "] as never, { updateSelection: true });
+    },
+    [editor],
+  );
+
+  const getItems = useCallback(
+    async (query: string): Promise<DefaultReactSuggestionItem[]> => {
+      let found = last.current;
+      try {
+        found = await mentionCandidatesAction(pageId, query);
+        last.current = found;
+      } catch {
+        // Keep the last answer.
+      }
+      const q = query.trim().toLocaleLowerCase();
+      const people = found.people.map(
+        (p): DefaultReactSuggestionItem => ({
+          title: p.name,
+          group: t("people"),
+          icon: <CircleUser size={18} />,
+          onItemClick: () => insert({ kind: "user", id: newMentionId(), userId: p.id, name: p.name }),
+        }),
+      );
+      const pages = found.pages.map(
+        (p): DefaultReactSuggestionItem => ({
+          title: pageLabel(p.title, tc("untitled")),
+          group: t("pages"),
+          icon: <PageIcon icon={p.icon} kind={p.kind} className="text-base" />,
+          onItemClick: () => {
+            // Known right away, so the chip shows its title without a round trip.
+            refs.set(p.id, { id: p.id, status: "ok", workspaceId, title: p.title, icon: p.icon, kind: p.kind });
+            insert({ kind: "page", pageId: p.id });
+            void fetchRefs([p.id]);
+          },
+        }),
+      );
+      const dates = DATE_ITEMS.flatMap((d): DefaultReactSuggestionItem[] => {
+        const title = t(d.key);
+        if (q && !title.toLocaleLowerCase().includes(q) && !d.key.toLowerCase().includes(q)) return [];
+        const date = localIsoDate(d.days);
+        return [
+          {
+            title,
+            subtext: formatIsoDate(date, locale),
+            group: t("dates"),
+            icon: <CalendarDays size={18} />,
+            onItemClick: () => insert({ kind: "date", id: newMentionId(), date }),
+          },
+        ];
+      });
+      if (isIsoDate(query.trim())) {
+        const date = query.trim();
+        dates.unshift({
+          title: formatIsoDate(date, locale),
+          subtext: date,
+          group: t("dates"),
+          icon: <CalendarDays size={18} />,
+          onItemClick: () => insert({ kind: "date", id: newMentionId(), date }),
+        });
+      }
+      return [...people, ...pages, ...dates];
+    },
+    [workspaceId, pageId, insert, t, tc, locale],
+  );
+
+  return <SuggestionMenuController triggerCharacter="@" getItems={getItems} />;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Picking a page
+
+/** Picks the page a "Link to page" block points at: pages of the workspace the user can see. */
+export function PagePicker({
+  open,
+  pageId,
+  onPick,
+  onClose,
+}: {
+  open: boolean;
+  pageId: string;
+  onPick: (pageId: string) => void;
+  onClose: () => void;
+}) {
+  const t = useTranslations("page.pageLinkPicker");
+  const tc = useTranslations("common");
+  const [query, setQuery] = useState("");
+  const [pages, setPages] = useState<MentionCandidates["pages"] | null>(null);
+  const [failed, setFailed] = useState(false);
+  // The highlighted result, picked with Enter; arrows move it.
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    if (!open) return;
+    let current = true;
+    setFailed(false);
+    const timer = setTimeout(() => {
+      mentionCandidatesAction(pageId, query)
+        .then((found) => {
+          if (!current) return;
+          setPages(found.pages);
+          setActive(0);
+        })
+        .catch(() => current && setFailed(true));
+    }, 120);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [open, pageId, query]);
+
+  useEffect(() => {
+    if (open) return;
+    setQuery("");
+    setPages(null);
+  }, [open]);
+
+  return (
+    <Dialog open={open} onClose={onClose} className="max-w-md">
+      <div className="flex items-center gap-2 border-b border-border px-3">
+        <Search className="h-4 w-4 text-fg-muted" />
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (!pages?.length) return;
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              const step = e.key === "ArrowDown" ? 1 : -1;
+              setActive((i) => (i + step + pages.length) % pages.length);
+            } else if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              const picked = pages[Math.min(active, pages.length - 1)];
+              if (picked) onPick(picked.id);
+            }
+          }}
+          placeholder={t("search")}
+          aria-label={t("title")}
+          className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-fg-faint"
+        />
+      </div>
+      <div className={cn("max-h-80 overflow-y-auto p-1", !pages && !failed && "opacity-70")}>
+        {pages?.map((p, i) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => onPick(p.id)}
+            onMouseEnter={() => setActive(i)}
+            aria-current={i === active || undefined}
+            className={cn(
+              "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover",
+              i === active && "bg-bg-hover",
+            )}
+          >
+            <PageIcon icon={p.icon} kind={p.kind} className="text-sm" />
+            <span className="truncate">{pageLabel(p.title, tc("untitled"))}</span>
+          </button>
+        ))}
+        {failed && (
+          <p role="alert" className="px-2 py-3 text-sm text-danger">
+            {t("failed")}
+          </p>
+        )}
+        {!pages && !failed && <p className="px-2 py-3 text-sm text-fg-muted">{tc("loading")}</p>}
+        {pages && !pages.length && <p className="px-2 py-3 text-sm text-fg-muted">{t("empty")}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Backlinks
+
+/** "Linked from": the pages whose body mentions or links to this one, as far as the viewer can see. */
+export function Backlinks({ workspaceId, pageId }: { workspaceId: string; pageId: string }) {
+  const t = useTranslations("page.backlinks");
+  const tc = useTranslations("common");
+  const router = useRouter();
+  const [links, setLinks] = useState<Awaited<ReturnType<typeof backlinksAction>>>([]);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    let current = true;
+    backlinksAction(pageId).then(
+      (list) => current && setLinks(list),
+      () => {},
+    );
+    return () => {
+      current = false;
+    };
+  }, [pageId, version]);
+  // Renames and the trash change the list; so does opening the page again after linking to it.
+  useChannel(`ws:${workspaceId}`, (event) => {
+    if (event === "tree") setVersion((v) => v + 1);
+  });
+
+  if (!links.length) return null;
+  return (
+    <section aria-label={t("title")} className="mt-10 border-t border-border px-4 pt-4 md:px-[54px]">
+      <h2 className="text-xs font-medium text-fg-muted" title={t("count", { count: links.length })}>
+        {t("title")}
+      </h2>
+      <ul className="mt-1.5 flex flex-col">
+        {links.map((link) => {
+          const href = pagePath(link.workspaceId, link.id);
+          return (
+            <li key={link.id}>
+              <a
+                href={href}
+                onClick={(e) => openPage(e, href, router.push)}
+                className="-mx-1 flex items-center gap-2 rounded px-1 py-1 text-sm text-fg-muted hover:bg-bg-hover hover:text-fg"
+              >
+                <PageIcon icon={link.icon} kind={link.kind} className="text-sm" />
+                <span className="truncate">{pageLabel(link.title, tc("untitled"))}</span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}

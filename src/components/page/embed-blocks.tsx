@@ -17,13 +17,15 @@ import {
   type LinkedView,
 } from "@/lib/embed-blocks";
 import { contentBlockSpecs, contentInlineSpecs } from "./content-blocks";
+import { mentionBlockSpecs, mentionInlineSpecs } from "./mentions";
 import { DatabaseEmbed, useEmbedHost } from "./database-embed";
 import { webBlockSpecs } from "./web-blocks";
 
 /**
  * The page editor's schema: BlockNote's blocks plus the database blocks (configs shared with the
  * server in lib/embed-blocks) and the content blocks (content-blocks.tsx, configs shared in
- * lib/content-blocks). The database blocks are self-contained widgets: not selectable as text, and
+ * lib/content-blocks), and mentions and page links (mentions.tsx, configs shared in lib/mentions).
+ * The database blocks are self-contained widgets: not selectable as text, and
  * every event inside them belongs to the database UI rather than the editor.
  */
 
@@ -68,8 +70,9 @@ export const pageEditorSchema = BlockNoteSchema.create({
     linkedView: LinkedViewBlock(),
     ...contentBlockSpecs,
     ...webBlockSpecs,
+    ...mentionBlockSpecs,
   },
-  inlineContentSpecs: { ...defaultInlineContentSpecs, ...contentInlineSpecs },
+  inlineContentSpecs: { ...defaultInlineContentSpecs, ...contentInlineSpecs, ...mentionInlineSpecs },
 });
 
 export type PageEditor = BlockNoteEditor<

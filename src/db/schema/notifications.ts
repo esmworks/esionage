@@ -19,6 +19,14 @@ export const userPreference = pgTable("user_preference", {
   commentEmails: boolean("comment_emails").notNull().default(true),
   /** Show replies to my comment threads in my inbox. */
   commentInbox: boolean("comment_inbox").notNull().default(true),
+  /** Email me when someone mentions me on a page. */
+  mentionEmails: boolean("mention_emails").notNull().default(true),
+  /** Show mentions of me in my inbox. */
+  mentionInbox: boolean("mention_inbox").notNull().default(true),
+  /** Email me the reminders I set on dates. */
+  reminderEmails: boolean("reminder_emails").notNull().default(true),
+  /** Show the reminders I set on dates in my inbox. */
+  reminderInbox: boolean("reminder_inbox").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -46,14 +54,16 @@ export const pendingAssignmentEmail = pgTable(
   (t) => [primaryKey({ columns: [t.rowId, t.propertyId, t.userId] }), index("assignment_email_due_idx").on(t.dueAt)],
 );
 
-export const NOTIFICATION_KINDS = ["assignment", "page_shared", "comment"] as const;
+export const NOTIFICATION_KINDS = ["assignment", "page_shared", "comment", "mention", "reminder"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /**
  * A user's inbox, per workspace. "assignment": `actorId` added the user to the person property
  * `propertyId` of row `pageId`. "page_shared": `actorId` gave the user their own access to page
  * `pageId`. "comment": `actorId` replied in comment thread `threadId` on page `pageId`, where the
- * user had commented before. Unread ones are dropped when the change is undone. Rows are recorded
+ * user had commented before. "mention": `actorId` mentioned the user on page `pageId` (mention
+ * `mentionId`). "reminder": the reminder the user set on date mention `mentionId` of page `pageId`
+ * fell due. Unread ones are dropped when the change is undone. Rows are recorded
  * whatever the user's preferences; the inbox leaves out the kinds they turned off.
  */
 export const notification = pgTable(
@@ -76,9 +86,11 @@ export const notification = pgTable(
     propertyId: text("property_id").references(() => databaseProperty.id, { onDelete: "cascade" }),
     /** Comment notifications: the thread (in the page's document) they are about. */
     threadId: text("thread_id"),
+    /** Mention and reminder notifications: the mention (in the page's document) they are about. */
+    mentionId: text("mention_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     readAt: timestamp("read_at", { withTimezone: true }),
-    /** When to email the user about it (page_shared and comment); cleared once the email is handled. */
+    /** When to email the user about it (all but assignment); cleared once the email is handled. */
     emailDueAt: timestamp("email_due_at", { withTimezone: true }),
     /** The actor's interface language, for that email. */
     emailLocale: text("email_locale"),

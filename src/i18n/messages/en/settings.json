@@ -216,6 +216,12 @@
     "commentTitle": "Comments",
     "commentDescription": "Someone comments on a page you started a comment thread in or replied to.",
     "commentChannel": "Comments: {channel}",
+    "mentionTitle": "Mentions",
+    "mentionDescription": "Someone mentions you on a page with @.",
+    "mentionChannel": "Mentions: {channel}",
+    "reminderTitle": "Reminders",
+    "reminderDescription": "A reminder you set on a date in a page is due.",
+    "reminderChannel": "Reminders: {channel}",
     "mailOff": "This server can't send email right now, so none go out."
   }
 }

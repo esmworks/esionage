@@ -30,10 +30,12 @@ import { CommentsPanel } from "./comments-panel";
 import { CommentAuth, ServerThreadStore } from "./comment-store";
 import { PageTrailProvider, useContentSlashItems, type TrailCrumb } from "./content-blocks";
 import { LINKED_VIEW_BLOCK } from "@/lib/embed-blocks";
+import { PAGE_LINK_BLOCK } from "@/lib/mentions";
 import { EmbedHostProvider, type EmbedHost } from "./database-embed";
 import { FindBar } from "./find-bar";
 import { FindReplace } from "./find-replace";
 import { DatabasePicker, pageEditorSchema, placeEmbedBlock, useEmbedSlashItems, withEmbedItems, type PageEditor } from "./embed-blocks";
+import { MentionMenu, PagePicker, usePageLinkSlashItem, usePageRefUpdates } from "./mentions";
 import { userColor, type PageDoc } from "./use-page-doc";
 import { PasteLinkMenu, useWebSlashItems } from "./web-blocks";
 
@@ -89,6 +91,9 @@ export default function CollabEditor({
   const trail = useMemo(() => ({ workspaceId, crumbs }), [workspaceId, crumbs]);
   // Block id where "Linked view of database" was chosen, while its database picker is open.
   const [pickAt, setPickAt] = useState<string | null>(null);
+  // Block id where "Link to page" was chosen, while its page picker is open.
+  const [linkAt, setLinkAt] = useState<string | null>(null);
+  usePageRefUpdates(workspaceId);
   const [embedError, setEmbedError] = useState<string | null>(null);
   // Comments live in the page's document; every editor has the extension, so text carrying a
   // comment mark is always understood (an editor without it would drop that text).
@@ -176,7 +181,8 @@ export default function CollabEditor({
           formattingToolbar={false}
           className="esionage-editor"
         >
-          <SlashMenu editor={editor} onCreateError={setEmbedError} onPickDatabase={setPickAt} />
+          <SlashMenu editor={editor} onCreateError={setEmbedError} onPickDatabase={setPickAt} onPickPage={setLinkAt} />
+          {editable && <MentionMenu editor={editor} workspaceId={workspaceId} pageId={pageId} />}
           <PasteLinkMenu editor={editor} />
           {/* People who may only read get no toolbar; commenting shows it on read-only pages too. */}
           {(editable || canComment) && (
@@ -213,6 +219,15 @@ export default function CollabEditor({
           setPickAt(null);
         }}
       />
+      <PagePicker
+        open={linkAt !== null}
+        pageId={pageId}
+        onClose={() => setLinkAt(null)}
+        onPick={(target) => {
+          if (linkAt) placeEmbedBlock(editor, linkAt, { type: PAGE_LINK_BLOCK, props: { pageId: target } });
+          setLinkAt(null);
+        }}
+      />
     </EmbedHostProvider>
   );
 }
@@ -232,24 +247,27 @@ function selectionAnchor(editor: PageEditor): CommentAnchor | undefined {
   return { quote, blockId: typeof block.attrs.id === "string" ? block.attrs.id : undefined, offset: $from.parentOffset };
 }
 
-/** BlockNote's slash menu plus the database and content blocks. */
+/** BlockNote's slash menu plus the database, content and page link blocks. */
 function SlashMenu({
   editor,
   onCreateError,
   onPickDatabase,
+  onPickPage,
 }: {
   editor: PageEditor;
   onCreateError: (message: string) => void;
   onPickDatabase: (at: string) => void;
+  onPickPage: (at: string) => void;
 }) {
   const embedItems = useEmbedSlashItems(editor, { onCreateError, onPickDatabase });
   const contentItems = useContentSlashItems(editor);
   const webItems = useWebSlashItems(editor);
+  const pageLinkItems = usePageLinkSlashItem(editor, onPickPage);
   return (
     <SuggestionMenuController
       triggerCharacter="/"
       getItems={async (query) =>
-        filterSuggestionItems(withEmbedItems(getDefaultReactSlashMenuItems(editor), [...embedItems(), ...contentItems, ...webItems]), query)
+        filterSuggestionItems(withEmbedItems(getDefaultReactSlashMenuItems(editor), [...embedItems(), ...contentItems, ...webItems, ...pageLinkItems]), query)
       }
     />
   );
