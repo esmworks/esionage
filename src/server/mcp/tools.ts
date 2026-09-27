@@ -29,6 +29,17 @@ import {
 } from "@/lib/chart";
 import { formulaForStorage, withFormulaTypes } from "@/lib/derived";
 import { MAX_FORMULA_LENGTH } from "@/lib/formula";
+import {
+  FORM_TITLE,
+  isAskable,
+  MAX_CONFIRMATION,
+  MAX_FORM_DEFAULTS,
+  MAX_FORM_DESCRIPTION,
+  MAX_FORM_QUESTIONS,
+  MAX_FORM_TITLE,
+  MAX_QUESTION_DESCRIPTION,
+  MAX_QUESTION_LABEL,
+} from "@/lib/forms";
 import { GROUP_DATE_BY } from "@/lib/grouping";
 import { pageLabel } from "@/lib/labels";
 import { isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
@@ -37,10 +48,12 @@ import { CARD_SIZES, COVER_SOURCES, TIMELINE_ZOOMS, VIEW_TYPES } from "@/lib/vie
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import * as databases from "@/server/databases";
 import { resolveEmbeds } from "@/server/embeds";
+import * as forms from "@/server/forms";
 import * as notifications from "@/server/notifications";
 import * as pages from "@/server/pages";
 import * as workspaces from "@/server/workspaces";
 import { MAX_MARKDOWN_CHARS, pageUrl, runTool, sliceText, ToolInputError } from "./format";
+import { env } from "@/lib/env";
 import { NOTIFICATIONS_SCOPE, READ_SCOPE, WRITE_SCOPE, type McpPrincipal } from "./principal";
 import {
   describeProperty,
@@ -462,6 +475,139 @@ function chartConfigPatch(props: PropertyDef[], input: ViewInput, current: ViewC
   return patch;
 }
 
+/** Form settings, shared by create_database_view and update_database_view. */
+const formInputs = {
+  questions: z
+    .array(
+      z.object({
+        property: z.string().min(1).describe('Property name or id, or "title" for the row\'s name.'),
+        required: z.boolean().optional().describe("The form can't be sent without an answer (for a checkbox: a tick)."),
+        label: z.string().max(MAX_QUESTION_LABEL).optional().describe("Question text shown instead of the property name."),
+        description: z.string().max(MAX_QUESTION_DESCRIPTION).optional().describe("Help text under the question."),
+      }),
+    )
+    .max(MAX_FORM_QUESTIONS)
+    .optional()
+    .describe(
+      'Form only: the questions, in order; replaces the current ones. A new form asks for the title (required) and every property a form can ask for. created_by, created_time, last_edited_by, last_edited_time, formula and rollup properties can\'t be asked; relation and person questions are asked in the app only, never on the public link.',
+    ),
+  form_title: z.string().max(MAX_FORM_TITLE).optional().describe("Form only: heading of the form (the database title when empty)."),
+  form_description: z.string().max(MAX_FORM_DESCRIPTION).optional().describe("Form only: text under the heading."),
+  confirmation_message: z
+    .string()
+    .max(MAX_CONFIRMATION)
+    .optional()
+    .describe("Form only: shown after an answer is sent (a generic thank-you when empty)."),
+  allow_another: z.boolean().optional().describe("Form only: offer to send another answer after one is sent (true by default)."),
+  defaults: z
+    .record(z.string(), rowValue)
+    .optional()
+    .describe(
+      'Form only: values every row sent through the form gets for properties it doesn\'t ask, keyed by property name or id, in the same form as row values; replaces the current ones. Example: {"Status": "New"}.',
+    ),
+  public: z
+    .boolean()
+    .optional()
+    .describe(
+      "Form only: true opens the form to anyone with the link (needs full access to the database and a workspace that lets the user publish); false turns the link off. Turning it on again makes a new link.",
+    ),
+  anonymous: z
+    .boolean()
+    .optional()
+    .describe(
+      "Form with a public link: true takes answers without signing in and records nobody as creator; false (the default) asks people to sign in and records them.",
+    ),
+};
+
+type FormInput = {
+  questions?: { property: string; required?: boolean; label?: string; description?: string }[];
+  form_title?: string;
+  form_description?: string;
+  confirmation_message?: string;
+  allow_another?: boolean;
+  defaults?: Record<string, unknown>;
+  public?: boolean;
+  anonymous?: boolean;
+};
+
+const FORM_SETTINGS = [
+  "questions",
+  "form_title",
+  "form_description",
+  "confirmation_message",
+  "allow_another",
+  "defaults",
+  "public",
+  "anonymous",
+] as const;
+
+/** The form settings the caller asked to change, merged into the view's form. Names become ids. */
+function formConfigPatch(props: PropertyDef[], type: ViewType, current: ViewConfig, input: FormInput): ViewConfig {
+  const given = FORM_SETTINGS.filter((key) => input[key] !== undefined);
+  if (!given.length) return {};
+  if (type !== "form") throw new ToolInputError(`${given.join(", ")} only apply to form views.`);
+  const form = { ...current.form };
+  if (input.questions) {
+    const seen = new Set<string>();
+    form.questions = input.questions.map((q) => {
+      const { key, prop } = resolvePropertyKey(props, q.property);
+      if (!prop && key !== FORM_TITLE) throw new ToolInputError(`"${q.property}" can't be asked in a form.`);
+      if (prop && !isAskable(prop.type)) throw new ToolInputError(`"${prop.name}" is ${prop.type}, which a form can't ask for.`);
+      if (seen.has(key)) throw new ToolInputError(`"${q.property}" is asked twice.`);
+      seen.add(key);
+      return {
+        propertyId: key,
+        ...(q.required ? { required: true } : {}),
+        ...(q.label?.trim() ? { label: q.label.trim() } : {}),
+        ...(q.description?.trim() ? { description: q.description.trim() } : {}),
+      };
+    });
+  }
+  if (input.form_title !== undefined) form.title = input.form_title.trim() || undefined;
+  if (input.form_description !== undefined) form.description = input.form_description.trim() || undefined;
+  if (input.confirmation_message !== undefined) form.confirmation = input.confirmation_message.trim() || undefined;
+  if (input.allow_another !== undefined) form.allowAnother = input.allow_another ? undefined : false;
+  if (input.defaults) {
+    const asked = new Set((form.questions ?? []).map((q) => q.propertyId));
+    const entries = Object.entries(input.defaults);
+    if (entries.length > MAX_FORM_DEFAULTS) throw new ToolInputError(`A form can set at most ${MAX_FORM_DEFAULTS} default values.`);
+    // Values stay as given (option names, emails, "me"…): updateView checks and stores them as ids.
+    form.defaults = Object.fromEntries(
+      entries.map(([ref, value]) => {
+        const prop = requireProperty(props, ref);
+        if (!isAskable(prop.type)) throw new ToolInputError(`"${prop.name}" is ${prop.type}; it can't have a default value.`);
+        if (asked.has(prop.id)) throw new ToolInputError(`"${prop.name}" is a question; its answer is what the row gets.`);
+        return [prop.id, value];
+      }),
+    );
+  }
+  return { form };
+}
+
+/** Opens or closes a form's public link as asked; returns the link, if any. */
+async function applyFormLink(userId: string, viewId: string, input: FormInput) {
+  try {
+    if (input.public === false) {
+      if (input.anonymous !== undefined) throw new ToolInputError("anonymous only applies while the form has a public link.");
+      await forms.unpublishForm(userId, viewId);
+    } else if (input.public || input.anonymous !== undefined) {
+      const current = (await forms.formPublicationsOf([viewId])).get(viewId);
+      if (!input.public && !current) throw new ToolInputError("anonymous only applies while the form has a public link; pass public: true.");
+      await forms.publishForm(userId, viewId, { anonymous: input.anonymous ?? current?.anonymous ?? false });
+    }
+  } catch (error) {
+    if (error instanceof forms.FormError) throw new ToolInputError(`${error.message}.`);
+    throw error;
+  }
+  return (await forms.formPublicationsOf([viewId])).get(viewId) ?? null;
+}
+
+/** How a form view is shared, for tool output. */
+function formLinkOutput(type: ViewType, link: { url: string; anonymous: boolean } | null | undefined) {
+  if (type !== "form") return {};
+  return link ? { public_url: `${env.appUrl}${link.url}`, anonymous: link.anonymous } : { public_url: null };
+}
+
 function viewOutput(
   database: { id: string; workspaceId: string },
   props: PropertyDef[],
@@ -859,7 +1005,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Get a database schema",
       description:
-        "Get a database's schema: its properties (name, type, option names for select / multi_select / status with the status groups, and the people a person property can hold), its views with their type, settings (grouping, dates, timeline zoom, gallery cards), filters and sorts, and the row count. Call this before querying or writing rows.",
+        "Get a database's schema: its properties (name, type, option names for select / multi_select / status with the status groups, and the people a person property can hold), its views with their type, settings (grouping, dates, timeline zoom, gallery cards, form questions and public link), filters and sorts, and the row count. Call this before querying or writing rows.",
       inputSchema: z.object({ database_id: id("database") }),
       annotations: READ,
     },
@@ -870,6 +1016,7 @@ export function createMcpServer(principal: McpPrincipal) {
           databases.listRows(userId, database_id),
         ]);
         const lookups = await databases.getLookups(userId, properties);
+        const links = await forms.formPublicationsOf(views.filter((v) => v.type === "form").map((v) => v.id));
         return {
           id: database.id,
           title: pageLabel(database.title),
@@ -880,7 +1027,13 @@ export function createMcpServer(principal: McpPrincipal) {
             { name: "title", type: "title", note: "Every row's title; filter and sort on it with property \"title\"." },
             ...properties.map((p) => describeProperty(p, lookups, properties)),
           ],
-          views: views.map((v) => ({ id: v.id, name: v.name, type: v.type, ...describeViewConfig(properties, v.config, lookups, v.type) })),
+          views: views.map((v) => ({
+            id: v.id,
+            name: v.name,
+            type: v.type,
+            ...describeViewConfig(properties, v.config, lookups, v.type),
+            ...formLinkOutput(v.type, links.get(v.id)),
+          })),
           url: pageUrl(database.workspaceId, database.id),
         };
       }),
@@ -1313,7 +1466,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a database view",
       description:
-        'Add a saved view to a database: a "table" (optionally grouped into collapsible sections with group_by), a "board" (cards in columns by group_by), a "calendar" (rows placed on the days of a date property), a "gallery" (cards with a cover: the first image in each row\'s body), a "list" (one compact line per row) or a "timeline" (bars from a start date to an optional end date, optionally in swimlanes by group_by). Views group by a select, status (per option, or per todo / in_progress / done with group_status_by "group"), multi_select, person, created_by, last_edited_by, checkbox (unchecked / checked), date, created_time or last_edited_time (per day, week from Monday, month or year with group_date_by, month by default) or relation (one group per linked row); a row with several tags, people or links shows in each of their groups. Filters (with groups and filter_combinator) and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows, and is_within date filters count from the day the view is opened.',
+        'Add a saved view to a database: a "table" (optionally grouped into collapsible sections with group_by), a "board" (cards in columns by group_by), a "calendar" (rows placed on the days of a date property), a "gallery" (cards with a cover: the first image in each row\'s body), a "list" (one compact line per row), a "timeline" (bars from a start date to an optional end date, optionally in swimlanes by group_by) or a "form" (questions people answer to add a row; see questions, defaults and public). Views group by a select, status (per option, or per todo / in_progress / done with group_status_by "group"), multi_select, person, created_by, last_edited_by, checkbox (unchecked / checked), date, created_time or last_edited_time (per day, week from Monday, month or year with group_date_by, month by default) or relation (one group per linked row); a row with several tags, people or links shows in each of their groups. Filters (with groups and filter_combinator) and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows, and is_within date filters count from the day the view is opened.',
       inputSchema: z.object({
         database_id: id("database"),
         name: z.string().min(1).max(100).describe("View name."),
@@ -1332,6 +1485,7 @@ export function createMcpServer(principal: McpPrincipal) {
             "Calendar: the date property that places rows on days. Timeline: the date (or created_time / last_edited_time) property where bars start. Defaults to the first date property.",
           ),
         ...viewLayoutInputs,
+        ...formInputs,
         filters: filtersInput.optional(),
         filter_combinator: filterCombinatorInput,
         sorts: sortsInput.optional(),
@@ -1339,18 +1493,27 @@ export function createMcpServer(principal: McpPrincipal) {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, name, type, filters, filter_combinator, sorts, ...settings }) =>
+    ({ database_id, name, type, filters, filter_combinator, sorts, ...input }) =>
       runTool(async () => {
         assertWrite();
         const { database, properties } = await databases.getDatabase(userId, database_id);
         if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
         const lookups = await databases.getLookups(userId, properties);
+        const { questions, form_title, form_description, confirmation_message, allow_another, defaults, ...settings } = input;
+        const formInput: FormInput = { questions, form_title, form_description, confirmation_message, allow_another, defaults };
+        const { public: isPublic, anonymous, ...layout } = settings;
+        const linkInput: FormInput = { public: isPublic, anonymous };
         // Validate before creating so a bad filter does not leave a half-configured view behind.
-        const patch = viewConfigPatch(properties, type, { ...settings, filters, filter_combinator, sorts }, lookups);
+        const patch = viewConfigPatch(properties, type, { ...layout, filters, filter_combinator, sorts }, lookups);
+        formConfigPatch(properties, type, {}, { ...formInput, ...linkInput });
         const created = await databases.addView(userId, database_id, { name, type });
-        const config = { ...created.config, ...patch };
-        if (Object.keys(patch).length) await databases.updateView(userId, created.id, { config });
-        return viewOutput(database, properties, { ...created, config }, lookups);
+        let config = { ...created.config, ...patch, ...formConfigPatch(properties, type, created.config, formInput) };
+        if (Object.keys(patch).length || config.form !== created.config.form) {
+          // Stored form defaults hold ids where the caller gave names.
+          config = (await databases.updateView(userId, created.id, { config }))?.config ?? config;
+        }
+        const link = type === "form" ? await applyFormLink(userId, created.id, linkInput) : null;
+        return { ...viewOutput(database, properties, { ...created, config }, lookups), ...formLinkOutput(type, link) };
       }),
   );
 
@@ -1359,7 +1522,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Update a database view",
       description:
-        "Rename a saved view or change its filters, sorts, grouping (boards and tables, see create_database_view) or timeline swimlanes, calendar or timeline dates, timeline zoom and table, or gallery cards (view ids from get_database). filters and sorts replace the view's current ones (filters with filter_combinator, \"and\" unless given); pass an empty array to clear them. filter_combinator alone switches how the current filters combine. Settings you leave out keep their values.",
+        "Rename a saved view or change its filters, sorts, grouping (boards and tables, see create_database_view) or timeline swimlanes, calendar or timeline dates, timeline zoom and table, gallery cards, or a form's questions, texts, default values and public link (view ids from get_database). filters and sorts replace the view's current ones (filters with filter_combinator, \"and\" unless given); pass an empty array to clear them. filter_combinator alone switches how the current filters combine. Settings you leave out keep their values.",
       inputSchema: z.object({
         database_id: id("database"),
         view_id: id("view"),
@@ -1375,6 +1538,7 @@ export function createMcpServer(principal: McpPrincipal) {
           .optional()
           .describe("Calendar: the date property that places rows on days. Timeline: the property where bars start."),
         ...viewLayoutInputs,
+        ...formInputs,
         filters: filtersInput.optional(),
         filter_combinator: filterCombinatorInput,
         sorts: sortsInput.optional(),
@@ -1382,23 +1546,42 @@ export function createMcpServer(principal: McpPrincipal) {
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ database_id, view_id, name, filters, filter_combinator, sorts, ...settings }) =>
+    ({ database_id, view_id, name, filters, filter_combinator, sorts, ...input }) =>
       runTool(async () => {
         assertWrite();
         const { database, properties, views } = await databases.getDatabase(userId, database_id);
         const view = views.find((v) => v.id === view_id);
         if (!view) throw new ToolInputError(`No view with id "${view_id}" in this database. Call get_database for view ids.`);
         const lookups = await databases.getLookups(userId, properties);
-        const patch = viewConfigPatch(properties, view.type, { ...settings, filters, filter_combinator, sorts }, lookups, view.config);
-        if (name === undefined && !Object.keys(patch).length) {
+        const { questions, form_title, form_description, confirmation_message, allow_another, defaults, ...settings } = input;
+        const formInput: FormInput = { questions, form_title, form_description, confirmation_message, allow_another, defaults };
+        const { public: isPublic, anonymous, ...layout } = settings;
+        const linkInput: FormInput = { public: isPublic, anonymous };
+        formConfigPatch(properties, view.type, view.config, linkInput);
+        const patch = {
+          ...viewConfigPatch(properties, view.type, { ...layout, filters, filter_combinator, sorts }, lookups, view.config),
+          ...formConfigPatch(properties, view.type, view.config, formInput),
+        };
+        const linkChange = isPublic !== undefined || anonymous !== undefined;
+        if (name === undefined && !Object.keys(patch).length && !linkChange) {
           throw new ToolInputError("Nothing to change: provide name, a view setting, filters, filter_combinator or sorts.");
         }
-        const config = { ...view.config, ...patch };
-        await databases.updateView(userId, view_id, {
-          ...(name !== undefined ? { name } : {}),
-          ...(Object.keys(patch).length ? { config } : {}),
-        });
-        return viewOutput(database, properties, { ...view, name: name?.trim() || view.name, config }, lookups);
+        let config = { ...view.config, ...patch };
+        if (name !== undefined || Object.keys(patch).length) {
+          const stored = await databases.updateView(userId, view_id, {
+            ...(name !== undefined ? { name } : {}),
+            ...(Object.keys(patch).length ? { config } : {}),
+          });
+          config = stored?.config ?? config;
+        }
+        const link =
+          view.type !== "form"
+            ? null
+            : linkChange
+              ? await applyFormLink(userId, view_id, linkInput)
+              : ((await forms.formPublicationsOf([view_id])).get(view_id) ?? null);
+        const saved = { ...view, name: name?.trim() || view.name, config };
+        return { ...viewOutput(database, properties, saved, lookups), ...formLinkOutput(view.type, link) };
       }),
   );
 

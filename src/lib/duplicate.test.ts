@@ -283,4 +283,35 @@ describe("remapViewConfig", () => {
       hiddenGroups: ["o2"],
     });
   });
+
+  it("maps a form's questions and default values to the copied properties and rows", () => {
+    const ids = new Map([
+      ["email", "email2"],
+      ["status", "status2"],
+      ["link", "link2"],
+    ]);
+    const rows = new Map([["r1", "r1copy"]]);
+    const rowIdsFor = (id: string) => (id === "link" ? rows : null);
+    expect(
+      remapViewConfig(
+        {
+          form: {
+            title: "Sign up",
+            questions: [{ propertyId: "title", required: true }, { propertyId: "email", label: "Your email" }],
+            defaults: { status: "o1", link: ["r1", "outside"] },
+            allowAnother: false,
+          },
+        },
+        ids,
+        rowIdsFor,
+      ),
+    ).toEqual({
+      form: {
+        title: "Sign up",
+        questions: [{ propertyId: "title", required: true }, { propertyId: "email2", label: "Your email" }],
+        defaults: { status2: "o1", link2: ["r1copy"] },
+        allowAnother: false,
+      },
+    });
+  });
 });

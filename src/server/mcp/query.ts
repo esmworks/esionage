@@ -21,6 +21,7 @@ import {
   RELATIVE_DATE_RANGES,
   rangeNeedsDays,
 } from "@/lib/filters";
+import { formDefaults, formQuestions, isPublicAskable } from "@/lib/forms";
 import { groupDateByOf, type GroupContext, type GroupValue } from "@/lib/grouping";
 import { pageLabel } from "@/lib/labels";
 import {
@@ -334,6 +335,28 @@ export function describeViewConfig(props: PropertyDef[], config: ViewConfig, loo
     ...(config.sorts?.length
       ? { sorts: config.sorts.map((s) => ({ property: keyName(props, s.propertyId), direction: s.direction })) }
       : {}),
+    ...(config.form ? { form: describeForm(props, config.form, lookups) } : {}),
+  };
+}
+
+/** A form view's questions (skipping ones about deleted properties), texts and default values, by name. */
+function describeForm(props: PropertyDef[], form: NonNullable<ViewConfig["form"]>, lookups: Lookups) {
+  const defaults = formDefaults(form, props);
+  return {
+    ...(form.title ? { title: form.title } : {}),
+    ...(form.description ? { description: form.description } : {}),
+    questions: formQuestions(form, props).map((q) => ({
+      property: q.prop?.name ?? "title",
+      ...(q.required ? { required: true } : {}),
+      ...(q.label ? { label: q.label } : {}),
+      ...(q.description ? { description: q.description } : {}),
+      ...(q.prop && !isPublicAskable(q.prop.type) ? { public: false } : {}),
+    })),
+    ...(Object.keys(defaults).length
+      ? { defaults: displayProperties(props.filter((p) => p.id in defaults), defaults, lookups) }
+      : {}),
+    ...(form.confirmation ? { confirmation_message: form.confirmation } : {}),
+    ...(form.allowAnother === false ? { allow_another: false } : {}),
   };
 }
 

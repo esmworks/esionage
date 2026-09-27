@@ -10,12 +10,14 @@ import { LeaveWorkspaceRow } from "@/components/settings/leave-workspace";
 import { McpInstructions } from "@/components/settings/mcp-instructions";
 import { MembersPanel } from "@/components/settings/members-panel";
 import { NotificationSettings } from "@/components/settings/notification-settings";
+import { PublicForms } from "@/components/settings/public-forms";
 import { PublishedPages } from "@/components/settings/published-pages";
 import { GuestInviteSetting, GuestPrivatePagesSetting, PublishingSetting } from "@/components/settings/security-settings";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
 import { AccessError, isGuest } from "@/server/access";
+import { listWorkspaceFormPublications } from "@/server/forms";
 import { mailStatus } from "@/server/mail";
 import { getNotificationPreferences } from "@/server/notification-preferences";
 import { listWorkspacePublications } from "@/server/publication";
@@ -137,9 +139,10 @@ export default async function SettingsPage({
 }
 
 async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
-  const [settings, publications, t] = await Promise.all([
+  const [settings, publications, forms, t] = await Promise.all([
     getWorkspaceSettings(userId, workspaceId),
     isOwner ? listWorkspacePublications(userId, workspaceId) : null,
+    isOwner ? listWorkspaceFormPublications(userId, workspaceId) : null,
     getTranslations("settings"),
   ]);
   return (
@@ -157,6 +160,11 @@ async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: stri
       {publications && (
         <SettingsGroup title={t("security.publications.title")} description={t("security.publications.description")}>
           <PublishedPages workspaceId={workspaceId} publications={publications} />
+        </SettingsGroup>
+      )}
+      {forms && (
+        <SettingsGroup title={t("security.forms.title")} description={t("security.forms.description")}>
+          <PublicForms workspaceId={workspaceId} forms={forms} />
         </SettingsGroup>
       )}
     </div>

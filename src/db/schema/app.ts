@@ -199,7 +199,7 @@ export const databaseProperty = pgTable(
   (t) => [index("database_property_db_idx").on(t.databaseId)],
 );
 
-export type ViewType = "table" | "board" | "calendar" | "gallery" | "list" | "timeline" | "chart";
+export type ViewType = "table" | "board" | "calendar" | "gallery" | "list" | "timeline" | "chart" | "form";
 /** Grouping by a date: one group per day, week (Monday to Sunday), month or year. */
 export type GroupDateBy = "day" | "week" | "month" | "year";
 export type GroupStatusBy = "option" | "group";
@@ -228,6 +228,36 @@ export type ChartType = "bar" | "horizontal_bar" | "line" | "donut";
 export type ChartSort = "group" | "value_desc" | "value_asc";
 /** What a chart measures per group instead of counting rows: a calculation over one property. */
 export type ChartAggregate = { fn: AggregateFn; propertyId: string };
+/** One question of a form view: a property (or "title", the row's name) the form asks for. */
+export type FormQuestion = {
+  propertyId: string;
+  /** Submitting needs an answer; for a checkbox, a tick. */
+  required?: boolean;
+  /** Shown instead of the property's name. */
+  label?: string;
+  /** Help text under the question. */
+  description?: string;
+};
+/**
+ * A form view: the questions it asks, in order, and what happens to the row it creates. Whether
+ * it is open to people outside the workspace lives in `form_publication`, not here, so editing a
+ * view (or copying a database) never turns a public link on.
+ */
+export type FormConfig = {
+  /** Heading of the form; the database's title when missing. */
+  title?: string;
+  description?: string;
+  questions?: FormQuestion[];
+  /**
+   * Values every row from the form gets for properties it doesn't ask (Status = New), stored like
+   * row values (option, user and row ids).
+   */
+  defaults?: Record<string, unknown>;
+  /** Shown after submitting; a generic thank-you when missing. */
+  confirmation?: string;
+  /** Whether the thank-you screen offers to fill the form in again; true when missing. */
+  allowAnother?: boolean;
+};
 export type ViewConfig = {
   /** Boards: the column property. Timelines: optional swimlanes (none when missing). Charts: the bars, points or slices. */
   groupBy?: string;
@@ -277,6 +307,8 @@ export type ViewConfig = {
   collapsedGroups?: string[];
   /** Table views: the footer calculation per column, keyed by property id or "title". */
   calculations?: Record<string, AggregateFn>;
+  /** Form views: questions, texts and default values. */
+  form?: FormConfig;
 };
 
 export const databaseView = pgTable(

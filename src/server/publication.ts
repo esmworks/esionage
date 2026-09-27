@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { databaseProperty, databaseView, page, pagePublication, user, type PageKind, type ViewConfig, type ViewType } from "@/db/schema";
 import { withFormulaTypes } from "@/lib/derived";
@@ -372,10 +372,11 @@ async function publishedDatabase(publisher: string, databaseId: string, linked: 
     databaseProperties(databaseId),
     linked
       ? Promise.resolve([])
-      : db
+      : // A form shows no rows, so the page shows the first view that does.
+        db
           .select()
           .from(databaseView)
-          .where(eq(databaseView.databaseId, databaseId))
+          .where(and(eq(databaseView.databaseId, databaseId), ne(databaseView.type, "form")))
           .orderBy(asc(databaseView.position), asc(databaseView.createdAt))
           .limit(1),
     db

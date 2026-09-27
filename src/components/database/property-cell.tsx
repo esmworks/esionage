@@ -307,7 +307,7 @@ function ChecklistDisplay({ value, wrap }: { value: unknown; wrap?: boolean }) {
   );
 }
 
-function CheckboxBox({ checked }: { checked: boolean }) {
+export function CheckboxBox({ checked }: { checked: boolean }) {
   return (
     <span
       className={cn(
@@ -510,7 +510,7 @@ function decimalSeparator(locale: string) {
 }
 
 /** Parses editor input into a storable value; returns undefined when it is invalid. */
-export function parseInput(prop: Property, raw: string, locale?: string): unknown {
+export function parseInput(prop: Pick<Property, "type">, raw: string, locale?: string): unknown {
   const s = raw.trim();
   if (!s) return null;
   if (prop.type === "number") return parseNumber(s, locale);

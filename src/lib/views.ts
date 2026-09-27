@@ -1,8 +1,9 @@
 import type { CardSize, ChartSort, ChartType, TimelineZoom, ViewConfig, ViewCover, ViewType } from "@/db/schema/app";
 import { CHART_SORTS, CHART_TYPES, isChartAggregateFn } from "./chart";
+import { formConfigError } from "./forms";
 
 /** Every kind of database view, in the order the "Add a view" menu lists them. */
-export const VIEW_TYPES = ["table", "board", "calendar", "gallery", "list", "timeline", "chart"] as const satisfies readonly ViewType[];
+export const VIEW_TYPES = ["table", "board", "calendar", "gallery", "list", "timeline", "chart", "form"] as const satisfies readonly ViewType[];
 export const CARD_SIZES = ["small", "medium", "large"] as const satisfies readonly CardSize[];
 export const COVER_SOURCES = ["first_image", "none"] as const satisfies readonly ViewCover["source"][];
 export const TIMELINE_ZOOMS = ["day", "week", "month"] as const satisfies readonly TimelineZoom[];
@@ -20,6 +21,7 @@ export const DEFAULT_VIEW_NAMES: Record<ViewType, string> = {
   list: "List",
   timeline: "Timeline",
   chart: "Chart",
+  form: "Form",
 };
 
 export function galleryCover(config: Pick<ViewConfig, "cover">): ViewCover["source"] {
@@ -71,5 +73,5 @@ export function layoutConfigError(config: ViewConfig): string | null {
       return `${key} must be a list of group keys`;
     }
   }
-  return null;
+  return formConfigError(c.form);
 }

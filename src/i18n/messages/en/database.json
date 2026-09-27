@@ -28,7 +28,8 @@
     "gallery": "Gallery",
     "list": "List",
     "timeline": "Timeline",
-    "chart": "Chart"
+    "chart": "Chart",
+    "form": "Form"
   },
   "colors": {
     "gray": "Gray",

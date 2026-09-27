@@ -168,7 +168,7 @@
     "publishingHeading": "Yayınlama",
     "publishing": {
       "title": "Kimler web'de yayınlayabilir",
-      "description": "Yayınlanan sayfaları bağlantıya sahip herkes oturum açmadan okuyabilir. Misafirler hiçbir zaman yayınlayamaz. Yayındaki sayfalar biri yayından kaldırana kadar yayında kalır.",
+      "description": "Yayınlanan sayfaları bağlantıya sahip herkes okuyabilir, herkese açık formları da doldurabilir. Misafirler hiçbir zaman yayınlayamaz. Web'deki sayfalar ve formlar biri kapatana kadar yayında kalır.",
       "owners": "Yalnızca sahipler",
       "members": "Sahipler ve üyeler"
     },
@@ -183,6 +183,20 @@
       "open": "Siteyi aç",
       "unpublish": "Yayından kaldır",
       "confirm": "Bu sayfa yayından kaldırılsın mı? Bağlantı herkes için çalışmayı bırakır."
+    },
+    "forms": {
+      "title": "Herkese açık formlar",
+      "description": "Bu çalışma alanının web'den yanıt kabul eden tüm formları. Sahipler herhangi birini kapatabilir.",
+      "empty": "Web'den yanıt kabul eden form yok.",
+      "privateForm": "Erişiminiz olmayan bir form",
+      "name": "{database} içinde {view}",
+      "inTrash": "Çöp kutusunda",
+      "anonymous": "Anonim yanıtlar",
+      "publishedBy": "{name} açtı · {date}",
+      "publishedOn": "{date} tarihinde açıldı",
+      "open": "Formu aç",
+      "turnOff": "Kapat",
+      "confirm": "Bu formun herkese açık bağlantısı kapatılsın mı? Bağlantı herkes için çalışmayı bırakır."
     },
     "ownersOnly": "Bunu yalnızca sahipler değiştirebilir."
   },

@@ -7,6 +7,7 @@ import {
   ChartGantt,
   CircleChevronDown,
   CircleDotDashed,
+  ClipboardList,
   Combine,
   Clock,
   Hash,
@@ -69,6 +70,7 @@ const VIEW_ICONS = {
   list: LayoutList,
   timeline: ChartGantt,
   chart: ChartColumnBig,
+  form: ClipboardList,
 } as const satisfies Record<ViewType, LucideIcon>;
 
 export function ViewIcon({ type, className }: { type: ViewType; className?: string }) {

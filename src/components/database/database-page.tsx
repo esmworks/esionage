@@ -12,6 +12,7 @@ import { galleryCover } from "@/lib/views";
 import { BoardView } from "./board-view";
 import { CalendarView } from "./calendar-view";
 import { ChartView } from "./chart-view";
+import { FormToolbar, FormView } from "./form-view";
 import { GalleryView } from "./gallery-view";
 import { ListView } from "./list-view";
 import { PeopleProvider, type PeopleContextValue } from "./person-cell";
@@ -62,6 +63,8 @@ export function DatabasePage({
   const searchParams = useSearchParams();
   const viewParam = embedded ? null : searchParams.get("view");
   const [selectedViewId, setSelectedViewId] = useState<string | null>(viewParam);
+  // Form views: editors switch between building the form and filling it in.
+  const [formPreview, setFormPreview] = useState(false);
   // Sidebar view links change only the query string, so the page stays mounted: follow the URL.
   useEffect(() => {
     if (viewParam) setSelectedViewId(viewParam);
@@ -245,7 +248,20 @@ export function DatabasePage({
                     await api.deleteView(v.id);
                   }}
                 />
-                {view && (
+                {view?.type === "form" && (
+                  <div className="flex shrink-0 items-center gap-1 self-end md:pb-1.5">
+                    <FormToolbar
+                      view={view}
+                      properties={snapshot.properties}
+                      workspaceId={workspaceId}
+                      databaseId={databaseId}
+                      editable={!readOnly}
+                      preview={formPreview}
+                      onPreview={setFormPreview}
+                    />
+                  </div>
+                )}
+                {view && view.type !== "form" && (
                   <div className="flex shrink-0 items-center gap-1 self-end md:pb-1.5">
                     <ViewToolbar
                       view={view}
@@ -292,7 +308,7 @@ export function DatabasePage({
                 </div>
               )}
 
-              {view && (
+              {view && view.type !== "form" && (
                 <ActiveRulesBar
                   view={view}
                   properties={snapshot.properties}
@@ -315,6 +331,17 @@ export function DatabasePage({
                     </div>
                   )}
                 </div>
+              ) : view.type === "form" ? (
+                <FormView
+                  key={view.id}
+                  view={view}
+                  properties={snapshot.properties}
+                  databaseTitle={snapshot.database.title}
+                  api={api}
+                  editable={!readOnly}
+                  archived={snapshot.database.archived}
+                  preview={formPreview}
+                />
               ) : view.type === "board" ? (
                 <BoardView
                   workspaceId={workspaceId}

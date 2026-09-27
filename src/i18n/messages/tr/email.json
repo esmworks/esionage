@@ -31,6 +31,7 @@
     "body": "{actor}, sizi {database} içinde “{property}” alanına ekledi.",
     "action": "Aç",
     "untitled": "Adsız",
+    "someone": "Biri",
     "optOut": "Bu e-postaları Ayarlar > Tercihler bölümünden kapatabilirsiniz."
   },
   "share": {
