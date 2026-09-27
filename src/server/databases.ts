@@ -5,6 +5,7 @@ import {
   databaseView,
   page,
   PROPERTY_TYPES,
+  user,
   type PropertyOptions,
   type PropertyType,
   type RelationConfig,
@@ -12,6 +13,7 @@ import {
   type ViewConfig,
   type ViewType,
 } from "@/db/schema";
+import { PERSON_ME } from "@/lib/property-types";
 import {
   applyView,
   normalizeValue,
@@ -19,8 +21,17 @@ import {
   SELECT_COLORS,
   type DatabaseErrorCode,
 } from "@/lib/properties";
-import { AccessError, pageVisibleTo, requireMembership, requirePageAccess, type RequiredLevel } from "@/server/access";
+import {
+  AccessError,
+  getMembership,
+  isGuest,
+  pageVisibleTo,
+  requireMembership,
+  requirePageAccess,
+  type RequiredLevel,
+} from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
+import { workspacePeople, type WorkspacePerson } from "@/server/workspaces";
 
 export type DatabaseProperty = typeof databaseProperty.$inferSelect;
 export type DatabaseView = typeof databaseView.$inferSelect;
@@ -115,7 +126,7 @@ export async function listRows(userId: string, databaseId: string, config: ViewC
       .orderBy(asc(page.position), asc(page.createdAt)),
     getProperties(databaseId),
   ]);
-  return applyView<DatabaseRow>(rows, config, properties);
+  return applyView<DatabaseRow>(rows, config, properties, { viewerId: userId });
 }
 
 /**
@@ -131,6 +142,7 @@ export async function normalizeRowProperties(
 ) {
   const props = await getProperties(databaseId);
   const out: Record<string, unknown> = {};
+  let people: Promise<WorkspacePerson[]> | undefined;
   for (const [key, value] of Object.entries(input)) {
     const prop = props.find((p) => p.id === key) ?? props.find((p) => p.name.toLowerCase() === key.toLowerCase());
     if (!prop) {
@@ -141,10 +153,62 @@ export async function normalizeRowProperties(
       );
     }
     const normalized = normalizeValue(prop, value);
-    out[prop.id] =
-      prop.type === "relation" && normalized
-        ? await resolveRelationValue(userId, prop, normalized as string[], asIds(existing[prop.id]))
-        : normalized;
+    if (prop.type === "relation" && normalized) {
+      out[prop.id] = await resolveRelationValue(userId, prop, normalized as string[], asIds(existing[prop.id]));
+    } else if (prop.type === "person" && normalized) {
+      people ??= workspacePeopleOf(databaseId);
+      out[prop.id] = resolvePersonValue(userId, prop, normalized as string[], asIds(existing[prop.id]), await people);
+    } else out[prop.id] = normalized;
+  }
+  return out;
+}
+
+/** Everyone in the workspace a database belongs to, guests included. */
+async function workspacePeopleOf(databaseId: string): Promise<WorkspacePerson[]> {
+  const [database] = await db.select({ workspaceId: page.workspaceId }).from(page).where(eq(page.id, databaseId));
+  return database ? workspacePeople(database.workspaceId) : [];
+}
+
+/**
+ * Maps person input to user ids of people in the workspace. Each entry is a user id, "me", or,
+ * for agents, an email or the exact name of someone in the workspace. Ids the value already
+ * holds are kept after their person left the workspace, so a former assignee never blocks
+ * editing the rest of the cell. Guests can't see who is in the workspace, so they can't look
+ * people up by email or name either.
+ */
+function resolvePersonValue(
+  userId: string,
+  prop: DatabaseProperty,
+  input: string[],
+  existing: string[],
+  people: WorkspacePerson[],
+) {
+  const actor = people.find((p) => p.id === userId);
+  const lookup = actor && actor.role !== "guest";
+  const out: string[] = [];
+  for (const value of input) {
+    let id: string | undefined;
+    if (value.toLowerCase() === PERSON_ME && actor) id = userId;
+    else if (people.some((p) => p.id === value) || existing.includes(value)) id = value;
+    else if (lookup) {
+      const needle = value.trim().toLowerCase();
+      const byEmail = people.find((p) => p.email.toLowerCase() === needle);
+      const byName = people.filter((p) => p.name.trim().toLowerCase() === needle);
+      if (!byEmail && byName.length > 1) {
+        throw new PropertyValueError(
+          `"${value}" matches ${byName.length} people in the workspace; pass an email or user id instead`,
+          "invalidPerson",
+          { property: prop.name },
+        );
+      }
+      id = byEmail?.id ?? byName[0]?.id;
+    }
+    if (!id) {
+      throw new PropertyValueError(`"${value}" is not a person in this workspace`, "invalidPerson", {
+        property: prop.name,
+      });
+    }
+    if (!out.includes(id)) out.push(id);
   }
   return out;
 }
@@ -691,6 +755,8 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
     views,
     rows,
     relations: await getRelationTargets(userId, properties),
+    people: await getPeople(userId, properties),
+    viewerId: userId,
   };
 }
 
@@ -751,6 +817,65 @@ export async function getRelationTargets(
   return out;
 }
 
+/** Someone a person property can show or hold. */
+export type PersonRef = {
+  id: string;
+  name: string;
+  /** Null when the viewer may not see it (guests only see names). */
+  email: string | null;
+  /** False once they left the workspace: still shown where assigned, no longer offered. */
+  active: boolean;
+};
+
+/**
+ * The people person properties of these properties' database can show and offer, sorted by name.
+ * Owners and members get everyone in the workspace; guests, who can't see who is in the
+ * workspace, get themselves and the people already assigned in rows or views they can see.
+ * Former members still assigned somewhere come along as inactive, so their name keeps showing.
+ */
+export async function getPeople(userId: string, properties: DatabaseProperty[]): Promise<PersonRef[]> {
+  const personProps = properties.filter((p) => p.type === "person");
+  if (!personProps.length) return [];
+  const databaseId = personProps[0].databaseId;
+  const [database] = await db.select({ workspaceId: page.workspaceId }).from(page).where(eq(page.id, databaseId));
+  const membership = database && (await getMembership(userId, database.workspaceId));
+  if (!membership) return [];
+  const [members, rows, views] = await Promise.all([
+    workspacePeopleOf(databaseId),
+    db
+      .select({ properties: page.properties })
+      .from(page)
+      .where(and(eq(page.parentId, databaseId), pageVisibleTo(userId))),
+    db.select({ config: databaseView.config }).from(databaseView).where(eq(databaseView.databaseId, databaseId)),
+  ]);
+  const referenced = new Set<string>();
+  for (const row of rows) for (const prop of personProps) for (const id of asIds(row.properties[prop.id])) referenced.add(id);
+  for (const view of views) {
+    for (const rule of view.config.filters ?? []) {
+      const person = personProps.some((p) => p.id === rule.propertyId);
+      if (person && typeof rule.value === "string" && rule.value !== PERSON_ME) referenced.add(rule.value);
+    }
+  }
+  const guest = isGuest(membership.role);
+  const out: PersonRef[] = members
+    .filter((m) => !guest || m.id === userId || referenced.has(m.id))
+    .map((m) => ({ id: m.id, name: m.name, email: guest && m.id !== userId ? null : m.email, active: true }));
+  const former = [...referenced].filter((id) => !members.some((m) => m.id === id));
+  if (former.length) {
+    const users = await db.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, former));
+    out.push(...users.map((u) => ({ id: u.id, name: u.name, email: null, active: false })));
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+}
+
+/** What MCP output needs to name linked rows and people instead of printing ids. */
+export type DatabaseLookups = { relations: Record<string, RelationTarget>; people: PersonRef[] };
+
+export async function getLookups(userId: string, properties: DatabaseProperty[]): Promise<DatabaseLookups> {
+  const [relations, people] = await Promise.all([getRelationTargets(userId, properties), getPeople(userId, properties)]);
+  return { relations, people };
+}
+
 /** Live databases of a workspace, for choosing the target of a relation. */
 export async function listWorkspaceDatabases(userId: string, workspaceId: string) {
   await requireMembership(userId, workspaceId);
@@ -774,5 +899,7 @@ export async function getRow(userId: string, rowId: string) {
     row: { id: row.id, title: row.title, properties: row.properties },
     properties,
     relations: await getRelationTargets(userId, properties),
+    people: await getPeople(userId, properties),
+    viewerId: userId,
   };
 }

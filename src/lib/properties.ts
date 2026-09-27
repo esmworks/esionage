@@ -8,6 +8,7 @@ import type {
   ViewConfig,
   ViewType,
 } from "@/db/schema/app";
+import { PERSON_ME } from "./property-types";
 
 export const SELECT_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
 
@@ -31,6 +32,7 @@ export const DATABASE_ERROR_CODES = [
   "nestedDatabase",
   "invalidRelation",
   "invalidRelationTarget",
+  "invalidPerson",
   "relationTargetReadOnly",
   "databaseLocked",
 ] as const;
@@ -115,6 +117,16 @@ export function normalizeValue(prop: PropertyDef, value: unknown): unknown {
       const raw = Array.isArray(value) ? value : [value];
       if (raw.some((v) => typeof v !== "string")) {
         throw new PropertyValueError(`"${prop.name}" takes a list of row ids`, "invalidRelation", { property: prop.name });
+      }
+      const unique = [...new Set((raw as string[]).map((v) => v.trim()).filter(Boolean))];
+      return unique.length ? unique : null;
+    }
+    case "person": {
+      // User ids (or, from MCP, emails, names or "me") — resolved and checked against the
+      // workspace's people by the server. Order is kept, duplicates dropped.
+      const raw = Array.isArray(value) ? value : [value];
+      if (raw.some((v) => typeof v !== "string")) {
+        throw new PropertyValueError(`"${prop.name}" takes a list of people`, "invalidPerson", { property: prop.name });
       }
       const unique = [...new Set((raw as string[]).map((v) => v.trim()).filter(Boolean))];
       return unique.length ? unique : null;
@@ -217,10 +229,23 @@ export function isIncompleteFilter(rule: FilterRule) {
   return filterNeedsValue(rule.op) && (rule.value === undefined || rule.value === null || rule.value === "");
 }
 
+/** Who is looking at a view: person filters on "me" match their rows. */
+export type ViewViewer = { viewerId?: string | null };
+
+/**
+ * A person rule's value with "me" swapped for the viewer's id. Without a viewer (a published
+ * page) "me" is nobody, so "contains me" matches no row.
+ */
+function resolveViewer(rule: FilterRule, prop: PropertyDef | undefined, viewerId: string | null | undefined): FilterRule {
+  if (prop?.type !== "person" || rule.value !== PERSON_ME) return rule;
+  return { ...rule, value: viewerId ?? "\u0000nobody" };
+}
+
 export function applyView<T extends RowLike>(
   rows: T[],
   { filters = [], sorts = [] }: { filters?: FilterRule[]; sorts?: SortRule[] },
   props: PropertyDef[] = [],
+  { viewerId }: ViewViewer = {},
 ): T[] {
   const byId = new Map(props.map((p) => [p.id, p]));
   // Select sorts compare option order, not option ids; checkboxes sort unchecked < checked.
@@ -239,7 +264,9 @@ export function applyView<T extends RowLike>(
     if (prop?.type === "checkbox") return v === true ? 1 : 0;
     return v;
   };
-  const active = filters.filter((rule) => !isIncompleteFilter(rule));
+  const active = filters
+    .filter((rule) => !isIncompleteFilter(rule))
+    .map((rule) => resolveViewer(rule, byId.get(rule.propertyId), viewerId));
   const filtered = rows.filter((row) => active.every((rule) => matches(row, rule, byId.get(rule.propertyId))));
   if (!sorts.length) return filtered;
   return [...filtered].sort((a, b) => {
@@ -302,6 +329,7 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
       return [{ op: "equals", label: "is" }, { op: "not_equals", label: "isNot" }, ...empty];
     case "multi_select":
     case "relation":
+    case "person":
       return [{ op: "contains", label: "contains" }, { op: "not_equals", label: "doesNotContain" }, ...empty];
     case "date":
       return [
@@ -324,7 +352,7 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
  * Done" makes the row Done, "Tags contains X" tags it X, "Done is checked" ticks it. Rules that
  * can't be satisfied by one value (not equals, before/after, empty…) are left alone.
  */
-export function defaultsFromFilters(filters: FilterRule[] = [], props: PropertyDef[] = []) {
+export function defaultsFromFilters(filters: FilterRule[] = [], props: PropertyDef[] = [], { viewerId }: ViewViewer = {}) {
   const out: Record<string, unknown> = {};
   for (const rule of filters) {
     const prop = props.find((p) => p.id === rule.propertyId);
@@ -337,6 +365,11 @@ export function defaultsFromFilters(filters: FilterRule[] = [], props: PropertyD
     if (rule.op === "equals" && ["select", "text", "number", "date"].includes(prop.type)) out[prop.id] = rule.value;
     else if (rule.op === "contains" && prop.type === "multi_select") out[prop.id] = [rule.value];
     else if (rule.op === "contains" && prop.type === "text") out[prop.id] = rule.value;
+    else if (rule.op === "contains" && prop.type === "person") {
+      // "Assignee contains me" assigns the new row to whoever creates it.
+      const person = rule.value === PERSON_ME ? viewerId : rule.value;
+      if (typeof person === "string" && person) out[prop.id] = [person];
+    }
   }
   return out;
 }
@@ -345,9 +378,9 @@ export function filterNeedsValue(op: FilterOp) {
   return op !== "is_empty" && op !== "is_not_empty";
 }
 
-/** Property types a view can sort by (relations hold row ids, which have no meaningful order). */
+/** Property types a view can sort by (relations and people hold ids, which have no meaningful order). */
 export function isSortable(type: PropertyType | "title") {
-  return type !== "relation";
+  return type !== "relation" && type !== "person";
 }
 
 /** A position strictly between two neighbours (either may be missing) for manual ordering. */

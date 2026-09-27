@@ -13,11 +13,12 @@ import {
 import { useChannel, useChannels } from "@/components/collab/use-channel";
 import type { PropertyType, SelectOption } from "@/db/schema/app";
 import { Floating, useFloating } from "./floating";
+import { PeopleProvider, type PeopleContextValue } from "./person-cell";
 import { PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
 import { AddPropertyPanel } from "./property-menu";
 import { RelationProvider, type RelationContextValue } from "./relation-context";
-import type { Property, RelationInput, RelationTarget } from "./types";
+import type { PersonRef, Property, RelationInput, RelationTarget } from "./types";
 
 type Loaded = {
   databaseTitle: string;
@@ -26,6 +27,8 @@ type Loaded = {
   properties: Property[];
   values: Record<string, unknown>;
   relations: Record<string, RelationTarget>;
+  people: PersonRef[];
+  viewerId: string;
 };
 
 /** Editable property list shown above a database row's page body. */
@@ -71,6 +74,8 @@ export function RowProperties({
         properties: res.data.properties,
         values: res.data.row.properties,
         relations: res.data.relations,
+        people: res.data.people,
+        viewerId: res.data.viewerId,
       });
     }
     else setError(res.error);
@@ -161,6 +166,10 @@ export function RowProperties({
       },
     [data, workspaceId, databaseId, createRelatedRow],
   );
+  const peopleContext = useMemo<PeopleContextValue>(
+    () => ({ viewerId: data?.viewerId ?? null, people: data?.people ?? [] }),
+    [data?.viewerId, data?.people],
+  );
 
   if (!data) {
     return error ? (
@@ -174,34 +183,36 @@ export function RowProperties({
 
   return (
     <RelationProvider value={relationContext}>
-      <div className="mb-6 border-b border-border pb-4">
-        <div className="flex flex-col gap-0.5">
-          {data.properties.map((p) => (
-            <div key={p.id} className="flex min-h-[30px] items-start gap-2">
-              <div className="flex h-[30px] w-40 shrink-0 items-center gap-1.5 px-1 text-sm text-fg-muted">
-                <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate" title={p.name}>
-                  {p.name}
-                </span>
+      <PeopleProvider value={peopleContext}>
+        <div className="mb-6 border-b border-border pb-4">
+          <div className="flex flex-col gap-0.5">
+            {data.properties.map((p) => (
+              <div key={p.id} className="flex min-h-[30px] items-start gap-2">
+                <div className="flex h-[30px] w-40 shrink-0 items-center gap-1.5 px-1 text-sm text-fg-muted">
+                  <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate" title={p.name}>
+                    {p.name}
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <PropertyCell
+                    variant="panel"
+                    wrap
+                    prop={p}
+                    value={valueOf(p.id)}
+                    readOnly={readOnly}
+                    onChange={(v) => void setValue(p.id, v)}
+                    onCreateOption={createOption}
+                  />
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <PropertyCell
-                  variant="panel"
-                  wrap
-                  prop={p}
-                  value={valueOf(p.id)}
-                  readOnly={readOnly}
-                  onChange={(v) => void setValue(p.id, v)}
-                  onCreateOption={createOption}
-                />
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
+          {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">{t("noProperties")}</p>}
+          {!readOnly && !data.locked && <AddPropertyRow onCreate={addProperty} />}
+          {error && <p className="mt-2 px-1 text-xs text-danger">{error}</p>}
         </div>
-        {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">{t("noProperties")}</p>}
-        {!readOnly && !data.locked && <AddPropertyRow onCreate={addProperty} />}
-        {error && <p className="mt-2 px-1 text-xs text-danger">{error}</p>}
-      </div>
+      </PeopleProvider>
     </RelationProvider>
   );
 }

@@ -46,7 +46,7 @@ const databases = vi.hoisted(() => ({
   deleteProperty: vi.fn(),
   addView: vi.fn(),
   updateView: vi.fn(),
-  getRelationTargets: vi.fn(async () => ({})),
+  getLookups: vi.fn(async () => ({ relations: {}, people: [] })),
   makeOption: vi.fn((name: string, index: number) => ({ id: `opt-new-${index}`, name: name.trim(), color: "gray" })),
 }));
 vi.mock("@/server/databases", () => databases);

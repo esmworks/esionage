@@ -1,6 +1,7 @@
 import type { FilterOp, FilterRule, PropertyOptions, PropertyType, SortRule, ViewConfig } from "@/db/schema/app";
 import { pageLabel } from "@/lib/labels";
 import { CREATED_KEY, displayValue, isSortable, PropertyValueError, TITLE_KEY, UPDATED_KEY } from "@/lib/properties";
+import { PERSON_ME } from "@/lib/property-types";
 
 export type PropertyDef = { id: string; name: string; type: PropertyType; options: PropertyOptions };
 
@@ -9,6 +10,14 @@ export type RelationTargets = Record<
   string,
   { database: { id: string; title: string } | null; pairedName?: string | null; rows: { id: string; title: string }[] }
 >;
+
+/** People person properties can show and hold (see databases.getPeople). */
+export type PersonLookup = { id: string; name: string; email: string | null; active?: boolean };
+
+/** Everything needed to show linked rows and people by name (see databases.getLookups). */
+export type Lookups = { relations: RelationTargets; people: PersonLookup[] };
+
+const NO_LOOKUPS: Lookups = { relations: {}, people: [] };
 
 /** A related row by id or (case-insensitive, unique) title. */
 function relatedRowId(prop: PropertyDef, targets: RelationTargets, value: unknown): string {
@@ -23,6 +32,28 @@ function relatedRowId(prop: PropertyDef, targets: RelationTargets, value: unknow
       ? `"${raw}" matches ${matches.length} rows related to "${prop.name}"; use a row id`
       : `"${raw}" is not a row of the database related to "${prop.name}"`,
   );
+}
+
+/**
+ * A person filter value: "me" stays "me" (it means whoever looks at the view), anything else is a
+ * user id, email or (unique, case-insensitive) name of someone the caller can see.
+ */
+function personId(prop: PropertyDef, people: PersonLookup[], value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (raw.toLowerCase() === PERSON_ME) return PERSON_ME;
+  const needle = raw.toLowerCase();
+  const found =
+    people.find((p) => p.id === raw) ??
+    people.find((p) => p.email?.toLowerCase() === needle) ??
+    (() => {
+      const byName = people.filter((p) => p.name.trim().toLowerCase() === needle);
+      if (byName.length > 1) {
+        throw new PropertyValueError(`"${raw}" matches ${byName.length} people for "${prop.name}"; use an email or user id`);
+      }
+      return byName[0];
+    })();
+  if (!found) throw new PropertyValueError(`"${raw}" is not a person in this workspace (filter on "${prop.name}")`);
+  return found.id;
 }
 
 export const FILTER_OPS = ["contains", "equals", "not_equals", "is_empty", "is_not_empty", "gt", "lt"] as const satisfies readonly FilterOp[];
@@ -67,7 +98,7 @@ export type FilterInput = { property: string; op: FilterOp; value?: unknown };
 export type SortInput = { property: string; direction?: "asc" | "desc" };
 
 /** Converts an agent-facing filter (names, option names) to a stored FilterRule (ids). */
-export function toFilterRule(props: PropertyDef[], input: FilterInput, targets: RelationTargets = {}): FilterRule {
+export function toFilterRule(props: PropertyDef[], input: FilterInput, lookups: Lookups = NO_LOOKUPS): FilterRule {
   const { key, prop } = resolvePropertyKey(props, input.property);
   if (!VALUE_OPS.has(input.op)) return { propertyId: key, op: input.op };
   if (input.value === undefined || input.value === null || input.value === "") {
@@ -80,7 +111,14 @@ export function toFilterRule(props: PropertyDef[], input: FilterInput, targets: 
         `Relation "${prop.name}" supports contains, not_equals (does not contain), is_empty and is_not_empty`,
       );
     }
-    value = relatedRowId(prop, targets, value);
+    value = relatedRowId(prop, lookups.relations, value);
+  } else if (prop?.type === "person") {
+    if (input.op !== "contains" && input.op !== "not_equals") {
+      throw new PropertyValueError(
+        `Person "${prop.name}" supports contains, not_equals (does not contain), is_empty and is_not_empty`,
+      );
+    }
+    value = personId(prop, lookups.people, value);
   } else if (prop?.type === "select" || prop?.type === "multi_select") {
     if (input.op === "gt" || input.op === "lt") {
       throw new PropertyValueError(`"${input.op}" is not supported on select property "${prop.name}"`);
@@ -99,19 +137,25 @@ export function toFilterRule(props: PropertyDef[], input: FilterInput, targets: 
 
 export function toSortRule(props: PropertyDef[], input: SortInput): SortRule {
   const { key, prop } = resolvePropertyKey(props, input.property);
-  if (prop && !isSortable(prop.type)) throw new PropertyValueError(`Relation "${prop.name}" can't be sorted`);
+  if (prop && !isSortable(prop.type)) {
+    throw new PropertyValueError(`${prop.type === "person" ? "Person" : "Relation"} "${prop.name}" can't be sorted`);
+  }
   return { propertyId: key, direction: input.direction ?? "asc" };
 }
 
 /**
- * Row values keyed by property name with option names instead of ids and related rows as
- * `{id, title}`. Empty values are omitted.
+ * Row values keyed by property name with option names instead of ids, related rows as
+ * `{id, title}` and people as `{id, name}`. Empty values are omitted.
  */
-export function displayProperties(props: PropertyDef[], values: Record<string, unknown>, targets: RelationTargets = {}) {
+export function displayProperties(props: PropertyDef[], values: Record<string, unknown>, lookups: Lookups = NO_LOOKUPS) {
   const out: Record<string, unknown> = {};
   for (const prop of props) {
     const value =
-      prop.type === "relation" ? relatedRows(prop, targets, values[prop.id]) : displayValue(prop, values[prop.id]);
+      prop.type === "relation"
+        ? relatedRows(prop, lookups.relations, values[prop.id])
+        : prop.type === "person"
+          ? assignedPeople(lookups.people, values[prop.id])
+          : displayValue(prop, values[prop.id]);
     if (value === null || value === undefined || (Array.isArray(value) && value.length === 0)) continue;
     out[prop.name] = value;
   }
@@ -127,16 +171,27 @@ function relatedRows(prop: PropertyDef, targets: RelationTargets, value: unknown
   });
 }
 
+/** People of a person value the caller can see; ids of unknown people are left out. */
+function assignedPeople(people: PersonLookup[], value: unknown) {
+  if (!Array.isArray(value)) return null;
+  const byId = new Map(people.map((p) => [p.id, p]));
+  return value.flatMap((id) => {
+    const person = byId.get(id);
+    return person ? [{ id: person.id, name: person.name }] : [];
+  });
+}
+
 function keyName(props: PropertyDef[], key: string) {
   return props.find((p) => p.id === key)?.name ?? key;
 }
 
 /** A view's stored config with property and option names, for get_database output. */
-export function describeViewConfig(props: PropertyDef[], config: ViewConfig, targets: RelationTargets = {}) {
+export function describeViewConfig(props: PropertyDef[], config: ViewConfig, lookups: Lookups = NO_LOOKUPS) {
   const byId = new Map(props.map((p) => [p.id, p]));
   const filterValue = (prop: PropertyDef, value: unknown) => {
+    if (prop.type === "person") return lookups.people.find((p) => p.id === value)?.name ?? value;
     if (prop.type !== "relation") return displayValue(prop, value) ?? value;
-    const row = targets[prop.id]?.rows.find((r) => r.id === value);
+    const row = lookups.relations[prop.id]?.rows.find((r) => r.id === value);
     return row ? pageLabel(row.title) : value;
   };
   return {
@@ -157,9 +212,9 @@ export function describeViewConfig(props: PropertyDef[], config: ViewConfig, tar
   };
 }
 
-export function describeProperty(prop: PropertyDef, targets: RelationTargets = {}) {
+export function describeProperty(prop: PropertyDef, lookups: Lookups = NO_LOOKUPS) {
   const relation = prop.type === "relation" ? prop.options.relation : undefined;
-  const target = targets[prop.id];
+  const target = lookups.relations[prop.id];
   return {
     id: prop.id,
     name: prop.name,
@@ -173,6 +228,13 @@ export function describeProperty(prop: PropertyDef, targets: RelationTargets = {
           ...(target?.database ? { related_database: pageLabel(target.database.title) } : {}),
           two_way: Boolean(relation.pairedPropertyId),
           ...(target?.pairedName ? { paired_property: target.pairedName } : {}),
+        }
+      : {}),
+    ...(prop.type === "person"
+      ? {
+          people: lookups.people
+            .filter((p) => p.active !== false)
+            .map((p) => ({ id: p.id, name: p.name, ...(p.email ? { email: p.email } : {}) })),
         }
       : {}),
   };

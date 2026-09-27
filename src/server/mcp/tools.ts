@@ -18,12 +18,12 @@ import {
   toSortRule,
   type FilterInput,
   type PropertyDef,
-  type RelationTargets,
+  type Lookups,
   type SortInput,
 } from "./query";
 
 const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
-Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, date, checkbox, url, relation). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases.
+Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, date, checkbox, url, relation, person). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user.
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / restore_page_version).
 Always share the returned url with the user when you create or change something.`;
@@ -36,7 +36,7 @@ const rowValue = z.union([z.string(), z.number(), z.boolean(), z.array(z.string(
 const rowProperties = z
   .record(z.string(), rowValue)
   .describe(
-    'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an array of row ids (or exact row titles) of the related database for relation, and null to clear a value. Setting a relation replaces its links. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"]}',
+    'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an array of row ids (or exact row titles) of the related database for relation, an array of user ids, emails, names or "me" for person, and null to clear a value. Setting a relation or person replaces its values. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"], "Assignee": ["me"]}',
   );
 
 const filtersInput = z.array(
@@ -91,7 +91,7 @@ function editOptions(
 type ViewInput = { group_by?: string; date_by?: string; filters?: FilterInput[]; sorts?: SortInput[] };
 
 /** The view settings the caller asked to change, converted from names to stored ids. */
-function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput, targets: RelationTargets): ViewConfig {
+function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput, lookups: Lookups): ViewConfig {
   const patch: ViewConfig = {};
   if (input.group_by !== undefined) {
     if (type !== "board") throw new ToolInputError("group_by only applies to board views.");
@@ -105,7 +105,7 @@ function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput,
     if (prop.type !== "date") throw new ToolInputError(`Calendars place rows by a date property; "${prop.name}" is ${prop.type}.`);
     patch.dateBy = prop.id;
   }
-  if (input.filters) patch.filters = input.filters.map((f) => toFilterRule(props, f, targets));
+  if (input.filters) patch.filters = input.filters.map((f) => toFilterRule(props, f, lookups));
   if (input.sorts) patch.sorts = input.sorts.map((s) => toSortRule(props, s));
   return patch;
 }
@@ -114,14 +114,14 @@ function viewOutput(
   database: { id: string; workspaceId: string },
   props: PropertyDef[],
   view: { id: string; name: string; type: ViewType; config: ViewConfig },
-  targets: RelationTargets,
+  lookups: Lookups,
 ) {
   return {
     id: view.id,
     name: view.name,
     type: view.type,
     database_id: database.id,
-    ...describeViewConfig(props, view.config, targets),
+    ...describeViewConfig(props, view.config, lookups),
     url: pageUrl(database.workspaceId, database.id),
   };
 }
@@ -164,7 +164,7 @@ export function createMcpServer(principal: McpPrincipal) {
       id: row.id,
       title: pageLabel(row.title),
       database_id: databaseId,
-      properties: displayProperties(properties, row.properties, await databases.getRelationTargets(userId, properties)),
+      properties: displayProperties(properties, row.properties, await databases.getLookups(userId, properties)),
       url: pageUrl(database.workspaceId, row.id),
     };
   };
@@ -291,12 +291,12 @@ export function createMcpServer(principal: McpPrincipal) {
         if (parentDatabase) {
           const { properties } = await databases.getDatabase(userId, parentDatabase.id);
           out.database_id = parentDatabase.id;
-          out.properties = displayProperties(properties, page.properties, await databases.getRelationTargets(userId, properties));
+          out.properties = displayProperties(properties, page.properties, await databases.getLookups(userId, properties));
         }
         if (page.kind === "database") {
           const { properties } = await databases.getDatabase(userId, page.id);
-          const targets = await databases.getRelationTargets(userId, properties);
-          out.database_properties = properties.map((p) => describeProperty(p, targets));
+          const lookups = await databases.getLookups(userId, properties);
+          out.database_properties = properties.map((p) => describeProperty(p, lookups));
           out.note = "This is a database. Use query_database to list its rows and get_database for its full schema.";
         } else {
           out.markdown = body.text;
@@ -431,7 +431,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Get a database schema",
       description:
-        "Get a database's schema: its properties (name, type, and option names for select / multi_select), its views with their filters and sorts, and the row count. Call this before querying or writing rows.",
+        "Get a database's schema: its properties (name, type, option names for select / multi_select, and the people a person property can hold), its views with their filters and sorts, and the row count. Call this before querying or writing rows.",
       inputSchema: z.object({ database_id: id("database") }),
       annotations: READ,
     },
@@ -441,7 +441,7 @@ export function createMcpServer(principal: McpPrincipal) {
           databases.getDatabase(userId, database_id),
           databases.listRows(userId, database_id),
         ]);
-        const targets = await databases.getRelationTargets(userId, properties);
+        const lookups = await databases.getLookups(userId, properties);
         return {
           id: database.id,
           title: pageLabel(database.title),
@@ -450,9 +450,9 @@ export function createMcpServer(principal: McpPrincipal) {
           row_count: rows.length,
           properties: [
             { name: "title", type: "title", note: "Every row's title; filter and sort on it with property \"title\"." },
-            ...properties.map((p) => describeProperty(p, targets)),
+            ...properties.map((p) => describeProperty(p, lookups)),
           ],
-          views: views.map((v) => ({ id: v.id, name: v.name, type: v.type, ...describeViewConfig(properties, v.config, targets) })),
+          views: views.map((v) => ({ id: v.id, name: v.name, type: v.type, ...describeViewConfig(properties, v.config, lookups) })),
           url: pageUrl(database.workspaceId, database.id),
         };
       }),
@@ -463,7 +463,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Query database rows",
       description:
-        'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select option names as values; all filters must match. Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt. For a relation use contains / not_equals with a related row id or title. Returns property values by name; relations as [{id, title}].',
+        'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select option names as values; all filters must match. Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt. For a relation use contains / not_equals with a related row id or title; for a person, contains / not_equals with a user id, email, name or "me". Returns property values by name; relations as [{id, title}], people as [{id, name}].',
       inputSchema: z.object({
         database_id: id("database"),
         filters: filtersInput.optional(),
@@ -477,11 +477,11 @@ export function createMcpServer(principal: McpPrincipal) {
       runTool(async () => {
         const { database, properties, views } = await databases.getDatabase(userId, database_id);
         const props: PropertyDef[] = properties;
-        const targets = await databases.getRelationTargets(userId, properties);
+        const lookups = await databases.getLookups(userId, properties);
         const view = view_id ? views.find((v) => v.id === view_id) : undefined;
         if (view_id && !view) throw new ToolInputError(`No view with id "${view_id}" in this database.`);
         const rows = await databases.listRows(userId, database_id, {
-          filters: [...(view?.config.filters ?? []), ...(filters ?? []).map((f) => toFilterRule(props, f, targets))],
+          filters: [...(view?.config.filters ?? []), ...(filters ?? []).map((f) => toFilterRule(props, f, lookups))],
           sorts: sorts?.length ? sorts.map((s) => toSortRule(props, s)) : (view?.config.sorts ?? []),
         });
         return {
@@ -492,7 +492,7 @@ export function createMcpServer(principal: McpPrincipal) {
           rows: rows.slice(0, limit).map((r) => ({
             id: r.id,
             title: pageLabel(r.title),
-            properties: displayProperties(props, r.properties, targets),
+            properties: displayProperties(props, r.properties, lookups),
             url: pageUrl(database.workspaceId, r.id),
           })),
           ...(rows.length > limit ? { note: `Only the first ${limit} rows are shown; narrow the filters or raise limit.` } : {}),
@@ -684,8 +684,8 @@ export function createMcpServer(principal: McpPrincipal) {
             ? { relation: { databaseId: related_database_id!, twoWay: two_way, pairedName: paired_property_name } }
             : {}),
         });
-        const targets = await databases.getRelationTargets(userId, [created]);
-        return { database_id, property: describeProperty(created, targets) };
+        const lookups = await databases.getLookups(userId, [created]);
+        return { database_id, property: describeProperty(created, lookups) };
       }),
   );
 
@@ -736,7 +736,7 @@ export function createMcpServer(principal: McpPrincipal) {
         if (!patch.name && !patch.options) throw new ToolInputError("Nothing to change: provide name or option changes.");
         await databases.updateProperty(userId, prop.id, patch);
         const updated = { ...prop, name: patch.name ?? prop.name, options: patch.options ? { ...prop.options, options: patch.options } : prop.options };
-        return { database_id, property: describeProperty(updated, await databases.getRelationTargets(userId, [updated])) };
+        return { database_id, property: describeProperty(updated, await databases.getLookups(userId, [updated])) };
       }),
   );
 
@@ -768,7 +768,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a database view",
       description:
-        'Add a saved view to a database: a "table", a "board" (cards grouped by a select property) or a "calendar" (rows placed on the days of a date property). Filters and sorts use the same form as query_database.',
+        'Add a saved view to a database: a "table", a "board" (cards grouped by a select property) or a "calendar" (rows placed on the days of a date property). Filters and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows.',
       inputSchema: z.object({
         database_id: id("database"),
         name: z.string().min(1).max(100).describe("View name."),
@@ -786,13 +786,13 @@ export function createMcpServer(principal: McpPrincipal) {
         assertWrite();
         const { database, properties } = await databases.getDatabase(userId, database_id);
         if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
-        const targets = await databases.getRelationTargets(userId, properties);
+        const lookups = await databases.getLookups(userId, properties);
         // Validate before creating so a bad filter does not leave a half-configured view behind.
-        const patch = viewConfigPatch(properties, type, { group_by, date_by, filters, sorts }, targets);
+        const patch = viewConfigPatch(properties, type, { group_by, date_by, filters, sorts }, lookups);
         const created = await databases.addView(userId, database_id, { name, type });
         const config = { ...created.config, ...patch };
         if (Object.keys(patch).length) await databases.updateView(userId, created.id, { config });
-        return viewOutput(database, properties, { ...created, config }, targets);
+        return viewOutput(database, properties, { ...created, config }, lookups);
       }),
   );
 
@@ -820,8 +820,8 @@ export function createMcpServer(principal: McpPrincipal) {
         const { database, properties, views } = await databases.getDatabase(userId, database_id);
         const view = views.find((v) => v.id === view_id);
         if (!view) throw new ToolInputError(`No view with id "${view_id}" in this database. Call get_database for view ids.`);
-        const targets = await databases.getRelationTargets(userId, properties);
-        const patch = viewConfigPatch(properties, view.type, { group_by, date_by, filters, sorts }, targets);
+        const lookups = await databases.getLookups(userId, properties);
+        const patch = viewConfigPatch(properties, view.type, { group_by, date_by, filters, sorts }, lookups);
         if (name === undefined && !Object.keys(patch).length) {
           throw new ToolInputError("Nothing to change: provide name, group_by, date_by, filters or sorts.");
         }
@@ -830,7 +830,7 @@ export function createMcpServer(principal: McpPrincipal) {
           ...(name !== undefined ? { name } : {}),
           ...(Object.keys(patch).length ? { config } : {}),
         });
-        return viewOutput(database, properties, { ...view, name: name?.trim() || view.name, config }, targets);
+        return viewOutput(database, properties, { ...view, name: name?.trim() || view.name, config }, lookups);
       }),
   );
 

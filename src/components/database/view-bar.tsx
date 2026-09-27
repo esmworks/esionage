@@ -21,7 +21,9 @@ import { Button, cn, Input, MenuItem, MenuSeparator } from "@/components/ui";
 import type { FilterOp, FilterRule, SortRule, ViewConfig, ViewType } from "@/db/schema/app";
 import { pageLabel } from "@/lib/labels";
 import { filterNeedsValue, filterOperators, isHiddenInView, isSortable, toggleHiddenInView } from "@/lib/properties";
+import { PERSON_ME } from "@/lib/property-types";
 import { Floating, useFloating } from "./floating";
+import { usePeople } from "./person-cell";
 import { useFormatDate } from "./property-cell";
 import { PropertyTypeIcon, ViewIcon } from "./property-icons";
 import { linkedRows, useRelations } from "./relation-context";
@@ -493,7 +495,10 @@ function useDescribeFilter() {
   const formatDate = useFormatDate();
   const operatorLabel = useOperatorLabel();
   const relations = useRelations();
+  const { people } = usePeople();
   const tc = useTranslations("common");
+  const tf = useTranslations("database.filter");
+  const tp = useTranslations("database.person");
   return (f: FilterRule, columns: Column[]) => {
     const col = columns.find((c) => c.id === f.propertyId);
     if (!col) return t("unknownFilter");
@@ -507,6 +512,8 @@ function useDescribeFilter() {
     } else if (col.prop && col.type === "relation") {
       const row = linkedRows(relations?.targets[col.prop.id], [f.value])[0];
       value = row ? pageLabel(row.title, tc("untitled")) : "…";
+    } else if (col.type === "person") {
+      value = f.value === PERSON_ME ? tf("me") : (people.find((p) => p.id === f.value)?.name || tp("unknown"));
     } else if (col.type === "number" && typeof f.value === "number") {
       value = format.number(f.value, { maximumFractionDigits: 10 });
     } else if (col.type === "date" && value) {
@@ -631,6 +638,28 @@ function FilterValue({
   const t = useTranslations("database.filter");
   const tc = useTranslations("common");
   const relations = useRelations();
+  const { people, viewerId } = usePeople();
+  const tp = useTranslations("database.person");
+  if (col.type === "person") {
+    // Former members stay listed only while a filter still points at them.
+    const listed = people.filter((p) => p.active || p.id === value);
+    return (
+      <NativeSelect
+        label={t("value")}
+        value={typeof value === "string" ? value : ""}
+        onChange={(v) => onChange(v || undefined)}
+        options={[
+          { value: "", label: t("choose") },
+          { value: PERSON_ME, label: t("me") },
+          ...listed.map((p) => ({
+            value: p.id,
+            label: p.id === viewerId ? tp("you", { name: p.name }) : p.name || tp("unknown"),
+          })),
+        ]}
+        className="w-full"
+      />
+    );
+  }
   if (col.type === "relation" && col.prop) {
     const rows = relations?.targets[col.prop.id]?.rows ?? [];
     return (

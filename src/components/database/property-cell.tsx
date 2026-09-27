@@ -6,6 +6,7 @@ import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/components/ui";
 import { Floating } from "./floating";
+import { PersonChips, PersonPicker } from "./person-cell";
 import { RelationChips, RelationPicker } from "./relation-cell";
 import type { Property, SelectOption } from "./types";
 
@@ -78,7 +79,7 @@ export function useFormatNumber() {
 
 export function isEmptyValue(prop: Property, value: unknown) {
   if (value === null || value === undefined || value === "") return true;
-  if (prop.type === "relation") return !Array.isArray(value) || value.length === 0;
+  if (prop.type === "relation" || prop.type === "person") return !Array.isArray(value) || value.length === 0;
   if (Array.isArray(value)) return selectedOptions(prop, value).length === 0;
   if (prop.type === "select") return selectedOptions(prop, value).length === 0;
   if (prop.type === "checkbox") return value !== true;
@@ -113,6 +114,8 @@ export function PropertyDisplay({ prop, value, wrap }: { prop: Property; value: 
       return <CheckboxBox checked={value === true} />;
     case "relation":
       return <RelationChips prop={prop} value={value} wrap={wrap} />;
+    case "person":
+      return <PersonChips value={value} wrap={wrap} />;
     case "select":
     case "multi_select": {
       const selected = selectedOptions(prop, value);
@@ -274,6 +277,12 @@ function CellEditor({
       return (
         <Floating open anchor={anchor} onClose={onClose} className="w-auto p-0">
           <RelationPicker prop={prop} value={value} onChange={onChange} />
+        </Floating>
+      );
+    case "person":
+      return (
+        <Floating open anchor={anchor} onClose={onClose} className="w-auto p-0">
+          <PersonPicker prop={prop} value={value} onChange={onChange} />
         </Floating>
       );
     default:

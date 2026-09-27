@@ -129,6 +129,20 @@ export async function listMembers(userId: string, workspaceId: string) {
     .orderBy(asc(workspaceMember.createdAt));
 }
 
+export type WorkspacePerson = { id: string; name: string; email: string; role: WorkspaceRole };
+
+/**
+ * Everyone in a workspace, guests included, for person properties. No access check: callers
+ * decide what the user may see of it (guests only get the people already assigned).
+ */
+export async function workspacePeople(workspaceId: string): Promise<WorkspacePerson[]> {
+  return db
+    .select({ id: user.id, name: user.name, email: user.email, role: workspaceMember.role })
+    .from(workspaceMember)
+    .innerJoin(user, eq(user.id, workspaceMember.userId))
+    .where(eq(workspaceMember.workspaceId, workspaceId));
+}
+
 /** When each member last changed a page in this workspace (content, title, properties, trash). */
 export async function lastEdits(userId: string, workspaceId: string): Promise<Map<string, Date>> {
   await requireMember(userId, workspaceId);

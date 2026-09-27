@@ -317,3 +317,50 @@ describe("defaultsFromFilters", () => {
     expect(defaultsFromFilters(filters, props)).toEqual({});
   });
 });
+
+describe("person properties", () => {
+  const owner = prop("person");
+  const rows = [
+    row("a", "Mine", { p_person: ["u1"] }),
+    row("b", "Shared", { p_person: ["u2", "u1"] }),
+    row("c", "Theirs", { p_person: ["u2"] }),
+    row("d", "Nobody's"),
+  ];
+  const ids = (filters: FilterRule[], viewerId?: string | null) => applyView(rows, { filters }, [owner], { viewerId }).map((r) => r.id);
+
+  it("stores a deduplicated list of ids", () => {
+    expect(normalizeValue(owner, [" u1", "u2", "u1"])).toEqual(["u1", "u2"]);
+    expect(normalizeValue(owner, "u1")).toEqual(["u1"]);
+    expect(normalizeValue(owner, [])).toBeNull();
+    expect(() => normalizeValue(owner, [1])).toThrow(PropertyValueError);
+  });
+
+  it("filters on me as whoever looks at the view", () => {
+    const mine: FilterRule[] = [{ propertyId: "p_person", op: "contains", value: "me" }];
+    expect(ids(mine, "u1")).toEqual(["a", "b"]);
+    expect(ids(mine, "u2")).toEqual(["b", "c"]);
+    // A published page has no viewer: "me" is nobody.
+    expect(ids(mine)).toEqual([]);
+    expect(ids([{ propertyId: "p_person", op: "not_equals", value: "me" }], "u1")).toEqual(["c", "d"]);
+  });
+
+  it("filters on a given person and on emptiness", () => {
+    expect(ids([{ propertyId: "p_person", op: "contains", value: "u2" }], "u1")).toEqual(["b", "c"]);
+    expect(ids([{ propertyId: "p_person", op: "is_empty" }])).toEqual(["d"]);
+    expect(ids([{ propertyId: "p_person", op: "is_not_empty" }])).toEqual(["a", "b", "c"]);
+  });
+
+  it("offers contains / does not contain / empty filters and no sorting", () => {
+    expect(filterOperators("person").map((o) => o.op)).toEqual(["contains", "not_equals", "is_empty", "is_not_empty"]);
+    expect(isSortable("person")).toBe(false);
+  });
+
+  it("assigns new rows of a me view to their creator", () => {
+    const filters: FilterRule[] = [{ propertyId: "p_person", op: "contains", value: "me" }];
+    expect(defaultsFromFilters(filters, [owner], { viewerId: "u1" })).toEqual({ p_person: ["u1"] });
+    expect(defaultsFromFilters(filters, [owner])).toEqual({});
+    expect(
+      defaultsFromFilters([{ propertyId: "p_person", op: "contains", value: "u2" }], [owner], { viewerId: "u1" }),
+    ).toEqual({ p_person: ["u2"] });
+  });
+});

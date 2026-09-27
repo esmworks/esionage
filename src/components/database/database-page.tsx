@@ -9,6 +9,7 @@ import type { ViewConfig, ViewType } from "@/db/schema/app";
 import { applyView, defaultsFromFilters } from "@/lib/properties";
 import { BoardView } from "./board-view";
 import { CalendarView } from "./calendar-view";
+import { PeopleProvider, type PeopleContextValue } from "./person-cell";
 import { RelationProvider, type RelationContextValue } from "./relation-context";
 import { TableView } from "./table-view";
 import type { View } from "./types";
@@ -64,9 +65,17 @@ export function DatabasePage({
     [snapshot, workspaceId, databaseId, api.createRelatedRow],
   );
 
+  const peopleContext = useMemo<PeopleContextValue>(
+    () => ({ viewerId: snapshot?.viewerId ?? null, people: snapshot?.people ?? [] }),
+    [snapshot?.viewerId, snapshot?.people],
+  );
+
   // New rows get the values the active filters ask for, so they don't vanish right after creation.
   const viewApi = useMemo(() => {
-    const defaults = view && snapshot ? defaultsFromFilters(view.config.filters, snapshot.properties) : {};
+    const defaults =
+      view && snapshot
+        ? defaultsFromFilters(view.config.filters, snapshot.properties, { viewerId: snapshot.viewerId })
+        : {};
     if (!Object.keys(defaults).length) return api;
     return {
       ...api,
@@ -77,7 +86,7 @@ export function DatabasePage({
 
   const visibleRows = useMemo(() => {
     if (!view || !snapshot) return [];
-    return applyView(rows, view.config, snapshot.properties);
+    return applyView(rows, view.config, snapshot.properties, { viewerId: snapshot.viewerId });
   }, [rows, view, snapshot]);
 
   if (!snapshot) {
@@ -140,101 +149,90 @@ export function DatabasePage({
 
   return (
     <RelationProvider value={relationContext}>
-      {/* Wide layout: controls sit in the page gutter, the board scrolls edge to edge. */}
-      <div className="min-w-0">
-        <div className="page-gutter">
-          <div className="flex items-end justify-between gap-2 border-b border-border">
-            <ViewTabs
-              views={views}
-              activeId={view?.id ?? ""}
-              readOnly={readOnly || locked}
-              onSelect={selectView}
-              onAdd={addView}
-              onRename={(v, name) => api.updateView(v, { name })}
-              onDelete={async (v) => {
-                if (v.id === view?.id) {
-                  const next = views.find((x) => x.id !== v.id);
-                  if (next) selectView(next.id);
-                }
-                await api.deleteView(v.id);
-              }}
-            />
-            {view && (
-              <div className="flex shrink-0 items-center gap-1 pb-1.5">
-                <ViewToolbar
-                  view={view}
-                  properties={snapshot.properties}
-                  readOnly={readOnly}
-                  locked={locked}
-                  onConfig={(config) => setConfig(view, config)}
-                  onCreateGroupProperty={createGroupProperty}
-                  onCreateDateProperty={createDateProperty}
-                />
-                {!readOnly && (
-                  <Button size="sm" variant="primary" onClick={newRow} className="ml-1">
-                    <Plus className="h-3.5 w-3.5" />
-                    {t("page.new")}
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {error && (
-            <div
-              role="alert"
-              className="mt-2 flex items-center gap-2 rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-sm"
-            >
-              <TriangleAlert className="h-4 w-4 shrink-0 text-danger" />
-              <span className="flex-1">{error}</span>
-              <button
-                type="button"
-                aria-label={t("page.dismiss")}
-                onClick={api.clearError}
-                className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-hover hover:text-fg"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
-
-          {view && (
-            <ActiveRulesBar
-              view={view}
-              properties={snapshot.properties}
-              readOnly={readOnly}
-              onConfig={(config) => setConfig(view, config)}
-            />
-          )}
-        </div>
-
-        <div className="pt-2">
-          {!view ? (
-            <div className="page-gutter py-10 text-center text-sm text-fg-muted">
-              {t("page.noViews")}
-              {!readOnly && (
-                <div className="mt-3">
-                  <Button size="sm" onClick={() => addView("table")}>
-                    <Plus className="h-3.5 w-3.5" />
-                    {t("page.addTableView")}
-                  </Button>
+      <PeopleProvider value={peopleContext}>
+        {/* Wide layout: controls sit in the page gutter, the board scrolls edge to edge. */}
+        <div className="min-w-0">
+          <div className="page-gutter">
+            <div className="flex items-end justify-between gap-2 border-b border-border">
+              <ViewTabs
+                views={views}
+                activeId={view?.id ?? ""}
+                readOnly={readOnly || locked}
+                onSelect={selectView}
+                onAdd={addView}
+                onRename={(v, name) => api.updateView(v, { name })}
+                onDelete={async (v) => {
+                  if (v.id === view?.id) {
+                    const next = views.find((x) => x.id !== v.id);
+                    if (next) selectView(next.id);
+                  }
+                  await api.deleteView(v.id);
+                }}
+              />
+              {view && (
+                <div className="flex shrink-0 items-center gap-1 pb-1.5">
+                  <ViewToolbar
+                    view={view}
+                    properties={snapshot.properties}
+                    readOnly={readOnly}
+                    locked={locked}
+                    onConfig={(config) => setConfig(view, config)}
+                    onCreateGroupProperty={createGroupProperty}
+                    onCreateDateProperty={createDateProperty}
+                  />
+                  {!readOnly && (
+                    <Button size="sm" variant="primary" onClick={newRow} className="ml-1">
+                      <Plus className="h-3.5 w-3.5" />
+                      {t("page.new")}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
-          ) : view.type === "board" ? (
-            <BoardView
-              workspaceId={workspaceId}
-              view={view}
-              properties={snapshot.properties}
-              rows={visibleRows}
-              api={viewApi}
-              readOnly={readOnly}
-              locked={locked}
-              onCreateGroupProperty={createGroupProperty}
-            />
-          ) : view.type === "calendar" ? (
-            <div className="page-gutter">
-              <CalendarView
+
+            {error && (
+              <div
+                role="alert"
+                className="mt-2 flex items-center gap-2 rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-sm"
+              >
+                <TriangleAlert className="h-4 w-4 shrink-0 text-danger" />
+                <span className="flex-1">{error}</span>
+                <button
+                  type="button"
+                  aria-label={t("page.dismiss")}
+                  onClick={api.clearError}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-hover hover:text-fg"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {view && (
+              <ActiveRulesBar
+                view={view}
+                properties={snapshot.properties}
+                readOnly={readOnly}
+                onConfig={(config) => setConfig(view, config)}
+              />
+            )}
+          </div>
+
+          <div className="pt-2">
+            {!view ? (
+              <div className="page-gutter py-10 text-center text-sm text-fg-muted">
+                {t("page.noViews")}
+                {!readOnly && (
+                  <div className="mt-3">
+                    <Button size="sm" onClick={() => addView("table")}>
+                      <Plus className="h-3.5 w-3.5" />
+                      {t("page.addTableView")}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : view.type === "board" ? (
+              <BoardView
                 workspaceId={workspaceId}
                 view={view}
                 properties={snapshot.properties}
@@ -242,24 +240,37 @@ export function DatabasePage({
                 api={viewApi}
                 readOnly={readOnly}
                 locked={locked}
-                onCreateDateProperty={createDateProperty}
+                onCreateGroupProperty={createGroupProperty}
               />
-            </div>
-          ) : (
-            <TableView
-              workspaceId={workspaceId}
-              databaseId={databaseId}
-              view={view}
-              properties={snapshot.properties}
-              rows={visibleRows}
-              api={viewApi}
-              readOnly={readOnly}
-              locked={locked}
-              filtered={rows.length > 0}
-            />
-          )}
+            ) : view.type === "calendar" ? (
+              <div className="page-gutter">
+                <CalendarView
+                  workspaceId={workspaceId}
+                  view={view}
+                  properties={snapshot.properties}
+                  rows={visibleRows}
+                  api={viewApi}
+                  readOnly={readOnly}
+                  locked={locked}
+                  onCreateDateProperty={createDateProperty}
+                />
+              </div>
+            ) : (
+              <TableView
+                workspaceId={workspaceId}
+                databaseId={databaseId}
+                view={view}
+                properties={snapshot.properties}
+                rows={visibleRows}
+                api={viewApi}
+                readOnly={readOnly}
+                locked={locked}
+                filtered={rows.length > 0}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      </PeopleProvider>
     </RelationProvider>
   );
 }

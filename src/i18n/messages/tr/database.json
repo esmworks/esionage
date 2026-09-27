@@ -8,7 +8,8 @@
     "date": "Tarih",
     "checkbox": "Onay kutusu",
     "url": "URL",
-    "relation": "İlişki"
+    "relation": "İlişki",
+    "person": "Kişi"
   },
   "views": {
     "table": "Tablo",
@@ -101,7 +102,8 @@
       "isAfter": "Şundan sonra",
       "isChecked": "İşaretli",
       "isUnchecked": "İşaretsiz"
-    }
+    },
+    "me": "Ben"
   },
   "sort": {
     "empty": "Bu görünüme sıralama uygulanmadı",
@@ -210,6 +212,18 @@
     "open": "{title} sayfasını aç",
     "unlink": "{title} bağlantısını kaldır"
   },
+  "person": {
+    "search": "Kişi ara",
+    "input": "{property} için kişi ata",
+    "assigned": "Atananlar",
+    "people": "Kişiler",
+    "noPeople": "Henüz atanacak kimse yok",
+    "noMatches": "Eşleşen kişi yok",
+    "remove": "{name} atamasını kaldır",
+    "you": "{name} (siz)",
+    "former": "Artık çalışma alanında değil",
+    "unknown": "Bilinmeyen kişi"
+  },
   "calendar": {
     "today": "Bugün",
     "previous": "Önceki ay",
@@ -240,6 +254,7 @@
     "invalidRelation": "“{property}” yalnızca ilişkili veritabanının satırlarına bağlanabilir.",
     "invalidRelationTarget": "İlişki aynı çalışma alanındaki bir veritabanını göstermelidir.",
     "relationTargetReadOnly": "O veritabanını yalnızca görüntüleyebiliyorsun, bu yüzden bağlantı orada gösterilemez. O seçeneğin işaretini kaldır ya da düzenleme izni iste.",
-    "databaseLocked": "Veritabanı kilitli. Özellikleri ve görünümleri değiştirmek için önce kilidi açın."
+    "databaseLocked": "Veritabanı kilitli. Özellikleri ve görünümleri değiştirmek için önce kilidi açın.",
+    "invalidPerson": "“{property}” yalnızca bu çalışma alanındaki kişileri içerebilir."
   }
 }

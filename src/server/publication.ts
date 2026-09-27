@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { databaseProperty, databaseView, page, pagePublication, type PageKind, type ViewType } from "@/db/schema";
 import { applyView, isHiddenInView } from "@/lib/properties";
@@ -205,12 +205,15 @@ async function liveChildren(publisher: string, parentId: string): Promise<Publis
     .orderBy(asc(page.position), asc(page.createdAt));
 }
 
-/** A database's properties minus relations, whose values point at pages that may not be published. */
+/**
+ * A database's properties minus relations, whose values point at pages that may not be published,
+ * and people, who didn't agree to have their names on a public page.
+ */
 async function publicProperties(databaseId: string) {
   return db
     .select()
     .from(databaseProperty)
-    .where(and(eq(databaseProperty.databaseId, databaseId), ne(databaseProperty.type, "relation")))
+    .where(and(eq(databaseProperty.databaseId, databaseId), notInArray(databaseProperty.type, ["relation", "person"])))
     .orderBy(asc(databaseProperty.position), asc(databaseProperty.createdAt));
 }
 

@@ -130,7 +130,7 @@ describe("relations", () => {
     options: { relation: { databaseId: "db-customers", pairedPropertyId: "p_jobs" } },
   };
   const all = [...props, customer];
-  const targets = {
+  const relations = {
     p_customer: {
       database: { id: "db-customers", title: "Customers" },
       pairedName: "Jobs",
@@ -141,6 +141,7 @@ describe("relations", () => {
       ],
     },
   };
+  const targets = { relations, people: [] };
 
   it("filters by related row id or unique title", () => {
     expect(toFilterRule(all, { property: "customer", op: "contains", value: "acme" }, targets)).toEqual({
@@ -179,5 +180,77 @@ describe("relations", () => {
     expect(
       describeViewConfig(all, { dateBy: "p_est", filters: [{ propertyId: "p_customer", op: "contains", value: "c1" }] }, targets),
     ).toEqual({ date_by: "Estimate", filters: [{ property: "Customer", op: "contains", value: "Acme" }] });
+  });
+});
+
+describe("person properties", () => {
+  const owner: PropertyDef = { id: "p_owner", name: "Owner", type: "person", options: {} };
+  const all = [...props, owner];
+  const lookups = {
+    relations: {},
+    people: [
+      { id: "u1", name: "Ayşe Yılmaz", email: "ayse@example.com", active: true },
+      { id: "u2", name: "Mehmet", email: "mehmet@example.com", active: true },
+      { id: "u3", name: "Mehmet", email: "m2@example.com", active: true },
+      { id: "u4", name: "Eski Üye", email: null, active: false },
+    ],
+  };
+
+  it("filters by user id, email, unique name or me", () => {
+    expect(toFilterRule(all, { property: "owner", op: "contains", value: "ayse@example.com" }, lookups)).toEqual({
+      propertyId: "p_owner",
+      op: "contains",
+      value: "u1",
+    });
+    expect(toFilterRule(all, { property: "Owner", op: "contains", value: "ayşe yılmaz" }, lookups).value).toBe("u1");
+    expect(toFilterRule(all, { property: "Owner", op: "not_equals", value: "u2" }, lookups).value).toBe("u2");
+    // "me" is kept so a saved view shows each viewer their own rows.
+    expect(toFilterRule(all, { property: "Owner", op: "contains", value: "Me" }, lookups).value).toBe("me");
+    expect(() => toFilterRule(all, { property: "Owner", op: "contains", value: "Mehmet" }, lookups)).toThrow(/2 people/);
+    expect(() => toFilterRule(all, { property: "Owner", op: "contains", value: "nobody" }, lookups)).toThrow(/not a person/);
+    expect(() => toFilterRule(all, { property: "Owner", op: "equals", value: "u1" }, lookups)).toThrow(/supports contains/);
+  });
+
+  it("is not sortable", () => {
+    expect(() => toSortRule(all, { property: "Owner" })).toThrow(/Person "Owner" can't be sorted/);
+  });
+
+  it("shows people as id and name, skipping unknown ids", () => {
+    expect(displayProperties(all, { p_owner: ["u4", "gone", "u1"] }, lookups)).toEqual({
+      Owner: [
+        { id: "u4", name: "Eski Üye" },
+        { id: "u1", name: "Ayşe Yılmaz" },
+      ],
+    });
+  });
+
+  it("lists assignable people and names people in view filters", () => {
+    expect(describeProperty(owner, lookups)).toEqual({
+      id: "p_owner",
+      name: "Owner",
+      type: "person",
+      people: [
+        { id: "u1", name: "Ayşe Yılmaz", email: "ayse@example.com" },
+        { id: "u2", name: "Mehmet", email: "mehmet@example.com" },
+        { id: "u3", name: "Mehmet", email: "m2@example.com" },
+      ],
+    });
+    expect(
+      describeViewConfig(
+        all,
+        {
+          filters: [
+            { propertyId: "p_owner", op: "contains", value: "me" },
+            { propertyId: "p_owner", op: "not_equals", value: "u1" },
+          ],
+        },
+        lookups,
+      ),
+    ).toEqual({
+      filters: [
+        { property: "Owner", op: "contains", value: "me" },
+        { property: "Owner", op: "not_equals", value: "Ayşe Yılmaz" },
+      ],
+    });
   });
 });

@@ -37,9 +37,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pag
       );
       // A relation to the same database would otherwise print ids for its trashed rows.
       if (target.archivedAt) for (const row of rows) if (!titleOf.has(row.id)) titleOf.set(row.id, row.title);
-      const cell = (value: unknown): string | number | null => {
+      const nameOf = new Map(snapshot.people.map((p) => [p.id, p.name] as const));
+      const cell = (value: unknown, names: Map<string, string>): string | number | null => {
         if (value === null || value === undefined || value === "") return null;
-        if (Array.isArray(value)) return value.map((v) => titleOf.get(String(v)) ?? String(v)).join(", ");
+        if (Array.isArray(value)) return value.map((v) => names.get(String(v)) ?? String(v)).join(", ");
         if (typeof value === "boolean") return value ? "true" : "false";
         return typeof value === "number" ? value : String(value);
       };
@@ -47,7 +48,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pag
         ["Name", ...snapshot.properties.map((p) => p.name)],
         ...rows.map((row) => [
           row.title,
-          ...snapshot.properties.map((p) => cell(displayValue(p, row.properties[p.id]))),
+          ...snapshot.properties.map((p) => cell(displayValue(p, row.properties[p.id]), p.type === "person" ? nameOf : titleOf)),
         ]),
       ]);
       return download(csv, "text/csv", fileName(target.title, "csv"));

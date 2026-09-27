@@ -11,6 +11,7 @@ import {
   Sheet,
   SquareCheck,
   Type,
+  UserRound,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -27,6 +28,7 @@ export const PROPERTY_TYPE_META = {
   checkbox: { label: "checkbox", icon: SquareCheck },
   url: { label: "url", icon: LinkIcon },
   relation: { label: "relation", icon: ArrowUpRight },
+  person: { label: "person", icon: UserRound },
 } as const satisfies Record<PropertyType, { label: string; icon: LucideIcon }>;
 
 /** Translated display name of a property type. */

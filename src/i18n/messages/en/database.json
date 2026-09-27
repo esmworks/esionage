@@ -8,7 +8,8 @@
     "date": "Date",
     "checkbox": "Checkbox",
     "url": "URL",
-    "relation": "Relation"
+    "relation": "Relation",
+    "person": "Person"
   },
   "views": {
     "table": "Table",
@@ -101,7 +102,8 @@
       "isAfter": "Is after",
       "isChecked": "Is checked",
       "isUnchecked": "Is unchecked"
-    }
+    },
+    "me": "Me"
   },
   "sort": {
     "empty": "No sorts applied to this view",
@@ -210,6 +212,18 @@
     "open": "Open {title}",
     "unlink": "Remove link to {title}"
   },
+  "person": {
+    "search": "Search people",
+    "input": "Assign people to {property}",
+    "assigned": "Assigned",
+    "people": "People",
+    "noPeople": "No one to assign yet",
+    "noMatches": "No matching people",
+    "remove": "Unassign {name}",
+    "you": "{name} (you)",
+    "former": "No longer in the workspace",
+    "unknown": "Unknown person"
+  },
   "calendar": {
     "today": "Today",
     "previous": "Previous month",
@@ -240,6 +254,7 @@
     "invalidRelation": "“{property}” can only link to rows of its related database.",
     "invalidRelationTarget": "A relation must point to a database in the same workspace.",
     "relationTargetReadOnly": "You can only view that database, so the link can’t be shown there too. Untick that option or ask for edit access.",
-    "databaseLocked": "This database is locked. Unlock it to change its properties and views."
+    "databaseLocked": "This database is locked. Unlock it to change its properties and views.",
+    "invalidPerson": "“{property}” can only hold people of this workspace."
   }
 }
