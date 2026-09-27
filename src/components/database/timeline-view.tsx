@@ -16,8 +16,9 @@ import {
 import { Button, cn, PageIcon } from "@/components/ui";
 import type { TimelineZoom } from "@/db/schema/app";
 import { pageLabel } from "@/lib/labels";
-import { groupRows, groupRowsByPerson, isHiddenInView, type RowGroup } from "@/lib/properties";
-import { holdsPeople, isComputed } from "@/lib/property-types";
+import { canAddToGroup, groupDefaults, groupRowsBy, type Group } from "@/lib/grouping";
+import { isHiddenInView, localDay, statusColor } from "@/lib/properties";
+import { isComputed } from "@/lib/property-types";
 import {
   DAY_WIDTH,
   dayAtX,
@@ -37,7 +38,8 @@ import {
 import { TIMELINE_ZOOMS } from "@/lib/views";
 import { CardTitleInput } from "./board-view";
 import { usePeople } from "./person-cell";
-import { isEmptyValue, OptionChip, PropertyDisplay } from "./property-cell";
+import { GroupLabel, useGroupContext, useGroupName } from "./group-label";
+import { isEmptyValue, PropertyDisplay } from "./property-cell";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
 import { timelineDates, timelineGroupProperty } from "./view-settings";
@@ -69,12 +71,11 @@ function useNarrow() {
   );
 }
 
-/**
- * Swimlanes by a select, status or person property. A thin wrapper over the board's grouping so
- * the timeline follows whatever grouping the board supports.
- */
-function laneGroups(rows: Row[], prop: Property, people: ReturnType<typeof usePeople>["people"]): RowGroup<Row>[] {
-  return holdsPeople(prop.type) ? groupRowsByPerson(rows, prop, people) : groupRows(rows, prop);
+/** The bar color of a swimlane: its option's, or its status stage's; plain cards otherwise. */
+function laneColor(group: Group<Row> | null) {
+  if (group?.value.kind === "option") return group.value.option.color;
+  if (group?.value.kind === "status_group") return statusColor(group.value.group);
+  return null;
 }
 
 export function TimelineView({
@@ -100,7 +101,7 @@ export function TimelineView({
   const tc = useTranslations("common");
   const format = useFormatter();
   const router = useRouter();
-  const { people } = usePeople();
+  const { viewerId } = usePeople();
   const narrow = useNarrow();
   const scroller = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
@@ -122,6 +123,8 @@ export function TimelineView({
 
   const { start: startProp, end: endProp } = timelineDates(view, properties);
   const groupBy = timelineGroupProperty(view, properties);
+  const groupContext = useGroupContext(groupBy ?? undefined);
+  const groupName = useGroupName(groupBy ?? { name: "" });
   // Created and edited times place bars but can't be changed by dragging them.
   const movable = !readOnly && !!startProp && !isComputed(startProp.type);
   const resizable = movable && !!endProp;
@@ -145,12 +148,14 @@ export function TimelineView({
   const header = useMemo(() => headerUnits(range, zoom), [range, zoom]);
   const width = (range.end - range.start + 1) * DAY_WIDTH[zoom];
 
+  // Swimlanes group like boards and tables do; a row with several tags, people or links shows in
+  // each of their lanes. Lanes without bars are left out.
   const lanes = useMemo(() => {
-    if (!groupBy) return [{ key: "", group: null as RowGroup<Row> | null, rows: dated }];
-    return laneGroups(dated, groupBy, people)
+    if (!groupBy) return [{ key: "", group: null as Group<Row> | null, rows: dated }];
+    return groupRowsBy(dated, groupBy, view.config, groupContext)
       .filter((g) => g.rows.length)
-      .map((g) => ({ key: g.option?.id ?? "", group: g, rows: g.rows }));
-  }, [groupBy, dated, people]);
+      .map((g) => ({ key: g.key, group: g as Group<Row> | null, rows: g.rows }));
+  }, [groupBy, dated, view.config, groupContext]);
 
   const trackWidth = () => (scroller.current?.clientWidth ?? 0) - panelWidth;
   const focusOn = (day: number, at: number) => {
@@ -275,12 +280,10 @@ export function TimelineView({
     if (day !== null) void api.setCell(rowId, startProp.id, dayValue(day));
   };
 
-  const addRow = async (lane: RowGroup<Row> | null) => {
-    const values: Record<string, unknown> = {};
-    if (!isComputed(startProp.type)) values[startProp.id] = dayValue(today);
-    if (groupBy && lane?.option && !isComputed(groupBy.type)) {
-      values[groupBy.id] = holdsPeople(groupBy.type) ? [lane.option.id] : lane.option.id;
-    }
+  const addRow = async (lane: Group<Row> | null) => {
+    const values: Record<string, unknown> = groupBy && lane ? groupDefaults(groupBy, lane) : {};
+    // New rows start today, unless the lane is a date bucket of the start property itself.
+    if (!isComputed(startProp.type) && !(startProp.id in values)) values[startProp.id] = dayValue(today);
     const id = await api.createRow({ properties: values });
     if (id) setEditTitleOf(id);
   };
@@ -397,9 +400,14 @@ export function TimelineView({
     </div>
   );
 
-  const newRowButton = (lane: RowGroup<Row> | null) =>
+  // A row added in a lane has to land in it (who created a row, and when, can't be chosen).
+  const canAddTo = (lane: Group<Row> | null) =>
+    !lane || !groupBy || canAddToGroup(groupBy, lane, { viewerId, today: localDay(new Date()) });
+
+  const newRowButton = (lane: Group<Row> | null) =>
     !readOnly &&
-    showTable && (
+    showTable &&
+    canAddTo(lane) && (
       <div className="flex" style={{ height: ROW_HEIGHT - 4 }}>
         <button
           type="button"
@@ -525,9 +533,9 @@ export function TimelineView({
 
           {lanes.map(({ key, group, rows: laneRows }) => {
             const expanded = !collapsed.has(key);
-            const color = group?.option && !group.person ? group.option.color : null;
+            const color = laneColor(group);
             return (
-              <section key={key || "__none"} aria-label={group ? laneName(group) : undefined} className="relative">
+              <section key={key || "__none"} aria-label={group ? groupName(group) : undefined} className="relative">
                 {group && (
                   <div className="flex border-b border-border" style={{ height: ROW_HEIGHT }}>
                     <button
@@ -537,11 +545,7 @@ export function TimelineView({
                       className="sticky left-0 z-10 flex max-w-full min-w-0 items-center gap-1.5 bg-bg px-2 text-sm"
                     >
                       <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-fg-muted transition-transform", expanded && "rotate-90")} />
-                      {group.option && !group.person ? (
-                        <OptionChip option={group.option} dot={groupBy?.type === "status"} className="min-w-0 font-medium" />
-                      ) : (
-                        <span className={cn("truncate font-medium", !group.option && "text-fg-muted")}>{laneName(group)}</span>
-                      )}
+                      {groupBy && <GroupLabel prop={groupBy} group={group} className="font-medium" />}
                       <span className="text-xs text-fg-muted tabular-nums">{laneRows.length}</span>
                     </button>
                   </div>
@@ -620,9 +624,4 @@ export function TimelineView({
       )}
     </div>
   );
-
-  function laneName(group: RowGroup<Row>) {
-    if (group.person) return group.person.name || t("person.unknown");
-    return group.option?.name ?? t("board.noValue", { property: groupBy?.name ?? "" });
-  }
 }

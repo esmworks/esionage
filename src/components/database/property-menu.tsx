@@ -289,7 +289,7 @@ function OptionsEditor({
               const group = e.target.value as StatusGroup;
               save(options.map((x) => (x.id === o.id ? { ...x, group } : x)));
             }}
-            className="h-6 max-w-24 shrink-0 rounded border border-border bg-bg px-1 text-xs text-fg-muted outline-none focus:border-accent"
+            className="h-6 max-w-28 shrink-0 rounded border border-border bg-bg px-1 text-xs text-fg-muted outline-none focus:border-accent"
           >
             {STATUS_GROUPS.map((group) => (
               <option key={group} value={group}>

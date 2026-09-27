@@ -173,6 +173,9 @@ export const databaseProperty = pgTable(
 );
 
 export type ViewType = "table" | "board" | "calendar" | "gallery" | "list" | "timeline";
+/** Grouping by a date: one group per day, week (Monday to Sunday), month or year. */
+export type GroupDateBy = "day" | "week" | "month" | "year";
+export type GroupStatusBy = "option" | "group";
 export type SortRule = { propertyId: string; direction: "asc" | "desc" };
 export type FilterOp = "contains" | "equals" | "not_equals" | "is_empty" | "is_not_empty" | "gt" | "lt" | "is_within";
 /** Values of an `is_within` rule: date ranges relative to the day the view is looked at. */
@@ -215,10 +218,18 @@ export type ViewConfig = {
   hidden?: string[];
   /** Properties shown although their type starts hidden in this kind of view (see `isHiddenInView`). */
   shown?: string[];
-  /** Board views: column order by option id, "" for the no-value column. Unlisted options follow in option order. */
+  /** Date grouping (date, created and last edited time): how big each group is; "month" when missing. */
+  groupDateBy?: GroupDateBy;
+  /** Status grouping: one group per option (the default), or per stage (to do, in progress, done). */
+  groupStatusBy?: GroupStatusBy;
+  /** Board and table views: group order by group key (see lib/grouping), "" for no value. Unlisted groups follow in their natural order. */
   groupOrder?: string[];
-  /** Board views: columns the user hid, by option id ("" for no value). */
+  /** Board and table views: groups the user hid, by group key ("" for no value). */
   hiddenGroups?: string[];
+  /** Board and table views: leave out groups without rows (the no-value group only shows with rows anyway). */
+  hideEmptyGroups?: boolean;
+  /** Table views: groups shown collapsed, by group key. */
+  collapsedGroups?: string[];
   /** Table views: the footer calculation per column, keyed by property id or "title". */
   calculations?: Record<string, AggregateFn>;
 };

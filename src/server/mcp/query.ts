@@ -18,6 +18,7 @@ import {
   RELATIVE_DATE_RANGES,
   rangeNeedsDays,
 } from "@/lib/filters";
+import { groupDateByOf } from "@/lib/grouping";
 import { pageLabel } from "@/lib/labels";
 import {
   CREATED_KEY,
@@ -299,7 +300,7 @@ export function describeViewConfig(props: PropertyDef[], config: ViewConfig, loo
     return row ? pageLabel(row.title) : value;
   };
   return {
-    ...(config.groupBy ? { group_by: keyName(props, config.groupBy) } : {}),
+    ...(config.groupBy ? { group_by: keyName(props, config.groupBy), ...describeGrouping(byId.get(config.groupBy), config) } : {}),
     ...(config.dateBy ? { date_by: keyName(props, config.dateBy) } : {}),
     ...(config.endDateBy ? { end_date_by: keyName(props, config.endDateBy) } : {}),
     ...(config.zoom ? { zoom: config.zoom } : {}),
@@ -311,6 +312,15 @@ export function describeViewConfig(props: PropertyDef[], config: ViewConfig, loo
     ...(config.sorts?.length
       ? { sorts: config.sorts.map((s) => ({ property: keyName(props, s.propertyId), direction: s.direction })) }
       : {}),
+  };
+}
+
+/** The grouping settings that apply to how a view groups by `prop`. */
+function describeGrouping(prop: PropertyDef | undefined, config: ViewConfig) {
+  return {
+    ...(prop && (prop.type === "date" || holdsTimestamp(prop.type)) ? { group_date_by: groupDateByOf(config) } : {}),
+    ...(prop?.type === "status" ? { group_status_by: config.groupStatusBy === "group" ? "group" : "option" } : {}),
+    ...(config.hideEmptyGroups ? { hide_empty_groups: true } : {}),
   };
 }
 

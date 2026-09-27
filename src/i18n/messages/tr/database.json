@@ -68,7 +68,7 @@
     "group": "Grupla",
     "groupWithName": "Grup: {name}",
     "groupBy": "Grupla",
-    "groupNeedsSelect": "Panolar bir seçim, durum veya kişi özelliğine göre gruplanır.",
+    "groupNeedsSelect": "Görünümler seçim, durum, çoklu seçim, kişi, tarih, onay kutusu veya ilişki özelliğine göre gruplanır.",
     "newSelectProperty": "Yeni seçim özelliği",
     "properties": "Özellikler",
     "shownInView": "Bu görünümde gösterilenler",
@@ -78,7 +78,8 @@
     "calendarBy": "Takvim tarihi",
     "calendarWithName": "Tarih: {name}",
     "calendarNeedsDate": "Takvimler satırları bir tarih özelliğine göre yerleştirir.",
-    "newDateProperty": "Yeni tarih özelliği"
+    "newDateProperty": "Yeni tarih özelliği",
+    "noGrouping": "Yok"
   },
   "activeRules": {
     "clear": "Temizle",
@@ -230,8 +231,8 @@
     }
   },
   "board": {
-    "needsSelectTitle": "Panolar satırları bir seçim, durum veya kişi özelliğine göre gruplar",
-    "needsSelectBody": "Bu veritabanında henüz seçim, durum veya kişi özelliği yok.",
+    "needsSelectTitle": "Panolar satırları seçim, durum, kişi veya tarih gibi bir özelliğe göre gruplar",
+    "needsSelectBody": "Bu veritabanında henüz panonun gruplayabileceği bir özellik yok.",
     "addGroupProperty": "{name} özelliği ekle",
     "noValue": "{property} yok",
     "cardCount": "{count, plural, other {# kart}}",
@@ -437,5 +438,27 @@
     "tooManyRows": "Tek seferde en fazla {max} satır değiştirilebilir.",
     "invalidViewConfig": "Bu görünüm ayarları kaydedilemedi. Sayfayı yenileyip tekrar deneyin.",
     "unsupportedViewType": "Desteklenmeyen görünüm türü: “{type}”."
+  },
+  "group": {
+    "checked": "İşaretli",
+    "unchecked": "İşaretsiz",
+    "dateBy": "Tarihleri grupla",
+    "dateByOptions": {
+      "day": "Gün",
+      "week": "Hafta",
+      "month": "Ay",
+      "year": "Yıl"
+    },
+    "statusBy": "Durumu grupla",
+    "statusByOptions": {
+      "option": "Seçenek",
+      "group": "Durum grubu"
+    },
+    "hideEmpty": "Boş grupları gizle",
+    "collapse": "{name} grubunu daralt",
+    "expand": "{name} grubunu genişlet",
+    "rowCount": "{count, plural, other {# satır}}",
+    "actions": "Grup işlemleri",
+    "addRow": "{name} grubuna satır ekle"
   }
 }

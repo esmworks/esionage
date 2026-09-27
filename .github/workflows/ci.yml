@@ -85,6 +85,9 @@ jobs:
       - name: Status, checklist and system properties end-to-end
         run: pnpm tsx scripts/property-types-e2e.ts
 
+      - name: Grouping end-to-end
+        run: pnpm tsx scripts/grouping-e2e.ts
+
       - name: Gallery, list and timeline views end-to-end
         run: pnpm tsx scripts/views-e2e.ts
 
