@@ -1,0 +1,151 @@
+import { describe, expect, it } from "vitest";
+import * as Y from "yjs";
+import { blocksToPlainText } from "@/lib/blocks";
+import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { parseLinkedView, remapInlineDatabases, serializeLinkedView } from "@/lib/embed-blocks";
+import { blocksToMarkdown, markdownToBlocks, serverEditor, type PageBlock } from "./blocknote";
+import { bodySegmentsFromYdoc } from "./published-body";
+
+const DB = "11111111-1111-4111-8111-111111111111";
+const OTHER = "22222222-2222-4222-8222-222222222222";
+
+function docFrom(blocks: unknown[]) {
+  const doc = new Y.Doc();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  doc.transact(() => serverEditor.blocksToYXmlFragment(blocks as any, doc.getXmlFragment(COLLAB_FRAGMENT)));
+  return doc;
+}
+
+const read = (doc: Y.Doc) => serverEditor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
+
+const linked = serializeLinkedView({ type: "board", config: { sorts: [{ propertyId: "title", direction: "desc" }] } });
+
+describe("database blocks in page bodies", () => {
+  it("round-trip through the Yjs document", () => {
+    const doc = docFrom([
+      { type: "paragraph", content: "Intro" },
+      { type: "database", props: { databaseId: DB } },
+      { type: "linkedView", props: { databaseId: OTHER, view: linked } },
+    ]);
+    const blocks = read(doc);
+    expect(blocks.map((b) => b.type)).toEqual(["paragraph", "database", "linkedView"]);
+    expect(blocks[1].props).toEqual({ databaseId: DB });
+    expect(blocks[2].props).toEqual({ databaseId: OTHER, view: linked });
+  });
+
+  it("write a title-free reference line to Markdown and no search text", async () => {
+    const blocks = read(
+      docFrom([
+        { type: "paragraph", content: "Before" },
+        { type: "database", props: { databaseId: DB } },
+        { type: "bulletListItem", content: "item", children: [{ type: "linkedView", props: { databaseId: OTHER, view: linked } }] },
+        { type: "database", props: { databaseId: "" } },
+        { type: "paragraph", content: "After" },
+      ]),
+    );
+    const markdown = (await blocksToMarkdown(blocks)).trim();
+    expect(markdown).toContain(`Before\n\n<!-- esionage:database ${DB} -->\n\n`);
+    expect(markdown).toContain(`<!-- esionage:linked-view ${OTHER} -->`);
+    expect(markdown).toContain("After");
+    expect(markdown).not.toContain("esionage" + "embed");
+    // No settings, no titles: just the kind and the id.
+    expect(markdown).not.toContain("board");
+    expect(blocksToPlainText(blocks)).toBe("Before\nitem\nAfter");
+  });
+
+  it("parse reference lines back into blocks, keeping a linked view's settings", async () => {
+    const existing = read(docFrom([{ type: "linkedView", props: { databaseId: OTHER, view: linked } }]));
+    const markdown = [
+      "# Title",
+      "",
+      `<!-- esionage:database ${DB} -->`,
+      "",
+      "```",
+      `<!-- esionage:database ${OTHER} -->`,
+      "```",
+      "",
+      `<!-- esionage:linked-view ${OTHER} -->`,
+      "",
+      `Inline <!-- esionage:linked-view ${DB} --> mention`,
+    ].join("\n");
+    const blocks = await markdownToBlocks(markdown, existing);
+    expect(blocks.map((b) => b.type)).toEqual(["heading", "database", "codeBlock", "linkedView", "paragraph"]);
+    expect(blocks[1].props).toEqual({ databaseId: DB });
+    expect(blocks[3].props).toEqual({ databaseId: OTHER, view: linked });
+    // Stored the way the collab service stores it, and read back.
+    const doc = new Y.Doc();
+    doc.transact(() => serverEditor.blocksToYXmlFragment(blocks, doc.getXmlFragment(COLLAB_FRAGMENT)));
+    const again = (await blocksToMarkdown(read(doc))).trim();
+    expect(again).toContain(`<!-- esionage:database ${DB} -->`);
+    expect(again).toContain(`<!-- esionage:linked-view ${OTHER} -->`);
+  });
+
+  it("keep inline databases a rewrite leaves out, but not linked views", async () => {
+    const existing = read(
+      docFrom([
+        { type: "paragraph", content: "Old" },
+        { type: "database", props: { databaseId: DB } },
+        { type: "linkedView", props: { databaseId: OTHER, view: linked } },
+      ]),
+    );
+    const replaced = await markdownToBlocks("New text", existing);
+    expect(replaced.map((b) => [b.type, b.props])).toEqual([
+      ["paragraph", expect.anything()],
+      ["database", { databaseId: DB }],
+    ]);
+    const appended = await markdownToBlocks("More", existing, { keepMissingInline: false });
+    expect(appended.map((b) => b.type)).toEqual(["paragraph"]);
+    const moved = await markdownToBlocks(`<!-- esionage:database ${DB} -->\n\nText`, existing);
+    expect(moved.map((b) => b.type)).toEqual(["database", "paragraph"]);
+  });
+
+  it("points copied inline databases at their copies, not linked views", () => {
+    const doc = docFrom([
+      { type: "database", props: { databaseId: DB } },
+      { type: "paragraph", content: "x", children: [{ type: "database", props: { databaseId: DB } }] },
+      { type: "linkedView", props: { databaseId: DB, view: "" } },
+      { type: "database", props: { databaseId: OTHER } },
+    ]);
+    expect(remapInlineDatabases(doc, new Map([[DB, "copy"]]))).toBe(2);
+    const blocks = read(doc) as PageBlock[];
+    expect(blocks[0].props).toEqual({ databaseId: "copy" });
+    expect(blocks[1].children[0].props).toEqual({ databaseId: "copy" });
+    expect(blocks[2].props).toMatchObject({ databaseId: DB });
+    expect(blocks[3].props).toEqual({ databaseId: OTHER });
+  });
+});
+
+describe("published body segments", () => {
+  it("split the HTML around database blocks and never serialize them", async () => {
+    const doc = docFrom([
+      { type: "paragraph", content: "One" },
+      { type: "database", props: { databaseId: DB } },
+      { type: "bulletListItem", content: "Two", children: [{ type: "linkedView", props: { databaseId: OTHER, view: linked } }] },
+      { type: "paragraph", content: "Three" },
+    ]);
+    const segments = await bodySegmentsFromYdoc(Y.encodeStateAsUpdate(doc));
+    expect(segments.map((s) => (s.kind === "html" ? "html" : s.type))).toEqual(["html", "database", "html", "linkedView", "html"]);
+    expect(segments[1]).toEqual({ kind: "embed", type: "database", databaseId: DB, view: null });
+    expect(segments[3]).toEqual({
+      kind: "embed",
+      type: "linkedView",
+      databaseId: OTHER,
+      view: { type: "board", config: { sorts: [{ propertyId: "title", direction: "desc" }] } },
+    });
+    const html = segments.map((s) => (s.kind === "html" ? s.html : "")).join("");
+    expect(html).toContain("Two");
+    expect(html).not.toContain(DB);
+    expect(html).not.toContain(OTHER);
+  });
+});
+
+describe("linked view settings", () => {
+  it("fall back to a plain table when malformed", () => {
+    expect(parseLinkedView("")).toEqual({ type: "table", config: {} });
+    expect(parseLinkedView("{nope")).toEqual({ type: "table", config: {} });
+    expect(parseLinkedView(JSON.stringify({ type: "chart", config: {} }))).toEqual({ type: "table", config: {} });
+    expect(parseLinkedView(JSON.stringify({ type: "list", config: { filters: "bad" } }))).toEqual({ type: "list", config: {} });
+    expect(parseLinkedView(JSON.stringify({ type: "gallery", config: { cardSize: "huge" } }))).toEqual({ type: "gallery", config: {} });
+    expect(parseLinkedView(linked).type).toBe("board");
+  });
+});

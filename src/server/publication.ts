@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { databaseProperty, databaseView, page, pagePublication, user, type PageKind, type ViewConfig, type ViewType } from "@/db/schema";
 import { withFormulaTypes } from "@/lib/derived";
+import type { EmbedBlockType, LinkedView } from "@/lib/embed-blocks";
 import { applyView, computedValues, isHiddenInView } from "@/lib/properties";
 import { holdsPeople } from "@/lib/property-types";
 import { AccessError, accessRank, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
@@ -149,6 +150,18 @@ export type PublishedDatabase = {
   /** Live rows, filtered and sorted by the first view. */
   rows: PublishedRow[];
 };
+/** A part of a published page's body: text, or a database block. */
+export type PublishedBlock =
+  | { kind: "html"; html: string }
+  | {
+      kind: "embed";
+      type: EmbedBlockType;
+      /**
+       * The database, when it is published with this page (it lies under the published page, is
+       * live and its publisher can see it). Null otherwise: the block then shows nothing about it.
+       */
+      database: { id: string; title: string; icon: string | null; table: PublishedDatabase } | null;
+    };
 export type PublishedPage = {
   token: string;
   rootId: string;
@@ -157,11 +170,11 @@ export type PublishedPage = {
   icon: string | null;
   kind: PageKind;
   updatedAt: Date;
-  /** Body HTML serialized by BlockNote from the page's own document (see published-body.ts). */
-  bodyHtml: string;
+  /** Body HTML serialized by BlockNote from the page's own document (see published-body.ts), with its database blocks. */
+  body: PublishedBlock[];
   /** From the published page down to this page, both included. */
   crumbs: PublishedCrumb[];
-  /** Live subpages (not database rows), in sidebar order. */
+  /** Live subpages (not database rows, nor inline databases the body shows), in sidebar order. */
   children: PublishedChild[];
   /** Database pages. */
   database: PublishedDatabase | null;
@@ -216,9 +229,8 @@ export async function getPublishedPage(token: string, pageId?: string): Promise<
       )[0]
     : undefined;
 
-  const { bodyHtmlFromYdoc } = await import("@/server/published-body");
-  const [bodyHtml, children, database, rowProperties] = await Promise.all([
-    target.kind === "page" ? bodyHtmlFromYdoc(target.ydoc) : Promise.resolve(""),
+  const [body, children, database, rowProperties] = await Promise.all([
+    target.kind === "page" ? publishedBody(publisher, root.id, target.ydoc) : Promise.resolve([]),
     target.kind === "database" ? Promise.resolve([]) : liveChildren(publisher, target.id),
     target.kind === "database" ? publishedDatabase(publisher, target.id) : Promise.resolve(null),
     parent?.kind === "database" && target.parentId ? databaseProperties(target.parentId) : Promise.resolve(null),
@@ -236,9 +248,12 @@ export async function getPublishedPage(token: string, pageId?: string): Promise<
     icon: target.icon,
     kind: target.kind,
     updatedAt: target.updatedAt,
-    bodyHtml,
+    body,
     crumbs,
-    children,
+    // An inline database shown in the body isn't listed again below it.
+    children: children.filter(
+      (child) => !body.some((b) => b.kind === "embed" && b.type === "database" && b.database?.id === child.id),
+    ),
     database,
     row: rowProperties ? { properties: publicProperties(rowProperties), values: row.properties } : null,
   };
@@ -272,6 +287,33 @@ async function chainTo(publisher: string, pageId: string, rootId: string): Promi
   const list = [...rows];
   if (!list.length || list[0].id !== rootId || list.some((r) => r.archived || !r.visible)) return null;
   return list.map((r) => ({ id: r.id, title: r.title, icon: r.icon, kind: r.kind }));
+}
+
+/**
+ * The page body with its database blocks resolved. A block's database is shown only when it is
+ * published with this page, i.e. reachable from the published page like any of its subpages: an
+ * inline database under the page is, a linked view of a database elsewhere is not.
+ */
+async function publishedBody(publisher: string, rootId: string, ydoc: Uint8Array | null): Promise<PublishedBlock[]> {
+  const { bodySegmentsFromYdoc } = await import("@/server/published-body");
+  const segments = await bodySegmentsFromYdoc(ydoc);
+  return Promise.all(
+    segments.map(async (segment): Promise<PublishedBlock> => {
+      if (segment.kind === "html") return segment;
+      return { kind: "embed", type: segment.type, database: await publishedEmbed(publisher, rootId, segment.databaseId, segment.view) };
+    }),
+  );
+}
+
+async function publishedEmbed(publisher: string, rootId: string, databaseId: string, view: LinkedView | null) {
+  const [target] = await db
+    .select({ id: page.id, title: page.title, icon: page.icon, kind: page.kind })
+    .from(page)
+    .where(and(eq(page.id, databaseId), isNull(page.archivedAt)))
+    .limit(1);
+  if (target?.kind !== "database") return null;
+  if (!(await chainTo(publisher, target.id, rootId))) return null;
+  return { id: target.id, title: target.title, icon: target.icon, table: await publishedDatabase(publisher, target.id, view) };
 }
 
 async function liveChildren(publisher: string, parentId: string): Promise<PublishedChild[]> {
@@ -321,15 +363,21 @@ async function sortNames(rows: { properties: Record<string, unknown> }[], props:
   return ids.length ? db.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, ids as string[])) : [];
 }
 
-async function publishedDatabase(publisher: string, databaseId: string): Promise<PublishedDatabase> {
-  const [allProperties, [view], stored] = await Promise.all([
+/**
+ * A published database's rows as its first view shows them, or as `linked` (a linked view's own
+ * settings) does.
+ */
+async function publishedDatabase(publisher: string, databaseId: string, linked: LinkedView | null = null): Promise<PublishedDatabase> {
+  const [allProperties, [firstView], stored] = await Promise.all([
     databaseProperties(databaseId),
-    db
-      .select()
-      .from(databaseView)
-      .where(eq(databaseView.databaseId, databaseId))
-      .orderBy(asc(databaseView.position), asc(databaseView.createdAt))
-      .limit(1),
+    linked
+      ? Promise.resolve([])
+      : db
+          .select()
+          .from(databaseView)
+          .where(eq(databaseView.databaseId, databaseId))
+          .orderBy(asc(databaseView.position), asc(databaseView.createdAt))
+          .limit(1),
     db
       .select({
         id: page.id,
@@ -346,6 +394,7 @@ async function publishedDatabase(publisher: string, databaseId: string): Promise
       .orderBy(asc(page.position), asc(page.createdAt)),
   ]);
   const properties = publicProperties(allProperties);
+  const view = linked ? { id: "", name: "", ...linked } : firstView;
   if (!view) {
     const rows = await publicValues(
       stored.map(({ createdBy: _, updatedBy: __, ...row }) => ({

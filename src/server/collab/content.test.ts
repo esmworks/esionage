@@ -1,20 +1,19 @@
-import { ServerBlockNoteEditor } from "@blocknote/server-util";
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { blocksToMarkdown, markdownToBlocks, serverEditor as editor } from "@/server/blocknote";
 
 // The same conversions the collab service uses for MCP writes and for derived markdown/text.
-const editor = ServerBlockNoteEditor.create();
-
 async function write(doc: Y.Doc, markdown: string) {
-  const blocks = await editor.tryParseMarkdownToBlocks(markdown);
+  const existing = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
+  const blocks = await markdownToBlocks(markdown, existing);
   doc.transact(() => editor.blocksToYXmlFragment(blocks, doc.getXmlFragment(COLLAB_FRAGMENT)));
 }
 
 async function read(doc: Y.Doc) {
   const blocks = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
-  return { markdown: (await editor.blocksToMarkdownLossy(blocks)).trim(), text: blocksToPlainText(blocks) };
+  return { markdown: (await blocksToMarkdown(blocks)).trim(), text: blocksToPlainText(blocks) };
 }
 
 describe("markdown ↔ Yjs document", () => {

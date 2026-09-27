@@ -1,7 +1,9 @@
-import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, like, sql } from "drizzle-orm";
+import * as Y from "yjs";
 import { db } from "@/db";
 import { databaseProperty, databaseView, page, pagePermission, type PageKind, type RowProperties } from "@/db/schema";
-import { planDuplicate, type SourcePage } from "@/lib/duplicate";
+import { planDuplicate, type DuplicatePlan, type SourcePage } from "@/lib/duplicate";
+import { DATABASE_BLOCK, mapReferenceLines, referenceLine, remapInlineDatabases } from "@/lib/embed-blocks";
 import { positionBetween } from "@/lib/properties";
 import { AccessError, pageVisibleTo, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
@@ -136,6 +138,7 @@ export async function duplicatePage(
       join ${pagePermission} pp on pp.page_id = m.source_id
     `);
     if (topLevel === "private") await makePagePrivate(tx, source.workspaceId, plan.rootId, userId);
+    await pointAtCopiedDatabases(tx, plan);
 
     if (plan.properties.length) {
       await tx.insert(databaseProperty).values(
@@ -171,6 +174,35 @@ export async function duplicatePage(
     if (parentKind === "database") collab.broadcast(`db:${source.parentId}`, "rows");
   }
   return { id: plan.rootId, workspaceId: source.workspaceId };
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Copied pages showing an inline database that was copied with them show the copy instead (in
+ * their document and in their derived Markdown); linked views keep showing their source.
+ */
+async function pointAtCopiedDatabases(tx: Tx, plan: DuplicatePlan) {
+  const copies = plan.pages.filter((p) => p.kind === "page").map((p) => p.id);
+  if (!copies.length) return;
+  const bodies = await tx
+    .select({ id: page.id, ydoc: page.ydoc, markdown: page.contentMarkdown })
+    .from(page)
+    .where(and(inArray(page.id, copies), like(page.contentMarkdown, "%<!-- esionage:database %")));
+  for (const body of bodies) {
+    if (!body.ydoc?.byteLength) continue;
+    const doc = new Y.Doc();
+    try {
+      Y.applyUpdate(doc, body.ydoc);
+      if (!remapInlineDatabases(doc, plan.pageIds)) continue;
+      const markdown = mapReferenceLines(body.markdown, (ref) =>
+        referenceLine(ref.type, ref.type === DATABASE_BLOCK ? (plan.pageIds.get(ref.databaseId) ?? ref.databaseId) : ref.databaseId),
+      );
+      await tx.update(page).set({ ydoc: Y.encodeStateAsUpdate(doc), contentMarkdown: markdown }).where(eq(page.id, body.id));
+    } finally {
+      doc.destroy();
+    }
+  }
 }
 
 /**
