@@ -1,7 +1,10 @@
+import "katex/dist/katex.min.css";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { PropertyDisplay } from "@/components/database/property-cell";
 import { PropertyTypeIcon } from "@/components/database/property-icons";
+import { PublishedMermaid } from "@/components/page/mermaid-diagram";
+import { HeadingList, Trail } from "@/components/page/page-outline";
 import { PageIcon } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
 import type { PublishedPage } from "@/server/publication";
@@ -16,7 +19,12 @@ const cn = (...classes: (string | false | null | undefined)[]) => classes.filter
  * without a session: no editor, no client data fetching.
  */
 export async function PublishedView({ data }: { data: PublishedPage }) {
-  const [t, tc, format] = await Promise.all([getTranslations("publish"), getTranslations("common"), getFormatter()]);
+  const [t, tc, tb, format] = await Promise.all([
+    getTranslations("publish"),
+    getTranslations("common"),
+    getTranslations("page.blocks"),
+    getFormatter(),
+  ]);
   const untitled = tc("untitled");
   const site = { base: `/s/${data.token}`, rootId: data.rootId };
   const href = (id: string) => (id === data.rootId ? site.base : `${site.base}/${id}`);
@@ -94,6 +102,24 @@ export async function PublishedView({ data }: { data: PublishedPage }) {
                   // Serialized by BlockNote from our own document with unsafe URLs removed; see published-body.ts.
                   dangerouslySetInnerHTML={{ __html: block.html }}
                 />
+              ) : block.kind === "toc" ? (
+                <div key={i} className="my-2 px-4 sm:px-[54px]">
+                  <HeadingList
+                    headings={block.headings.map((h) => ({ key: h.anchor, level: h.level, text: h.text }))}
+                    label={tb("toc.label")}
+                    empty={tb("toc.empty")}
+                    untitled={untitled}
+                    link={(anchor) => ({ href: `#${anchor}` })}
+                  />
+                </div>
+              ) : block.kind === "breadcrumb" ? (
+                <div key={i} className="my-2 px-4 sm:px-[54px]">
+                  <Trail crumbs={data.crumbs} href={href} label={tb("breadcrumb.label")} untitled={untitled} />
+                </div>
+              ) : block.kind === "mermaid" ? (
+                <div key={i} className={cn(styles.body, "my-2 px-4 sm:px-[54px]")}>
+                  <PublishedMermaid source={block.source} label={tb("mermaid.label")} />
+                </div>
               ) : block.database ? (
                 <section key={i} className="my-4">
                   <h2 className="px-4 text-base font-semibold sm:px-[54px]">

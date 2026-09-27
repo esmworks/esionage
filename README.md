@@ -9,6 +9,8 @@ approve them over OAuth.
 - **Pages**: nested pages, a block editor (BlockNote) with slash menu and markdown shortcuts,
   icons, favorites, duplicate, move, trash with restore, export as Markdown, and full-text search
   over titles and content.
+- **Rich blocks**: callouts, LaTeX equations (block and inline, KaTeX), Mermaid diagrams with a
+  live preview, a table of contents and a breadcrumb, also on published pages and in Markdown.
 - **Realtime collaboration**: several people can edit the same page at once (Yjs over WebSocket
   via Hocuspocus), with live cursors.
 - **Databases**: every row is also a page.

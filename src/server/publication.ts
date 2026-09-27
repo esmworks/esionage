@@ -13,6 +13,7 @@ import { AccessError, accessRank, pageVisibleTo, requireMembership, requirePageA
 import { rowCovers, type DatabaseProperty } from "@/server/databases";
 import { computeDerived } from "@/server/derived";
 import { canPublish } from "@/server/workspaces";
+import type { BodyHeading } from "@/server/published-body";
 
 /**
  * Publish to web: a published page and its live subpages can be read by anyone holding the link
@@ -221,9 +222,15 @@ export type PublishedDatabase = {
   /** Galleries. */
   cardSize: CardSize;
 };
-/** A part of a published page's body: text, or a database block. */
+/**
+ * A part of a published page's body: text, a database block, or a block the page draws itself (a
+ * table of contents, a breadcrumb from `crumbs`, a Mermaid diagram).
+ */
 export type PublishedBlock =
   | { kind: "html"; html: string }
+  | { kind: "toc"; headings: BodyHeading[] }
+  | { kind: "breadcrumb" }
+  | { kind: "mermaid"; source: string }
   | {
       kind: "embed";
       type: EmbedBlockType;
@@ -373,7 +380,7 @@ async function publishedBody(publisher: string, rootId: string, ydoc: Uint8Array
   const segments = await bodySegmentsFromYdoc(ydoc);
   return Promise.all(
     segments.map(async (segment): Promise<PublishedBlock> => {
-      if (segment.kind === "html") return segment;
+      if (segment.kind !== "embed") return segment;
       return { kind: "embed", type: segment.type, database: await publishedEmbed(publisher, rootId, segment.databaseId, segment.view) };
     }),
   );

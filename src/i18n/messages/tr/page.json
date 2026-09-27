@@ -182,5 +182,52 @@
         "aliases": "linked view database db bağlı görünüm bagli gorunum veritabanı veritabani"
       }
     }
+  },
+  "blocks": {
+    "callout": {
+      "title": "Bilgi kutusu",
+      "subtext": "Renkli arka plan üzerinde simgeli metin",
+      "aliases": "callout bilgi kutusu not ipucu uyarı kutu",
+      "icon": "Simgeyi değiştir"
+    },
+    "math": {
+      "title": "Denklem",
+      "subtext": "TeX ile yazılmış, ayrı satırda bir denklem",
+      "aliases": "math matematik denklem formül latex tex katex",
+      "placeholder": "TeX denklemi ekle",
+      "sourcePlaceholder": "E = mc^2",
+      "error": "Denklemde bir hata var"
+    },
+    "inlineMath": {
+      "title": "Satır içi denklem",
+      "subtext": "Metnin içinde bir denklem",
+      "aliases": "inline satır içi matematik denklem formül latex tex",
+      "placeholder": "Yeni denklem",
+      "sourcePlaceholder": "x^2",
+      "error": "Denklem hatası"
+    },
+    "mermaid": {
+      "title": "Mermaid diyagramı",
+      "subtext": "Metinden çizilen akış, sıralama ve diğer diyagramlar",
+      "aliases": "mermaid diyagram şema akış grafik sıralama gantt",
+      "placeholder": "Mermaid diyagramı ekle",
+      "sourcePlaceholder": "graph TD\n  A --> B",
+      "loading": "Diyagram çiziliyor…",
+      "error": "Diyagramda bir hata var",
+      "label": "Diyagram"
+    },
+    "toc": {
+      "title": "İçindekiler",
+      "subtext": "Bu sayfadaki başlıklara bağlantılar",
+      "aliases": "toc içindekiler başlıklar anahat",
+      "label": "İçindekiler",
+      "empty": "Bu sayfaya başlık eklediğinizde burada listelenir."
+    },
+    "breadcrumb": {
+      "title": "Sayfa yolu",
+      "subtext": "Bu sayfanın üstündeki sayfalar, bağlantı olarak",
+      "aliases": "breadcrumb sayfa yolu üst sayfalar konum",
+      "label": "Sayfa yolu"
+    }
   }
 }

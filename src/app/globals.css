@@ -327,3 +327,48 @@
   width: 100%;
   min-width: 0;
 }
+
+/*
+ * Callouts: an icon and text on one of BlockNote's background colors (set by the block's color,
+ * on the block and its nested blocks). Without a color they keep a thin outline.
+ */
+.bn-block:has(> .bn-block-content[data-content-type="callout"]) {
+  border-radius: 6px;
+  margin-block: 2px;
+}
+.bn-block-content[data-content-type="callout"] {
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+.bn-block-content[data-content-type="callout"]:not([data-background-color]) {
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.esionage-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+.esionage-callout-icon {
+  flex-shrink: 0;
+  margin-block: -2px;
+  font-size: 1.15em;
+  line-height: 1.75rem;
+  user-select: none;
+}
+.esionage-callout-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Equations and diagrams sit on the page like text, not in a code box. */
+.bn-block-content[data-content-type="math"] .bn-preview-container,
+.bn-block-content[data-content-type="mermaid"] .bn-preview-container {
+  display: flex;
+  justify-content: center;
+}
+
+/* A table of contents jumps to a heading below the sticky page header. */
+.esionage-editor .bn-block-outer {
+  scroll-margin-top: 4rem;
+}

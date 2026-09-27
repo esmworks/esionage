@@ -182,5 +182,52 @@
         "aliases": "linked view database db"
       }
     }
+  },
+  "blocks": {
+    "callout": {
+      "title": "Callout",
+      "subtext": "Text with an icon on a colored background",
+      "aliases": "callout note tip warning alert box",
+      "icon": "Change icon"
+    },
+    "math": {
+      "title": "Equation",
+      "subtext": "A display equation written in TeX",
+      "aliases": "math equation latex tex katex formula",
+      "placeholder": "Add a TeX equation",
+      "sourcePlaceholder": "E = mc^2",
+      "error": "The equation has an error"
+    },
+    "inlineMath": {
+      "title": "Inline equation",
+      "subtext": "An equation inside the text",
+      "aliases": "inline math equation latex tex katex formula",
+      "placeholder": "New equation",
+      "sourcePlaceholder": "x^2",
+      "error": "Equation error"
+    },
+    "mermaid": {
+      "title": "Mermaid diagram",
+      "subtext": "Flowcharts, sequence diagrams and more, drawn from text",
+      "aliases": "mermaid diagram flowchart chart graph sequence gantt",
+      "placeholder": "Add a Mermaid diagram",
+      "sourcePlaceholder": "graph TD\n  A --> B",
+      "loading": "Drawing the diagram…",
+      "error": "The diagram has an error",
+      "label": "Diagram"
+    },
+    "toc": {
+      "title": "Table of contents",
+      "subtext": "Links to the headings on this page",
+      "aliases": "toc table contents headings outline",
+      "label": "Table of contents",
+      "empty": "Add headings to this page and they'll be listed here."
+    },
+    "breadcrumb": {
+      "title": "Breadcrumb",
+      "subtext": "The pages above this one, as links",
+      "aliases": "breadcrumb path parents location",
+      "label": "Breadcrumb"
+    }
   }
 }
