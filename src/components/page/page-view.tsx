@@ -149,7 +149,8 @@ export function PageView({
   );
 
   return (
-    <div className="flex min-h-full flex-col">
+    // Cmd/Ctrl+F with focus anywhere in here opens the page's find bar instead of the browser's.
+    <div data-find-scope className="flex min-h-full flex-col">
       <header className="sticky top-0 z-20 flex h-11 items-center justify-between gap-2 border-b border-transparent bg-bg/90 px-3 backdrop-blur">
         <nav className="flex min-w-0 items-center gap-1 text-sm text-fg-muted">
           <SidebarOpenButton className="mr-1" />

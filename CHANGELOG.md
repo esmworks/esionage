@@ -4,6 +4,10 @@
 
 ### Added
 
+- **Find and replace in a page:** Cmd/Ctrl+F inside a page opens a find bar over the editor. It
+  highlights every match, shows "3/12", steps with Enter and Shift+Enter, and can match case. People
+  who can edit also replace the current match or all of them in one undo step, synced to everyone
+  on the page. Matches stay within a block, and the selected text fills the search box.
 - **"Can comment" access:** share a page so people can read and comment on it without editing it.
   Their comments mark the selected text on the server, so the page itself stays read-only for them.
 - **Comments on pages:** select text and choose Comment to start a thread; reply, react with emoji,

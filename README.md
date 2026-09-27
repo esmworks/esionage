@@ -11,6 +11,8 @@ approve them over OAuth.
   over titles and content.
 - **Realtime collaboration**: several people can edit the same page at once (Yjs over WebSocket
   via Hocuspocus), with live cursors.
+- **Find and replace** in a page (Cmd/Ctrl+F): highlights every match, steps through them, and
+  replaces one or all in a single undo step. Anyone who can open the page can search it.
 - **Databases**: every row is also a page.
   - Properties: text, number, select, multi-select, status, date, checkbox, checklist, URL,
     email, phone, person, one- or two-way relations to other databases, formulas, rollups over
