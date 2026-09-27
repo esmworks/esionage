@@ -1,9 +1,9 @@
 "use client";
 
-import { PanelLeft } from "lucide-react";
+import { ChevronsRight, Menu } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn, IconButton } from "@/components/ui";
 import { clampSidebarWidth, formatSidebarCookie, SIDEBAR_COOKIE, type SidebarLayout } from "@/lib/sidebar-layout";
 
@@ -21,6 +21,12 @@ type SidebarContextValue = {
   collapsed: boolean;
   /** Phones: the drawer is showing. */
   drawerOpen: boolean;
+  /** Desktop, collapsed: the sidebar floats over the page while the pointer is on it or its trigger. */
+  peek: boolean;
+  /** Pointer reached a peek trigger (left edge, open button) or the floating sidebar itself. */
+  showPeek: () => void;
+  /** Pointer left; the peek closes after a short grace period so it can cross small gaps. */
+  hidePeek: () => void;
   width: number;
   toggle: () => void;
   close: () => void;
@@ -36,7 +42,22 @@ export function SidebarProvider({ initial, children }: { initial: SidebarLayout;
   const [collapsed, setCollapsed] = useState(initial.collapsed);
   const [width, setWidthState] = useState(initial.width);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [peek, setPeek] = useState(false);
+  const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pathname = usePathname();
+
+  const showPeek = useCallback(() => {
+    if (peekTimer.current) clearTimeout(peekTimer.current);
+    peekTimer.current = null;
+    setPeek(true);
+  }, []);
+  const hidePeek = useCallback(() => {
+    if (peekTimer.current) clearTimeout(peekTimer.current);
+    peekTimer.current = setTimeout(() => setPeek(false), 300);
+  }, []);
+  useEffect(() => () => {
+    if (peekTimer.current) clearTimeout(peekTimer.current);
+  }, []);
 
   // The drawer covers the page, so following a link closes it.
   useEffect(() => setDrawerOpen(false), [pathname]);
@@ -46,6 +67,7 @@ export function SidebarProvider({ initial, children }: { initial: SidebarLayout;
       setDrawerOpen((o) => !o);
       return;
     }
+    setPeek(false);
     setCollapsed((c) => {
       saveLayout({ collapsed: !c, width });
       return !c;
@@ -68,6 +90,7 @@ export function SidebarProvider({ initial, children }: { initial: SidebarLayout;
         toggle();
       } else if (e.key === "Escape") {
         setDrawerOpen(false);
+        setPeek(false);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -78,12 +101,15 @@ export function SidebarProvider({ initial, children }: { initial: SidebarLayout;
     () => ({
       collapsed,
       drawerOpen,
+      peek: collapsed && peek,
+      showPeek,
+      hidePeek,
       width,
       toggle,
       close: () => setDrawerOpen(false),
       setWidth,
     }),
-    [drawerOpen, collapsed, width, toggle, setWidth],
+    [drawerOpen, collapsed, peek, showPeek, hidePeek, width, toggle, setWidth],
   );
 
   return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;
@@ -93,7 +119,10 @@ export function useSidebar() {
   return useContext(SidebarContext);
 }
 
-/** Opens the sidebar when it is hidden; renders nothing while it is showing. */
+/**
+ * Shown while the sidebar is hidden. Hovering it slides the sidebar out over the page (desktop);
+ * clicking pins it back in place (desktop) or opens the drawer (phones).
+ */
 export function SidebarOpenButton({ className }: { className?: string }) {
   const t = useTranslations("sidebar.toggle");
   const sidebar = useSidebar();
@@ -102,11 +131,28 @@ export function SidebarOpenButton({ className }: { className?: string }) {
     <IconButton
       label={t("open")}
       title={`${t("open")} (⌘\\)`}
-      className={cn("h-7 w-7", !sidebar.collapsed && "md:hidden", sidebar.drawerOpen && "max-md:hidden", className)}
+      className={cn("group/open h-7 w-7", !sidebar.collapsed && "md:hidden", sidebar.drawerOpen && "max-md:hidden", className)}
       onClick={sidebar.toggle}
+      onMouseEnter={sidebar.collapsed ? sidebar.showPeek : undefined}
+      onMouseLeave={sidebar.collapsed ? sidebar.hidePeek : undefined}
     >
-      <PanelLeft className="h-4 w-4" />
+      <Menu className="h-4 w-4 md:group-hover/open:hidden" />
+      <ChevronsRight className="hidden h-4 w-4 md:group-hover/open:block" />
     </IconButton>
+  );
+}
+
+/** Desktop, collapsed: an invisible strip on the left edge that slides the sidebar out. */
+export function SidebarPeekEdge() {
+  const sidebar = useSidebar();
+  if (!sidebar?.collapsed) return null;
+  return (
+    <div
+      aria-hidden
+      className="fixed inset-y-0 left-0 z-40 hidden w-2 md:block"
+      onMouseEnter={sidebar.showPeek}
+      onMouseLeave={sidebar.hidePeek}
+    />
   );
 }
 

@@ -13,7 +13,8 @@
   "toggle": {
     "open": "Kenar çubuğunu aç",
     "close": "Kenar çubuğunu gizle",
-    "resize": "Genişliği ayarlamak için sürükleyin"
+    "resize": "Genişliği ayarlamak için sürükleyin",
+    "pin": "Kenar çubuğunu sabitle"
   },
   "pages": {
     "heading": "Sayfalar",

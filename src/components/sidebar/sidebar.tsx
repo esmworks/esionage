@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronsLeft,
+  ChevronsRight,
   Database,
   FileText,
   House,
@@ -28,7 +29,7 @@ import type { TreeNode } from "@/server/pages";
 import { NewWorkspaceDialog } from "./new-workspace-dialog";
 import { SearchDialog } from "./search-dialog";
 import { SIDEBAR_WIDTH } from "@/lib/sidebar-layout";
-import { useSidebar } from "./sidebar-context";
+import { SidebarPeekEdge, useSidebar } from "./sidebar-context";
 import { TrashDialog } from "./trash-dialog";
 
 type Workspace = { id: string; name: string; icon: string | null; role: string };
@@ -152,17 +153,23 @@ export function Sidebar({
       {sidebar?.drawerOpen && (
         <div aria-hidden className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={sidebar.close} />
       )}
+      <SidebarPeekEdge />
       <aside
-        // Desktop: an in-flow column the user can collapse and resize. Phones: a drawer over the page.
+        // Desktop: an in-flow column the user can resize, or — when hidden — a panel that slides out
+        // over the page while hovered. Phones: a drawer over the page.
         style={{ "--sidebar-w": `${sidebar?.width ?? 256}px` } as React.CSSProperties}
+        onMouseEnter={sidebar?.collapsed ? sidebar.showPeek : undefined}
+        onMouseLeave={sidebar?.collapsed ? sidebar.hidePeek : undefined}
         className={cn(
           "relative flex shrink-0 flex-col border-r border-border bg-bg-subtle text-sm",
           "max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[min(18rem,85vw)] max-md:shadow-xl md:w-[var(--sidebar-w)]",
-          sidebar?.collapsed && "md:hidden",
+          sidebar?.collapsed &&
+            "md:fixed md:top-12 md:bottom-3 md:left-0 md:z-50 md:rounded-r-xl md:border md:border-l-0 md:shadow-2xl md:transition-[translate,visibility] md:duration-200 md:ease-out",
+          sidebar?.collapsed && (sidebar.peek ? "md:translate-x-0" : "md:invisible md:-translate-x-[calc(100%+1rem)]"),
           !sidebar?.drawerOpen && "max-md:hidden",
         )}
       >
-        {sidebar && <ResizeHandle />}
+        {sidebar && !sidebar.collapsed && <ResizeHandle />}
         <div className="p-2">
           <div className="group/head flex items-center gap-1">
             <Popover
@@ -222,12 +229,27 @@ export function Sidebar({
                 </>
               )}
             </Popover>
+            {sidebar &&
+              (sidebar.collapsed ? (
+                // Floating over the page: offer to pin it back (desktop only; phones use the drawer).
+                <IconButton
+                  label={t("toggle.pin")}
+                  title={`${t("toggle.pin")} (⌘\\)`}
+                  onClick={sidebar.toggle}
+                  className="hidden h-7 w-7 md:inline-flex"
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </IconButton>
+              ) : null)}
             {sidebar && (
               <IconButton
                 label={t("toggle.close")}
                 title={`${t("toggle.close")} (⌘\\)`}
                 onClick={sidebar.toggle}
-                className="h-7 w-7 md:opacity-0 md:group-hover/head:opacity-100 md:focus-visible:opacity-100"
+                className={cn(
+                  "h-7 w-7 md:opacity-0 md:group-hover/head:opacity-100 md:focus-visible:opacity-100",
+                  sidebar.collapsed && "md:hidden",
+                )}
               >
                 <ChevronsLeft className="h-4 w-4" />
               </IconButton>
@@ -317,18 +339,19 @@ export function Sidebar({
           </SidebarButton>
         </div>
 
-        <SearchDialog workspaceId={workspaceId} open={searchOpen} onClose={() => setSearchOpen(false)} />
-        <NewWorkspaceDialog open={newWorkspaceOpen} onClose={() => setNewWorkspaceOpen(false)} />
-        <TrashDialog
-          workspaceId={workspaceId}
-          open={trashOpen}
-          onClose={() => setTrashOpen(false)}
-          onChange={() => {
-            refresh();
-            router.refresh();
-          }}
-        />
       </aside>
+      {/* Outside the aside: its slide transform would otherwise anchor these fixed dialogs. */}
+      <SearchDialog workspaceId={workspaceId} open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <NewWorkspaceDialog open={newWorkspaceOpen} onClose={() => setNewWorkspaceOpen(false)} />
+      <TrashDialog
+        workspaceId={workspaceId}
+        open={trashOpen}
+        onClose={() => setTrashOpen(false)}
+        onChange={() => {
+          refresh();
+          router.refresh();
+        }}
+      />
     </>
   );
 }

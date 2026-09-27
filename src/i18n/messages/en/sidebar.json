@@ -13,7 +13,8 @@
   "toggle": {
     "open": "Open sidebar",
     "close": "Hide sidebar",
-    "resize": "Drag to resize"
+    "resize": "Drag to resize",
+    "pin": "Keep sidebar open"
   },
   "pages": {
     "heading": "Pages",
