@@ -138,7 +138,7 @@ export function PageView({
             size="sm"
             variant="ghost"
             onClick={toggle}
-            className={cn("-ml-2 opacity-0 transition-opacity group-hover:opacity-100", (page.archived || !canEdit) && "hidden")}
+            className={cn("-ml-2 opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100", (page.archived || !canEdit) && "hidden")}
           >
             <SmilePlus className="h-4 w-4" /> {t("icon.add")}
           </Button>
@@ -200,8 +200,8 @@ export function PageView({
         </div>
       )}
 
-      <div className={cn("w-full flex-1 pb-32", wide ? "pt-6" : "mx-auto max-w-[900px] pt-12")}>
-        <div className={cn(wide ? "page-gutter" : "px-[54px]")}>
+      <div className={cn("w-full flex-1 pb-32", wide ? "pt-6" : "mx-auto max-w-[900px] pt-8 md:pt-12")}>
+        <div className={cn(wide ? "page-gutter" : "px-4 md:px-[54px]")}>
           {(!wide || !icon) && <div className="group mb-2 flex h-8 items-end">{iconPicker}</div>}
           {!wide && icon && <div className="h-8" />}
           {/* Wide (database) pages keep the icon beside the title so the view starts higher. */}
@@ -223,7 +223,7 @@ export function PageView({
           )}
         </div>
 
-        {children && <div className={cn(wide ? "mt-5" : "mt-4 px-[54px]")}>{children}</div>}
+        {children && <div className={cn(wide ? "mt-5" : "mt-4 px-4 md:px-[54px]")}>{children}</div>}
 
         {showBody && (
           <div className="mt-4 min-h-[40vh]">
@@ -231,7 +231,7 @@ export function PageView({
               <CollabEditor pageDoc={pageDoc} user={user} editable={editable} workspaceId={workspaceId} pageId={page.id} />
             ) : (
               // Without a connection the error above explains why nothing loads.
-              !error && <div className="px-[54px] text-sm text-fg-faint">{tc("loading")}</div>
+              !error && <div className="px-4 text-sm text-fg-faint md:px-[54px]">{tc("loading")}</div>
             )}
           </div>
         )}

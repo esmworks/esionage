@@ -194,7 +194,7 @@ export function RowMenu({ href, onDelete, className }: { href: string; onDelete:
         onClick={menu.toggle}
         className={cn(
           "board-card flex h-6 w-6 items-center justify-center rounded-md text-fg-muted hover:text-fg focus-visible:visible",
-          menu.open ? "visible" : "invisible group-hover:visible",
+          menu.open ? "visible" : "invisible group-hover:visible pointer-coarse:visible",
         )}
       >
         <Ellipsis className="h-3.5 w-3.5" />

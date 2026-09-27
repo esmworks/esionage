@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { cn, MenuItem, MenuSeparator } from "@/components/ui";
+import { PHONE_QUERY, useMediaQuery } from "@/components/use-media-query";
 import type { ViewConfig } from "@/db/schema/app";
 import type { AggregateFn } from "@/lib/aggregate";
 import { valueType } from "@/lib/derived";
@@ -21,7 +22,8 @@ import { CalculationRow } from "./table-calculations";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
 
-const NAME_WIDTH = 280;
+/** The Name column; narrower on phones so the next column peeks in. */
+const NAME_WIDTH = { wide: 280, phone: 180 };
 const WIDTHS: Partial<Record<Property["type"], number>> = { checkbox: 110, number: 140, date: 170 };
 const colWidth = (p: Property) => WIDTHS[p.type] ?? 200;
 
@@ -93,6 +95,7 @@ export function TableView({
   const selection = useRowSelection(expanded);
   // Row controls before the Name column: the selection checkbox, plus the row menu for editors.
   const handles = readOnly ? 32 : 56;
+  const nameWidth = useMediaQuery(PHONE_QUERY) ? NAME_WIDTH.phone : NAME_WIDTH.wide;
   const hidden = new Set(view.config.hidden ?? []);
   const visible = properties.filter((p) => !hidden.has(p.id));
   const titleProp = titleProperty(databaseId, t("nameColumn"));
@@ -175,12 +178,12 @@ export function TableView({
   const columnCount = 2 + visible.length + (readOnly ? 0 : 1);
   const calculated = [TITLE, ...visible.map((p) => p.id)].some((key) => view.config.calculations?.[key]);
   const calculationColumns = [
-    { key: TITLE, name: t("nameColumn"), type: TITLE, width: NAME_WIDTH },
+    { key: TITLE, name: t("nameColumn"), type: TITLE, width: nameWidth },
     // A formula calculates like a property of its result type.
     ...visible.map((p) => ({ key: p.id, name: p.name, type: valueType(p), options: p.options, width: colWidth(p) })),
   ];
 
-  const totalWidth = handles + NAME_WIDTH + visible.reduce((sum, p) => sum + colWidth(p), 0) + (readOnly ? 0 : 36);
+  const totalWidth = handles + nameWidth + visible.reduce((sum, p) => sum + colWidth(p), 0) + (readOnly ? 0 : 36);
 
   return (
     <div
@@ -190,7 +193,7 @@ export function TableView({
       <table className="table-fixed border-collapse text-sm" style={{ width: totalWidth }}>
         <colgroup>
           <col style={{ width: handles }} />
-          <col style={{ width: NAME_WIDTH }} />
+          <col style={{ width: nameWidth }} />
           {visible.map((p) => (
             <col key={p.id} style={{ width: colWidth(p) }} />
           ))}
@@ -527,7 +530,7 @@ function RowMenu({ workspaceId, rowId, onDelete }: { workspaceId: string; rowId:
         onClick={menu.toggle}
         className={cn(
           "flex h-6 w-6 items-center justify-center rounded text-fg-faint hover:bg-bg-hover hover:text-fg",
-          menu.open ? "visible" : "invisible group-hover:visible",
+          menu.open ? "visible" : "invisible group-hover:visible pointer-coarse:visible",
         )}
       >
         <Ellipsis className="h-4 w-4" />

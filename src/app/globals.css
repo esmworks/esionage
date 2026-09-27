@@ -234,6 +234,38 @@
   }
 }
 
+/*
+ * Phones: the editor text lines up with the page gutter, so the block handles that live in the
+ * desktop gutter have no room; blocks are added with "/" instead.
+ */
+@media (max-width: 767px) {
+  .bn-container .bn-editor {
+    padding-inline: 1rem;
+  }
+  .bn-container .bn-side-menu {
+    display: none;
+  }
+}
+
+/*
+ * iOS zooms into any field under 16px when it takes focus, so touch screens raise small fields to
+ * 16px: those sized by a text-xs/text-sm class here, those inheriting a small size in the base layer.
+ */
+@media (pointer: coarse) {
+  :is(input, textarea, select):is(.text-xs, .text-sm) {
+    font-size: 16px;
+  }
+}
+@layer base {
+  @media (pointer: coarse) {
+    input:not([type="checkbox"], [type="radio"], [type="range"]),
+    textarea,
+    select {
+      font-size: max(16px, 1em);
+    }
+  }
+}
+
 .board-card {
   background: var(--opt-card, var(--bg));
   box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.06), 0 1px 3px rgba(15, 15, 15, 0.08);

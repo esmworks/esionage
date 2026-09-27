@@ -27,7 +27,7 @@ export function SharePanel({ pageId, currentUser }: { pageId: string; currentUse
   const t = useTranslations("page.share");
   const [tab, setTab] = useState<"share" | "publish">("share");
   return (
-    <div className="w-[min(28rem,calc(100vw-2rem))]">
+    <div className="w-full md:w-[min(28rem,calc(100vw-2rem))]">
       <div className="flex gap-4 border-b border-border px-3" role="tablist">
         {(["share", "publish"] as const).map((key) => (
           <button

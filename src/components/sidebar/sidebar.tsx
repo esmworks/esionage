@@ -560,7 +560,7 @@ function SidebarButton({
     <>
       {icon}
       <span className="flex-1">{children}</span>
-      {hint && <span className="text-xs text-fg-faint">{hint}</span>}
+      {hint && <span className="text-xs text-fg-faint pointer-coarse:hidden">{hint}</span>}
       {badge && (
         <span
           aria-label={badge.label}

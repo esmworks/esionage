@@ -86,7 +86,7 @@ export default function CollabEditor({
         <SlashMenu editor={editor} onCreateError={setEmbedError} onPickDatabase={setPickAt} />
       </BlockNoteView>
       {embedError && (
-        <div role="alert" className="mx-[54px] mt-2 flex items-center gap-2 rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-sm">
+        <div role="alert" className="mx-4 mt-2 md:mx-[54px] flex items-center gap-2 rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-sm">
           <span className="flex-1 text-danger">{embedError}</span>
           <button
             type="button"

@@ -94,7 +94,7 @@ export function Floating({
       ref={panel}
       style={style}
       className={cn(
-        "fixed z-50 rounded-lg border border-border bg-bg shadow-lg",
+        "fixed z-50 max-w-[calc(100vw-1rem)] rounded-lg border border-border bg-bg shadow-lg",
         !cover && "min-w-48 p-1",
         className,
       )}

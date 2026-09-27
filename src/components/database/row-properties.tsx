@@ -209,7 +209,7 @@ export function RowProperties({
             <div className="flex flex-col gap-0.5">
               {data.properties.map((p) => (
                 <div key={p.id} className="flex min-h-[30px] items-start gap-2">
-                  <div className="flex h-[30px] w-40 shrink-0 items-center gap-1.5 px-1 text-sm text-fg-muted">
+                  <div className="flex h-[30px] w-28 shrink-0 items-center gap-1.5 px-1 text-sm text-fg-muted sm:w-40">
                     <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate" title={p.name}>
                       {p.name}

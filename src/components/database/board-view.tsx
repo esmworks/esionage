@@ -307,7 +307,7 @@ export function BoardView({
                     aria-label={t("board.addCard")}
                     title={t("board.addCard")}
                     onClick={() => addCard(group)}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted opacity-0 group-hover/col:opacity-100 hover:bg-fg/10 hover:text-fg focus-visible:opacity-100"
+                    className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted opacity-0 group-hover/col:opacity-100 hover:bg-fg/10 hover:text-fg focus-visible:opacity-100 pointer-coarse:opacity-100"
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </button>
@@ -420,7 +420,7 @@ function GroupMenu({
         title={t("groupActions")}
         onClick={menu.toggle}
         className={cn(
-          "inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-fg/10 hover:text-fg focus-visible:opacity-100",
+          "inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-fg/10 hover:text-fg focus-visible:opacity-100 pointer-coarse:opacity-100",
           menu.open ? "opacity-100" : "opacity-0 group-hover/col:opacity-100",
         )}
       >
@@ -635,7 +635,7 @@ function Card({
             onClick={menu.toggle}
             className={cn(
               "board-card flex h-6 w-6 items-center justify-center rounded-md text-fg-muted hover:text-fg",
-              menu.open ? "visible" : "invisible group-hover:visible",
+              menu.open ? "visible" : "invisible group-hover:visible pointer-coarse:visible",
             )}
           >
             <Ellipsis className="h-3.5 w-3.5" />

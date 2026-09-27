@@ -8,12 +8,12 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type DragEvent,
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
 import { Button, cn, PageIcon } from "@/components/ui";
+import { useMediaQuery } from "@/components/use-media-query";
 import type { TimelineZoom } from "@/db/schema/app";
 import { pageLabel } from "@/lib/labels";
 import { canAddToGroup, groupDefaults, groupRowsBy, type Group } from "@/lib/grouping";
@@ -57,20 +57,6 @@ const MIN_LABEL_WIDTH = 72;
 
 type Drag = { rowId: string; mode: DragMode; originX: number; days: number; moved: boolean };
 
-function subscribeNarrow(onChange: () => void) {
-  const query = window.matchMedia("(max-width: 640px)");
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-}
-
-function useNarrow() {
-  return useSyncExternalStore(
-    subscribeNarrow,
-    () => window.matchMedia("(max-width: 640px)").matches,
-    () => false,
-  );
-}
-
 /** The bar color of a swimlane: its option's, or its status stage's; plain cards otherwise. */
 function laneColor(group: Group<Row> | null) {
   if (group?.value.kind === "option") return group.value.option.color;
@@ -102,7 +88,7 @@ export function TimelineView({
   const format = useFormatter();
   const router = useRouter();
   const { viewerId } = usePeople();
-  const narrow = useNarrow();
+  const narrow = useMediaQuery("(max-width: 640px)");
   const scroller = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
   // The config holds the saved zoom and table setting; viewers who can't save still switch locally.

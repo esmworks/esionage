@@ -608,7 +608,7 @@ function TextEditor({
   };
 
   return (
-    <Floating open cover anchor={anchor} onClose={commit} className="w-auto max-w-md p-0">
+    <Floating open cover anchor={anchor} onClose={commit} className="w-auto max-w-[min(28rem,calc(100vw-1rem))] p-0">
       <textarea
         ref={input}
         rows={1}
@@ -789,7 +789,7 @@ function ChecklistEditor({ prop, value, onChange }: { prop: Property; value: unk
               type="button"
               aria-label={t("remove", { text: item.text })}
               onClick={() => update((list) => withPending(list).filter((x) => x.id !== item.id))}
-              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-fg-muted opacity-0 group-hover:opacity-100 hover:text-danger focus:opacity-100"
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-fg-muted opacity-0 group-hover:opacity-100 hover:text-danger focus:opacity-100 pointer-coarse:opacity-100"
             >
               <X className="h-3.5 w-3.5" />
             </button>

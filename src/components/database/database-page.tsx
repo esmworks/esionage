@@ -228,7 +228,8 @@ export function DatabasePage({
           <div className="min-w-0">
             <div className="page-gutter">
               {embed?.header?.(snapshot)}
-              <div className="flex items-end justify-between gap-2 border-b border-border">
+              {/* Phones stack the toolbar above the tabs so the tabs get the whole row. */}
+              <div className="flex flex-col-reverse gap-1 border-b border-border md:flex-row md:items-end md:justify-between md:gap-2">
                 <ViewTabs
                   views={views}
                   activeId={view?.id ?? ""}
@@ -245,7 +246,7 @@ export function DatabasePage({
                   }}
                 />
                 {view && (
-                  <div className="flex shrink-0 items-center gap-1 pb-1.5">
+                  <div className="flex shrink-0 items-center gap-1 self-end md:pb-1.5">
                     <ViewToolbar
                       view={view}
                       properties={snapshot.properties}

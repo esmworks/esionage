@@ -107,21 +107,22 @@ export function HistoryPanel({ pageId, onClose, readOnly }: { pageId: string; on
 
   return (
     <div className="fixed inset-0 z-40 flex bg-black/30" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="m-auto flex h-[80vh] w-full max-w-5xl overflow-hidden rounded-xl border border-border bg-bg shadow-2xl">
+      {/* Phones: full screen, the version list above the preview. */}
+      <div className="flex h-full w-full flex-col-reverse overflow-hidden bg-bg md:m-auto md:h-[80vh] md:max-w-5xl md:flex-row md:rounded-xl md:border md:border-border md:shadow-2xl">
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-center justify-between border-b border-border px-5 py-3">
             <h2 className="truncate text-sm font-medium">{preview ? pageLabel(preview.title, tc("untitled")) : t("previewTitle")}</h2>
           </div>
-          <div className="flex-1 overflow-y-auto py-6">
+          <div className="flex-1 overflow-y-auto py-4 md:py-6">
             {preview ? (
               <Preview markdown={preview.markdown} />
             ) : (
               // A failed load shows its error beside the Restore button instead of loading forever.
-              <p className="px-12 text-sm text-fg-muted">{items?.length === 0 || error === "version" ? "" : tc("loading")}</p>
+              <p className="px-4 text-sm text-fg-muted md:px-12">{items?.length === 0 || error === "version" ? "" : tc("loading")}</p>
             )}
           </div>
         </div>
-        <aside className="flex w-72 shrink-0 flex-col border-l border-border bg-bg-subtle">
+        <aside className="flex max-h-[45%] shrink-0 flex-col border-b border-border bg-bg-subtle md:max-h-none md:w-72 md:border-b-0 md:border-l">
           <div className="flex items-center justify-between px-4 py-3">
             <span className="flex items-center gap-2 text-sm font-medium">
               <History className="h-4 w-4" /> {t("title")}
