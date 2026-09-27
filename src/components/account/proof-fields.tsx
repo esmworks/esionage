@@ -6,6 +6,7 @@ import { CodeInput } from "@/components/security/two-factor";
 import { Button, Input } from "@/components/ui";
 import type { Proof, ProofKind } from "@/lib/account";
 import { authClient } from "@/lib/auth-client";
+import { wipeAllOfflineData } from "@/components/offline/offline-store";
 
 /** How this account confirms sensitive changes, and whether its session is recent enough for the last resort. */
 export type ProofSetup = { kind: ProofKind; recent: boolean };
@@ -60,6 +61,7 @@ export function SignInAgain({ returnTo }: { returnTo: string }) {
         onClick={async () => {
           setPending(true);
           await authClient.signOut();
+          await wipeAllOfflineData();
           window.location.href = `/sign-in?next=${encodeURIComponent(returnTo)}`;
         }}
       >

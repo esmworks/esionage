@@ -18,6 +18,7 @@ import {
 } from "@/server/databases";
 import { copyPageTree } from "@/server/duplicate";
 import { createPage, removeOrphanFiles } from "@/server/pages";
+import { placeTopLevel, TeamspaceError } from "@/server/teamspaces";
 import { requireTopLevel } from "@/server/workspaces";
 
 /**
@@ -127,6 +128,7 @@ export async function saveAsTemplate(actor: WriteActor, pageId: string): Promise
       position: await endPosition(source.workspaceId, database.id),
       rootTemplate: true,
       rootPermissions: true,
+      teamspaceId: null,
       private: false,
       stripComments: true,
     });
@@ -134,7 +136,12 @@ export async function saveAsTemplate(actor: WriteActor, pageId: string): Promise
     return { id: root.id, workspaceId: source.workspaceId, databaseId: database.id };
   }
 
+  // In the page's teamspace, seen by those who see the page there; private when they can't add to it.
   const topLevel = await requireTopLevel(userId, source.workspaceId);
+  const placement = await placeTopLevel(userId, source.workspaceId, topLevel, source.teamspaceId).catch((error) => {
+    if (error instanceof AccessError || error instanceof TeamspaceError) return { teamspaceId: null, private: true };
+    throw error;
+  });
   const { root } = await copyPageTree(actor, source, {
     parentId: null,
     parentInTemplate: false,
@@ -142,7 +149,8 @@ export async function saveAsTemplate(actor: WriteActor, pageId: string): Promise
     position: await endPosition(source.workspaceId, null),
     rootTemplate: true,
     rootPermissions: true,
-    private: topLevel === "private",
+    teamspaceId: placement.teamspaceId,
+    private: placement.private,
     stripComments: true,
   });
   getCollab().broadcast(`ws:${source.workspaceId}`, "templates");
@@ -159,6 +167,8 @@ export type FromTemplateInput = {
   title?: string;
   /** Row values (by property id or name) set over the template's, when the new page is a row. */
   properties?: Record<string, unknown>;
+  /** At the top level: the teamspace, null for a private page, undefined for the default one (see createPage). */
+  teamspaceId?: string | null;
 };
 
 /**
@@ -179,7 +189,7 @@ export async function createFromTemplate(
 
   let parentKind: PageKind | null = null;
   let parentInTemplate = false;
-  let topLevel: "shared" | "private" | null = null;
+  let placement: { teamspaceId: string | null; private: boolean } = { teamspaceId: null, private: false };
   if (parentId) {
     const parent = await requirePageAccess(userId, parentId, "edit");
     if (parent.workspaceId !== template.workspaceId) throw new AccessError("Templates are used in their own workspace");
@@ -190,7 +200,8 @@ export async function createFromTemplate(
     parentKind = parent.kind;
     parentInTemplate = parent.inTemplate;
   } else {
-    topLevel = await requireTopLevel(userId, template.workspaceId);
+    const topLevel = await requireTopLevel(userId, template.workspaceId);
+    placement = await placeTopLevel(userId, template.workspaceId, topLevel, input.teamspaceId);
   }
 
   const title = input.title?.trim() || template.title;
@@ -201,7 +212,8 @@ export async function createFromTemplate(
     position: await endPosition(template.workspaceId, parentId),
     rootTemplate: false,
     rootPermissions: false,
-    private: topLevel === "private",
+    teamspaceId: placement.teamspaceId,
+    private: placement.private,
     stripComments: true,
   });
 
@@ -320,7 +332,11 @@ export async function createFromBuiltin(
   actor: WriteActor,
   workspaceId: string,
   key: BuiltinTemplateKey,
-  { locale, parentId = null }: { locale?: string; parentId?: string | null } = {},
+  {
+    locale,
+    parentId = null,
+    teamspaceId,
+  }: { locale?: string; parentId?: string | null; teamspaceId?: string | null } = {},
 ): Promise<{ id: string; workspaceId: string }> {
   if (!isBuiltinTemplateKey(key)) throw withCode(new Error(`Unknown built-in template "${String(key)}"`), "notATemplate");
   const builtin = builtinTemplate(key, locale);
@@ -328,6 +344,7 @@ export async function createFromBuiltin(
     const created = await createPage(actor, {
       workspaceId,
       parentId,
+      teamspaceId,
       title: builtin.title,
       icon: builtin.icon,
       markdown: builtin.markdown,
@@ -339,6 +356,7 @@ export async function createFromBuiltin(
   const database = await createPage(actor, {
     workspaceId,
     parentId,
+    teamspaceId,
     kind: "database",
     title: builtin.title,
     icon: builtin.icon,

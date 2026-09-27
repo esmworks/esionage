@@ -4,6 +4,75 @@
 
 ### Added
 
+- **Offline editing** (#10): each page opened in the browser is kept in IndexedDB (its Yjs
+  document, via y-indexeddb 9.0.12, MIT), loaded before the page connects. Without a connection the
+  page stays editable, and the edits merge with the server's state when it returns (the sync
+  handshake sends only what the server lacks, which also keeps the comment-thread guard happy).
+  Pages edited offline and closed before reconnecting are sent in the background the next time
+  the app is open. The page header shows Offline / "Offline · edits kept here" / Syncing… /
+  Synced. The sidebar tree and the last 30 databases and rows opened are kept for reading offline
+  (read-only, with a note saying from when); actions that need the server (share, comments,
+  favorites, page menu, search, inbox, new pages, templates, import, trash, sign-out, the icon
+  picker) are turned off offline with a tooltip saying so. Copies are stored per user and wiped
+  on sign-out (with a warning when edits haven't synced), when another user signs in on the
+  browser, and per page when the collab server refuses it: its refusals now carry a reason
+  (`forbidden`, `two-step`, `unauthorized`) and only `forbidden` drops the copy. Collab tokens
+  stay in memory only. New checks: `scripts/offline-e2e.ts` (17), `scripts/sw-e2e.ts` (12, headless
+  Chrome), `src/lib/offline.test.ts`.
+- **Installable app** (#44): web app manifest (`/manifest.webmanifest`, standalone, start URL
+  `/`), icons (192, 512, maskable 512, SVG, favicon, Apple touch icon, from the "e" mark), light
+  and dark theme colours, iOS home-screen meta tags, and a hand-written service worker
+  (`public/sw.js`, production only; `pnpm dev` unregisters a leftover one). It caches the app's
+  hashed scripts, the icons and an offline page, and keeps the HTML of the last 50 signed-in pages
+  per user (read from `<meta name="esionage-user">`) for use only when the network fails; a
+  different user's page drops the previous user's copies, a 404 drops that page, and API
+  responses, uploads, server actions and the websocket are never touched. Offline, pages never
+  opened go to `/offline`, which lists the pages kept on the device, and the start URL goes to the
+  last page opened. The browser's install prompt is kept for an "Install app" item in the
+  workspace menu instead of a banner. README: install and offline use, and a short Tauri /
+  Electron / installed web app comparison for a desktop shell (not built). The Docker image now
+  copies `public/`. No migration.
+- **Phones:** the editor's formatting toolbar scrolls sideways within the screen instead of
+  widening the page (which zoomed the whole page out), and the slash and link menus stay inside
+  the screen.
+- **Teamspaces** (#36): pages and people are grouped into teamspaces. Every workspace gets a
+  *General* teamspace (default: everyone is in it and stays in it, new members included); all
+  existing top-level pages move into it with their subpages, so nobody's access changes, except
+  a guest's private pages, which stay private. Access types: **default**, **open** (visible to
+  every member, who can join; until then they read and comment), **closed** (visible, but its
+  pages open only to its members, whom its owners add; no join requests) and **private** (only its
+  members see it, workspace owners included). Pages outside any teamspace are **private** to their
+  creator unless shared. Owners and members only: guests are never in teamspaces and keep getting
+  single pages. The rule lives in SQL (`page_access_level`), so the sidebar, search, @-mentions,
+  exports, sharing, MCP, the REST API and live collaboration all follow it.
+  - **Sidebar:** a *Teamspaces* heading with a section per teamspace you're in (new page, new
+    database, from a template, import, edit, leave), *Shared* for pages shared with you from
+    elsewhere and *Private* for your own. Dragging a page onto another teamspace or onto Private
+    moves it there after a confirmation; the Move dialog lists teamspaces and Private too.
+  - **Settings → Teamspaces:** active and archived teamspaces with search and owner/access
+    filters, members and owners, a row menu (edit, members, join, leave, archive), the default
+    teamspaces (always in effect, no "update" step) and "Only workspace owners can create
+    teamspaces". The members table gets a Teamspaces column.
+  - **Who may do what:** creating needs a member when the workspace allows it, else an owner;
+    managing a teamspace needs one of its owners (or a workspace owner, except for a private one
+    they aren't in); making a teamspace default, or not default any more, needs a workspace owner
+    (everyone stays in a former default teamspace until they leave). Every teamspace keeps an
+    owner: the last one can't leave, and someone leaving the workspace hands theirs to the
+    teamspace's oldest member, else to the owner who removed them. Archiving hides a teamspace and
+    stops new pages in it; its pages keep their access.
+  - **Moving:** a page moved to another teamspace, or to Private, takes the access of its new place
+    with all its subpages; its own "everyone" entry is dropped and people shared by name keep
+    theirs. Restoring a page whose parent is still in the trash keeps the access it inherited.
+  - **Where new pages go:** the teamspace you add them in; from Home, the first default teamspace;
+    from MCP or the REST API without `teamspace_id`, Private. Duplicates stay in their teamspace;
+    copies of published pages are private.
+  - **MCP and REST:** `list_teamspaces` / `GET /workspaces/{id}/teamspaces`; `teamspace_id` on
+    `create_page`, `create_database`, `move_page` and `list_pages` (and their REST endpoints);
+    pages report their teamspace.
+  - Migration `0021_teamspaces`. Top-level pages that older code creates without a teamspace and
+    without an "everyone" entry are sent to the first default teamspace when their transaction
+    ends, so they keep the access they had.
+
 - **Export as PDF** (#47): "Export as PDF" in the page menu opens the page's print view
   (`/print/<page id>`) in a new tab and the browser's print dialog once its images, fonts and
   Mermaid diagrams have loaded ("Save as PDF"). The view draws the page like its published version

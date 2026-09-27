@@ -79,6 +79,7 @@ import {
 const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
 Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, status, date, checkbox, url, email, phone, checklist, files, relation, person, created_by, created_time, last_edited_by, last_edited_time, formula, rollup). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A status is a select whose options belong to the groups todo, in_progress and done. A checklist holds items that can be ticked off. A files property holds files uploaded to the workspace (images show as thumbnails); its values read as [{name, url}]. created_by, created_time, last_edited_by and last_edited_time show who created or last edited each row and when; they are filled in automatically and can't be written. A formula property computes its value from the row's other properties, and a rollup calculates over the rows a relation links to (see add_database_property); neither can be written.
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
+Teamspaces group a workspace's pages and people (list_teamspaces). A teamspace is default (everyone is in it), open (anyone can join; others can read), closed (only its members open its pages) or private (only its members know it). A top-level page belongs to a teamspace, or is private to the user who made it; pages under it follow it. create_page, create_database and move_page take a teamspace_id for top-level pages ("private" for the user's private pages); without one, new top-level pages are private.
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / diff_page_version / restore_page_version).
 Beyond plain Markdown, page bodies know a few block forms: a callout is a GitHub alert (\`> [!NOTE]\`, TIP, IMPORTANT, WARNING or CAUTION on its own line, then the \`> \` text; a leading emoji becomes its icon), \`$…$\` is an inline equation and a \`$$\` line pair wraps a block equation (LaTeX), a \`\`\`mermaid fence is a diagram, and the lines \`<!-- esionage:toc -->\` and \`<!-- esionage:breadcrumb -->\` are a table of contents and the page's breadcrumb. Columns (2 to 5, side by side) are written between marker lines: \`<!-- esionage:columns -->\`, then \`<!-- esionage:column -->\` before each column's blocks (\`<!-- esionage:column width=2 -->\` makes a column twice as wide as a width-1 one), then \`<!-- esionage:/columns -->\`; keep the markers when you write a body back, or the blocks leave their columns. A web bookmark (a link card) reads as a link on a line of its own, \`[Title](url)\`, and stays a bookmark when you write the body back; to add a new one write \`[Title](url) <!-- esionage:bookmark -->\`. An embed (YouTube, Vimeo, Loom, Figma, published Google Docs/Sheets/Slides, CodePen, Spotify, Google Maps) is \`[url](url) <!-- esionage:embed -->\`. A dollar sign of the text itself is written \`\\$\`.
 Mentions: a link to a page of this app (\`[Roadmap](/w/<workspace_id>/p/<page_id>)\`) is a page mention, which shows the page's live title (the link text you write is ignored; get_page shows the current title, or "No access" / "Deleted page"); that link alone on its line followed by \`<!-- esionage:page-link -->\` is a "Link to page" block. \`@Name\` with a person's name as list_users shows it mentions them (they are notified if they can open the page), and \`@YYYY-MM-DD\` is a date. Keep mentions as they are when you rewrite a page: people aren't notified twice and reminders set on dates stay. get_page lists the pages linking to a page under linked_from.
@@ -647,11 +648,24 @@ export function createMcpServer(principal: McpPrincipal) {
     "list_workspaces",
     {
       title: "List workspaces",
-      description: "List the workspaces the user belongs to, with their ids. Use a workspace id with list_pages, search or create_page.",
+      description:
+        "List the workspaces the user belongs to, with their ids. Use a workspace id with list_teamspaces, list_pages, search or create_page.",
       inputSchema: z.object({}),
       annotations: READ,
     },
     () => runTool(() => ops.listWorkspaces(ctx)),
+  );
+
+  server.registerTool(
+    "list_teamspaces",
+    {
+      title: "List teamspaces",
+      description:
+        'List the teamspaces of a workspace the user can see: all but private ones they aren\'t in. access is "default" (everyone is in it), "open" (anyone can join; others can read and comment), "closed" (only its members open its pages) or "private" (only its members know it). Pass an id as teamspace_id to create_page, create_database, move_page or list_pages; can_add_pages says whether the user may add top-level pages to it.',
+      inputSchema: ops.inputs.listTeamspaces,
+      annotations: READ,
+    },
+    (args) => runTool(() => ops.listTeamspaces(ctx, args)),
   );
 
   server.registerTool(
@@ -726,7 +740,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "List pages",
       description:
-        "List the pages directly under a parent page, or the top-level pages of a workspace when parent_id is omitted. Trashed pages are excluded. For database rows prefer query_database.",
+        "List the pages directly under a parent page, or the top-level pages of a workspace when parent_id is omitted (of every teamspace the user can read, their private pages and pages shared with them; teamspace_id narrows it to one). Trashed pages are excluded. For database rows prefer query_database.",
       inputSchema: ops.inputs.listPages,
       annotations: READ,
     },
@@ -791,7 +805,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a page",
       description:
-        "Create a new page at the top level of a workspace (workspace_id) or nested under another page (parent_id), with an optional Markdown body, or copy a template (template_id from list_templates) with its sub-pages. To add a row to a database use create_database_row instead.",
+        "Create a new page at the top level of a workspace (workspace_id, in a teamspace given by teamspace_id, else private to the user) or nested under another page (parent_id; it then belongs to the parent's teamspace), with an optional Markdown body, or copy a template (template_id from list_templates) with its sub-pages. To add a row to a database use create_database_row instead.",
       inputSchema: ops.inputs.createPage,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
@@ -1008,24 +1022,29 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a database",
       description:
-        'Create a new database (a table of rows) at the top level of a workspace or under a page. It starts with a "Status" status property (Not started, In progress, Done) and a "Tags" multi-select; add more with add_database_property.',
+        'Create a new database (a table of rows) at the top level of a workspace (in a teamspace given by teamspace_id, else private to the user) or under a page. It starts with a "Status" status property (Not started, In progress, Done) and a "Tags" multi-select; add more with add_database_property.',
       inputSchema: z.object({
         workspace_id: z.string().optional().describe("Workspace for a top-level database. Ignored when parent_id is set."),
         parent_id: z.string().optional().describe("Page to create the database under."),
+        teamspace_id: z
+          .string()
+          .optional()
+          .describe('Top level: the teamspace (from list_teamspaces), or "private" (the default). Ignored when parent_id is set.'),
         title: z.string().min(1).max(500).describe("Database title."),
         icon: z.string().max(16).optional().describe("A single emoji used as the icon."),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       scopeChallenge: requireWrite,
     },
-    ({ workspace_id, parent_id, title, icon }) =>
+    ({ workspace_id, parent_id, teamspace_id, title, icon }) =>
       runTool(async () => {
         assertWrite();
-        const location = await ops.resolveLocation(ctx, workspace_id, parent_id);
+        const location = await ops.resolveLocation(ctx, workspace_id, parent_id, teamspace_id);
         if (location.parentKind === "database") throw new ToolInputError("A database cannot be created inside another database.");
         const created = await pages.createPage(actor, {
           workspaceId: location.workspaceId,
           parentId: location.parentId,
+          teamspaceId: location.teamspaceId,
           kind: "database",
           title,
           icon: icon ?? null,
@@ -1365,7 +1384,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Move a page",
       description:
-        "Move a page (with its sub-pages) under another page, or to the top level of its workspace with parent_id null. Moving a page into a database makes it a row; moving a row out of its database turns it into a regular page. Pages cannot move between workspaces.",
+        "Move a page (with its sub-pages) under another page, or to the top level with parent_id null: of the teamspace teamspace_id names, of the user's private pages (\"private\"), or of the teamspace it is in now when teamspace_id is omitted. A page that lands in another teamspace (or among the private pages) takes the access of its new place; people it was shared with by name keep their access. Moving a page into a database makes it a row; moving a row out of its database turns it into a regular page. Pages cannot move between workspaces.",
       inputSchema: ops.inputs.movePage,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,

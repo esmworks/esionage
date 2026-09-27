@@ -133,13 +133,45 @@ export const API_ROUTES: ApiRoute[] = [
     description:
       "The pages at the top of a workspace's tree (with parent_id: the pages directly under that page), in sidebar order. Trashed pages and templates are left out.",
     scope: "pages:read",
-    query: listQuery.extend({ parent_id: z.string().optional().describe("List the pages under this page instead.") }),
+    query: listQuery.extend({
+      parent_id: z.string().optional().describe("List the pages under this page instead."),
+      teamspace_id: z
+        .string()
+        .optional()
+        .describe('Top level only: just this teamspace\'s pages, or "private" for the user\'s private pages.'),
+    }),
     response: "PageList",
     handler: async ({ principal, ctx, params, query }) => {
       requireWorkspace(principal, params.workspace_id);
-      const { pages } = await ops.listPages(ctx, { workspace_id: params.workspace_id, parent_id: query.parent_id });
+      const { pages } = await ops.listPages(ctx, {
+        workspace_id: params.workspace_id,
+        parent_id: query.parent_id,
+        teamspace_id: query.teamspace_id,
+      });
       const { items, ...more } = paginate(pages, query.cursor, query.limit);
       return { pages: items, ...more };
+    },
+  }),
+  defineRoute({
+    method: "GET",
+    path: "/workspaces/{workspace_id}/teamspaces",
+    operationId: "listTeamspaces",
+    tag: "Workspaces",
+    summary: "List teamspaces",
+    description:
+      'The teamspaces of a workspace the user can see (all but private ones they aren\'t in), oldest first. Pages at the top of a workspace belong to a teamspace or are private to the user who made them: pass teamspace_id (or "private") when creating or moving top-level pages.',
+    scope: "pages:read",
+    query: z.object({
+      include_archived: z
+        .enum(["true", "false"])
+        .default("false")
+        .transform((v) => v === "true")
+        .describe("Also list archived teamspaces."),
+    }),
+    response: "TeamspaceList",
+    handler: async ({ principal, ctx, params, query }) => {
+      requireWorkspace(principal, params.workspace_id);
+      return withoutNote(await ops.listTeamspaces(ctx, { workspace_id: params.workspace_id, include_archived: query.include_archived }));
     },
   }),
   defineRoute({
@@ -179,7 +211,7 @@ export const API_ROUTES: ApiRoute[] = [
     tag: "Pages",
     summary: "Create a page",
     description:
-      "Creates a page at the top of a workspace (workspace_id) or under another page (parent_id), with an optional Markdown body, or copies a page template. To add a row to a database, use the rows endpoint.",
+      "Creates a page at the top of a workspace (workspace_id; in the teamspace teamspace_id names, else private to the user) or under another page (parent_id), with an optional Markdown body, or copies a page template. To add a row to a database, use the rows endpoint.",
     scope: "pages:write",
     body: ops.inputs.createPage,
     status: 201,
@@ -247,14 +279,16 @@ export const API_ROUTES: ApiRoute[] = [
     tag: "Pages",
     summary: "Move a page",
     description:
-      "Moves a page with its sub-pages under another page of the same workspace, or to the top level with parent_id null. Moving a page into a database makes it a row; moving a row out makes it a page.",
+      "Moves a page with its sub-pages under another page of the same workspace, or to the top level with parent_id null (of the teamspace teamspace_id names, of the user's private pages with \"private\", or of its current teamspace). A page that lands in another teamspace takes that teamspace's access. Moving a page into a database makes it a row; moving a row out makes it a page.",
     scope: "pages:write",
     body: pageBodies.movePage,
     response: "PageMoved",
     handler: async ({ principal, ctx, params, body }) => {
       await requirePageInWorkspace(principal, params.page_id);
       if (body.parent_id) await requirePageInWorkspace(principal, body.parent_id);
-      return withoutNote(await ops.movePage(ctx, { page_id: params.page_id, parent_id: body.parent_id }));
+      return withoutNote(
+        await ops.movePage(ctx, { page_id: params.page_id, parent_id: body.parent_id, teamspace_id: body.teamspace_id }),
+      );
     },
   }),
   defineRoute({

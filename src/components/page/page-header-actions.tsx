@@ -28,7 +28,7 @@ import {
   setDatabaseLockedAction,
   setFavoriteAction,
 } from "@/app/actions/page-menu";
-import { getTreeAction, movePageAction } from "@/app/actions/pages";
+import { getSidebarAction, movePageAction } from "@/app/actions/pages";
 import { deleteTemplateAction, saveAsTemplateAction } from "@/app/actions/templates";
 import { cn, Dialog, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, Popover, Switch } from "@/components/ui";
 import { useZipExport } from "@/components/use-zip-export";
@@ -39,6 +39,7 @@ import { printPath } from "@/lib/print";
 import { relativeTime } from "@/lib/relative-time";
 import type { PageHeaderInfo } from "@/server/page-meta";
 import type { TreeNode } from "@/server/pages";
+import type { TeamspaceSummary } from "@/server/teamspaces";
 import { PresenceAvatars } from "./presence-avatars";
 import { SharePanel } from "./share-panel";
 
@@ -68,6 +69,7 @@ export function PageHeaderActions({
   onComments,
   commentsOpen = false,
   onMoveToTrash,
+  offline = false,
 }: {
   workspaceId: string;
   page: { id: string; kind: PageKind; parentId: string | null; archived: boolean; hasBody: boolean; isRow?: boolean };
@@ -82,9 +84,13 @@ export function PageHeaderActions({
   onComments?: () => void;
   commentsOpen?: boolean;
   onMoveToTrash: () => void;
+  /** The server can't be reached: sharing, comments, favorites and the page menu need it. */
+  offline?: boolean;
 }) {
   const t = useTranslations("page.header");
+  const tOffline = useTranslations("offline");
   const [info, setInfo] = useState(initialInfo);
+  const offlineTitle = (label: string) => (offline ? tOffline("needsConnection", { action: label }) : label);
   useEffect(() => setInfo(initialInfo), [initialInfo]);
   const refresh = useCallback(() => {
     getPageHeaderAction(page.id).then(setInfo).catch(() => {});
@@ -138,7 +144,9 @@ export function PageHeaderActions({
             <button
               type="button"
               onClick={toggle}
-              className="inline-flex h-7 items-center rounded-md px-2 text-sm text-fg hover:bg-bg-hover"
+              disabled={offline}
+              title={offline ? offlineTitle(t("share")) : undefined}
+              className="inline-flex h-7 items-center rounded-md px-2 text-sm text-fg hover:bg-bg-hover disabled:cursor-default disabled:text-fg-faint disabled:hover:bg-transparent"
             >
               {t("share")}
             </button>
@@ -150,9 +158,10 @@ export function PageHeaderActions({
       {onComments && (
         <IconButton
           label={t("comments")}
-          title={t("comments")}
-          aria-pressed={commentsOpen}
-          className={cn("h-7 w-7", commentsOpen && "bg-bg-hover")}
+          title={offlineTitle(t("comments"))}
+          aria-pressed={commentsOpen && !offline}
+          disabled={offline}
+          className={cn("h-7 w-7 disabled:opacity-40 disabled:hover:bg-transparent", commentsOpen && !offline && "bg-bg-hover")}
           onClick={onComments}
         >
           <MessageSquare className="h-4 w-4" />
@@ -162,9 +171,10 @@ export function PageHeaderActions({
       {!page.archived && !info.template && (
         <IconButton
           label={info.favorite ? t("removeFavorite") : t("addFavorite")}
-          title={info.favorite ? t("removeFavorite") : t("addFavorite")}
+          title={offlineTitle(info.favorite ? t("removeFavorite") : t("addFavorite"))}
           aria-pressed={info.favorite}
-          className="h-7 w-7"
+          disabled={offline}
+          className="h-7 w-7 disabled:opacity-40 disabled:hover:bg-transparent"
           onClick={() => void toggleFavorite()}
         >
           <Star className={cn("h-4 w-4", info.favorite && "fill-amber-400 text-amber-400")} />
@@ -177,6 +187,7 @@ export function PageHeaderActions({
         onInfo={setInfo}
         onHistory={onHistory}
         onMoveToTrash={onMoveToTrash}
+        offline={offline}
       />
     </>
   );
@@ -234,6 +245,7 @@ function PageMenu({
   onInfo,
   onHistory,
   onMoveToTrash,
+  offline,
 }: {
   workspaceId: string;
   page: { id: string; kind: PageKind; parentId: string | null; archived: boolean; hasBody: boolean; isRow?: boolean };
@@ -241,8 +253,10 @@ function PageMenu({
   onInfo: (info: PageHeaderInfo) => void;
   onHistory: () => void;
   onMoveToTrash: () => void;
+  offline: boolean;
 }) {
   const t = useTranslations("page.header");
+  const tOffline = useTranslations("offline");
   const tTemplate = useTranslations("page.template");
   const locale = useLocale();
   const router = useRouter();
@@ -319,7 +333,13 @@ function PageMenu({
         align="end"
         className="w-64"
         trigger={({ toggle }) => (
-          <IconButton label={t("more")} className="h-7 w-7" onClick={toggle}>
+          <IconButton
+            label={t("more")}
+            title={offline ? tOffline("needsConnection", { action: t("more") }) : t("more")}
+            disabled={offline}
+            className="h-7 w-7 disabled:opacity-40 disabled:hover:bg-transparent"
+            onClick={toggle}
+          >
             <MoreHorizontal className="h-4 w-4" />
           </IconButton>
         )}
@@ -482,6 +502,7 @@ function MoveDialog({
   const tc = useTranslations("common");
   const router = useRouter();
   const [tree, setTree] = useState<TreeNode[]>([]);
+  const [teamspaces, setTeamspaces] = useState<TeamspaceSummary[]>([]);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -490,7 +511,12 @@ function MoveDialog({
     if (!open) return;
     setQuery("");
     setError(null);
-    getTreeAction(workspaceId).then(setTree).catch(() => setTree([]));
+    getSidebarAction(workspaceId)
+      .then((next) => {
+        setTree(next.tree);
+        setTeamspaces(next.teamspaces);
+      })
+      .catch(() => setTree([]));
   }, [open, workspaceId]);
 
   const targets = useMemo(() => {
@@ -517,11 +543,30 @@ function MoveDialog({
       .slice(0, 50);
   }, [tree, pageId, isDatabase, currentParentId, query, tc]);
 
-  const move = (parentId: string | null) =>
+  // The tops of the teamspaces they are in and their private pages, except where the page is now.
+  const here = tree.find((n) => n.id === pageId);
+  const q = query.trim().toLocaleLowerCase();
+  const roots: { key: string; teamspaceId: string | null; label: string; hint: string; icon: string | null }[] = guest
+    ? []
+    : [
+        ...teamspaces.map((ts) => ({
+          key: ts.id,
+          teamspaceId: ts.id as string | null,
+          label: ts.name,
+          hint: t("teamspaceHint"),
+          icon: ts.icon,
+        })),
+        { key: "private", teamspaceId: null, label: t("private"), hint: t("privateHint"), icon: null },
+      ]
+        .filter((r) => currentParentId || !here || r.teamspaceId !== here.teamspaceId)
+        .filter((r) => !q || r.label.toLocaleLowerCase().includes(q));
+  const spaceName = new Map(teamspaces.map((ts) => [ts.id, ts.name]));
+
+  const move = (parentId: string | null, teamspaceId?: string | null) =>
     startTransition(async () => {
       setError(null);
       try {
-        await movePageAction(pageId, parentId);
+        await movePageAction(pageId, parentId, undefined, parentId ? undefined : teamspaceId);
         onClose();
         router.refresh();
       } catch {
@@ -543,19 +588,25 @@ function MoveDialog({
         />
       </div>
       <div className={cn("max-h-80 overflow-y-auto p-1", pending && "pointer-events-none opacity-70")}>
-        {currentParentId && !guest && !query.trim() && (
+        {roots.map((r) => (
           <button
+            key={r.key}
             type="button"
-            onClick={() => move(null)}
+            onClick={() => move(null, r.teamspaceId)}
             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-bg-hover"
           >
-            <ArrowRightLeft className="h-4 w-4 text-fg-muted" />
+            {r.icon ? (
+              <span className="flex h-4 w-4 items-center justify-center text-sm">{r.icon}</span>
+            ) : (
+              <ArrowRightLeft className="h-4 w-4 text-fg-muted" />
+            )}
             <span className="min-w-0 flex-1">
-              <span className="block text-sm">{t("root")}</span>
-              <span className="block text-xs text-fg-muted">{t("rootHint")}</span>
+              <span className="block truncate text-sm">{r.label}</span>
+              <span className="block text-xs text-fg-muted">{r.hint}</span>
             </span>
           </button>
-        )}
+        ))}
+        {roots.length > 0 && targets.length > 0 && <div className="my-1 border-t border-border" />}
         {targets.map((n) => (
           <button
             key={n.id}
@@ -564,10 +615,13 @@ function MoveDialog({
             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover"
           >
             <PageIcon icon={n.icon} kind={n.kind} className="text-sm" />
-            <span className="truncate">{pageLabel(n.title, tc("untitled"))}</span>
+            <span className="min-w-0 flex-1 truncate">{pageLabel(n.title, tc("untitled"))}</span>
+            <span className="max-w-[40%] shrink-0 truncate text-xs text-fg-faint">
+              {n.teamspaceId ? (spaceName.get(n.teamspaceId) ?? "") : t("private")}
+            </span>
           </button>
         ))}
-        {!targets.length && <p className="px-2 py-3 text-sm text-fg-muted">{t("empty")}</p>}
+        {!targets.length && !roots.length && <p className="px-2 py-3 text-sm text-fg-muted">{t("empty")}</p>}
       </div>
       {error && (
         <p role="alert" className="border-t border-border px-3 py-2 text-xs text-danger">

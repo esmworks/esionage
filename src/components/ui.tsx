@@ -135,19 +135,26 @@ export function MenuItem({
   onClick,
   danger,
   active,
+  disabled,
+  title,
 }: {
   icon?: ReactNode;
   children: ReactNode;
   onClick?: () => void;
   danger?: boolean;
   active?: boolean;
+  disabled?: boolean;
+  /** Tooltip, e.g. why the item is disabled. */
+  title?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
+      title={title}
       className={cn(
-        "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover",
+        "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent",
         danger && "text-danger",
         active && "bg-bg-hover",
       )}
@@ -176,7 +183,7 @@ export function Dialog({
   const ref = useDismiss<HTMLDivElement>(open, onClose);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[12vh]">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4 pt-[12vh]">
       <div
         ref={ref}
         role="dialog"

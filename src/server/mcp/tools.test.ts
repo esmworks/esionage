@@ -56,6 +56,13 @@ vi.mock("@/server/databases", () => databases);
 const pageHistory = vi.hoisted(() => ({ diffSnapshot: vi.fn() }));
 vi.mock("@/server/page-history", () => pageHistory);
 
+const teamspaces = vi.hoisted(() => ({
+  listTeamspaces: vi.fn(),
+  getTeamspace: vi.fn(),
+  teamspaceLabel: vi.fn(async (_: string, id: string) => (id === "ts-1" ? { id, name: "Engineering", icon: null } : null)),
+}));
+vi.mock("@/server/teamspaces", () => teamspaces);
+
 const workspaces = vi.hoisted(() => ({ listMembers: vi.fn() }));
 vi.mock("@/server/workspaces", () => workspaces);
 
@@ -232,9 +239,71 @@ describe("move_page", () => {
       id === "db-1" ? { ...page, id: "db-1", kind: "database" } : { ...page, parentId: "db-1" },
     );
     const r = await callTool(writer, "move_page", { page_id: "page-1", parent_id: null });
-    expect(pages.movePage).toHaveBeenCalledWith("user-1", "page-1", null);
+    expect(pages.movePage).toHaveBeenCalledWith("user-1", "page-1", null, undefined, undefined);
     expect(r.data.parent_id).toBeNull();
     expect(r.data.note).toMatch(/no longer a database row/);
+  });
+
+  it("moves a top-level page to another teamspace or to the private pages", async () => {
+    pages.getPage.mockResolvedValue({ ...page, teamspaceId: "ts-1" });
+    await callTool(writer, "move_page", { page_id: "page-1", parent_id: null, teamspace_id: "private" });
+    expect(pages.movePage).toHaveBeenLastCalledWith("user-1", "page-1", null, undefined, null);
+    await callTool(writer, "move_page", { page_id: "page-1", parent_id: null, teamspace_id: "ts-2" });
+    expect(pages.movePage).toHaveBeenLastCalledWith("user-1", "page-1", null, undefined, "ts-2");
+  });
+
+  it("leaves a page where it is when it is already at the top of that teamspace", async () => {
+    pages.getPage.mockResolvedValue({ ...page, teamspaceId: "ts-1" });
+    await callTool(writer, "move_page", { page_id: "page-1", parent_id: null, teamspace_id: "ts-1" });
+    expect(pages.movePage).not.toHaveBeenCalled();
+  });
+});
+
+describe("teamspaces", () => {
+  it("lists teamspaces with their access and whether pages can be added", async () => {
+    teamspaces.listTeamspaces.mockResolvedValue([
+      {
+        id: "ts-1",
+        name: "Engineering",
+        icon: null,
+        description: "",
+        access: "open",
+        archivedAt: null,
+        memberCount: 3,
+        owners: [{ id: "user-2", name: "Ada" }],
+        joined: false,
+        role: null,
+      },
+    ]);
+    const r = await callTool(reader, "list_teamspaces", { workspace_id: "ws-1" });
+    expect(teamspaces.listTeamspaces).toHaveBeenCalledWith("user-1", "ws-1", { archived: "active" });
+    expect(r.data.teamspaces[0]).toMatchObject({ id: "ts-1", access: "open", joined: false, can_add_pages: false, owners: ["Ada"] });
+  });
+
+  it("creates top-level pages as private unless a teamspace is named", async () => {
+    pages.createPage.mockResolvedValue({ ...page, id: "new-1" });
+    await callTool(writer, "create_page", { workspace_id: "ws-1", title: "Mine" });
+    expect(pages.createPage.mock.calls[0][1]).toMatchObject({ workspaceId: "ws-1", parentId: null, teamspaceId: null });
+    teamspaces.getTeamspace.mockResolvedValue({ id: "ts-1", workspaceId: "ws-1" });
+    await callTool(writer, "create_page", { teamspace_id: "ts-1", title: "Team page" });
+    expect(pages.createPage.mock.calls[1][1]).toMatchObject({ workspaceId: "ws-1", parentId: null, teamspaceId: "ts-1" });
+  });
+
+  it("refuses a teamspace the user can't see without telling it apart from a missing one", async () => {
+    teamspaces.getTeamspace.mockRejectedValue(new AccessError());
+    const r = await callTool(writer, "create_page", { teamspace_id: "ts-secret", title: "x" });
+    expect(r.isError).toBe(true);
+    expect(r.text).toMatch(/Unknown teamspace_id/);
+    expect(pages.createPage).not.toHaveBeenCalled();
+  });
+
+  it("names the teamspace of a page, and private for pages outside any", async () => {
+    pages.getPage.mockResolvedValue({ ...page, teamspaceId: "ts-1" });
+    const inTeam = await callTool(reader, "get_page", { page_id: "page-1" });
+    expect(inTeam.data).toMatchObject({ teamspace_id: "ts-1", teamspace: "Engineering" });
+    pages.getPage.mockResolvedValue({ ...page, teamspaceId: null });
+    const mine = await callTool(reader, "get_page", { page_id: "page-1" });
+    expect(mine.data).toMatchObject({ teamspace_id: null, teamspace: "Private" });
   });
 });
 

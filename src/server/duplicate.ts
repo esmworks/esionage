@@ -12,6 +12,7 @@ import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { bulkRowIds, rowsWithAccess, syncPairedRelations, withCode, type BulkResult } from "@/server/databases";
 import { copyReferences } from "@/server/mentions";
 import { makePagePrivate } from "@/server/permissions";
+import { placeTopLevel, TeamspaceError } from "@/server/teamspaces";
 import { requireTopLevel } from "@/server/workspaces";
 
 /** Larger subtrees are refused rather than copied in one long transaction. */
@@ -32,7 +33,12 @@ export type CopyTarget = {
    * access (a page made from a template). Entries of the pages under it are always copied.
    */
   rootPermissions: boolean;
-  /** A guest's top-level copy is theirs alone, like any top-level page they add. */
+  /**
+   * The teamspace of a copy at the top level (null: a private page); under a parent the copy
+   * belongs to the parent's.
+   */
+  teamspaceId: string | null;
+  /** A private top-level copy is theirs alone, like any private page they add. */
   private: boolean;
   /** Leave the source's comment threads (and their marks in the text) behind. */
   stripComments: boolean;
@@ -145,6 +151,12 @@ export async function copyPageTree(
       return value;
     };
 
+    // Every page of the copy belongs to the teamspace it lands in (see page.teamspaceId).
+    const [landing] = target.parentId
+      ? await tx.select({ teamspaceId: page.teamspaceId }).from(page).where(eq(page.id, target.parentId))
+      : [{ teamspaceId: target.teamspaceId }];
+    const space = landing?.teamspaceId ?? null;
+
     // One statement for all pages, so the bodies (ydoc can be large) are copied inside Postgres
     // and foreign keys to parents are checked once every page exists.
     const rows = plan.pages.map((p) => {
@@ -164,10 +176,10 @@ export async function copyPageTree(
     });
     const inserted = await tx.execute<{ id: string }>(sql`
       insert into ${page} (id, workspace_id, parent_id, kind, title, icon, position, properties,
-        ydoc, content_text, content_markdown, is_template, in_template, default_template_id, created_by, updated_by)
+        ydoc, content_text, content_markdown, is_template, in_template, default_template_id, teamspace_id, created_by, updated_by)
       select m.id, src.workspace_id, m.parent_id, src.kind, m.title, src.icon, m.position, m.properties,
         src.ydoc, src.content_text, src.content_markdown, m.is_template, m.in_template, m.default_template_id,
-        ${userId}, ${userId}
+        ${space}::text, ${userId}, ${userId}
       from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb)
         as m(id text, source_id text, parent_id text, title text, position double precision, properties jsonb,
           is_template boolean, in_template boolean, default_template_id text)
@@ -238,14 +250,19 @@ export async function duplicatePage(
   // The copy lands beside the original, so the user needs to be allowed to add pages there.
   let parentKind: PageKind | null = null;
   let parentInTemplate = false;
-  let topLevel: "shared" | "private" | null = null;
+  let placement: { teamspaceId: string | null; private: boolean } = { teamspaceId: null, private: false };
   if (source.parentId) {
     const parent = await requirePageAccess(userId, source.parentId, "edit");
     if (parent.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
     parentKind = parent.kind;
     parentInTemplate = parent.inTemplate;
   } else {
-    topLevel = await requireTopLevel(userId, source.workspaceId);
+    // Beside the original in its teamspace when they may add pages there, else among their private pages.
+    const topLevel = await requireTopLevel(userId, source.workspaceId);
+    placement = await placeTopLevel(userId, source.workspaceId, topLevel, source.teamspaceId).catch((error) => {
+      if (error instanceof AccessError || error instanceof TeamspaceError) return { teamspaceId: null, private: true };
+      throw error;
+    });
   }
   const title = `${source.title}${copySuffix}`.trim();
 
@@ -254,7 +271,8 @@ export async function duplicatePage(
     parentInTemplate,
     title,
     rootPermissions: true,
-    private: topLevel === "private",
+    teamspaceId: placement.teamspaceId,
+    private: placement.private,
     stripComments: false,
   });
 

@@ -1,0 +1,18 @@
+{
+  "banner": "Çevrimdışı",
+  "hint": "Çevrimdışısınız. Daha önce açtığınız sayfaları okumaya ve düzenlemeye devam edebilirsiniz; değişiklikler bağlantı gelince eşitlenir.",
+  "needsConnection": "{action}: bağlantı gerekiyor",
+  "readOnly": "Çevrimdışı: salt okunur",
+  "readOnlyCopy": "{time} tarihli çevrimdışı kopya, salt okunur",
+  "signOutUnsynced": "Bazı sayfalarda sunucuya henüz ulaşmamış değişiklikler var. Çıkış yaparsanız bu tarayıcıdan silinirler. Yine de çıkış yapılsın mı?",
+  "installApp": "Uygulamayı yükle",
+  "page": {
+    "documentTitle": "Çevrimdışı",
+    "heading": "Çevrimdışısınız",
+    "body": "Esionage şu anda sunucuya ulaşamıyor. Bu cihazda açtığınız sayfalar aşağıda; bu tarayıcıdaki kopyalarından açılırlar.",
+    "saved": "Bu cihazda kayıtlı",
+    "unsynced": "Eşitlenmemiş değişiklikler var",
+    "empty": "Bu cihazda henüz kayıtlı sayfa yok. Çevrimiçiyken açtığınız sayfalar çevrimdışı kullanım için saklanır.",
+    "retry": "Yeniden dene"
+  }
+}

@@ -13,7 +13,8 @@ import { markdownImageHint, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { migrateDocTitle, readDocTitle, writeDocTitle } from "@/lib/collab-title";
 import { requestLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
-import { AccessError } from "@/server/access";
+import { COLLAB_FORBIDDEN, COLLAB_TWO_STEP, COLLAB_UNAUTHORIZED } from "@/lib/offline";
+import { AccessError, TwoFactorRequiredError } from "@/server/access";
 import { sessionPassesTwoFactor } from "@/server/account-security";
 import { blocksToMarkdown, markdownToBlocks, serverEditor as editor } from "@/server/blocknote";
 import { mentionablePeople, syncPageReferences } from "@/server/mentions";
@@ -43,6 +44,9 @@ const AUTO_SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
 const debug = process.env.COLLAB_DEBUG ? (...args: unknown[]) => console.log("[collab]", ...args) : () => {};
 
 const pageDocName = (pageId: string) => `page:${pageId}`;
+
+/** A refused connection; Hocuspocus sends `reason` to the browser with the "permission denied" answer. */
+const refusal = (reason: string) => Object.assign(new Error(reason), { reason });
 
 const readTitle = readDocTitle;
 
@@ -231,7 +235,8 @@ export function createCollab() {
     async onAuthenticate({ token, documentName, connectionConfig, requestHeaders }) {
       const user = verifyCollabToken(token);
       const target = parseName(documentName);
-      if (!user || !target) throw new Error("unauthorized");
+      if (!user) throw refusal(COLLAB_UNAUTHORIZED);
+      if (!target) throw refusal(COLLAB_FORBIDDEN);
       try {
         const strong = await sessionPassesTwoFactor(user.sessionId, user.userId);
         // People who may only read get the live document but their edits are dropped.
@@ -246,7 +251,9 @@ export function createCollab() {
           strong,
         } satisfies Context;
       } catch (error) {
-        if (error instanceof AccessError) throw new Error("forbidden");
+        // Browsers drop their offline copy of a page only for "forbidden" (see components/collab/socket).
+        if (error instanceof TwoFactorRequiredError) throw refusal(COLLAB_TWO_STEP);
+        if (error instanceof AccessError) throw refusal(COLLAB_FORBIDDEN);
         throw error;
       }
     },
@@ -502,6 +509,32 @@ export function createCollab() {
       for (const doc of hocuspocus.documents.values()) {
         for (const connection of doc.getConnections()) {
           if (ended(connection.context as Context)) connection.close({ code: 4403, reason: "Forbidden" });
+        }
+      }
+    },
+
+    async disconnectTeamspace(teamspaceId, userIds) {
+      const who = userIds && new Set(userIds);
+      const matches = (context: Context) => context.userId !== undefined && (!who || who.has(context.userId));
+      const open = [...hocuspocus.documents.values()].filter((doc) => doc.getConnections().some((c) => matches(c.context as Context)));
+      const pageIds = open.flatMap((doc) => {
+        const target = parseName(doc.name);
+        return target && target.kind !== "ws" ? [target.id] : [];
+      });
+      if (!pageIds.length) return;
+      const inTeamspace = new Set(
+        (
+          await db
+            .select({ id: page.id })
+            .from(page)
+            .where(and(eq(page.teamspaceId, teamspaceId), inArray(page.id, pageIds)))
+        ).map((r) => r.id),
+      );
+      for (const doc of open) {
+        const target = parseName(doc.name);
+        if (!target || target.kind === "ws" || !inTeamspace.has(target.id)) continue;
+        for (const connection of doc.getConnections()) {
+          if (matches(connection.context as Context)) connection.close({ code: 4403, reason: "Forbidden" });
         }
       }
     },

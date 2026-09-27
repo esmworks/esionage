@@ -34,9 +34,10 @@
     "addInside": "Add a page inside",
     "noChildren": "No pages inside",
     "favorites": "Favorites",
-    "moveFailed": "The page couldn't be moved here. Moving it under another page needs full access to it.",
+    "moveFailed": "The page couldn't be moved here. Moving it somewhere else needs full access to it.",
     "fromTemplate": "From a template",
-    "import": "Import…"
+    "import": "Import…",
+    "confirmMoveSpace": "Move this page to {place}? Who can see it changes to match."
   },
   "search": {
     "placeholder": "Search pages and content…",
@@ -81,5 +82,25 @@
     "open": "Open template",
     "delete": "Delete template",
     "confirmDelete": "Delete this template for good? Pages already made from it stay as they are."
+  },
+  "teamspaces": {
+    "heading": "Teamspaces",
+    "options": "Teamspace options",
+    "new": "New teamspace",
+    "browse": "Browse teamspaces",
+    "none": "You're not in any teamspace yet. Browse teamspaces",
+    "actions": "Actions for {name}",
+    "addPage": "Add a page to {name}",
+    "edit": "Edit teamspace",
+    "members": "Members and settings",
+    "leave": "Leave teamspace",
+    "confirmLeave": "Leave {name}? Its pages leave your sidebar. Unless the teamspace is open, you also lose access to them.",
+    "empty": "No pages yet. Add one",
+    "another": "another teamspace"
+  },
+  "sections": {
+    "shared": "Shared",
+    "private": "Private",
+    "newPrivate": "New private page"
   }
 }

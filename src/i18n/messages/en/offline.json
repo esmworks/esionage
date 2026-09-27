@@ -1,0 +1,18 @@
+{
+  "banner": "Offline",
+  "hint": "You're offline. Pages you opened before can still be read and edited; changes sync when the connection is back.",
+  "needsConnection": "{action}: needs a connection",
+  "readOnly": "Offline: read-only",
+  "readOnlyCopy": "Offline copy from {time}, read-only",
+  "signOutUnsynced": "Some pages have edits that haven't reached the server yet. Signing out removes them from this browser. Sign out anyway?",
+  "installApp": "Install app",
+  "page": {
+    "documentTitle": "Offline",
+    "heading": "You're offline",
+    "body": "Esionage can't reach the server right now. Pages you opened on this device are listed below and open from this browser's copy.",
+    "saved": "Saved on this device",
+    "unsynced": "Edits not synced yet",
+    "empty": "No pages are saved on this device yet. Pages you open while online are kept for offline use.",
+    "retry": "Try again"
+  }
+}

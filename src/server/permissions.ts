@@ -1,6 +1,8 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { PAGE_LEVELS, pageInvitation, pagePermission, type PageLevel, user, workspaceInvitation, workspaceMember } from "@/db/schema";
+import { teamspaceLabel, teamspaceReach } from "@/server/teamspaces";
+import { everyoneFloor } from "@/lib/teamspace-reach";
 import { isEmail, normalizeEmail } from "@/lib/emails";
 import { AccessError, FULL_RANK, getMembership, hasLevel, requirePageAccess, resolvePageAccess } from "@/server/access";
 import { recordShare, withdrawShare } from "@/server/notifications";
@@ -80,16 +82,42 @@ export async function listPagePermissions(userId: string, pageId: string) {
     sourceTitle: r.title,
     inherited: r.page_id !== pageId,
   }));
-  const everyone = entries.find((e) => e.userId === null)?.level ?? "full";
+  // "Everyone" means the teamspace's members for a teamspace's page (full unless restricted), and
+  // the whole workspace for a private page (nobody unless shared).
+  const space = target.teamspaceId ? await teamspaceLabel(userId, target.teamspaceId) : null;
+  const everyone = entries.find((e) => e.userId === null)?.level ?? (target.teamspaceId ? "full" : "none");
+  const manages = hasLevel(level, "full");
+  // For those who manage it: the least each owner or member of the workspace gets from "everyone",
+  // as page_access_level works it out. In the teamspace (or any of the workspace for a private
+  // page): all of it; an open teamspace's other members: up to comment; anyone else: nothing.
+  const floors: Record<string, PageLevel> = {};
+  if (manages) {
+    const reach = target.teamspaceId ? await teamspaceReach(target.teamspaceId) : null;
+    const people = await db
+      .select({ userId: workspaceMember.userId, role: workspaceMember.role })
+      .from(workspaceMember)
+      .where(eq(workspaceMember.workspaceId, target.workspaceId));
+    for (const p of people) {
+      if (p.role !== "guest") floors[p.userId] = everyoneFloor(everyone, reach, p.userId);
+    }
+  }
   // Only those who manage the page see whom it waits for.
-  const invitations = hasLevel(level, "full")
+  const invitations = manages
     ? await db
         .select({ email: pageInvitation.email, level: pageInvitation.level })
         .from(pageInvitation)
         .where(eq(pageInvitation.pageId, pageId))
         .orderBy(asc(pageInvitation.createdAt))
     : [];
-  return { level, everyone, entries: entries.filter((e) => e.userId !== null), invitations };
+  return {
+    level,
+    everyone,
+    /** Private pages are in no teamspace; a teamspace's name shows only to those who can see the teamspace. */
+    space: target.teamspaceId ? { kind: "teamspace" as const, name: space?.name ?? null } : { kind: "private" as const },
+    entries: entries.filter((e) => e.userId !== null),
+    floors,
+    invitations,
+  };
 }
 
 export type ShareByEmailResult =
@@ -219,8 +247,8 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Makes a page only `userId` can see: nobody else by default, them with full access. For a
- * guest's top-level page; run it in the transaction that creates the page, so it is never
- * visible to the workspace in between.
+ * private top-level page (outside any teamspace); run it in the transaction that creates the
+ * page, so it is never visible to anyone else in between.
  */
 export async function makePagePrivate(tx: Tx, workspaceId: string, pageId: string, userId: string) {
   await tx.delete(pagePermission).where(eq(pagePermission.pageId, pageId));
@@ -230,6 +258,79 @@ export async function makePagePrivate(tx: Tx, workspaceId: string, pageId: strin
   ]);
 }
 
+const lockPermissions = (tx: Tx, workspaceId: string) =>
+  tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`page_permission:${workspaceId}`}))`);
+
+/**
+ * After `pageId` moved (by `userId`, who has full access to it), in the move's transaction:
+ * - into another teamspace, or into or out of the private pages (`changedSpace`), the page drops
+ *   its own "everyone" entry and so takes the access of its new place: its new teamspace's, or
+ *   nobody's but the people it is shared with. People named on it keep their entries.
+ * - into the private pages (`toPrivate`), "everyone" entries below it that open pages up are
+ *   dropped too: outside a teamspace they would open them to the whole workspace. Entries that
+ *   close pages ("none") stay.
+ * - to the top of the private pages (`privateTop`), the mover keeps full access by an entry of
+ *   their own, since nothing above gives it to them any more.
+ */
+export async function followNewSpace(
+  tx: Tx,
+  workspaceId: string,
+  pageId: string,
+  userId: string,
+  { changedSpace, toPrivate, privateTop }: { changedSpace: boolean; toPrivate: boolean; privateTop: boolean },
+) {
+  if (!changedSpace && !privateTop) return;
+  await lockPermissions(tx, workspaceId);
+  if (changedSpace) {
+    await tx.delete(pagePermission).where(and(eq(pagePermission.pageId, pageId), isNull(pagePermission.userId)));
+    if (toPrivate) {
+      await tx.execute(sql`
+        delete from ${pagePermission} pp
+        where pp.user_id is null and pp.level <> 'none' and pp.page_id in (
+          with recursive sub as (
+            select id from page where id = ${pageId}
+            union all
+            select p.id from page p join sub on p.parent_id = sub.id
+          ) select id from sub
+        )
+      `);
+    }
+  }
+  if (privateTop) {
+    await tx
+      .insert(pagePermission)
+      .values({ pageId, workspaceId, userId, level: "full", createdBy: userId })
+      .onConflictDoUpdate({
+        target: [pagePermission.pageId, pagePermission.userId],
+        set: { level: "full", createdBy: userId, createdAt: new Date() },
+      });
+  }
+}
+
+/**
+ * Gives `pageId` entries of its own for what it inherits from its ancestors now, for each
+ * principal that has no entry on the page itself. Run before it loses those ancestors (restored
+ * out of a deleted parent), so it keeps the access it had.
+ */
+export async function freezeInheritedEntries(tx: Tx, workspaceId: string, pageId: string) {
+  await lockPermissions(tx, workspaceId);
+  await tx.execute(sql`
+    insert into ${pagePermission} (id, page_id, workspace_id, user_id, level, created_by)
+    select gen_random_uuid()::text, ${pageId}, inherited.workspace_id, inherited.user_id, inherited.level, inherited.created_by
+    from (
+      with recursive chain as (
+        select p.id, p.parent_id, 1 as depth from page p where p.id = (select parent_id from page where id = ${pageId})
+        union all
+        select p.id, p.parent_id, c.depth + 1 from page p join chain c on p.id = c.parent_id where c.depth < 64
+      )
+      select distinct on (pp.user_id) pp.workspace_id, pp.user_id, pp.level, pp.created_by
+      from chain c join ${pagePermission} pp on pp.page_id = c.id
+      order by pp.user_id nulls first, c.depth
+    ) inherited
+    on conflict (page_id, user_id) do nothing
+  `);
+}
+
 /**
  * Applies a change and rolls it back if it leaves the page, or a subpage with entries of its own,
  * without any member who has full access: nobody could share or delete it any more. Changes in one
@@ -237,7 +338,7 @@ export async function makePagePrivate(tx: Tx, workspaceId: string, pageId: strin
  */
 async function changePermissions(workspaceId: string, pageId: string, change: (tx: Tx) => Promise<void>) {
   await db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`page_permission:${workspaceId}`}))`);
+    await lockPermissions(tx, workspaceId);
     await change(tx);
     const orphans = await tx.execute<{ id: string }>(sql`
       with recursive sub as (

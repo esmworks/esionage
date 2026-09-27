@@ -66,6 +66,11 @@ export interface CollabService {
    * account). Connections whose token names no session are dropped only when `keep` is empty.
    */
   disconnectSessions(userId: string, keep: string[]): Promise<void>;
+  /**
+   * Drops the connections to the teamspace's pages and databases (of these users, or everyone's),
+   * after its access narrowed or they left it. They reconnect with whatever access they have left.
+   */
+  disconnectTeamspace(teamspaceId: string, userIds?: string[]): Promise<void>;
 }
 
 const KEY = "__esionageCollab";

@@ -69,11 +69,16 @@
     "connecting": "Bağlanıyor",
     "offline": "Çevrimdışı",
     "reconnecting": "Yeniden bağlanıyor",
-    "noAccess": "Erişim yok"
+    "noAccess": "Erişim yok",
+    "syncing": "Eşitleniyor…",
+    "synced": "Eşitlendi",
+    "offlinePending": "Çevrimdışı · değişiklikler burada",
+    "offlineHint": "Çevrimdışısınız. Düzenlemeye devam edebilirsiniz: değişiklikler bu tarayıcıda saklanır, bağlantı gelince eşitlenir."
   },
   "errors": {
     "accessLost": "Artık bu sayfaya erişiminiz yok.",
-    "connectionFailed": "Canlı düzenlemeye bağlanılamadı. Yeniden deneniyor…"
+    "connectionFailed": "Canlı düzenlemeye bağlanılamadı. Yeniden deneniyor…",
+    "notAvailableOffline": "Bu sayfa henüz bu cihazda kayıtlı değil. Çevrimdışı kullanmak için bir kez çevrimiçiyken açın."
   },
   "history": {
     "title": "Sayfa geçmişi",
@@ -116,10 +121,11 @@
   "move": {
     "title": "Şuraya taşı",
     "search": "Sayfa ara…",
-    "root": "Çalışma alanının en üstü",
-    "rootHint": "Kenar çubuğunda en üst düzey sayfa olur",
     "empty": "Eşleşen sayfa yok.",
-    "failed": "Sayfa buraya taşınamadı."
+    "failed": "Sayfa buraya taşınamadı.",
+    "teamspaceHint": "Bu teamspace'in en üstü: üyeleri erişim kazanır",
+    "private": "Özel",
+    "privateHint": "Özel sayfalarınızın en üstü: yalnızca paylaşılan kişiler erişir"
   },
   "share": {
     "tabShare": "Paylaş",
@@ -143,6 +149,9 @@
     "generalAccess": "Genel erişim",
     "everyone": "Çalışma alanındaki herkes",
     "everyoneHint": "Üyeler, kişi bazında ne verilirse verilsin en az bu kadar erişime sahip olur. Sayfayı yalnızca eklediğiniz kişilere açmak için bunu \"Erişim yok\" yapın.",
+    "everyoneIn": "{name} içindeki herkes",
+    "everyoneTeamspace": "Teamspace'teki herkes",
+    "everyoneTeamspaceHint": "Teamspace üyeleri, onlara tek tek ne verirseniz verin en az bu kadar erişim alır. Sayfayı yalnızca eklediğiniz kişilere açmak için \"Erişim yok\" seçin.",
     "readOnly": "Paylaşım ayarlarını yalnızca tam erişimi olanlar değiştirebilir.",
     "copyLink": "Bağlantıyı kopyala",
     "copied": "Kopyalandı",

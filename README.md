@@ -20,6 +20,12 @@ approve them over OAuth.
 - **Realtime collaboration**: several people can edit the same page at once (Yjs over WebSocket
   via Hocuspocus), with live cursors. The page header shows who else has the page open, including
   people who can only view it.
+- **Offline editing**: pages you opened before stay readable and editable without a connection;
+  the edits sync when it is back, merged with what others wrote meanwhile. The sidebar and
+  recently opened databases stay readable. The page header shows offline, syncing and synced (see
+  [Install and offline use](#install-and-offline-use)).
+- **Installable app**: install Esionage from the browser on desktop (Chrome, Edge) or add it to
+  the home screen on phones; it opens in its own window.
 - **Find and replace** in a page (Cmd/Ctrl+F): highlights every match, steps through them, and
   replaces one or all in a single undo step. Anyone who can open the page can search it.
 - **Databases**: every row is also a page.
@@ -52,9 +58,20 @@ approve them over OAuth.
 - **Page history**: versions are saved automatically while you edit and before every AI edit.
   You can preview and restore any version, and see what changed since it or since the version
   before, and who (or which AI app) changed it.
-- **Sharing and permissions**: give members or everyone full, edit, comment, view or no access to a page.
-  Subpages inherit it unless you change them. Share a page with someone outside the workspace by
-  email and they join as a guest who sees only the pages shared with them.
+- **Teamspaces**: group pages and people. Every workspace starts with a *General* teamspace
+  everyone is in. A teamspace is **default** (everyone is in it, now and later, and can't leave),
+  **open** (anyone sees it and can join; until they do, they read and comment on its pages),
+  **closed** (anyone sees it, only its members open its pages, its owners add them) or **private**
+  (only its members know it exists, workspace owners included). The sidebar has a section per
+  teamspace you're in, a *Shared* section for pages shared with you from elsewhere and a *Private*
+  section for pages only you see. Settings → Teamspaces lists them with filters, their members and
+  owners, the default teamspaces and whether members may create teamspaces. Moving a page to
+  another teamspace, or to Private, gives it the access of its new place; people it was shared
+  with by name keep theirs. Guests are never in teamspaces: they get single pages.
+- **Sharing and permissions**: give people, or everyone in the page's teamspace (the workspace
+  for a private page), full, edit, comment, view or no access to a page. Subpages inherit it
+  unless you change them. Share a page with someone outside the workspace by email and they join
+  as a guest who sees only the pages shared with them.
 - **Publish to the web**: a read-only public link for a page and its subpages, kept out of search
   engines unless you allow them. Published databases show the views you pick (tables, boards,
   lists, galleries) and visitors switch between them. Owners decide whether members may publish
@@ -217,6 +234,54 @@ The browser makes the PDF, so the server needs nothing extra (no headless browse
 Its own header and footer (date, address, page numbers) can be turned off under "More settings"
 in the print dialog.
 
+## Install and offline use
+
+**Installing.** Esionage is a web app with a manifest, icons and a service worker, so browsers
+offer to install it: the install icon in Chrome's or Edge's address bar, "Install app" in the
+workspace menu (shown only while the browser offers it; nothing pops up on its own), or "Add to
+Home Screen" in Safari's share menu on iPhone and iPad. Installed, it opens in its own window and
+starts at your last workspace. Installing needs HTTPS (or `localhost`).
+
+**Offline.** Every page you open is also kept in the browser (its Yjs document, in IndexedDB).
+Without a connection — no network, or the server is down — the page stays editable; the header
+says "Offline", and "Offline · edits kept here" once you have changed something. When the
+connection is back the edits are sent ("Syncing…", then "Synced") and merge with what others wrote
+meanwhile. Pages edited offline and closed before the connection returned are sent in the
+background the next time the app is open. In an installed app or a tab opened later, the service
+worker serves the pages you opened before (the last 50) from its copy; others show a short
+"You're offline" page listing what is available. The sidebar and the last 30 databases and rows
+you opened stay readable offline; they are read-only until the connection is back, as are
+sharing, comments, favorites, search, the inbox, new pages and the other actions that need the
+server (their buttons say so).
+
+**Privacy.** Offline copies are kept per user and removed when you sign out (after a warning if
+some edits haven't reached the server yet), when someone else signs in on the same browser, and,
+for a page, as soon as the server says it is gone or no longer shared with you. The collaboration
+token is never stored. A browser profile shared by several people without signing out still
+shares its offline copies, as it shares its cookies; sign out on shared computers.
+
+The service worker (`public/sw.js`) runs in production builds only; `pnpm dev` removes one left
+behind so hot reloading keeps working. It never caches API responses, uploads, server actions or
+the collaboration socket. Images and files in pages are not kept offline.
+
+### Desktop app
+
+Installing the web app is the desktop app for now. We looked at wrapping it:
+
+| | Installed web app | Tauri | Electron |
+| --- | --- | --- | --- |
+| Size | nothing to download | ~10 MB, the system's web view | ~100 MB+, ships Chromium |
+| Offline editing | yes (service worker + IndexedDB) | the same web code | the same web code |
+| Updates | with the server, automatic | signed releases per platform | signed releases per platform |
+| Extras | install from the browser | native menus, tray, file access; Safari's WebKit on macOS, WebView2 on Windows | native menus, tray, file access, one engine everywhere |
+| Cost | none | a Rust shell, code signing, a release pipeline | code signing, a release pipeline, frequent Chromium security updates |
+
+A shell would load the same self-hosted server, so it adds no offline ability the installed app
+lacks; it would add a place to keep the server address, native menus and global shortcuts. If
+that becomes worth it, Tauri is the better fit (small, uses the system web view, and the app
+already works in WebKit through Safari); Electron only if one rendering engine everywhere
+matters more than size.
+
 ## Email
 
 Email is needed for invitations and password reset. Set these in `.env`:
@@ -352,7 +417,10 @@ claude mcp add --transport http esionage http://localhost:3000/mcp
 
 The client opens a browser window where you sign in and approve access. The tools cover:
 
-- **Finding things:** `list_workspaces`, `search`, `list_pages`, `list_recent_pages`, `list_users`.
+- **Finding things:** `list_workspaces`, `list_teamspaces`, `search`, `list_pages`, `list_recent_pages`, `list_users`.
+- **Teamspaces:** `create_page`, `create_database` and `move_page` take a `teamspace_id` for
+  top-level pages (`"private"` for the user's private pages). Without one, a page an AI app
+  creates at the top is private to the user, as in Notion's API; the user moves it to share it.
 - **Pages:** `get_page`, `create_page`, `update_page`, `move_page`, `archive_page`, `list_trash`,
   `restore_page`.
 - **Page history:** `list_page_history`, `get_page_version`, `diff_page_version`, `restore_page_version`.
@@ -396,7 +464,10 @@ curl -X POST http://localhost:3000/api/v1/databases/<database_id>/query \
   -d '{"filters": [{"property": "Status", "op": "equals", "value": "Done"}], "limit": 20}'
 ```
 
-- **Account and workspaces:** `GET /me`, `GET /workspaces`, `GET /workspaces/{id}/pages`.
+- **Account and workspaces:** `GET /me`, `GET /workspaces`, `GET /workspaces/{id}/teamspaces`,
+  `GET /workspaces/{id}/pages` (`teamspace_id` narrows it to one teamspace, or `private`).
+  `POST /pages` and `POST /pages/{id}/move` take a `teamspace_id` for top-level pages, as the MCP
+  tools do.
 - **Pages:** `GET /search`, `POST /pages`, `GET` and `PATCH /pages/{id}` (title, icon, Markdown
   body replaced or appended), `GET /pages/{id}/children`, `POST /pages/{id}/move`,
   `/archive` and `/restore`.
@@ -437,7 +508,8 @@ Useful scripts:
 | `pnpm build` | Production build |
 | `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
-| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, sites and duplicating published pages, presence, uploads, import, export, and `roundtrip-e2e.ts` for an export imported again); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
+| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (teamspaces, databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, sites and duplicating published pages, presence, offline editing, uploads, import, export, and `roundtrip-e2e.ts` for an export imported again); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
+| `pnpm tsx scripts/sw-e2e.ts` | Checks the service worker (`public/sw.js`) in headless Chrome against a stand-in server: offline pages, per-user copies, the offline page (set `CHROME_PATH` outside macOS) |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/api-e2e.ts` | End-to-end REST API check (tokens, every endpoint, access, rate limits, OpenAPI) against a running server |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
@@ -450,8 +522,16 @@ Useful scripts:
   - Route handlers, server actions and MCP tools write into open documents through the same
     Hocuspocus instance, so AI edits appear live in open editors.
   - The `/collab` connection is authenticated with a short-lived HMAC token.
+- Page access is worked out in SQL (`page_access_level`, migrations `0003`, `0013`, `0021`):
+  every read path (sidebar, search, mentions, export, MCP, REST, collaboration) filters with it.
+  A page's teamspace is stored on every page of its tree (`page.teamspace_id`, kept in step by
+  triggers); null means private.
 - The Yjs document is the source of truth for page content. On every save, the app also stores
   derived markdown and plain text in PostgreSQL for search and MCP reads.
+- Browsers keep each page's Yjs document in IndexedDB (y-indexeddb), loaded before the page
+  connects, so offline edits merge on reconnect like any other change; a hand-written service
+  worker (`public/sw.js`) keeps the app's scripts and the signed-in pages' HTML per user. See
+  `src/lib/offline.ts` for what is stored where and when it is wiped.
 - Auth is Better Auth: email/password, GitHub/Google, two-factor and passkey plugins for people,
   and the OAuth provider, JWT, MCP and CIMD plugins for apps. Data access uses Drizzle ORM on PostgreSQL 18.
 

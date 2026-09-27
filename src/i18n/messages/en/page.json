@@ -69,11 +69,16 @@
     "connecting": "Connecting",
     "offline": "Offline",
     "reconnecting": "Reconnecting",
-    "noAccess": "No access"
+    "noAccess": "No access",
+    "syncing": "Syncing…",
+    "synced": "Synced",
+    "offlinePending": "Offline · edits kept here",
+    "offlineHint": "You're offline. Keep editing: changes are saved in this browser and sync when the connection is back."
   },
   "errors": {
     "accessLost": "You no longer have access to this page.",
-    "connectionFailed": "Couldn't connect to live editing. Trying again…"
+    "connectionFailed": "Couldn't connect to live editing. Trying again…",
+    "notAvailableOffline": "This page isn't saved on this device yet. Open it once while online to use it offline."
   },
   "history": {
     "title": "Page history",
@@ -116,10 +121,11 @@
   "move": {
     "title": "Move to",
     "search": "Search pages…",
-    "root": "Top of the workspace",
-    "rootHint": "Becomes a top-level page in the sidebar",
     "empty": "No matching pages.",
-    "failed": "Couldn't move the page there."
+    "failed": "Couldn't move the page there.",
+    "teamspaceHint": "Top of this teamspace: its members get access",
+    "private": "Private",
+    "privateHint": "Top of your private pages: only people it's shared with get access"
   },
   "share": {
     "tabShare": "Share",
@@ -143,6 +149,9 @@
     "generalAccess": "General access",
     "everyone": "Everyone in the workspace",
     "everyoneHint": "Members get at least this much access, whatever you give them individually. Set it to \"No access\" to open the page only to the people you add.",
+    "everyoneIn": "Everyone in {name}",
+    "everyoneTeamspace": "Everyone in the teamspace",
+    "everyoneTeamspaceHint": "Members of the teamspace get at least this much access, whatever you give them individually. Set it to \"No access\" to open the page only to the people you add.",
     "readOnly": "Only people with full access can change sharing.",
     "copyLink": "Copy link",
     "copied": "Copied",

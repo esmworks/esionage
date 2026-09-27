@@ -21,6 +21,8 @@ import {
 } from "@/app/actions/databases";
 import { archivePageAction, renamePageAction } from "@/app/actions/pages";
 import { useChannel, useChannels } from "@/components/collab/use-channel";
+import { useIsOffline, useOffline } from "@/components/offline/offline-context";
+import { databaseSnapshotKey, deleteSnapshot, loadSnapshot, saveSnapshot } from "@/components/offline/offline-store";
 import type { PropertyType, SelectOption, ViewConfig, ViewType } from "@/db/schema/app";
 import { compileFormulas, evaluateFormulas } from "@/lib/derived";
 import { moveGroupValue } from "@/lib/grouping";
@@ -60,6 +62,11 @@ export function useDatabase(
   );
   const [snapshot, setSnapshot] = useState<DatabaseSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // When the rows on screen are the copy kept in this browser (the server couldn't be reached):
+  // when that copy was saved. Such a copy is read-only.
+  const [offlineCopyFrom, setOfflineCopyFrom] = useState<number | null>(null);
+  const offlineUser = useOffline()?.userId;
+  const snapshotKey = databaseSnapshotKey(databaseId, covers);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, Pending>>({});
   const [removed, setRemoved] = useState<Set<string>>(() => new Set());
@@ -68,15 +75,32 @@ export function useDatabase(
 
   const refetch = useCallback(async () => {
     const mine = ++seq.current;
-    const res = await loadDatabaseAction(databaseId, { covers }).catch((e: unknown) => ({ ok: false as const, error: message(e) }));
+    let unreachable = false;
+    const res = await loadDatabaseAction(databaseId, { covers }).catch((e: unknown) => {
+      unreachable = true;
+      return { ok: false as const, error: message(e) };
+    });
     if (mine !== seq.current) return;
     if (!res.ok) {
+      // Offline: show the rows from the last visit, if this browser kept them.
+      const kept = unreachable && offlineUser ? await loadSnapshot<DatabaseSnapshot>(offlineUser, snapshotKey) : null;
+      if (mine !== seq.current) return;
+      if (kept) {
+        setLoadError(null);
+        setOfflineCopyFrom(kept.savedAt);
+        setSnapshot(kept.data);
+        return;
+      }
+      // The server answered no (e.g. access was taken away): its copy here goes too.
+      if (!unreachable && offlineUser) void deleteSnapshot(offlineUser, snapshotKey);
       setLoadError(res.error);
       return;
     }
     setLoadError(null);
+    setOfflineCopyFrom(null);
     setSnapshot(res.data);
-  }, [databaseId, covers, message]);
+    if (offlineUser) void saveSnapshot(offlineUser, snapshotKey, res.data);
+  }, [databaseId, covers, message, offlineUser, snapshotKey]);
 
   useEffect(() => {
     void refetch();
@@ -436,7 +460,13 @@ export function useDatabase(
     [databaseId, snapshot?.database.workspaceId, refetch, setCell, setRowValues, setCells, mutateSchema, report, tb],
   );
 
-  return { snapshot, rows, loadError, error, api };
+  // Back online: replace the offline copy with the server's rows.
+  const offline = useIsOffline();
+  useEffect(() => {
+    if (!offline && offlineCopyFrom !== null) void refetch();
+  }, [offline, offlineCopyFrom, refetch]);
+
+  return { snapshot, rows, loadError, error, api, offlineCopyFrom };
 }
 
 export type DatabaseApi = ReturnType<typeof useDatabase>["api"];

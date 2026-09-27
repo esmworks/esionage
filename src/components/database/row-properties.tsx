@@ -11,6 +11,9 @@ import {
   updateRowPropertiesAction,
 } from "@/app/actions/databases";
 import { useChannel, useChannels } from "@/components/collab/use-channel";
+import { useIsOffline, useOffline } from "@/components/offline/offline-context";
+import { OfflineNotice } from "@/components/offline/offline-notice";
+import { deleteSnapshot, loadSnapshot, rowSnapshotKey, saveSnapshot } from "@/components/offline/offline-store";
 import { withFormulas } from "@/lib/derived";
 import type { PropertyType, SelectOption } from "@/db/schema/app";
 import { Floating, useFloating } from "./floating";
@@ -41,7 +44,7 @@ export function RowProperties({
   workspaceId,
   databaseId,
   rowId,
-  readOnly,
+  readOnly: readOnlyProp,
 }: {
   workspaceId: string;
   databaseId: string;
@@ -49,6 +52,11 @@ export function RowProperties({
   readOnly?: boolean;
 }) {
   const t = useTranslations("database.rowProperties");
+  const offlineUser = useOffline()?.userId;
+  // When the values on screen are this browser's copy from an earlier visit (read-only).
+  const [offlineCopyFrom, setOfflineCopyFrom] = useState<number | null>(null);
+  const offline = useIsOffline() || offlineCopyFrom !== null;
+  const readOnly = readOnlyProp || offline;
   const tc = useTranslations("common");
   // Actions throw (instead of returning an error) when the session expired or the network failed.
   const safe = useCallback(
@@ -70,10 +78,16 @@ export function RowProperties({
 
   const refetch = useCallback(async () => {
     const mine = ++seq.current;
-    const res = await safe(loadRowAction(rowId));
+    let unreachable = false;
+    const res = await safe(
+      loadRowAction(rowId).catch((e: unknown) => {
+        unreachable = true;
+        throw e;
+      }),
+    );
     if (mine !== seq.current) return;
     if (res.ok) {
-      setData({
+      const loaded: Loaded = {
         databaseTitle: res.data.databaseTitle,
         title: res.data.row.title,
         locked: res.data.databaseLocked,
@@ -82,10 +96,29 @@ export function RowProperties({
         relations: res.data.relations,
         people: res.data.people,
         viewerId: res.data.viewerId,
-      });
+      };
+      setData(loaded);
+      setOfflineCopyFrom(null);
+      if (offlineUser) void saveSnapshot(offlineUser, rowSnapshotKey(rowId), loaded);
+      return;
     }
-    else setError(res.error);
-  }, [rowId, safe]);
+    // Offline: the values from the last visit, if this browser kept them.
+    const kept = unreachable && offlineUser ? await loadSnapshot<Loaded>(offlineUser, rowSnapshotKey(rowId)) : null;
+    if (mine !== seq.current) return;
+    if (kept) {
+      setData(kept.data);
+      setOfflineCopyFrom(kept.savedAt);
+      return;
+    }
+    if (!unreachable && offlineUser) void deleteSnapshot(offlineUser, rowSnapshotKey(rowId));
+    setError(res.error);
+  }, [rowId, safe, offlineUser]);
+
+  // Back online: the server's values replace the offline copy.
+  const browserOffline = useIsOffline();
+  useEffect(() => {
+    if (!browserOffline && offlineCopyFrom !== null) void refetch();
+  }, [browserOffline, offlineCopyFrom, refetch]);
 
   useEffect(() => {
     void refetch();
@@ -207,6 +240,7 @@ export function RowProperties({
       <PeopleProvider value={peopleContext}>
         <SchemaProvider value={data.properties}>
           <div className="mb-6 border-b border-border pb-4">
+            {offline && <OfflineNotice savedAt={offlineCopyFrom} />}
             <div className="flex flex-col gap-0.5">
               {data.properties.map((p) => (
                 <div key={p.id} className="flex min-h-[30px] items-start gap-2">

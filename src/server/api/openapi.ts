@@ -8,7 +8,7 @@ type JsonSchema = Record<string, unknown>;
 
 const TAGS = [
   { name: "Account", description: "The token and the user it acts for." },
-  { name: "Workspaces", description: "Workspaces and their page tree." },
+  { name: "Workspaces", description: "Workspaces, their teamspaces and their page tree." },
   { name: "Pages", description: "Pages: read and write the body as Markdown, move, trash and restore, search." },
   { name: "Databases", description: "Database schemas and row queries." },
   { name: "Rows", description: "Database rows and their property values." },
@@ -56,6 +56,11 @@ const cursorFields = {
   has_more: { type: "boolean" },
 };
 const pageKind = { type: "string", enum: ["page", "database"] };
+const teamspaceId = { type: ["string", "null"], description: "The page's teamspace; null for a private page." };
+const teamspaceFields = {
+  teamspace_id: teamspaceId,
+  teamspace: { type: ["string", "null"], description: '"Private" for a private page.' },
+};
 const propertyValues = {
   type: "object",
   additionalProperties: true,
@@ -94,8 +99,37 @@ const SCHEMAS: Record<string, JsonSchema> = {
       items: loose({ id, name: { type: "string" }, role: { type: "string", enum: ["owner", "member", "guest"] } }, ["id", "name", "role"]),
     },
   }),
+  TeamspaceList: loose({
+    teamspaces: {
+      type: "array",
+      items: loose(
+        {
+          id,
+          name: { type: "string" },
+          icon: { type: ["string", "null"] },
+          description: { type: "string" },
+          access: { type: "string", enum: ["default", "open", "closed", "private"] },
+          archived: { type: "boolean" },
+          member_count: { type: "integer" },
+          owners: { type: "array", items: { type: "string" } },
+          joined: { type: "boolean" },
+          role: { type: ["string", "null"], enum: ["owner", "member", null] },
+          can_add_pages: { type: "boolean" },
+        },
+        ["id", "name", "access", "joined", "can_add_pages"],
+      ),
+    },
+  }),
   PageSummary: loose(
-    { id, title: { type: "string" }, kind: pageKind, icon: { type: ["string", "null"] }, updated_at: { type: "string", format: "date-time" }, url },
+    {
+      id,
+      title: { type: "string" },
+      kind: pageKind,
+      icon: { type: ["string", "null"] },
+      teamspace_id: teamspaceId,
+      updated_at: { type: "string", format: "date-time" },
+      url,
+    },
     ["id", "title", "kind", "url"],
   ),
   PageList: loose({ pages: { type: "array", items: ref("PageSummary") }, ...cursorFields }, ["pages", "next_cursor", "has_more"]),
@@ -108,6 +142,7 @@ const SCHEMAS: Record<string, JsonSchema> = {
           title: { type: "string" },
           kind: pageKind,
           workspace_id: id,
+          teamspace_id: teamspaceId,
           parent_id: { type: ["string", "null"] },
           snippet: { type: "string" },
           updated_at: { type: "string", format: "date-time" },
@@ -125,6 +160,7 @@ const SCHEMAS: Record<string, JsonSchema> = {
       kind: pageKind,
       icon: { type: ["string", "null"] },
       workspace_id: id,
+      ...teamspaceFields,
       parent_id: { type: ["string", "null"], description: "Null at the top level, or when the user can't see the parent." },
       path: { type: "string", description: "Workspace and ancestors, joined with /." },
       in_trash: { type: "boolean" },
@@ -143,11 +179,19 @@ const SCHEMAS: Record<string, JsonSchema> = {
     ["id", "title", "kind", "workspace_id", "url"],
   ),
   PageCreated: loose(
-    { id, title: { type: "string" }, workspace_id: id, parent_id: { type: ["string", "null"] }, from_template: { type: "string" }, url },
+    {
+      id,
+      title: { type: "string" },
+      workspace_id: id,
+      ...teamspaceFields,
+      parent_id: { type: ["string", "null"] },
+      from_template: { type: "string" },
+      url,
+    },
     ["id", "title", "workspace_id", "url"],
   ),
   PageChanged: loose({ id, changed: { type: "array", items: { type: "string" } }, snapshot: { type: "string" }, url }, ["id", "changed", "url"]),
-  PageMoved: loose({ id, title: { type: "string" }, parent_id: { type: ["string", "null"] }, url }, ["id", "parent_id", "url"]),
+  PageMoved: loose({ id, title: { type: "string" }, parent_id: { type: ["string", "null"] }, ...teamspaceFields, url }, ["id", "parent_id", "url"]),
   PageTrashState: loose({ id, title: { type: "string" }, parent_id: { type: ["string", "null"] }, in_trash: { type: "boolean" }, url }, [
     "id",
     "in_trash",

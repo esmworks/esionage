@@ -34,9 +34,10 @@
     "addInside": "İçine sayfa ekle",
     "noChildren": "İçinde sayfa yok",
     "favorites": "Favoriler",
-    "moveFailed": "Sayfa buraya taşınamadı. Başka bir sayfanın altına taşımak için sayfada tam erişiminiz olmalı.",
+    "moveFailed": "Sayfa buraya taşınamadı. Başka bir yere taşımak sayfada tam erişim gerektirir.",
     "fromTemplate": "Şablondan",
-    "import": "İçe aktar…"
+    "import": "İçe aktar…",
+    "confirmMoveSpace": "Bu sayfa {place} içine taşınsın mı? Sayfayı kimlerin görebileceği de buna göre değişir."
   },
   "search": {
     "placeholder": "Sayfalarda ve içerikte ara…",
@@ -81,5 +82,25 @@
     "open": "Şablonu aç",
     "delete": "Şablonu sil",
     "confirmDelete": "Bu şablon kalıcı olarak silinsin mi? Ondan oluşturulmuş sayfalar olduğu gibi kalır."
+  },
+  "teamspaces": {
+    "heading": "Teamspace'ler",
+    "options": "Teamspace seçenekleri",
+    "new": "Yeni teamspace",
+    "browse": "Teamspace'lere göz at",
+    "none": "Henüz hiçbir teamspace'te değilsiniz. Teamspace'lere göz atın",
+    "actions": "{name} için işlemler",
+    "addPage": "{name} içine sayfa ekle",
+    "edit": "Teamspace'i düzenle",
+    "members": "Üyeler ve ayarlar",
+    "leave": "Teamspace'ten ayrıl",
+    "confirmLeave": "{name} teamspace'inden ayrılınsın mı? Sayfaları kenar çubuğunuzdan kalkar. Teamspace açık değilse onlara erişiminizi de kaybedersiniz.",
+    "empty": "Henüz sayfa yok. Bir tane ekleyin",
+    "another": "başka bir teamspace"
+  },
+  "sections": {
+    "shared": "Paylaşılanlar",
+    "private": "Özel",
+    "newPrivate": "Yeni özel sayfa"
   }
 }

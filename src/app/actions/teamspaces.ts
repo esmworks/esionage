@@ -1,0 +1,130 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
+import type { TeamspaceAccess, TeamspaceRole } from "@/db/schema";
+import { AccessError } from "@/server/access";
+import { requireUserId } from "@/server/session";
+import {
+  addTeamspaceMembers,
+  canCreateTeamspace,
+  createTeamspace,
+  isTeamspaceAccess,
+  joinTeamspace,
+  leaveTeamspace,
+  listTeamspaceMembers,
+  listTeamspaces,
+  removeTeamspaceMember,
+  setTeamspaceArchived,
+  setTeamspaceRole,
+  TeamspaceError,
+  teamspacesByMember,
+  type TeamspaceErrorCode,
+  updateTeamspace,
+} from "@/server/teamspaces";
+
+export type TeamspaceActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
+
+// Expected failures come back translated: Next.js hides thrown messages in production.
+async function run<T>(fn: (userId: string) => Promise<T>): Promise<TeamspaceActionResult<T>> {
+  const userId = await requireUserId();
+  try {
+    return { ok: true, data: await fn(userId) };
+  } catch (error) {
+    if (error instanceof TeamspaceError) return fail(error.code);
+    if (error instanceof AccessError) return fail("accessDenied");
+    throw error;
+  }
+}
+
+async function fail(code: TeamspaceErrorCode | "accessDenied"): Promise<{ ok: false; error: string }> {
+  const t = await getTranslations("teamspaces.errors");
+  return { ok: false, error: t(code) };
+}
+
+const refresh = (workspaceId: string) => revalidatePath(`/w/${workspaceId}`, "layout");
+
+export async function listTeamspacesAction(workspaceId: string, archived: "active" | "archived" | "all" = "all") {
+  return run(async (userId) => {
+    const [teamspaces, canCreate] = await Promise.all([
+      listTeamspaces(userId, workspaceId, { archived }),
+      canCreateTeamspace(userId, workspaceId),
+    ]);
+    return { teamspaces, canCreate };
+  });
+}
+
+export async function createTeamspaceAction(
+  workspaceId: string,
+  input: { name: string; icon?: string | null; description?: string; access: TeamspaceAccess },
+) {
+  if (!isTeamspaceAccess(input.access)) return fail("invalidAccess");
+  const result = await run(async (userId) => {
+    const created = await createTeamspace(userId, workspaceId, input);
+    return { id: created.id };
+  });
+  refresh(workspaceId);
+  return result;
+}
+
+export async function updateTeamspaceAction(
+  workspaceId: string,
+  teamspaceId: string,
+  patch: { name?: string; icon?: string | null; description?: string; access?: TeamspaceAccess },
+) {
+  if (patch.access !== undefined && !isTeamspaceAccess(patch.access)) return fail("invalidAccess");
+  const result = await run((userId) => updateTeamspace(userId, teamspaceId, patch));
+  refresh(workspaceId);
+  return result;
+}
+
+export async function setTeamspaceArchivedAction(workspaceId: string, teamspaceId: string, archived: boolean) {
+  const result = await run((userId) => setTeamspaceArchived(userId, teamspaceId, archived === true));
+  refresh(workspaceId);
+  return result;
+}
+
+export async function joinTeamspaceAction(workspaceId: string, teamspaceId: string) {
+  const result = await run((userId) => joinTeamspace(userId, teamspaceId));
+  refresh(workspaceId);
+  return result;
+}
+
+export async function leaveTeamspaceAction(workspaceId: string, teamspaceId: string) {
+  const result = await run((userId) => leaveTeamspace(userId, teamspaceId));
+  refresh(workspaceId);
+  return result;
+}
+
+export async function listTeamspaceMembersAction(teamspaceId: string) {
+  return run((userId) => listTeamspaceMembers(userId, teamspaceId));
+}
+
+export async function addTeamspaceMembersAction(
+  workspaceId: string,
+  teamspaceId: string,
+  userIds: string[],
+  role: TeamspaceRole = "member",
+) {
+  if (!Array.isArray(userIds) || !userIds.every((id) => typeof id === "string")) return fail("notMember");
+  const result = await run((userId) => addTeamspaceMembers(userId, teamspaceId, userIds, role === "owner" ? "owner" : "member"));
+  refresh(workspaceId);
+  return result;
+}
+
+export async function removeTeamspaceMemberAction(workspaceId: string, teamspaceId: string, targetId: string) {
+  const result = await run((userId) => removeTeamspaceMember(userId, teamspaceId, targetId));
+  refresh(workspaceId);
+  return result;
+}
+
+export async function setTeamspaceRoleAction(workspaceId: string, teamspaceId: string, targetId: string, role: TeamspaceRole) {
+  const result = await run((userId) => setTeamspaceRole(userId, teamspaceId, targetId, role === "owner" ? "owner" : "member"));
+  refresh(workspaceId);
+  return result;
+}
+
+/** Which teamspaces each person is in, for the members list (only teamspaces the viewer can see). */
+export async function teamspacesByMemberAction(workspaceId: string) {
+  return run(async (userId) => Object.fromEntries(await teamspacesByMember(userId, workspaceId)));
+}

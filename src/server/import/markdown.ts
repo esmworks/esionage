@@ -52,6 +52,8 @@ export type MarkdownImportInput = {
   workspaceId: string;
   /** The page the import goes under; null for the workspace's top level. */
   parentId: string | null;
+  /** At the top level: the teamspace, null for private pages, undefined for the default teamspace (see createPage). */
+  teamspaceId?: string | null;
   files: UploadedFile[];
   seedNames?: DatabaseSeedNames;
 };
@@ -124,7 +126,16 @@ export async function importPages(actor: WriteActor, input: MarkdownImportInput)
         const titleColumn = guessTitleColumn(table.headers);
         const result = await importCsvAsDatabase(
           actor,
-          { workspaceId, parentId, title, table, titleColumn, seedNames: input.seedNames, template: node.template },
+          {
+            workspaceId,
+            parentId,
+            teamspaceId: input.teamspaceId,
+            title,
+            table,
+            titleColumn,
+            seedNames: input.seedNames,
+            template: node.template,
+          },
           warnings,
         );
         id = result.database.id;
@@ -144,7 +155,7 @@ export async function importPages(actor: WriteActor, input: MarkdownImportInput)
           const table = tables.get(node.parent!)!;
           if (body !== undefined) bodies.set(node.key, stripRowProperties(body, table.headers, row.cells, table.titleColumn));
         } else {
-          id = (await createPage(actor, { workspaceId, parentId, title, template: node.template })).id;
+          id = (await createPage(actor, { workspaceId, parentId, teamspaceId: input.teamspaceId, title, template: node.template })).id;
           if (node.template) counts.templates++;
           else if (node.kind === "row") counts.rows++;
           else counts.pages++;

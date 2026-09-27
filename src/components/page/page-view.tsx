@@ -25,6 +25,8 @@ import { takeNewPage } from "./new-page-focus";
 import { hasLevel, PageHeaderActions } from "./page-header-actions";
 import { setDocTitle, useDocTitle, usePageDoc, type ConnectionState } from "./use-page-doc";
 import { usePagePresence } from "./use-presence";
+import { useIsOffline, useOffline } from "@/components/offline/offline-context";
+import { rememberPage } from "@/components/offline/offline-store";
 
 // BlockNote touches `window` during setup; render it only in the browser.
 const CollabEditor = dynamic(() => import("./collab-editor"), { ssr: false });
@@ -63,8 +65,11 @@ export function PageView({
   const t = useTranslations("page");
   const tc = useTranslations("common");
   const untitled = tc("untitled");
-  const { pageDoc, synced, connection, error } = usePageDoc(page.id);
+  const { pageDoc, synced, connection, pendingEdits, error } = usePageDoc(page.id);
   const title = useDocTitle(pageDoc?.doc, page.title);
+  const offlineUser = useOffline()?.userId;
+  // Anything besides typing needs the server: those controls are off while it can't be reached.
+  const offline = useIsOffline() || connection === "offline";
   // Everyone who has the page open shows in the header, including people who may only view it.
   const viewers = usePagePresence(pageDoc, user);
   const [icon, setIcon] = useState(page.icon);
@@ -75,8 +80,14 @@ export function PageView({
   const canEdit = hasLevel(info.level, "edit");
   const canDelete = hasLevel(info.level, "full");
   // The collab server drops edits from people who may only view, so don't let them type at all.
-  // Offline edits are kept: the doc syncs them when the connection comes back.
+  // Offline edits are kept in this browser: the doc syncs them when the connection comes back.
   const editable = !page.archived && canEdit && synced && connection !== "noAccess";
+
+  // Listed on the offline page, whose links open the copies the service worker kept.
+  useEffect(() => {
+    if (!offlineUser || page.archived || connection === "noAccess") return;
+    rememberPage(offlineUser, { id: page.id, workspaceId, title, icon });
+  }, [offlineUser, page.id, page.archived, workspaceId, title, icon, connection]);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => setIcon(page.icon), [page.icon]);
@@ -167,7 +178,7 @@ export function PageView({
   );
 
   const iconPicker = (
-    <IconPicker icon={icon} onChange={changeIcon} disabled={page.archived || !canEdit}>
+    <IconPicker icon={icon} onChange={changeIcon} disabled={page.archived || !canEdit || offline}>
       {(toggle) =>
         icon ? (
           <button
@@ -176,7 +187,7 @@ export function PageView({
             className={cn(
               "-ml-1 rounded-md p-1 leading-none",
               wide ? "text-3xl" : "text-5xl",
-              !page.archived && canEdit ? "hover:bg-bg-hover" : "cursor-default",
+              !page.archived && canEdit && !offline ? "hover:bg-bg-hover" : "cursor-default",
             )}
           >
             {icon}
@@ -186,7 +197,10 @@ export function PageView({
             size="sm"
             variant="ghost"
             onClick={toggle}
-            className={cn("-ml-2 opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100", (page.archived || !canEdit) && "hidden")}
+            className={cn(
+              "-ml-2 opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100",
+              (page.archived || !canEdit || offline) && "hidden",
+            )}
           >
             <SmilePlus className="h-4 w-4" /> {t("icon.add")}
           </Button>
@@ -219,7 +233,7 @@ export function PageView({
           </span>
         </nav>
         <div className="flex shrink-0 items-center gap-0.5">
-          <ConnectionDot connection={connection} />
+          <SyncStatus connection={connection} pendingEdits={pendingEdits} />
           <PageHeaderActions
             workspaceId={workspaceId}
             page={{
@@ -238,6 +252,7 @@ export function PageView({
             commentsOpen={commentsOpen}
             onComments={showBody ? () => setCommentsOpen((open) => !open) : undefined}
             onMoveToTrash={moveToTrash}
+            offline={offline}
           />
         </div>
       </header>
@@ -246,12 +261,12 @@ export function PageView({
         <div className="flex items-center justify-center gap-3 bg-danger px-4 py-2 text-sm text-white">
           {t("archived.banner")}
           {canEdit && (
-            <Button size="sm" className="border-white/60 bg-transparent text-white hover:bg-white/10" onClick={restore} disabled={pending}>
+            <Button size="sm" className="border-white/60 bg-transparent text-white hover:bg-white/10" onClick={restore} disabled={pending || offline}>
               <RotateCcw className="h-3.5 w-3.5" /> {tc("restore")}
             </Button>
           )}
           {canDelete && (
-            <Button size="sm" className="border-white/60 bg-transparent text-white hover:bg-white/10" onClick={deleteForever} disabled={pending}>
+            <Button size="sm" className="border-white/60 bg-transparent text-white hover:bg-white/10" onClick={deleteForever} disabled={pending || offline}>
               {t("archived.deletePermanently")}
             </Button>
           )}
@@ -264,7 +279,7 @@ export function PageView({
           <LayoutTemplate className="h-4 w-4 shrink-0 text-fg-muted" />
           <span className="text-fg-muted">{t(`template.${info.template}`)}</span>
           {info.template !== "inside" && (
-            <Button size="sm" variant="primary" onClick={applyTemplate} disabled={pending}>
+            <Button size="sm" variant="primary" onClick={applyTemplate} disabled={pending || offline}>
               {t("template.use")}
             </Button>
           )}
@@ -308,8 +323,9 @@ export function PageView({
                 workspaceId={workspaceId}
                 pageId={page.id}
                 crumbs={trail}
-                commentsOpen={commentsOpen}
+                commentsOpen={commentsOpen && !offline}
                 onCloseComments={() => setCommentsOpen(false)}
+                offline={offline}
               />
             ) : (
               // Without a connection the error above explains why nothing loads.
@@ -410,19 +426,45 @@ function shiftIndex(before: string, after: string, i: number) {
 
 const DOT_COLOR: Record<ConnectionState, string> = {
   live: "bg-emerald-500",
+  syncing: "bg-accent",
   connecting: "bg-amber-400",
   reconnecting: "bg-amber-400",
-  offline: "bg-danger",
+  offline: "bg-fg-faint",
   noAccess: "bg-danger",
 };
 
-function ConnectionDot({ connection }: { connection: ConnectionState }) {
+/** How long "Synced" stays up after edits made offline (or a slow save) have reached the server. */
+const SYNCED_NOTICE_MS = 2500;
+
+/**
+ * Where the page stands with the server: a dot, with words whenever it isn't simply live. After
+ * a stretch of offline or syncing it says "Synced" for a moment, so the user knows their edits
+ * made it.
+ */
+function SyncStatus({ connection, pendingEdits }: { connection: ConnectionState; pendingEdits: boolean }) {
   const t = useTranslations("page.connection");
-  const label = t(connection);
+  const [justSynced, setJustSynced] = useState(false);
+  const previous = useRef(connection);
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = connection;
+    if (connection !== "live" || (before !== "syncing" && before !== "offline" && before !== "reconnecting")) return;
+    setJustSynced(true);
+    const timer = setTimeout(() => setJustSynced(false), SYNCED_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [connection]);
+  const key = connection === "offline" && pendingEdits ? "offlinePending" : connection === "live" && justSynced ? "synced" : connection;
+  const label = t(key);
   return (
-    <span className="mr-1 flex items-center gap-1.5 text-xs text-fg-faint" title={label}>
-      <span className={cn("h-1.5 w-1.5 rounded-full", DOT_COLOR[connection])} />
-      {connection !== "live" && label}
+    <span
+      role="status"
+      data-sync-state={connection}
+      className="mr-1 flex min-w-0 items-center gap-1.5 text-xs text-fg-faint"
+      title={connection === "offline" ? t("offlineHint") : label}
+    >
+      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT_COLOR[connection])} />
+      {(connection !== "live" || justSynced) && <span className="truncate">{label}</span>}
+      {connection === "live" && !justSynced && <span className="sr-only">{label}</span>}
     </span>
   );
 }

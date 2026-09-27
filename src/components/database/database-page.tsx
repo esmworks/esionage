@@ -24,6 +24,8 @@ import { TableView } from "./table-view";
 import { TimelineView } from "./timeline-view";
 import type { DatabaseSnapshot, View } from "./types";
 import { useDatabase } from "./use-database";
+import { OfflineNotice } from "@/components/offline/offline-notice";
+import { useIsOffline } from "@/components/offline/offline-context";
 import { ActiveRulesBar, ViewTabs, ViewToolbar } from "./view-bar";
 import { timelineDates, ViewLayoutMenu } from "./view-settings";
 
@@ -58,7 +60,7 @@ export function DatabasePage({
   const locale = useLocale();
   const linked = embed?.linked;
   const embedded = embed !== undefined;
-  const { snapshot, rows, loadError, error, api } = useDatabase(databaseId, {
+  const { snapshot, rows, loadError, error, api, offlineCopyFrom } = useDatabase(databaseId, {
     covers: linked?.view.type === "gallery" && galleryCover(linked.view.config) === "first_image",
   });
   const router = useRouter();
@@ -90,7 +92,9 @@ export function DatabasePage({
   );
   const views = linkedView ? [linkedView] : (snapshot?.views ?? []);
   const view = views.find((v) => v.id === selectedViewId) ?? views[0] ?? null;
-  const readOnly = (snapshot?.database.archived ?? false) || !canEdit;
+  // Rows and views change through the server: offline, the database is read-only.
+  const offline = useIsOffline() || offlineCopyFrom !== null;
+  const readOnly = (snapshot?.database.archived ?? false) || !canEdit || offline;
   const locked = snapshot?.database.locked ?? false;
   // A linked view's settings belong to the page showing it, not to the database.
   const configReadOnly = linked ? !linked.onChange : readOnly;
@@ -237,6 +241,7 @@ export function DatabasePage({
           <div className="min-w-0">
             <div className="page-gutter">
               {embed?.header?.(snapshot)}
+              {offline && <OfflineNotice savedAt={offlineCopyFrom} />}
               {/* Phones stack the toolbar above the tabs so the tabs get the whole row. */}
               <div className="flex flex-col-reverse gap-1 border-b border-border md:flex-row md:items-end md:justify-between md:gap-2">
                 <ViewTabs
