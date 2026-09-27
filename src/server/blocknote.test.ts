@@ -143,7 +143,7 @@ describe("linked view settings", () => {
   it("fall back to a plain table when malformed", () => {
     expect(parseLinkedView("")).toEqual({ type: "table", config: {} });
     expect(parseLinkedView("{nope")).toEqual({ type: "table", config: {} });
-    expect(parseLinkedView(JSON.stringify({ type: "chart", config: {} }))).toEqual({ type: "table", config: {} });
+    expect(parseLinkedView(JSON.stringify({ type: "kanban", config: {} }))).toEqual({ type: "table", config: {} });
     expect(parseLinkedView(JSON.stringify({ type: "list", config: { filters: "bad" } }))).toEqual({ type: "list", config: {} });
     expect(parseLinkedView(JSON.stringify({ type: "gallery", config: { cardSize: "huge" } }))).toEqual({ type: "gallery", config: {} });
     expect(parseLinkedView(linked).type).toBe("board");
