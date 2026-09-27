@@ -137,6 +137,14 @@ describe("published body segments", () => {
     expect(html).not.toContain(DB);
     expect(html).not.toContain(OTHER);
   });
+
+  it("keep empty lines as line breaks, not replacement characters", async () => {
+    const doc = docFrom([{ type: "paragraph", content: "One" }, { type: "paragraph" }, { type: "heading" }]);
+    const [segment] = await bodySegmentsFromYdoc(Y.encodeStateAsUpdate(doc));
+    const html = segment.kind === "html" ? segment.html : "";
+    expect(html).not.toContain("\uFFFC");
+    expect(html).toContain("<p><br></p>");
+  });
 });
 
 describe("linked view settings", () => {
