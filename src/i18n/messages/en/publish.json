@@ -12,6 +12,7 @@
   "copied": "Copied",
   "open": "Open site",
   "needsFullAccess": "Only people with full access can publish.",
+  "notAllowed": "This workspace lets only owners publish pages. Ask an owner to publish it.",
   "archived": "Pages in the trash can't be published.",
   "failed": "Something went wrong. Try again.",
   "confirmUnpublish": "Unpublish this page? The link will stop working, and publishing again creates a new link.",

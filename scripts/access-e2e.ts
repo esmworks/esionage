@@ -2,9 +2,9 @@
  * End-to-end check of page permissions against the database: defaults, inheritance, widening and
  * narrowing on subpages, visibility in lists, shared pages showing up as top-level pages, and the
  * guard that keeps someone with full access on every page, what guests can and can't see, rows
- * restricted inside a database, moving pages, what a publication exposes, sharing by email, and
- * every read path (UI, MCP tools, collab) keeping a restricted page out of sight. Creates its own
- * users and workspace and deletes them afterwards.
+ * restricted inside a database, moving pages, what a publication exposes and who may publish,
+ * sharing by email, and every read path (UI, MCP tools, collab) keeping a restricted page out of
+ * sight. Creates its own users and workspace and deletes them afterwards.
  *
  *   pnpm tsx scripts/access-e2e.ts
  *
@@ -31,7 +31,15 @@ const { addProperty, getDatabaseSnapshot, getRow, listRows, listWorkspaceDatabas
   "@/server/databases"
 );
 const { duplicatePage } = await import("@/server/duplicate");
-const { getPublishedPage } = await import("@/server/publication");
+const {
+  getPublishedPage,
+  listWorkspacePublications,
+  publishBlocker,
+  publishPage,
+  PublishError,
+  revokePublication,
+  unpublishPage,
+} = await import("@/server/publication");
 const { AccessError, getMembership, requirePageAccess, resolvePageAccess } = await import("@/server/access");
 const {
   archivePage,
@@ -358,6 +366,35 @@ try {
   );
   await rejects(() => duplicatePage({ userId: guest }, own.id, " copy"), isAccessError, "…copies included");
   check((await levels(own.id, guest))[0] === "full", "…and leaves the existing ones as they are");
+
+  // Who may publish (Settings > Security)
+  const notAllowed = (error: unknown) => error instanceof PublishError && error.code === "notAllowed";
+  check((await publishBlocker(alice, memberPage.id)) === null, "by default members with full access may publish");
+  const byAlice = await publishPage(alice, memberPage.id);
+  check((await publishBlocker(bob, R)) === "needsFullAccess", "view access can't publish");
+  check((await publishBlocker(guest, own.id)) === "notAllowed", "guests never publish, even their own pages");
+  await rejects(() => publishPage(guest, own.id), notAllowed, "…and publishing is refused");
+  await updateWorkspaceSettings(owner, workspaceId, { publishing: "owners" });
+  check((await publishBlocker(alice, D)) === "notAllowed", "limiting publishing to owners reaches members");
+  await rejects(() => publishPage(alice, D), notAllowed, "…whose publishing is then refused");
+  const byOwner = await publishPage(owner, D);
+  check((await getPublishedPage(byAlice.token)) !== null, "pages published earlier stay online");
+  await unpublishPage(alice, memberPage.id);
+  check((await getPublishedPage(byAlice.token)) === null, "…and their full-access members can still take them offline");
+  await updateWorkspaceSettings(owner, workspaceId, { publishing: "members" });
+
+  // Owners review every publication, even of pages they can't see
+  const hiddenToken = `${RUN}-hidden`;
+  await db.insert(pagePublication).values({ pageId: own.id, token: hiddenToken, publishedBy: guest });
+  await rejects(() => listWorkspacePublications(alice, workspaceId), isAccessError, "only owners list the publications");
+  const publications = await listWorkspacePublications(owner, workspaceId);
+  const listedD = publications.find((p) => p.pageId === D);
+  const listedOwn = publications.find((p) => p.pageId === own.id);
+  check(listedD?.title === "D" && listedD.url === `/s/${byOwner.token}`, "the list names the pages the owner can see", listedD);
+  check(listedOwn && listedOwn.title === null && listedOwn.url === null, "…and hides the title and link of the rest", listedOwn);
+  await rejects(() => revokePublication(alice, workspaceId, D), isAccessError, "only owners take others' pages offline");
+  await revokePublication(owner, workspaceId, own.id);
+  check((await getPublishedPage(hiddenToken)) === null, "an owner can take a page they can't see offline");
   check((await sharePageByEmail(owner, Pg, emailOf(outsider), "edit")).kind === "added", "an existing account joins as a guest");
   check(
     (await getMembership(outsider, workspaceId))?.role === "guest" && (await levels(Pg, outsider))[0] === "edit",

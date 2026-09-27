@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import type { WorkspaceRole, WorkspaceSettings } from "@/db/schema";
 import { AccessError } from "@/server/access";
+import { revokePublication } from "@/server/publication";
 import { getSession, requireUserId } from "@/server/session";
 import {
   acceptInvitation,
@@ -107,6 +108,14 @@ export async function removeMemberAction(workspaceId: string, targetId: string) 
 export async function revokeInvitationAction(workspaceId: string, invitationId: string) {
   const userId = await requireUserId();
   const result = await run(() => revokeInvitation(userId, workspaceId, invitationId));
+  refresh(workspaceId);
+  return result;
+}
+
+/** Takes a published page of the workspace offline. Owners only. */
+export async function revokePublicationAction(workspaceId: string, pageId: string) {
+  const userId = await requireUserId();
+  const result = await run(() => revokePublication(userId, workspaceId, pageId));
   refresh(workspaceId);
   return result;
 }

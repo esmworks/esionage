@@ -3,29 +3,32 @@
 import { Check, ExternalLink, Globe, Link2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import { getPageHeaderAction } from "@/app/actions/page-menu";
 import { getPublicationAction, publishPageAction, unpublishPageAction } from "@/app/actions/publication";
 import { Button, cn } from "@/components/ui";
 
 type Publication = { token: string; url: string } | null;
+type Blocker = "needsFullAccess" | "notAllowed" | null;
 
 /** Publish tab of the Share popover: turn the public, read-only link on or off. */
 export function PublishTab({ pageId }: { pageId: string }) {
   const t = useTranslations("publish");
   const [publication, setPublication] = useState<Publication | undefined>(undefined);
-  // Managing the publication needs full access. The server enforces it; this explains the disabled button.
-  const [canManage, setCanManage] = useState(true);
+  // Publishing needs full access and the workspace's publishing policy; unpublishing only full
+  // access. The server enforces both; this explains a disabled button.
+  const [blocker, setBlocker] = useState<Blocker>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const load = () =>
+    getPublicationAction(pageId).then((r) => {
+      setPublication(r.publication);
+      setBlocker(r.blocker);
+      return r;
+    });
+
   useEffect(() => {
-    getPublicationAction(pageId)
-      .then((p) => setPublication(p ?? null))
-      .catch(() => setPublication(null));
-    getPageHeaderAction(pageId)
-      .then((info) => setCanManage(info.level === "full"))
-      .catch(() => {});
+    load().catch(() => setPublication(null));
   }, [pageId]);
 
   const absolute = (url: string) => new URL(url, window.location.origin).toString();
@@ -38,23 +41,19 @@ export function PublishTab({ pageId }: { pageId: string }) {
       setPublication(result ?? null);
     } catch {
       // Server action errors lose their message in production, so find the cause here: access
-      // may have changed since the tab opened. The page can't be in the trash, since the Share
-      // popover isn't offered there.
-      const level = await getPageHeaderAction(pageId)
-        .then((info) => info.level)
-        .catch(() => null);
-      if (level && level !== "full") {
-        setCanManage(false);
-        setError(t("needsFullAccess"));
-      } else {
-        setError(t("failed"));
-      }
+      // or the workspace policy may have changed since the tab opened. The page can't be in the
+      // trash, since the Share popover isn't offered there.
+      const now = await load().catch(() => null);
+      setError(now?.blocker ? t(now.blocker) : t("failed"));
     } finally {
       setBusy(false);
     }
   };
 
   if (publication === undefined) return <div className="px-3 py-6 text-sm text-fg-muted">…</div>;
+
+  // Only full access matters for taking a page offline.
+  const hint = publication ? (blocker === "needsFullAccess" ? blocker : null) : blocker;
 
   return (
     <div className="p-3">
@@ -106,7 +105,7 @@ export function PublishTab({ pageId }: { pageId: string }) {
           {error}
         </p>
       ) : (
-        !canManage && <p className="mt-2 text-xs text-fg-muted">{t("needsFullAccess")}</p>
+        hint && <p className="mt-2 text-xs text-fg-muted">{t(hint)}</p>
       )}
 
       <div className="mt-3">
@@ -114,7 +113,7 @@ export function PublishTab({ pageId }: { pageId: string }) {
           <Button
             size="sm"
             className="w-full justify-center"
-            disabled={busy || !canManage}
+            disabled={busy || blocker === "needsFullAccess"}
             onClick={() => {
               if (confirm(t("confirmUnpublish"))) void change(() => unpublishPageAction(pageId));
             }}
@@ -126,7 +125,7 @@ export function PublishTab({ pageId }: { pageId: string }) {
             size="sm"
             variant="primary"
             className="w-full justify-center"
-            disabled={busy || !canManage}
+            disabled={busy || blocker !== null}
             onClick={() => void change(() => publishPageAction(pageId))}
           >
             {t("publish")}

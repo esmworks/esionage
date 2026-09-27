@@ -153,7 +153,7 @@
     "transferToGuest": "Make them a member before making them owner."
   },
   "security": {
-    "description": "Decide who can bring people into this workspace and what guests can do. Only owners can change these settings.",
+    "description": "Decide who can bring people into this workspace, what guests can do and who can publish pages to the web. Only owners can change these settings.",
     "guestsHeading": "Guests",
     "guestInvites": {
       "title": "Who can invite guests",
@@ -164,6 +164,25 @@
     "guestPrivatePages": {
       "title": "Guests can create private pages",
       "description": "Guests can add pages at the top of the sidebar that only they can see, and share them like any page. Off: they only work in pages shared with them."
+    },
+    "publishingHeading": "Publishing",
+    "publishing": {
+      "title": "Who can publish to the web",
+      "description": "Published pages can be read by anyone with the link, without signing in. Guests can never publish. Pages already published stay online until someone unpublishes them.",
+      "owners": "Owners only",
+      "members": "Owners and members"
+    },
+    "publications": {
+      "title": "Published pages",
+      "description": "Every page of this workspace that is on the web. Owners can take any of them offline.",
+      "empty": "No pages are published.",
+      "privatePage": "A page you don't have access to",
+      "inTrash": "In the trash",
+      "publishedBy": "Published by {name} · {date}",
+      "publishedOn": "Published {date}",
+      "open": "Open site",
+      "unpublish": "Unpublish",
+      "confirm": "Unpublish this page? The link stops working for everyone."
     },
     "ownersOnly": "Only owners can change this."
   },

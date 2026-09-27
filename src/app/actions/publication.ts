@@ -6,10 +6,17 @@ import { requireUserId } from "@/server/session";
 /** Site path of a published page; the client prefixes its own origin for copying. */
 const publicPath = (token: string) => `/s/${token}`;
 
+/** The page's publication, if any, and why the viewer can't publish it (null when they can). */
 export async function getPublicationAction(pageId: string) {
   const userId = await requireUserId();
-  const found = await publication.getPublication(userId, pageId);
-  return found ? { token: found.token, url: publicPath(found.token), createdAt: found.createdAt } : null;
+  const [found, blocker] = await Promise.all([
+    publication.getPublication(userId, pageId),
+    publication.publishBlocker(userId, pageId),
+  ]);
+  return {
+    publication: found ? { token: found.token, url: publicPath(found.token), createdAt: found.createdAt } : null,
+    blocker,
+  };
 }
 
 export async function publishPageAction(pageId: string) {

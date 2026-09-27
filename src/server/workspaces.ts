@@ -655,6 +655,7 @@ export async function getWorkspaceSettings(userId: string, workspaceId: string) 
 const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettings[K][] } = {
   guestInvites: ["owners", "members"],
   guestPrivatePages: [false, true],
+  publishing: ["owners", "members"],
 };
 
 /** Changes some policies, leaving the rest as they are. Owners only. */
@@ -682,6 +683,16 @@ export async function canInviteGuests(userId: string, workspaceId: string) {
   const [membership, settings] = await Promise.all([getMembership(userId, workspaceId), workspaceSettings(workspaceId)]);
   if (!membership) return false;
   return membership.role === "owner" || (membership.role === "member" && settings.guestInvites === "members");
+}
+
+/**
+ * Whether the user may publish pages of the workspace to the web (on top of full access to the
+ * page): owners always, members when the workspace allows it, guests never.
+ */
+export async function canPublish(userId: string, workspaceId: string) {
+  const [membership, settings] = await Promise.all([getMembership(userId, workspaceId), workspaceSettings(workspaceId)]);
+  if (!membership) return false;
+  return membership.role === "owner" || (membership.role === "member" && settings.publishing === "members");
 }
 
 /**

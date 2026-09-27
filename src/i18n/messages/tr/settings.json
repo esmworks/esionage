@@ -153,7 +153,7 @@
     "transferToGuest": "Sahip yapmadan önce üye yapın."
   },
   "security": {
-    "description": "Bu çalışma alanına kimlerin kişi getirebileceğini ve misafirlerin neler yapabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
+    "description": "Bu çalışma alanına kimlerin kişi getirebileceğini, misafirlerin neler yapabileceğini ve kimlerin sayfaları web'de yayınlayabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
     "guestsHeading": "Misafirler",
     "guestInvites": {
       "title": "Kimler misafir davet edebilir",
@@ -164,6 +164,25 @@
     "guestPrivatePages": {
       "title": "Misafirler özel sayfa oluşturabilir",
       "description": "Misafirler kenar çubuğunun en üstüne yalnızca kendilerinin görebildiği sayfalar ekleyebilir ve bunları her sayfa gibi paylaşabilir. Kapalıyken yalnızca kendileriyle paylaşılan sayfalarda çalışırlar."
+    },
+    "publishingHeading": "Yayınlama",
+    "publishing": {
+      "title": "Kimler web'de yayınlayabilir",
+      "description": "Yayınlanan sayfaları bağlantıya sahip herkes oturum açmadan okuyabilir. Misafirler hiçbir zaman yayınlayamaz. Yayındaki sayfalar biri yayından kaldırana kadar yayında kalır.",
+      "owners": "Yalnızca sahipler",
+      "members": "Sahipler ve üyeler"
+    },
+    "publications": {
+      "title": "Yayındaki sayfalar",
+      "description": "Bu çalışma alanının web'de yayında olan tüm sayfaları. Sahipler herhangi birini yayından kaldırabilir.",
+      "empty": "Yayında sayfa yok.",
+      "privatePage": "Erişiminiz olmayan bir sayfa",
+      "inTrash": "Çöp kutusunda",
+      "publishedBy": "{name} yayınladı · {date}",
+      "publishedOn": "{date} tarihinde yayınlandı",
+      "open": "Siteyi aç",
+      "unpublish": "Yayından kaldır",
+      "confirm": "Bu sayfa yayından kaldırılsın mı? Bağlantı herkes için çalışmayı bırakır."
     },
     "ownersOnly": "Bunu yalnızca sahipler değiştirebilir."
   },

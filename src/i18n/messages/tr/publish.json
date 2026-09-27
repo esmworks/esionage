@@ -12,6 +12,7 @@
   "copied": "Kopyalandı",
   "open": "Siteyi aç",
   "needsFullAccess": "Yalnızca tam erişimi olanlar yayınlayabilir.",
+  "notAllowed": "Bu çalışma alanında sayfaları yalnızca sahipler yayınlayabilir. Yayınlaması için bir sahibe başvurun.",
   "archived": "Çöp kutusundaki sayfalar yayınlanamaz.",
   "failed": "Bir şeyler ters gitti. Tekrar deneyin.",
   "confirmUnpublish": "Bu sayfa yayından kaldırılsın mı? Bağlantı çalışmayı bırakır; yeniden yayınlarsanız yeni bir bağlantı oluşur.",

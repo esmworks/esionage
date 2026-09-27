@@ -10,13 +10,15 @@ import { LeaveWorkspaceRow } from "@/components/settings/leave-workspace";
 import { McpInstructions } from "@/components/settings/mcp-instructions";
 import { AssignmentEmailSetting } from "@/components/settings/notification-settings";
 import { MembersPanel } from "@/components/settings/members-panel";
-import { GuestInviteSetting, GuestPrivatePagesSetting } from "@/components/settings/security-settings";
+import { PublishedPages } from "@/components/settings/published-pages";
+import { GuestInviteSetting, GuestPrivatePagesSetting, PublishingSetting } from "@/components/settings/security-settings";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
 import { AccessError, isGuest } from "@/server/access";
 import { assignmentEmailsEnabled } from "@/server/assignments";
 import { mailStatus } from "@/server/mail";
+import { listWorkspacePublications } from "@/server/publication";
 import { requireUser } from "@/server/session";
 import {
   getJoinLink,
@@ -135,15 +137,29 @@ export default async function SettingsPage({
 }
 
 async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
-  const [settings, t] = await Promise.all([getWorkspaceSettings(userId, workspaceId), getTranslations("settings")]);
+  const [settings, publications, t] = await Promise.all([
+    getWorkspaceSettings(userId, workspaceId),
+    isOwner ? listWorkspacePublications(userId, workspaceId) : null,
+    getTranslations("settings"),
+  ]);
   return (
-    <>
-      <SettingsHeader title={t("nav.security")} description={t("security.description")} />
-      <SettingsGroup title={t("security.guestsHeading")}>
-        <GuestInviteSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
-        <GuestPrivatePagesSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
+    <div className="space-y-10">
+      <div>
+        <SettingsHeader title={t("nav.security")} description={t("security.description")} />
+        <SettingsGroup title={t("security.guestsHeading")}>
+          <GuestInviteSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
+          <GuestPrivatePagesSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
+        </SettingsGroup>
+      </div>
+      <SettingsGroup title={t("security.publishingHeading")}>
+        <PublishingSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
       </SettingsGroup>
-    </>
+      {publications && (
+        <SettingsGroup title={t("security.publications.title")} description={t("security.publications.description")}>
+          <PublishedPages workspaceId={workspaceId} publications={publications} />
+        </SettingsGroup>
+      )}
+    </div>
   );
 }
 

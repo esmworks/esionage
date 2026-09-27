@@ -39,9 +39,15 @@ export type WorkspaceSettings = {
   guestInvites: "owners" | "members";
   /** Whether guests may add top-level pages, which only they can see. */
   guestPrivatePages: boolean;
+  /** Who may publish pages to the web. Guests never can. */
+  publishing: "owners" | "members";
 };
 
-export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = { guestInvites: "owners", guestPrivatePages: false };
+export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
+  guestInvites: "owners",
+  guestPrivatePages: false,
+  publishing: "members",
+};
 
 export const workspace = pgTable("workspace", {
   id: id(),

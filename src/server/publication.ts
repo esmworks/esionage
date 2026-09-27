@@ -1,16 +1,18 @@
 import { randomBytes } from "node:crypto";
-import { and, asc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { databaseProperty, databaseView, page, pagePublication, user, type PageKind, type ViewConfig, type ViewType } from "@/db/schema";
 import { applyView, computedValues, isHiddenInView } from "@/lib/properties";
 import { holdsPeople } from "@/lib/property-types";
-import { accessRank, pageVisibleTo, requirePageAccess } from "@/server/access";
+import { AccessError, accessRank, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
 import type { DatabaseProperty } from "@/server/databases";
+import { canPublish } from "@/server/workspaces";
 
 /**
  * Publish to web: a published page and its live subpages can be read by anyone holding the link
- * (`/s/<token>/…`), without signing in. Managing a publication needs full access to the page;
- * reading one needs only the token.
+ * (`/s/<token>/…`), without signing in. Publishing needs full access to the page and the
+ * workspace's publishing policy (`canPublish`); unpublishing needs full access, and owners can take
+ * any page of their workspace offline. Reading one needs only the token.
  *
  * A publication shows only what its publisher can see right now: subpages or rows restricted from
  * them stay private, and it stops working once they lose access to the page or leave.
@@ -20,7 +22,10 @@ import type { DatabaseProperty } from "@/server/databases";
 const MAX_DEPTH = 32;
 
 export class PublishError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly code?: "notAllowed",
+  ) {
     super(message);
     this.name = "PublishError";
   }
@@ -36,8 +41,23 @@ export async function getPublication(userId: string, pageId: string) {
   return row ?? null;
 }
 
+/** Why the user can't publish this page, or null when they can. */
+export async function publishBlocker(userId: string, pageId: string): Promise<"needsFullAccess" | "notAllowed" | null> {
+  let p;
+  try {
+    p = await requirePageAccess(userId, pageId, "full");
+  } catch (error) {
+    if (error instanceof AccessError) return "needsFullAccess";
+    throw error;
+  }
+  return (await canPublish(userId, p.workspaceId)) ? null : "notAllowed";
+}
+
 export async function publishPage(userId: string, pageId: string): Promise<{ token: string }> {
   const p = await requirePageAccess(userId, pageId, "full");
+  if (!(await canPublish(userId, p.workspaceId))) {
+    throw new PublishError("This workspace lets only owners publish pages", "notAllowed");
+  }
   if (p.archivedAt) throw new PublishError("Pages in the trash can't be published");
   await db
     .insert(pagePublication)
@@ -56,6 +76,55 @@ export async function publishPage(userId: string, pageId: string): Promise<{ tok
 export async function unpublishPage(userId: string, pageId: string): Promise<void> {
   await requirePageAccess(userId, pageId, "full");
   await db.delete(pagePublication).where(eq(pagePublication.pageId, pageId));
+}
+
+export type WorkspacePublication = {
+  pageId: string;
+  /** Null when the owner can't see the page: they may take it offline, not read it. */
+  title: string | null;
+  icon: string | null;
+  /** Site path, only for pages the owner can see (the link would show the page to them) and that are still served. */
+  url: string | null;
+  inTrash: boolean;
+  publishedBy: string | null;
+  createdAt: Date;
+};
+
+/** Every published page of the workspace, newest first, for owners to review. */
+export async function listWorkspacePublications(userId: string, workspaceId: string): Promise<WorkspacePublication[]> {
+  await requireMembership(userId, workspaceId, "owner");
+  const rows = await db
+    .select({
+      pageId: page.id,
+      title: page.title,
+      icon: page.icon,
+      archivedAt: page.archivedAt,
+      token: pagePublication.token,
+      publishedBy: user.name,
+      createdAt: pagePublication.createdAt,
+      visible: sql<boolean>`${accessRank(userId, sql`${page.id}`)} > 0`,
+    })
+    .from(pagePublication)
+    .innerJoin(page, eq(page.id, pagePublication.pageId))
+    .leftJoin(user, eq(user.id, pagePublication.publishedBy))
+    .where(eq(page.workspaceId, workspaceId))
+    .orderBy(desc(pagePublication.createdAt));
+  return rows.map((r) => ({
+    pageId: r.pageId,
+    title: r.visible ? r.title : null,
+    icon: r.visible ? r.icon : null,
+    url: r.visible && !r.archivedAt ? `/s/${r.token}` : null,
+    inTrash: r.archivedAt !== null,
+    publishedBy: r.publishedBy,
+    createdAt: r.createdAt,
+  }));
+}
+
+/** Takes a page of the workspace offline, whoever published it. Owners only. */
+export async function revokePublication(userId: string, workspaceId: string, pageId: string): Promise<void> {
+  await requireMembership(userId, workspaceId, "owner");
+  const inWorkspace = db.select({ id: page.id }).from(page).where(and(eq(page.id, pageId), eq(page.workspaceId, workspaceId)));
+  await db.delete(pagePublication).where(and(eq(pagePublication.pageId, pageId), inArray(pagePublication.pageId, inWorkspace)));
 }
 
 // ---------------------------------------------------------------------------------------------

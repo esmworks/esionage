@@ -29,7 +29,8 @@
 - **Guest role:** guests see only the pages shared with them. Owners decide whether members may
   invite guests and whether guests may create private pages.
 - **Publish to the web:** a read-only public link for a page and its subpages. It is hidden from
-  search engines and can be revoked.
+  search engines and can be revoked. Owners decide whether members may publish, and Settings →
+  Security lists every published page so owners can take any of them offline.
 - **Databases:** relation and person properties, a "created by" property, calendar views, a
   viewer-dependent "Me" filter, sorting and board grouping by person. On boards you can reorder
   columns, add groups and hide long card fields.
