@@ -2,7 +2,16 @@ import { randomBytes } from "node:crypto";
 import { and, asc, eq, gt, isNotNull, max, sql } from "drizzle-orm";
 import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/db";
-import { page, user, workspace, workspaceInvitation, workspaceMember, type WorkspaceRole } from "@/db/schema";
+import {
+  page,
+  pageInvitation,
+  pagePermission,
+  user,
+  workspace,
+  workspaceInvitation,
+  workspaceMember,
+  type WorkspaceRole,
+} from "@/db/schema";
 import { isLocale, type Locale } from "@/i18n/config";
 import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
 import { env } from "@/lib/env";
@@ -210,16 +219,82 @@ export async function addMember(
     const delivery = await emailInvitation(actorId, workspaceId, { email: clean, role, link });
     return { kind: "invited", email: clean, link, delivery };
   }
-  const inserted = await db
-    .insert(workspaceMember)
-    .values({ workspaceId, userId: target.id, role })
-    .onConflictDoNothing()
-    .returning({ userId: workspaceMember.userId });
-  await db
-    .delete(workspaceInvitation)
-    .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.email, clean)));
+  const inserted = await db.transaction(async (tx) => {
+    const rows = await tx
+      .insert(workspaceMember)
+      .values({ workspaceId, userId: target.id, role })
+      .onConflictDoNothing()
+      .returning({ userId: workspaceMember.userId });
+    await tx
+      .delete(workspaceInvitation)
+      .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.email, clean)));
+    if (rows.length) await claimPageInvitations(tx, workspaceId, target.id, clean);
+    return rows;
+  });
   if (!inserted.length) throw new WorkspaceError("alreadyMember", "This person is already a member.");
   return { kind: "added" };
+}
+
+const ROLE_RANK: Record<WorkspaceRole, number> = { guest: 0, member: 1, owner: 2 };
+
+/**
+ * Invites someone without an account as a guest, so a page can be shared with them. A pending
+ * invitation keeps its link, and its role when that is higher. Owners only.
+ */
+export async function inviteGuest(actorId: string, workspaceId: string, email: string) {
+  await requireMembership(actorId, workspaceId, "owner");
+  const clean = normalizeEmail(email);
+  const [existing] = await db
+    .select({ token: workspaceInvitation.token, role: workspaceInvitation.role, expiresAt: workspaceInvitation.expiresAt })
+    .from(workspaceInvitation)
+    .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.email, clean)))
+    .limit(1);
+  const live = existing && existing.expiresAt > new Date() ? existing : null;
+  const token = live?.token ?? newToken();
+  const role: WorkspaceRole = live && ROLE_RANK[live.role] > ROLE_RANK.guest ? live.role : "guest";
+  const expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
+  await db
+    .insert(workspaceInvitation)
+    .values({ workspaceId, email: clean, role, token, invitedBy: actorId, expiresAt })
+    .onConflictDoUpdate({
+      target: [workspaceInvitation.workspaceId, workspaceInvitation.email],
+      set: { role, token, invitedBy: actorId, expiresAt },
+    });
+  const link = invitationLink(token);
+  const delivery = await emailInvitation(actorId, workspaceId, { email: clean, role, link });
+  return { link, delivery };
+}
+
+/** Adds an existing account to the workspace as a guest, if they aren't in it yet. Owners only. */
+export async function addGuest(actorId: string, workspaceId: string, userId: string, email: string) {
+  await requireMembership(actorId, workspaceId, "owner");
+  await db.transaction(async (tx) => {
+    const rows = await tx
+      .insert(workspaceMember)
+      .values({ workspaceId, userId, role: "guest" })
+      .onConflictDoNothing()
+      .returning({ userId: workspaceMember.userId });
+    if (rows.length) await claimPageInvitations(tx, workspaceId, userId, normalizeEmail(email));
+  });
+}
+
+/** Turns pages shared with `email` before they had an account into their page permissions. */
+async function claimPageInvitations(
+  tx: Pick<typeof db, "execute" | "delete">,
+  workspaceId: string,
+  userId: string,
+  email: string,
+) {
+  await tx.execute(sql`
+    insert into ${pagePermission} (id, page_id, workspace_id, user_id, level, created_by)
+    select gen_random_uuid()::text, pi.page_id, pi.workspace_id, ${userId}, pi.level, pi.invited_by
+    from ${pageInvitation} pi
+    where pi.workspace_id = ${workspaceId} and pi.email = ${email}
+    on conflict (page_id, user_id) do nothing
+  `);
+  await tx
+    .delete(pageInvitation)
+    .where(and(eq(pageInvitation.workspaceId, workspaceId), eq(pageInvitation.email, email)));
 }
 
 export type BulkAddResult =
@@ -277,9 +352,18 @@ export async function listInvitations(actorId: string, workspaceId: string) {
 
 export async function revokeInvitation(actorId: string, workspaceId: string, invitationId: string) {
   await requireMembership(actorId, workspaceId, "owner");
-  await db
-    .delete(workspaceInvitation)
-    .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.id, invitationId)));
+  await db.transaction(async (tx) => {
+    const revoked = await tx
+      .delete(workspaceInvitation)
+      .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.id, invitationId)))
+      .returning({ email: workspaceInvitation.email });
+    // Pages shared with them by email go with the invitation.
+    for (const { email } of revoked) {
+      await tx
+        .delete(pageInvitation)
+        .where(and(eq(pageInvitation.workspaceId, workspaceId), eq(pageInvitation.email, email)));
+    }
+  });
 }
 
 /** The unexpired invitation behind a link, or null. Callers must not reveal the token elsewhere. */
@@ -339,6 +423,7 @@ export async function acceptInvitation(token: string, userId: string, userEmail:
       .values({ workspaceId: invitation.workspaceId, userId, role: invitation.role })
       .onConflictDoNothing();
     await tx.delete(workspaceInvitation).where(eq(workspaceInvitation.id, invitation.id));
+    await claimPageInvitations(tx, invitation.workspaceId, userId, invitation.email);
     return invitation.workspaceId;
   });
 }
@@ -398,6 +483,7 @@ export async function joinWithLink(token: string, userId: string, userEmail: str
       .returning({ role: workspaceInvitation.role, expiresAt: workspaceInvitation.expiresAt });
     const role = invitation && invitation.expiresAt > new Date() ? invitation.role : "member";
     await tx.insert(workspaceMember).values({ workspaceId: ws.id, userId, role }).onConflictDoNothing();
+    await claimPageInvitations(tx, ws.id, userId, email);
     return ws.id;
   });
 }

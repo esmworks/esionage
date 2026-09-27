@@ -1,16 +1,19 @@
 "use client";
 
-import { Check, Link2, Search, Users, X } from "lucide-react";
+import { Check, Link2, Mail, Search, Send, Users, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   getSharingAction,
+  removePageInvitationAction,
   removePagePermissionAction,
   setPagePermissionAction,
+  sharePageByEmailAction,
   type SharingResult,
 } from "@/app/actions/sharing";
 import { cn } from "@/components/ui";
 import type { PageLevel } from "@/db/schema";
+import { isEmail, normalizeEmail } from "@/lib/emails";
 import { PublishTab } from "./publish-tab";
 
 type Sharing = Awaited<ReturnType<typeof getSharingAction>>;
@@ -55,6 +58,8 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  // After inviting someone without an account: whether the email went out, and the link otherwise.
+  const [invited, setInvited] = useState<{ email: string; link: string; sent: boolean } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -70,6 +75,7 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
   const run = async (action: () => Promise<SharingResult>) => {
     setBusy(true);
     setError(null);
+    setInvited(null);
     try {
       const result = await action();
       if (!result.ok) setError(t(`errors.${result.code}`));
@@ -103,10 +109,30 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
       .slice(0, 6);
   }, [data, query, listed, currentUserId]);
 
-  const copyLink = () => {
-    void navigator.clipboard.writeText(window.location.href.split("?")[0]);
+  const copyLink = (text = window.location.href.split("?")[0]) => {
+    void navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  };
+
+  // An address typed in full can be shared with even when it isn't a member: owners can bring
+  // people in as guests. A member with that address already shows up as a candidate.
+  const typedEmail = normalizeEmail(query);
+  const canInvite =
+    isEmail(typedEmail) &&
+    !data?.members.some((m) => m.email.toLocaleLowerCase() === typedEmail) &&
+    !data?.invitations.some((i) => i.email === typedEmail);
+  const isOwner = data?.members.find((m) => m.userId === currentUserId)?.role === "owner";
+  const shareByEmail = (email: string) => {
+    setQuery("");
+    void run(async () => {
+      const result = await sharePageByEmailAction(pageId, email, "edit");
+      if (result.ok && result.data?.kind === "invited") {
+        const { link, delivery } = result.data;
+        setInvited({ email, link, sent: delivery === "sent" });
+      }
+      return result;
+    });
   };
 
   if (!data) {
@@ -161,8 +187,24 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
                   <PersonLabel name={m.name} detail={m.email} />
                 </button>
               ))}
-              {!candidates.length && <p className="px-2 py-1.5 text-sm text-fg-muted">{t("noMatches")}</p>}
-              <p className="border-t border-border px-2 pt-1.5 pb-1 text-xs text-fg-faint">{t("membersOnly")}</p>
+              {canInvite && isOwner && (
+                <button
+                  type="button"
+                  onClick={() => shareByEmail(typedEmail)}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-bg-hover"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-bg-hover text-fg-muted">
+                    <Send className="h-3.5 w-3.5" />
+                  </span>
+                  <PersonLabel name={t("shareWith", { email: typedEmail })} detail={t("asGuest")} />
+                </button>
+              )}
+              {!candidates.length && !(canInvite && isOwner) && (
+                <p className="px-2 py-1.5 text-sm text-fg-muted">{t("noMatches")}</p>
+              )}
+              <p className="border-t border-border px-2 pt-1.5 pb-1 text-xs text-fg-faint">
+                {isOwner ? t("guestHint") : t("membersOnly")}
+              </p>
             </div>
           )}
         </div>
@@ -174,6 +216,22 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
         <p role="alert" className="mt-2 text-xs text-danger">
           {error}
         </p>
+      )}
+      {invited && (
+        <div role="status" className="mt-2 flex items-center gap-2 rounded-md bg-bg-hover px-2 py-1.5 text-xs text-fg-muted">
+          <span className="min-w-0 flex-1">
+            {invited.sent ? t("invitedSent", { email: invited.email }) : t("invitedNoEmail", { email: invited.email })}
+          </span>
+          {!invited.sent && (
+            <button
+              type="button"
+              onClick={() => copyLink(invited.link)}
+              className="shrink-0 rounded-md border border-border px-2 py-0.5 text-fg hover:bg-bg"
+            >
+              {copied ? t("copied") : t("copyInvite")}
+            </button>
+          )}
+        </div>
       )}
 
       <ul className="mt-3 space-y-0.5">
@@ -234,6 +292,31 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
             }
           />
         ))}
+        {data.invitations.map((invitation) => (
+          <Row
+            key={invitation.email}
+            avatar={
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-bg-hover text-fg-muted">
+                <Mail className="h-3.5 w-3.5" />
+              </span>
+            }
+            label={<PersonLabel name={invitation.email} detail={t("pending")} />}
+            control={
+              <div className="flex items-center gap-0.5">
+                <LevelText level={invitation.level} />
+                <button
+                  type="button"
+                  aria-label={t("cancelInvite")}
+                  title={t("cancelInvite")}
+                  onClick={() => void run(() => removePageInvitationAction(pageId, invitation.email))}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-fg-muted hover:bg-bg-hover hover:text-danger"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            }
+          />
+        ))}
       </ul>
 
       <div className="mt-3 border-t border-border pt-3">
@@ -262,7 +345,7 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
       <div className="mt-3 flex justify-end border-t border-border pt-3">
         <button
           type="button"
-          onClick={copyLink}
+          onClick={() => copyLink()}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-sm hover:bg-bg-hover"
         >
           {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Link2 className="h-4 w-4" />}

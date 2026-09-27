@@ -36,6 +36,13 @@
       "when": 1790492794349,
       "tag": "0004_page_extras",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790497274898,
+      "tag": "0005_page_invitation",
+      "breakpoints": true
     }
   ]
 }

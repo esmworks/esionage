@@ -4,12 +4,20 @@ import { revalidatePath } from "next/cache";
 import type { PageLevel } from "@/db/schema";
 import { AccessError, resolvePageAccess } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
-import { listPagePermissions, PermissionError, removePagePermission, setPagePermission } from "@/server/permissions";
+import {
+  listPagePermissions,
+  PermissionError,
+  removePageInvitation,
+  removePagePermission,
+  setPagePermission,
+  sharePageByEmail,
+  type ShareByEmailResult,
+} from "@/server/permissions";
 import { requireUserId } from "@/server/session";
 import { listMembers } from "@/server/workspaces";
 
-export type SharingErrorCode = "notMember" | "lastFullAccess" | "accessDenied" | "generic";
-export type SharingResult = { ok: true } | { ok: false; code: SharingErrorCode };
+export type SharingErrorCode = "notMember" | "lastFullAccess" | "invalidEmail" | "ownersOnly" | "accessDenied" | "generic";
+export type SharingResult<T = unknown> = { ok: true; data?: T } | { ok: false; code: SharingErrorCode };
 
 /** Who the page is shared with, plus the workspace members it can be shared with. */
 export async function getSharingAction(pageId: string) {
@@ -30,10 +38,14 @@ export async function getSharingAction(pageId: string) {
   };
 }
 
-async function change(pageId: string, run: (userId: string) => Promise<void>): Promise<SharingResult> {
+async function change<T>(
+  pageId: string,
+  run: (userId: string) => Promise<T>,
+): Promise<SharingResult<T>> {
   const userId = await requireUserId();
+  let data: T;
   try {
-    await run(userId);
+    data = await run(userId);
   } catch (error) {
     if (error instanceof PermissionError) return { ok: false, code: error.code };
     if (error instanceof AccessError) return { ok: false, code: "accessDenied" };
@@ -46,7 +58,7 @@ async function change(pageId: string, run: (userId: string) => Promise<void>): P
     getCollab().broadcast(`ws:${target.workspaceId}`, "tree");
     revalidatePath(`/w/${target.workspaceId}`, "layout");
   }
-  return { ok: true };
+  return { ok: true, data };
 }
 
 /** `principal` is a member's user id, or null for everyone in the workspace. */
@@ -56,4 +68,13 @@ export async function setPagePermissionAction(pageId: string, principal: string 
 
 export async function removePagePermissionAction(pageId: string, principal: string | null) {
   return change(pageId, (userId) => removePagePermission(userId, pageId, principal));
+}
+
+/** Shares the page with an email address: a member, an account to add as a guest, or an invitation. */
+export async function sharePageByEmailAction(pageId: string, email: string, level: Exclude<PageLevel, "none">) {
+  return change<ShareByEmailResult>(pageId, (userId) => sharePageByEmail(userId, pageId, email, level));
+}
+
+export async function removePageInvitationAction(pageId: string, email: string) {
+  return change(pageId, (userId) => removePageInvitation(userId, pageId, email));
 }

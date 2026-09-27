@@ -2,7 +2,7 @@
  * End-to-end check of page permissions against the database: defaults, inheritance, widening and
  * narrowing on subpages, visibility in lists, shared pages showing up as top-level pages, and the
  * guard that keeps someone with full access on every page, what guests can and can't see, rows
- * restricted inside a database, moving pages, and what a publication exposes. Creates its own users and workspace
+ * restricted inside a database, moving pages, what a publication exposes, and sharing by email. Creates its own users and workspace
  * and deletes them afterwards.
  *
  *   pnpm tsx scripts/access-e2e.ts
@@ -18,18 +18,25 @@ try {
 // Imported after .env is loaded: the database client reads DATABASE_URL when it is created.
 const { inArray } = await import("drizzle-orm");
 const { db } = await import("@/db");
-const { page, pagePublication, user, workspace, workspaceMember } = await import("@/db/schema");
+const { page, pageInvitation, pagePublication, user, workspace, workspaceInvitation, workspaceMember } = await import(
+  "@/db/schema"
+);
 const { registerCollab } = await import("@/server/collab/bridge");
 const { listRows } = await import("@/server/databases");
 const { getPublishedPage } = await import("@/server/publication");
-const { AccessError, requirePageAccess, resolvePageAccess } = await import("@/server/access");
+const { AccessError, getMembership, requirePageAccess, resolvePageAccess } = await import("@/server/access");
 const { createPage, getBreadcrumbs, getTree, listChildren, movePage, recentPages, searchPages } = await import(
   "@/server/pages"
 );
-const { listMembers } = await import("@/server/workspaces");
-const { listPagePermissions, PermissionError, removePagePermission, setPagePermission } = await import(
-  "@/server/permissions"
-);
+const { acceptInvitation, listMembers } = await import("@/server/workspaces");
+const {
+  listPagePermissions,
+  PermissionError,
+  removePageInvitation,
+  removePagePermission,
+  setPagePermission,
+  sharePageByEmail,
+} = await import("@/server/permissions");
 
 const RUN = `access-e2e-${Date.now().toString(36)}`;
 
@@ -70,12 +77,15 @@ const ids = {
   bob: `${RUN}-bob`,
   guest: `${RUN}-guest`,
   outsider: `${RUN}-outsider`,
+  newcomer: `${RUN}-newcomer`,
 };
+const emailOf = (id: string) => `${id}@example.test`;
 const userIds = Object.values(ids);
 const workspaceId = `${RUN}-ws`;
 
 try {
-  await db.insert(user).values(userIds.map((id) => ({ id, name: id, email: `${id}@example.test` })));
+  // The newcomer has no account yet; it is created when they accept their invitation.
+  await db.insert(user).values(userIds.filter((id) => id !== ids.newcomer).map((id) => ({ id, name: id, email: emailOf(id) })));
   await db.insert(workspace).values({ id: workspaceId, name: RUN });
   await db.insert(workspaceMember).values([
     { workspaceId, userId: ids.owner, role: "owner" },
@@ -96,7 +106,7 @@ try {
   await db.insert(page).values([P("C", "R", 1), P("P", "T", 1)]);
   await db.insert(page).values([P("G", "C", 1)]);
   const [R, C, G, T, Pg, D, D1, D2] = ["R", "C", "G", "T", "P", "D", "D1", "D2"].map((name) => `${RUN}-${name}`);
-  const { owner, alice, bob, guest, outsider } = ids;
+  const { owner, alice, bob, guest, outsider, newcomer } = ids;
 
   // Defaults
   check(
@@ -210,6 +220,58 @@ try {
   await setPagePermission(owner, Pg, guest, "full");
   await rejects(() => movePage(guest, Pg, null), isAccessError, "a guest can't move a page to the top level");
   await setPagePermission(owner, Pg, guest, "edit");
+
+  // Sharing by email
+  check((await sharePageByEmail(owner, Pg, emailOf(bob).toUpperCase(), "view")).kind === "shared", "a member's email shares right away");
+  check((await levels(Pg, bob))[0] === "view", "…with the level asked for");
+  await rejects(() => sharePageByEmail(owner, Pg, "not-an-email", "view"), isCode("invalidEmail"), "a bad address is refused");
+  await setPagePermission(owner, C, alice, "full");
+  await rejects(
+    () => sharePageByEmail(alice, C, emailOf(newcomer), "view"),
+    isCode("ownersOnly"),
+    "only owners bring new people in",
+  );
+  check((await sharePageByEmail(owner, Pg, emailOf(outsider), "edit")).kind === "added", "an existing account joins as a guest");
+  check(
+    (await getMembership(outsider, workspaceId))?.role === "guest" && (await levels(Pg, outsider))[0] === "edit",
+    "…and gets the page",
+  );
+  const invited = await sharePageByEmail(owner, Pg, emailOf(newcomer), "edit");
+  check(invited.kind === "invited", "someone without an account is invited", invited);
+  const pending = await listPagePermissions(owner, Pg);
+  check(
+    pending.invitations.some((i) => i.email === emailOf(newcomer) && i.level === "edit"),
+    "the page lists whom it waits for",
+    pending.invitations,
+  );
+  check((await listPagePermissions(bob, Pg)).invitations.length === 0, "…but only to those who manage it");
+  const [invitation] = await db
+    .select({ token: workspaceInvitation.token, role: workspaceInvitation.role })
+    .from(workspaceInvitation)
+    .where(inArray(workspaceInvitation.email, [emailOf(newcomer)]));
+  check(invitation?.role === "guest", "the workspace invitation is for a guest");
+  await db.insert(user).values({ id: newcomer, name: newcomer, email: emailOf(newcomer) });
+  await acceptInvitation(invitation.token, newcomer, emailOf(newcomer));
+  check((await levels(Pg, newcomer))[0] === "edit", "accepting the invitation turns it into access to the page");
+  const leftover = await db.select().from(pageInvitation).where(inArray(pageInvitation.workspaceId, [workspaceId]));
+  check(leftover.length === 0, "…and nothing waits any more");
+
+  const later = `${RUN}-later@example.test`;
+  await db.insert(workspaceInvitation).values({
+    workspaceId,
+    email: later,
+    role: "member",
+    token: `${RUN}-later`,
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+  await sharePageByEmail(owner, Pg, later, "view");
+  const [kept] = await db.select({ role: workspaceInvitation.role }).from(workspaceInvitation).where(inArray(workspaceInvitation.email, [later]));
+  check(kept?.role === "member", "sharing a page doesn't lower a pending invitation's role");
+  const stranger = `${RUN}-stranger@example.test`;
+  await sharePageByEmail(owner, Pg, stranger, "view");
+  await removePageInvitation(owner, Pg, stranger);
+  const strangerInvites = await db.select().from(workspaceInvitation).where(inArray(workspaceInvitation.email, [stranger]));
+  check(strangerInvites.length === 0, "cancelling the only page a guest was invited to withdraws the invitation");
 
   // The guard also covers subpages with entries of their own
   await setPagePermission(owner, C, alice, "full");

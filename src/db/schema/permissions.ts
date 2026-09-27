@@ -37,3 +37,30 @@ export const pagePermission = pgTable(
     check("page_permission_level_check", sql`${t.level} in ('none', 'view', 'edit', 'full')`),
   ],
 );
+
+/**
+ * A page shared by email with someone who has no account yet. It waits beside their workspace
+ * invitation and turns into a page permission when they accept it or join by link.
+ */
+export const pageInvitation = pgTable(
+  "page_invitation",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => page.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    /** Stored lowercased, like workspace invitations. */
+    email: text("email").notNull(),
+    level: text("level").$type<PageLevel>().notNull(),
+    invitedBy: text("invited_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("page_invitation_email_key").on(t.pageId, t.email),
+    index("page_invitation_workspace_email_idx").on(t.workspaceId, t.email),
+    check("page_invitation_level_check", sql`${t.level} in ('view', 'edit', 'full')`),
+  ],
+);

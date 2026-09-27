@@ -82,9 +82,17 @@
   "share": {
     "tabShare": "Share",
     "tabPublish": "Publish",
-    "addPeople": "Search members to add",
+    "addPeople": "Add people by name or email",
     "noMatches": "No matching members.",
-    "membersOnly": "Pages can only be shared with workspace members. Invite new people from Settings > Members.",
+    "membersOnly": "You can share with workspace members. Only owners can share with people outside the workspace.",
+    "guestHint": "Type a full email address to share with someone outside the workspace. They join as a guest and see only the pages shared with them.",
+    "shareWith": "Share with {email}",
+    "asGuest": "Joins as a guest",
+    "pending": "Invited, hasn't joined yet",
+    "cancelInvite": "Cancel invitation",
+    "invitedSent": "Invitation sent to {email}.",
+    "invitedNoEmail": "{email} is invited, but no email could be sent. Send them the invitation link.",
+    "copyInvite": "Copy invitation link",
     "you": "You",
     "inherited": "From {title}",
     "viaGeneral": "{level} (from general access)",
@@ -107,6 +115,8 @@
       "notMember": "This person isn't a member of the workspace.",
       "lastFullAccess": "Someone must keep full access to the page. Give someone else full access first.",
       "accessDenied": "You can't change sharing for this page.",
+      "invalidEmail": "Enter a valid email address.",
+      "ownersOnly": "Only workspace owners can share pages with people outside the workspace.",
       "generic": "Couldn't update sharing."
     }
   }

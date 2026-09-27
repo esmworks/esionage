@@ -1,7 +1,9 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { pagePermission, type PageLevel, workspaceMember } from "@/db/schema";
+import { pageInvitation, pagePermission, type PageLevel, user, workspaceInvitation, workspaceMember } from "@/db/schema";
+import { isEmail, normalizeEmail } from "@/lib/emails";
 import { AccessError, getMembership, hasLevel, requirePageAccess, resolvePageAccess } from "@/server/access";
+import { addGuest, type InvitationDelivery, inviteGuest } from "@/server/workspaces";
 
 /**
  * Who a page is shared with. An entry gives one member (`userId`) or everyone with a member role
@@ -9,7 +11,7 @@ import { AccessError, getMembership, hasLevel, requirePageAccess, resolvePageAcc
  * same principal. The rule that reads these entries is `page_access_level` in the database.
  */
 
-export type PermissionErrorCode = "notMember" | "lastFullAccess";
+export type PermissionErrorCode = "notMember" | "lastFullAccess" | "invalidEmail" | "ownersOnly";
 
 export class PermissionError extends Error {
   readonly code: PermissionErrorCode;
@@ -78,7 +80,90 @@ export async function listPagePermissions(userId: string, pageId: string) {
     inherited: r.page_id !== pageId,
   }));
   const everyone = entries.find((e) => e.userId === null)?.level ?? "full";
-  return { level, everyone, entries: entries.filter((e) => e.userId !== null) };
+  // Only those who manage the page see whom it waits for.
+  const invitations = hasLevel(level, "full")
+    ? await db
+        .select({ email: pageInvitation.email, level: pageInvitation.level })
+        .from(pageInvitation)
+        .where(eq(pageInvitation.pageId, pageId))
+        .orderBy(asc(pageInvitation.createdAt))
+    : [];
+  return { level, everyone, entries: entries.filter((e) => e.userId !== null), invitations };
+}
+
+export type ShareByEmailResult =
+  | { kind: "shared" }
+  | { kind: "added" }
+  | { kind: "invited"; email: string; link: string; delivery: InvitationDelivery };
+
+/**
+ * Shares the page with whoever uses `email`. Someone in the workspace gets the level right away;
+ * an account outside it joins as a guest; anyone else is invited as a guest and gets the page
+ * once they accept. Needs full access, and bringing new people in is up to the workspace owners.
+ */
+export async function sharePageByEmail(
+  actorId: string,
+  pageId: string,
+  email: string,
+  level: Exclude<PageLevel, "none">,
+): Promise<ShareByEmailResult> {
+  const target = await requirePageAccess(actorId, pageId, "full");
+  const clean = normalizeEmail(email);
+  if (!isEmail(clean)) throw new PermissionError("invalidEmail", "Enter a valid email address");
+  const [account] = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(sql`lower(${user.email})`, clean))
+    .limit(1);
+  if (account && (await getMembership(account.id, target.workspaceId))) {
+    await setPagePermission(actorId, pageId, account.id, level);
+    return { kind: "shared" };
+  }
+  if ((await getMembership(actorId, target.workspaceId))?.role !== "owner") {
+    throw new PermissionError("ownersOnly", "Only workspace owners can share pages with new people");
+  }
+  if (account) {
+    await addGuest(actorId, target.workspaceId, account.id, clean);
+    await setPagePermission(actorId, pageId, account.id, level);
+    return { kind: "added" };
+  }
+  await db
+    .insert(pageInvitation)
+    .values({ pageId, workspaceId: target.workspaceId, email: clean, level, invitedBy: actorId })
+    .onConflictDoUpdate({
+      target: [pageInvitation.pageId, pageInvitation.email],
+      set: { level, invitedBy: actorId, createdAt: new Date() },
+    });
+  const { link, delivery } = await inviteGuest(actorId, target.workspaceId, clean);
+  return { kind: "invited", email: clean, link, delivery };
+}
+
+/**
+ * Stops waiting for `email` on this page. A guest invitation that no page waits on any more is
+ * withdrawn too, since it would only let them into an empty workspace. Needs full access.
+ */
+export async function removePageInvitation(actorId: string, pageId: string, email: string) {
+  const target = await requirePageAccess(actorId, pageId, "full");
+  const clean = normalizeEmail(email);
+  await db.transaction(async (tx) => {
+    await tx.delete(pageInvitation).where(and(eq(pageInvitation.pageId, pageId), eq(pageInvitation.email, clean)));
+    const [left] = await tx
+      .select({ id: pageInvitation.id })
+      .from(pageInvitation)
+      .where(and(eq(pageInvitation.workspaceId, target.workspaceId), eq(pageInvitation.email, clean)))
+      .limit(1);
+    if (!left) {
+      await tx
+        .delete(workspaceInvitation)
+        .where(
+          and(
+            eq(workspaceInvitation.workspaceId, target.workspaceId),
+            eq(workspaceInvitation.email, clean),
+            eq(workspaceInvitation.role, "guest"),
+          ),
+        );
+    }
+  });
 }
 
 /** Sets what `principal` (a member's id, or null for everyone) gets on the page. Needs full access. */
