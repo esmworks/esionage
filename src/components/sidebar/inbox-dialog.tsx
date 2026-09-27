@@ -8,7 +8,7 @@ import { Button, cn, Dialog, PageIcon, pageLabel } from "@/components/ui";
 import { relativeTime } from "@/lib/relative-time";
 import type { InboxItem } from "@/server/notifications";
 
-/** The workspace inbox: who assigned the user to which row, newest first; opening one marks it read. */
+/** The workspace inbox: rows the user was assigned to and pages shared with them, newest first; opening one marks it read. */
 export function InboxDialog({
   workspaceId,
   open,
@@ -94,10 +94,9 @@ export function InboxDialog({
                   <span className="truncate">{pageLabel(item.pageTitle, tc("untitled"))}</span>
                 </span>
                 <span className="mt-0.5 block text-xs text-fg-muted">
-                  {t("assignment", {
-                    actor: item.actorName || t("someone"),
-                    property: item.propertyName ?? "",
-                  })}
+                  {item.kind === "page_shared"
+                    ? t("pageShared", { actor: item.actorName || t("someone") })
+                    : t("assignment", { actor: item.actorName || t("someone"), property: item.propertyName ?? "" })}
                   {item.databaseTitle !== null && <> · {pageLabel(item.databaseTitle, tc("untitled"))}</>}
                 </span>
               </span>

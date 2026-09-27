@@ -8,16 +8,16 @@ import { ConnectedApps } from "@/components/settings/connected-apps";
 import { LanguageSettings } from "@/components/settings/language-settings";
 import { LeaveWorkspaceRow } from "@/components/settings/leave-workspace";
 import { McpInstructions } from "@/components/settings/mcp-instructions";
-import { AssignmentEmailSetting } from "@/components/settings/notification-settings";
 import { MembersPanel } from "@/components/settings/members-panel";
+import { NotificationSettings } from "@/components/settings/notification-settings";
 import { PublishedPages } from "@/components/settings/published-pages";
 import { GuestInviteSetting, GuestPrivatePagesSetting, PublishingSetting } from "@/components/settings/security-settings";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
 import { AccessError, isGuest } from "@/server/access";
-import { assignmentEmailsEnabled } from "@/server/assignments";
 import { mailStatus } from "@/server/mail";
+import { getNotificationPreferences } from "@/server/notification-preferences";
 import { listWorkspacePublications } from "@/server/publication";
 import { requireUser } from "@/server/session";
 import {
@@ -184,7 +184,7 @@ async function MembersTab({ workspaceId, userId, isOwner }: { workspaceId: strin
 }
 
 async function PreferencesTab({ workspaceId, userId, guest }: { workspaceId: string; userId: string; guest: boolean }) {
-  const [cookieStore, assignmentEmails] = await Promise.all([cookies(), assignmentEmailsEnabled(userId)]);
+  const [cookieStore, notificationPreferences] = await Promise.all([cookies(), getNotificationPreferences(userId)]);
   const savedLocale = cookieStore.get(LOCALE_COOKIE)?.value;
   const t = await getTranslations("settings");
   return (
@@ -194,8 +194,16 @@ async function PreferencesTab({ workspaceId, userId, guest }: { workspaceId: str
         <SettingsGroup title={t("language.heading")}>
           <LanguageSettings current={isLocale(savedLocale) ? savedLocale : null} />
         </SettingsGroup>
-        <SettingsGroup title={t("notifications.heading")}>
-          <AssignmentEmailSetting enabled={assignmentEmails} mailOff={mailStatus() === "disabled"} />
+        <SettingsGroup
+          title={t("notifications.heading")}
+          description={
+            <>
+              {t("notifications.description")}
+              {mailStatus() === "disabled" && <> {t("notifications.mailOff")}</>}
+            </>
+          }
+        >
+          <NotificationSettings preferences={notificationPreferences} />
         </SettingsGroup>
         {/* Guests can't open the members list, where everyone else leaves from. */}
         {guest && (

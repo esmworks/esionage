@@ -133,6 +133,20 @@ export function assignmentEmail(
   });
 }
 
+export function shareEmail(
+  locale: Locale,
+  share: { actorName: string; pageTitle: string; workspaceName: string; level: "view" | "edit" | "full"; link: string },
+): RenderedEmail {
+  const t = emailTranslator(locale);
+  const names = { actor: share.actorName, page: share.pageTitle, workspace: share.workspaceName };
+  return renderEmail(locale, {
+    subject: t("share.subject", names),
+    heading: t("share.heading", names),
+    paragraphs: [t("share.body", { ...names, level: t(`share.levels.${share.level}`) }), t("share.optOut")],
+    action: { label: t("share.action"), url: share.link },
+  });
+}
+
 /** Minutes a password reset link stays valid; also the Better Auth token lifetime. */
 export const PASSWORD_RESET_MINUTES = 60;
 

@@ -17,7 +17,8 @@ approve them over OAuth.
   - Views: table, board and calendar, each with its own filters, sorting and grouping. A "Me"
     filter shows each viewer their own rows.
   - Lock a database to freeze its properties and views, and export its rows as CSV.
-- **Assignments**: people assigned to a row get an email and a notification in their inbox.
+- **Inbox**: a notification when someone assigns you to a row or shares a page with you, with an
+  email a little later. Choose per kind whether it shows in the inbox and whether it comes by email.
 - **Page history**: versions are saved automatically while you edit and before every AI edit.
   You can preview and restore any version.
 - **Sharing and permissions**: give members or everyone full, edit, view or no access to a page.
@@ -29,7 +30,7 @@ approve them over OAuth.
   an invitation link to people who don't have an account yet, or turn on a join link anyone can
   use. Owners can export the member list as CSV, hand ownership to someone else, and decide who
   may invite guests.
-- **Email**: invitations, password reset and assignment notifications over SMTP (see [Email](#email)).
+- **Email**: invitations, password reset, assignment and share notifications over SMTP (see [Email](#email)).
 - **English and Turkish** interface.
 - **MCP server with OAuth 2.1**: remote MCP endpoint at `/mcp`.
   - Supports Client ID Metadata Documents and Dynamic Client Registration, with PKCE and a
@@ -124,6 +125,7 @@ The client opens a browser window where you sign in and approve access. The tool
 - **Pages:** `get_page`, `create_page`, `update_page`, `move_page`, `archive_page`, `list_trash`,
   `restore_page`.
 - **Page history:** `list_page_history`, `get_page_version`, `restore_page_version`.
+- **Inbox:** `list_notifications`, when the user also grants the `notifications:read` permission.
 - **Databases:** `get_database`, `query_database`, `create_database`, `create_database_row`,
   `create_database_rows`, `update_database_row`, `add_database_property` (including one- or
   two-way relations), `update_database_property`, `delete_database_property`,
