@@ -10,7 +10,8 @@ import { getStorage } from "@/server/storage";
  *
  * Only raster images, video, audio and PDF are shown in the browser; everything else (SVG and
  * HTML included) is a download, never sniffed into something else, and sandboxed should a browser
- * render it anyway. Single byte ranges are served, so video and audio can seek.
+ * render it anyway. Single byte ranges are served, so video and audio can seek. PDFs can be framed
+ * by this site only (the inline viewer), with `?view=pdf` guaranteeing the frame gets a PDF.
  */
 const BASE_HEADERS = {
   "X-Content-Type-Options": "nosniff",
@@ -26,6 +27,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
   const found = await fileForViewer(session?.user.id ?? null, id);
   if (!found) return notFound();
+  // Inline PDF viewers (components/page/pdf-viewer.tsx) ask for `?view=pdf`: anything that isn't
+  // stored as a PDF is refused there, so a frame never downloads or shows another kind of file.
+  const view = new URL(request.url).searchParams.get("view");
+  if (view !== null && (view !== "pdf" || found.contentType !== "application/pdf")) return notFound();
 
   const headers: Record<string, string> = {
     ...BASE_HEADERS,
@@ -37,7 +42,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     "Accept-Ranges": "bytes",
   };
   // Browsers' PDF viewers don't run in a sandbox; every other type can do without scripts entirely.
-  if (found.contentType !== "application/pdf") {
+  // PDFs are shown in place by this site's pages (see pdf-viewer.tsx) and may be framed by them
+  // alone; the viewer runs in the browser's own origin, never with this site's.
+  if (found.contentType === "application/pdf") {
+    headers["Content-Security-Policy"] = "frame-ancestors 'self'";
+    headers["X-Frame-Options"] = "SAMEORIGIN";
+  } else {
     headers["Content-Security-Policy"] = isSafeInline(found.contentType)
       ? "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox"
       : "default-src 'none'; sandbox";

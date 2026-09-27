@@ -4,6 +4,26 @@
 
 ### Added
 
+- **Files & media property:** a database property that holds uploaded files. Images show as small
+  thumbnails in tables, boards, lists, galleries and row pages, other files by name; the cell
+  editor uploads (pick or drop, several at once) and removes them. Galleries can take their cover
+  from the first image of a files property. Files in a value open for anyone who can see a row
+  holding them, and for visitors of a published database: the `file_reference` trigger now also
+  tracks `/api/files/<id>` URLs in row property values (migration
+  `0016_files_property_references`). A value can only hold files of the same workspace that the
+  person setting it can open. Removing a file from a value never deletes it; it stays with the row
+  it was uploaded to and follows the usual cleanup. Filters: is empty / is not empty; sorting by
+  the number of files; formulas read the file names as a list, rollups count them. CSV export
+  writes one "name (URL)" line per file. Forms can ask for files, on public links too: uploads wait
+  with the database (rate limited per address and per form on public links) until the answer
+  arrives, and the new row takes them over. MCP returns values as `[{name, url}]`, sets them from
+  URLs of files already uploaded to the workspace (no outside URLs), `attach_file` takes
+  `property` to add an upload to a row's files property, and gallery views take a files property
+  as `cover`.
+- **PDF preview:** a file block holding an uploaded PDF shows it in place with the browser's PDF
+  viewer (and a link to open it), in the editor and on published pages. It loads
+  `/api/files/<id>?view=pdf`, which serves only files stored as PDF; PDFs are framable by the app
+  itself only (`frame-ancestors 'self'`). Markdown export keeps the block as a link.
 - **Web bookmarks and embeds:** "Web bookmark" and "Embed" in the slash menu, and pasting a lone
   link into an empty line offers Bookmark, Embed (for supported sites) or Keep as link. A bookmark
   is a card with the page's title, description, icon and preview image; the server fetches them
@@ -18,7 +38,7 @@
   other links become bookmarks. Both show on published pages. In Markdown (export, MCP) a bookmark
   is a `[Title](url)` line, which a rewrite of the page turns back into that bookmark (other link
   lines stay links; `<!-- esionage:bookmark -->` after a link makes a new one), and an embed is
-  `[url](url) <!-- esionage:embed -->`. PDF embeds are still to come.
+  `[url](url) <!-- esionage:embed -->`. Uploaded PDFs show in place (see PDF preview).
 - **File uploads:** image, video, audio and file blocks now take files: drop, paste or pick one
   and it is uploaded instead of asking for a URL. Files are stored on a local volume by default or
   in S3-compatible storage (AWS S3, Cloudflare R2, MinIO) with `S3_BUCKET` and its credentials.

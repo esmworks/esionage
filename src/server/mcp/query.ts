@@ -21,6 +21,7 @@ import {
   RELATIVE_DATE_RANGES,
   rangeNeedsDays,
 } from "@/lib/filters";
+import { asFiles } from "@/lib/files";
 import { formDefaults, formQuestions, isPublicAskable } from "@/lib/forms";
 import { groupDateByOf, type GroupContext, type GroupValue } from "@/lib/grouping";
 import { pageLabel } from "@/lib/labels";
@@ -167,6 +168,8 @@ export function toFilterRule(props: PropertyDef[], input: FilterInput, lookups: 
   const type = prop && valueType(prop);
   if (prop?.type === "checklist") {
     throw new PropertyValueError(`Checklist "${prop.name}" supports is_empty and is_not_empty`);
+  } else if (prop?.type === "files") {
+    throw new PropertyValueError(`Files "${prop.name}" supports is_empty and is_not_empty`);
   } else if (prop && filtersByDay(prop)) {
     if (input.op !== "equals" && input.op !== "gt" && input.op !== "lt") {
       throw new PropertyValueError(`"${prop.name}" supports equals (on the day), gt (after), lt (before), is_within, is_empty and is_not_empty`);
@@ -258,13 +261,21 @@ export function toSortRule(props: PropertyDef[], input: SortInput): SortRule {
 
 /**
  * Row values keyed by property name with option names instead of ids, related rows as
- * `{id, title}` and people as `{id, name}`. Empty values are omitted.
+ * `{id, title}`, people as `{id, name}` and files as `{name, url}` (absolute with `appUrl`).
+ * Empty values are omitted.
  */
-export function displayProperties(props: PropertyDef[], values: Record<string, unknown>, lookups: Lookups = NO_LOOKUPS) {
+export function displayProperties(
+  props: PropertyDef[],
+  values: Record<string, unknown>,
+  lookups: Lookups = NO_LOOKUPS,
+  appUrl = "",
+) {
   const out: Record<string, unknown> = {};
   for (const prop of props) {
     const value =
-      prop.type === "relation"
+      prop.type === "files"
+        ? asFiles(values[prop.id]).map((f) => ({ name: f.name, url: `${appUrl}${f.url}` }))
+        : prop.type === "relation"
         ? relatedRows(prop, lookups.relations, values[prop.id])
         : holdsPeople(prop.type)
           ? assignedPeople(lookups.people, values[prop.id])
@@ -328,7 +339,7 @@ export function describeViewConfig(props: PropertyDef[], config: ViewConfig, loo
     ...(config.zoom ? { zoom: config.zoom } : {}),
     ...(config.showTable === false ? { show_table: false } : {}),
     ...(config.cardSize ? { card_size: config.cardSize } : {}),
-    ...(config.cover ? { cover: config.cover.source } : {}),
+    ...(config.cover ? { cover: config.cover.source === "property" ? keyName(props, config.cover.propertyId) : config.cover.source } : {}),
     ...(type === "chart" ? describeChart(props, config) : {}),
     ...(config.filters?.length ? { filters: config.filters.map(describeEntry) } : {}),
     ...(config.filters?.length && config.filterCombinator === "or" ? { filter_combinator: "or" } : {}),

@@ -337,5 +337,11 @@
   "backlinks": {
     "title": "Linked from",
     "count": "{count, plural, one {# page links here} other {# pages link here}}"
+  },
+  "pdf": {
+    "untitled": "PDF",
+    "openInNewTab": "Open in a new tab",
+    "frameTitle": "PDF: {name}",
+    "noPreview": "This browser can't show PDFs here. Open the file to read it."
   }
 }

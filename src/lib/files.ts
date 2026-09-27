@@ -26,6 +26,92 @@ export function fileIdsIn(text: string): string[] {
   return [...ids];
 }
 
+/**
+ * The id of an uploaded file a URL points at: `/api/files/<id>`, the same on any host
+ * (`https://host/api/files/<id>`, what MCP hands out), or the bare id. Null for anything else.
+ */
+export function fileIdOf(url: unknown): string | null {
+  if (typeof url !== "string") return null;
+  const value = url.trim();
+  if (isFileId(value)) return value;
+  const match = /^(?:https?:\/\/[^/\s]+)?\/api\/files\/([A-Za-z0-9_-]{24})(?:[?#][^\s]*)?$/.exec(value);
+  return match ? match[1] : null;
+}
+
+/**
+ * One file of a files property value, as stored: the file's path (`/api/files/<id>`), and its name
+ * and type as the server read them from the file when it was attached (never what a client says).
+ */
+export type FileValue = { url: string; name: string; type: string };
+
+/** Most files one files property value holds. */
+export const MAX_FILES_PER_VALUE = 100;
+
+/** A stored files value as a list; entries that aren't uploaded files are left out. */
+export function asFiles(value: unknown): FileValue[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const item = entry as Partial<FileValue> | null;
+    if (!item || typeof item !== "object") return [];
+    const id = fileIdOf(item.url);
+    if (!id) return [];
+    return [
+      {
+        url: fileUrl(id),
+        name: typeof item.name === "string" && item.name ? item.name : "file",
+        type: typeof item.type === "string" && item.type ? item.type : "application/octet-stream",
+      },
+    ];
+  });
+}
+
+/**
+ * File ids a row's property values hold: the `url` of every entry of every list value. Keep in sync
+ * with the trigger in drizzle/0016_files_property_references.sql, which does the same in Postgres
+ * (`$.*[*].url`), so only files property values count, never text that merely contains a path.
+ */
+export function fileIdsInProperties(properties: Record<string, unknown> | null | undefined): string[] {
+  const ids = new Set<string>();
+  for (const value of Object.values(properties ?? {})) {
+    if (!Array.isArray(value)) continue;
+    for (const entry of value) {
+      const url = entry && typeof entry === "object" ? (entry as { url?: unknown }).url : undefined;
+      if (typeof url !== "string") continue;
+      const match = /^\/api\/files\/([A-Za-z0-9_-]{24})$/.exec(url);
+      if (match) ids.add(match[1]);
+    }
+  }
+  return [...ids];
+}
+
+/** Whether browsers show a file of this type as an image thumbnail (raster images only, like isSafeInline). */
+export function isImageFile(type: string): boolean {
+  return INLINE_IMAGES.has(type);
+}
+
+/** The first image of a files value, for gallery covers; null without one. */
+export function firstImageFile(value: unknown): FileValue | null {
+  return asFiles(value).find((f) => isImageFile(f.type)) ?? null;
+}
+
+/**
+ * The uploaded PDF a file block shows, by its URL and name: an uploaded file (`/api/files/<id>`,
+ * same-origin only) whose name ends in `.pdf`. Blocks keep no content type, so the name decides;
+ * the viewer loads `pdfViewUrl`, which the file route serves only for files that really are PDFs.
+ */
+export function pdfFileId(url: unknown, name: unknown): string | null {
+  if (typeof url !== "string" || typeof name !== "string") return null;
+  const match = /^\/api\/files\/([A-Za-z0-9_-]{24})$/.exec(url.trim());
+  return match && /\.pdf$/i.test(name.trim()) ? match[1] : null;
+}
+
+/**
+ * Where an inline PDF viewer loads a file from: the file route with `view=pdf`, which answers 404
+ * instead of the bytes unless the file is stored as application/pdf, so a frame never downloads
+ * or shows anything else (see api/files/[id]).
+ */
+export const pdfViewUrl = (id: string) => `${fileUrl(id)}?view=pdf`;
+
 /** Longest file name kept; longer names are cut, keeping the extension. */
 export const MAX_FILE_NAME = 200;
 

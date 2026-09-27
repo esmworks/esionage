@@ -1,7 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { databaseView, formPublication, page, user, type FormConfig, type SelectOption } from "@/db/schema";
+import { databaseView, file, formPublication, page, user, type FormConfig, type SelectOption } from "@/db/schema";
+import { asFiles, fileIdOf, fileUrl, type FileValue } from "@/lib/files";
 import { env } from "@/lib/env";
 import {
   checkAnswers,
@@ -18,6 +19,7 @@ import { SlidingWindowLimiter, takeAll } from "@/lib/rate-limit";
 import { AccessError, accessRank, hasLevel, requireMembership, requirePageAccess, resolvePageAccess, type RequiredLevel } from "@/server/access";
 import { getProperties, insertRows, normalizeRowProperties, withCode, type DatabaseProperty } from "@/server/databases";
 import { publishBlocker } from "@/server/publication";
+import { storeFile, type StoredFile, type UploadInput } from "@/server/files";
 import { canPublish, workspacePeople } from "@/server/workspaces";
 
 /**
@@ -130,6 +132,134 @@ function invalidAnswers(errors: AnswerError[]) {
   return new FormError("Some answers are missing or invalid", "invalidAnswers", errors);
 }
 
+// ---------------------------------------------------------------------------------------------
+// Files in answers
+//
+// A form's files question takes uploads before the answer is sent: each goes to the form's
+// database (uploadFormFile, uploadPublicFormFile), which holds it, unused, until the answer creates
+// its row. The answer then names the uploads (their paths), claimFormFiles checks they are uploads
+// to this database that no row uses yet, and the new row takes them over (adoptFormFiles), so they
+// belong to it exactly as if they had been uploaded to the row. Uploads nobody sends go away with
+// the other unused uploads after a day (files.purgeUnusedUploads).
+
+/** Answers to files questions, apart from the others (which are checked as row values). */
+function splitFileAnswers(properties: DatabaseProperty[], values: Record<string, unknown>) {
+  const files: Record<string, FileValue[]> = {};
+  const rest: Record<string, unknown> = {};
+  for (const [id, value] of Object.entries(values)) {
+    if (properties.some((p) => p.id === id && p.type === "files")) files[id] = asFiles(value);
+    else rest[id] = value;
+  }
+  return { files, rest };
+}
+
+/**
+ * The files answers as stored values (the files' own names and types), when every file is an
+ * unused upload to this form's database; refuses the answer otherwise, naming the question.
+ */
+async function claimFormFiles(
+  database: { id: string; workspaceId: string },
+  properties: DatabaseProperty[],
+  answers: Record<string, FileValue[]>,
+): Promise<Record<string, FileValue[]>> {
+  const ids = Object.values(answers).flatMap((list) => list.flatMap((f) => fileIdOf(f.url) ?? []));
+  const pending = new Map(
+    (ids.length
+      ? await db
+          .select({ id: file.id, name: file.name, contentType: file.contentType })
+          .from(file)
+          .where(
+            and(
+              inArray(file.id, ids),
+              eq(file.pageId, database.id),
+              eq(file.workspaceId, database.workspaceId),
+              isNull(file.referencedAt),
+            ),
+          )
+      : []
+    ).map((f) => [f.id, f]),
+  );
+  const errors: AnswerError[] = [];
+  const out: Record<string, FileValue[]> = {};
+  for (const [propertyId, list] of Object.entries(answers)) {
+    const values = list.flatMap((f) => {
+      const stored = pending.get(fileIdOf(f.url) ?? "");
+      return stored ? [{ url: fileUrl(stored.id), name: stored.name, type: stored.contentType }] : [];
+    });
+    if (values.length !== list.length) {
+      const prop = properties.find((p) => p.id === propertyId);
+      errors.push({ propertyId, code: "invalidFile", params: { property: prop?.name ?? "" } });
+    } else if (values.length) out[propertyId] = values;
+  }
+  if (errors.length) throw invalidAnswers(errors);
+  return out;
+}
+
+/** The new row takes over the uploads its answer holds (they were the database's until now). */
+async function adoptFormFiles(databaseId: string, rowId: string, claimed: Record<string, FileValue[]>) {
+  const ids = Object.values(claimed).flatMap((list) => list.flatMap((f) => fileIdOf(f.url) ?? []));
+  if (!ids.length) return;
+  await db
+    .update(file)
+    .set({ pageId: rowId })
+    .where(and(inArray(file.id, ids), eq(file.pageId, databaseId)));
+}
+
+/** Whether the form asks a files question (publicly, with `public`), so it takes uploads. */
+function asksForFiles(form: FormConfig | undefined, properties: DatabaseProperty[], options: { public?: boolean } = {}) {
+  return formQuestions(form, properties, options).some((q) => q.prop?.type === "files");
+}
+
+/**
+ * Stores a file for an answer to a form in the app, held by the form's database until the answer
+ * is sent. Needs what sending the answer needs: edit access to the database.
+ */
+export async function uploadFormFile(userId: string, viewId: string, input: UploadInput): Promise<StoredFile> {
+  const { view, database } = await requireForm(userId, viewId, "edit");
+  if (database.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
+  if (!asksForFiles(view.config.form, await getProperties(database.id))) {
+    throw new FormError("This form doesn't ask for files", "notAllowed");
+  }
+  return storeFile({ workspaceId: database.workspaceId, pageId: database.id, uploadedBy: userId }, input);
+}
+
+/** Uploads to public forms per IP address, and per form from everyone together. */
+export const FORM_FILE_RATE_LIMITS = {
+  perIp: { limit: 30, windowMs: 10 * 60_000 },
+  perForm: { limit: 300, windowMs: 60 * 60_000 },
+};
+const fileIpLimiter = new SlidingWindowLimiter(FORM_FILE_RATE_LIMITS.perIp.limit, FORM_FILE_RATE_LIMITS.perIp.windowMs);
+const fileFormLimiter = new SlidingWindowLimiter(FORM_FILE_RATE_LIMITS.perForm.limit, FORM_FILE_RATE_LIMITS.perForm.windowMs);
+
+/**
+ * Stores a file for an answer to a public form, held by the form's database until the answer is
+ * sent (see above). Like answering: the link must be open, the form must be loaded (its ticket),
+ * sign-in is needed unless the form is anonymous, and uploads are rate limited per IP address and
+ * per form. The uploader can't read the file back (they can't see the database); the form shows
+ * what they picked from their own device.
+ */
+export async function uploadPublicFormFile(
+  token: string,
+  { userId, ip, ticket, now = Date.now() }: { userId: string | null; ip: string; ticket: unknown; now?: number },
+  input: UploadInput,
+): Promise<StoredFile> {
+  const form = await openPublicForm(token);
+  if (!form) throw new FormError("This form is closed", "closed");
+  if (!form.anonymous && !userId) throw new FormError("Sign in to fill in this form", "signInRequired");
+  const age = ticketAge(token, ticket, now);
+  if (age === null || age > MAX_TICKET_AGE_MS) throw new FormError("The form has expired; reload it", "expired");
+  if (!asksForFiles(form.config.form, await getProperties(form.databaseId), { public: true })) {
+    throw new FormError("This form doesn't ask for files", "notAllowed");
+  }
+  if (takeAll([[fileIpLimiter, ip], [fileFormLimiter, form.viewId]], now) > 0) {
+    throw new FormError("Too many uploads; try again later", "rateLimited");
+  }
+  return storeFile(
+    { workspaceId: form.workspaceId, pageId: form.databaseId, uploadedBy: form.anonymous ? null : userId },
+    input,
+  );
+}
+
 /**
  * Fills in a form in the app: adds a row with the answers and the form's default values, created
  * by the user. Needs edit access to the database, like adding a row any other way.
@@ -141,10 +271,13 @@ export async function submitForm(userId: string, viewId: string, answers: Record
   const properties = await getProperties(database.id);
   const checked = checkAnswers(formQuestions(view.config.form, properties), answers);
   if (!checked.ok) throw invalidAnswers(checked.errors);
+  const { files, rest } = splitFileAnswers(properties, checked.properties);
   // Linked rows and people are looked up as the person answering: only what they can see.
-  const values = await normalizeRowProperties(userId, database.id, checked.properties);
+  const values = await normalizeRowProperties(userId, database.id, rest);
+  const claimed = await claimFormFiles(database, properties, files);
   const defaults = await liveDefaults(database, properties, view.config.form);
-  const [row] = await insertRows(database, userId, [{ title: checked.title, properties: { ...defaults, ...values } }]);
+  const [row] = await insertRows(database, userId, [{ title: checked.title, properties: { ...defaults, ...values, ...claimed } }]);
+  await adoptFormFiles(database.id, row.id, claimed);
   return { id: row.id };
 }
 
@@ -381,6 +514,8 @@ const formLimiter = new SlidingWindowLimiter(FORM_RATE_LIMITS.perForm.limit, FOR
 export function resetFormRateLimits() {
   ipLimiter.reset();
   formLimiter.reset();
+  fileIpLimiter.reset();
+  fileFormLimiter.reset();
 }
 
 /** People take at least this long to fill in a form; scripts that post right away don't. */
@@ -444,10 +579,14 @@ export async function submitPublicForm(
   const properties = await getProperties(form.databaseId);
   const checked = checkAnswers(formQuestions(form.config.form, properties, { public: true }), submission.answers);
   if (!checked.ok) throw invalidAnswers(checked.errors);
-  // Public questions hold no links or people (isPublicAskable), so the checked values are final.
+  // Public questions hold no links or people (isPublicAskable), so the checked values are final,
+  // but for files, which must be this form's uploads.
   const database = { id: form.databaseId, workspaceId: form.workspaceId };
+  const { files, rest } = splitFileAnswers(properties, checked.properties);
+  const claimed = await claimFormFiles(database, properties, files);
   const defaults = await liveDefaults(database, properties, form.config.form);
   const creator = form.anonymous ? null : userId;
-  const [row] = await insertRows(database, creator, [{ title: checked.title, properties: { ...defaults, ...checked.properties } }]);
+  const [row] = await insertRows(database, creator, [{ title: checked.title, properties: { ...defaults, ...rest, ...claimed } }]);
+  await adoptFormFiles(database.id, row.id, claimed);
   return { id: row.id };
 }

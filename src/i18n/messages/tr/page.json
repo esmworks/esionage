@@ -337,5 +337,11 @@
   "backlinks": {
     "title": "Bu sayfaya bağlananlar",
     "count": "{count, plural, one {# sayfa buraya bağlanıyor} other {# sayfa buraya bağlanıyor}}"
+  },
+  "pdf": {
+    "untitled": "PDF",
+    "openInNewTab": "Yeni sekmede aç",
+    "frameTitle": "PDF: {name}",
+    "noPreview": "Bu tarayıcı PDF'leri burada gösteremiyor. Okumak için dosyayı açın."
   }
 }

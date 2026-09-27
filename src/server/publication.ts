@@ -8,7 +8,8 @@ import { withFormulaTypes } from "@/lib/derived";
 import type { EmbedBlockType, LinkedView } from "@/lib/embed-blocks";
 import { arrangeGroups, boardGroupProperty, groupRowsBy, isGroupable, type GroupValue } from "@/lib/grouping";
 import { applyView, computedValues, isHiddenInView } from "@/lib/properties";
-import { galleryCover } from "@/lib/views";
+import { coverProperty, galleryCover } from "@/lib/views";
+import { firstImageFile } from "@/lib/files";
 import { holdsPeople } from "@/lib/property-types";
 import { AccessError, accessRank, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
 import { rowCovers, type DatabaseProperty } from "@/server/databases";
@@ -203,7 +204,7 @@ export type PublishedRow = {
   properties: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
-  /** Galleries showing covers: the first image in the row's body. */
+  /** Galleries showing covers: the first image in the row's body, or of the view's files property. */
   cover?: string | null;
 };
 export type PublishedViewTab = { id: string; name: string; type: ViewType };
@@ -237,6 +238,7 @@ export type PublishedBlock =
   | { kind: "mermaid"; source: string }
   | { kind: "bookmark"; bookmark: PublishedBookmark }
   | { kind: "webEmbed"; url: string; embed: EmbedTarget }
+  | { kind: "pdf"; fileId: string; name: string; caption: string }
   | {
       kind: "embed";
       type: EmbedBlockType;
@@ -575,6 +577,10 @@ async function publishedDatabase(
   );
   const viewed = applyView(rows, chosen.config, allProperties, { people: await sortNames(rows, allProperties, chosen.config) });
   const covers = withCovers ? await rowCovers(stored) : null;
+  // A gallery taking covers from a files property shows each row's first image there.
+  const coverFrom = chosen.type === "gallery" ? coverProperty(chosen.config, properties) : null;
+  const coverOf = (row: PublishedRow) =>
+    covers ? { cover: covers.get(row.id) ?? null } : coverFrom ? { cover: firstImageFile(row.properties[coverFrom.id])?.url ?? null } : {};
   const groups = publishedGroups(chosen, allProperties, viewed);
   // A board whose columns would name people or linked rows shows as a table.
   const layout = chosen.type === "board" && !groups ? "table" : (LAYOUTS[chosen.type] ?? "table");
@@ -584,7 +590,7 @@ async function publishedDatabase(
     view: { id: chosen.id, name: chosen.name, type: chosen.type },
     views: tabs,
     layout,
-    rows: viewed.map((row) => ({ ...onlyValuesOf(row, shown), ...(covers ? { cover: covers.get(row.id) ?? null } : {}) })),
+    rows: viewed.map((row) => ({ ...onlyValuesOf(row, shown), ...coverOf(row) })),
     groups: layout === "board" || layout === "table" ? groups : null,
     cardSize: chosen.config.cardSize ?? "medium",
   };

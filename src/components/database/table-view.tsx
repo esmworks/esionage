@@ -12,6 +12,7 @@ import { valueType } from "@/lib/derived";
 import { arrangeGroups, canAddToGroup, groupDefaults, groupRowsBy, type Group } from "@/lib/grouping";
 import { isGroupable, isSortable, localDay } from "@/lib/properties";
 import { BulkActionBar, SelectBox, useRowSelection } from "./bulk-actions";
+import { uploadToPage } from "./files-cell";
 import { Floating, useFloating } from "./floating";
 import { GroupLabel, HiddenGroups, useGroupContext, useGroupName } from "./group-label";
 import { usePeople } from "./person-cell";
@@ -170,6 +171,7 @@ export function TableView({
             readOnly={readOnly}
             onChange={(v) => void api.setCell(row.id, p.id, v)}
             onCreateOption={createOption}
+            upload={p.type === "files" ? uploadToPage(row.id) : undefined}
           />
         </td>
       ))}

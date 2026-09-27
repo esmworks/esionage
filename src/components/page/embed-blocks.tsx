@@ -19,6 +19,7 @@ import {
 import { contentBlockSpecs, contentInlineSpecs } from "./content-blocks";
 import { mentionBlockSpecs, mentionInlineSpecs } from "./mentions";
 import { DatabaseEmbed, useEmbedHost } from "./database-embed";
+import { FileBlock } from "./file-block";
 import { webBlockSpecs } from "./web-blocks";
 
 /**
@@ -71,6 +72,8 @@ export const pageEditorSchema = BlockNoteSchema.create({
     ...contentBlockSpecs,
     ...webBlockSpecs,
     ...mentionBlockSpecs,
+    // Uploaded PDFs show in place (see file-block.tsx).
+    file: FileBlock(),
   },
   inlineContentSpecs: { ...defaultInlineContentSpecs, ...contentInlineSpecs, ...mentionInlineSpecs },
 });

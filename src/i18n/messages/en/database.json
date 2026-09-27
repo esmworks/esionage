@@ -12,6 +12,7 @@
     "email": "Email",
     "phone": "Phone",
     "checklist": "Checklist",
+    "files": "Files & media",
     "relation": "Relation",
     "person": "Person",
     "createdBy": "Created by",
@@ -298,6 +299,16 @@
     "progress": "{done} of {total} done",
     "empty": "No items yet"
   },
+  "files": {
+    "count": "{count, plural, one {# file} other {# files}}",
+    "empty": "No files",
+    "emptyUpload": "No files yet. Upload one or drop it here.",
+    "open": "Open {name}",
+    "remove": "Remove {name}",
+    "uploading": "Uploading {name}…",
+    "upload": "Upload files",
+    "rateLimited": "Too many files were uploaded from here. Try again in a few minutes."
+  },
   "statusGroups": {
     "todo": "To-do",
     "in_progress": "In progress",
@@ -393,6 +404,7 @@
     "cover": "Card cover",
     "covers": {
       "first_image": "First image in the page",
+      "property": "First image in {name}",
       "none": "None"
     },
     "start": "Start date",
@@ -477,6 +489,7 @@
     "invalidEmail": "“{property}” must be an email address.",
     "invalidPhone": "“{property}” must be a phone number.",
     "invalidChecklist": "“{property}” must be a list of items.",
+    "invalidFile": "“{property}” can only hold files uploaded to this workspace that you can open.",
     "invalidNumber": "“{property}” must be a number.",
     "invalidCheckbox": "“{property}” must be true or false.",
     "invalidDate": "“{property}” must be a date (YYYY-MM-DD).",

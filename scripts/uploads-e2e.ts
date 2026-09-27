@@ -299,7 +299,13 @@ try {
   check((await getFile(html.id)).headers.get("content-disposition")?.startsWith("attachment;"), "HTML is a download too");
   const pdf = await upload(ids.owner, doc.id, "doc.pdf", Buffer.from("%PDF-1.4"), "application/pdf");
   const pdfRes = await getFile(pdf.id);
-  check(pdfRes.headers.get("content-disposition")?.startsWith("inline;") && !pdfRes.headers.has("content-security-policy"), "PDFs open inline");
+  check(
+    pdfRes.headers.get("content-disposition")?.startsWith("inline;") &&
+      pdfRes.headers.get("content-security-policy") === "frame-ancestors 'self'" &&
+      pdfRes.headers.get("x-frame-options") === "SAMEORIGIN",
+    "PDFs open inline, framed by this site only (the inline viewer)",
+    Object.fromEntries(pdfRes.headers),
+  );
   const missing = await getFile("AAAAAAAAAAAAAAAAAAAAAAAA");
   check(missing.status === 404 && missing.headers.get("x-content-type-options") === "nosniff", "an unknown id is a plain 404");
   await unpublishPage(ids.owner, doc.id);

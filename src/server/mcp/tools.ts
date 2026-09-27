@@ -34,6 +34,7 @@ import { formulaForStorage, withFormulaTypes } from "@/lib/derived";
 import { MAX_FORMULA_LENGTH } from "@/lib/formula";
 import {
   FORM_TITLE,
+  canDefault,
   isAskable,
   MAX_CONFIRMATION,
   MAX_FORM_DEFAULTS,
@@ -48,13 +49,13 @@ import { pageLabel } from "@/lib/labels";
 import { diffToText, wordsToText } from "@/lib/page-diff";
 import { isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
 import { holdsOptions, holdsTimestamp, STATUS_GROUPS } from "@/lib/property-types";
-import { CARD_SIZES, COVER_SOURCES, TIMELINE_ZOOMS, VIEW_TYPES } from "@/lib/views";
+import { CARD_SIZES, TIMELINE_ZOOMS, VIEW_TYPES } from "@/lib/views";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import * as comments from "@/server/comments";
 import * as databases from "@/server/databases";
 import * as files from "@/server/files";
 import { uploadLimits } from "@/server/storage";
-import { blockTypeFor, formatBytes } from "@/lib/files";
+import { asFiles, blockTypeFor, formatBytes } from "@/lib/files";
 import { resolveEmbeds } from "@/server/embeds";
 import * as forms from "@/server/forms";
 import { labelPageLinks, listBacklinks } from "@/server/mentions";
@@ -82,14 +83,14 @@ import {
 } from "./query";
 
 const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
-Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, status, date, checkbox, url, email, phone, checklist, relation, person, created_by, created_time, last_edited_by, last_edited_time, formula, rollup). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A status is a select whose options belong to the groups todo, in_progress and done. A checklist holds items that can be ticked off. created_by, created_time, last_edited_by and last_edited_time show who created or last edited each row and when; they are filled in automatically and can't be written. A formula property computes its value from the row's other properties, and a rollup calculates over the rows a relation links to (see add_database_property); neither can be written.
+Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, status, date, checkbox, url, email, phone, checklist, files, relation, person, created_by, created_time, last_edited_by, last_edited_time, formula, rollup). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A status is a select whose options belong to the groups todo, in_progress and done. A checklist holds items that can be ticked off. A files property holds files uploaded to the workspace (images show as thumbnails); its values read as [{name, url}]. created_by, created_time, last_edited_by and last_edited_time show who created or last edited each row and when; they are filled in automatically and can't be written. A formula property computes its value from the row's other properties, and a rollup calculates over the rows a relation links to (see add_database_property); neither can be written.
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / diff_page_version / restore_page_version).
 Beyond plain Markdown, page bodies know a few block forms: a callout is a GitHub alert (\`> [!NOTE]\`, TIP, IMPORTANT, WARNING or CAUTION on its own line, then the \`> \` text; a leading emoji becomes its icon), \`$…$\` is an inline equation and a \`$$\` line pair wraps a block equation (LaTeX), a \`\`\`mermaid fence is a diagram, and the lines \`<!-- esionage:toc -->\` and \`<!-- esionage:breadcrumb -->\` are a table of contents and the page's breadcrumb. A web bookmark (a link card) reads as a link on a line of its own, \`[Title](url)\`, and stays a bookmark when you write the body back; to add a new one write \`[Title](url) <!-- esionage:bookmark -->\`. An embed (YouTube, Vimeo, Loom, Figma, published Google Docs/Sheets/Slides, CodePen, Spotify, Google Maps) is \`[url](url) <!-- esionage:embed -->\`. A dollar sign of the text itself is written \`\\$\`.
 Mentions: a link to a page of this app (\`[Roadmap](/w/<workspace_id>/p/<page_id>)\`) is a page mention, which shows the page's live title (the link text you write is ignored; get_page shows the current title, or "No access" / "Deleted page"); that link alone on its line followed by \`<!-- esionage:page-link -->\` is a "Link to page" block. \`@Name\` with a person's name as list_users shows it mentions them (they are notified if they can open the page), and \`@YYYY-MM-DD\` is a date. Keep mentions as they are when you rewrite a page: people aren't notified twice and reminders set on dates stay. get_page lists the pages linking to a page under linked_from.
 People discuss pages in comment threads anchored to text of the page: list_comments reads them, add_comment starts a thread on quoted text or replies to one.
 list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them, new comments in their threads, mentions of them and reminders they set on dates.
-attach_file adds an image, video, audio or other file to a page, from a URL or base64 data. Files in page bodies show up in the Markdown with paths like /api/files/<id>.
+attach_file adds an image, video, audio or other file to a page, from a URL or base64 data, or (with property) to a row's files property. Files in page bodies show up in the Markdown with paths like /api/files/<id>.
 Templates are starting points for new pages and rows: list_templates lists a workspace's page templates (and the built-in gallery) or a database's row templates; create_page and create_database_row take a template_id. A database's default row template is used by create_database_row when no properties or body are given. Templates don't show up in search or list_pages.
 Always share the returned url with the user when you create or change something.`;
 
@@ -101,16 +102,23 @@ const EMBED_NOTE =
 const id = (what: string) => z.string().min(1).describe(`The ${what} id (a UUID from another tool's output).`);
 
 const checklistItem = z.object({ text: z.string(), checked: z.boolean().optional() });
-const rowValue = z.union([z.string(), z.number(), z.boolean(), z.array(z.union([z.string(), checklistItem])), z.null()]);
+const fileItem = z.object({ url: z.string(), name: z.string().optional() });
+const rowValue = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.array(z.union([z.string(), checklistItem, fileItem])),
+  z.null(),
+]);
 const rowProperties = z
   .record(z.string(), rowValue)
   .describe(
-    'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select / status (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an email address for email, a phone number for phone, an array of item texts or {text, checked} objects for checklist, an array of row ids (or exact row titles) of the related database for relation, an array of user ids, emails, names or "me" for person, and null to clear a value. Setting a relation, person or checklist replaces its values. created_by, created_time, last_edited_by, last_edited_time and formula properties are read-only. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"], "Assignee": ["me"]}',
+    'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select / status (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an email address for email, a phone number for phone, an array of item texts or {text, checked} objects for checklist, an array of row ids (or exact row titles) of the related database for relation, an array of user ids, emails, names or "me" for person, an array of files already uploaded to this workspace (their /api/files/<id> paths or urls, or the {name, url} objects query_database returns; upload new ones with attach_file and its property option) for files, and null to clear a value. Setting a relation, person, checklist or files replaces its values. created_by, created_time, last_edited_by, last_edited_time and formula properties are read-only. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"], "Assignee": ["me"]}',
   );
 
 /** How formulas are written, for tool descriptions. */
 const FORMULA_HELP =
-  'Reference properties with prop("Name") (prop("title") is the row title). Operators: + - * / % ^, == != < <= > >=, and or not; "+" also joins text. Functions: if, ifs, empty, and, or, not; concat, length, lower, upper, trim, contains, startsWith, endsWith, replace, replaceAll, slice, join, format; round, floor, ceil, abs, sqrt, sign, pow, min, max; toNumber, parseDate; now, today, dateAdd, dateSubtract, dateBetween (units: years, quarters, months, weeks, days, hours, minutes, seconds), formatDate (tokens YYYY MM DD HH mm…), year, month, day, weekday, hour, minute, timestamp. Select and status read as their option name; multi-select, relation and person as lists; checklists as the share of ticked items; dates work in UTC. Invalid formulas are refused with the reason. Formula values are read-only; query_database returns them and can filter and sort on them like values of their result type.';
+  'Reference properties with prop("Name") (prop("title") is the row title). Operators: + - * / % ^, == != < <= > >=, and or not; "+" also joins text. Functions: if, ifs, empty, and, or, not; concat, length, lower, upper, trim, contains, startsWith, endsWith, replace, replaceAll, slice, join, format; round, floor, ceil, abs, sqrt, sign, pow, min, max; toNumber, parseDate; now, today, dateAdd, dateSubtract, dateBetween (units: years, quarters, months, weeks, days, hours, minutes, seconds), formatDate (tokens YYYY MM DD HH mm…), year, month, day, weekday, hour, minute, timestamp. Select and status read as their option name; multi-select, relation, person and files (their names) as lists; checklists as the share of ticked items; dates work in UTC. Invalid formulas are refused with the reason. Formula values are read-only; query_database returns them and can filter and sort on them like values of their result type.';
 const formulaInput = z.string().max(MAX_FORMULA_LENGTH);
 
 /** How rollups are set up, for tool descriptions. */
@@ -273,9 +281,12 @@ const viewLayoutInputs = {
   show_table: z.boolean().optional().describe("Timeline only: show row titles in a table left of the bars (true by default)."),
   card_size: z.enum(CARD_SIZES).optional().describe('Gallery only: card size ("medium" by default).'),
   cover: z
-    .enum(COVER_SOURCES)
+    .string()
+    .min(1)
     .optional()
-    .describe('Gallery only: "first_image" shows the first image in each row\'s body on its card (the default), "none" no cover.'),
+    .describe(
+      'Gallery only: "first_image" shows the first image in each row\'s body on its card (the default), "none" no cover, or the name of a files property to show the first image it holds.',
+    ),
   chart_type: z
     .enum(CHART_TYPES)
     .optional()
@@ -315,7 +326,8 @@ type ViewInput = {
   zoom?: TimelineZoom;
   show_table?: boolean;
   card_size?: CardSize;
-  cover?: ViewCover["source"];
+  /** "first_image", "none" or a files property's name. */
+  cover?: string;
   chart_type?: ChartType;
   aggregate?: "count" | AggregateFn;
   aggregate_property?: string;
@@ -421,7 +433,7 @@ function viewConfigPatch(
   }
   if (input.cover !== undefined) {
     only("cover", "gallery");
-    patch.cover = { source: input.cover };
+    patch.cover = toCover(props, input.cover);
   }
   if (type === "chart") Object.assign(patch, chartConfigPatch(props, input, { ...current, ...patch }));
   else {
@@ -436,6 +448,17 @@ function viewConfigPatch(
   }
   if (input.sorts) patch.sorts = input.sorts.map((s) => toSortRule(props, s));
   return patch;
+}
+
+/** A gallery cover from tool input: "first_image", "none", or a files property (by name or id). */
+function toCover(props: PropertyDef[], cover: string): ViewCover {
+  if (cover === "first_image" || cover === "none") return { source: cover };
+  const prop = props.find((p) => p.id === cover) ?? props.find((p) => p.name.toLowerCase() === cover.toLowerCase());
+  if (!prop) {
+    throw new ToolInputError(`Cover must be "first_image", "none" or the name of a files property; there is no property "${cover}".`);
+  }
+  if (prop.type !== "files") throw new ToolInputError(`Covers come from a files property; "${prop.name}" is ${prop.type}.`);
+  return { source: "property", propertyId: prop.id };
 }
 
 /** A chart's settings from tool input; `current` is the saved config the patch will be merged into. */
@@ -593,7 +616,7 @@ function formConfigPatch(props: PropertyDef[], type: ViewType, current: ViewConf
     form.defaults = Object.fromEntries(
       entries.map(([ref, value]) => {
         const prop = requireProperty(props, ref);
-        if (!isAskable(prop.type)) throw new ToolInputError(`"${prop.name}" is ${prop.type}; it can't have a default value.`);
+        if (!canDefault(prop.type)) throw new ToolInputError(`"${prop.name}" is ${prop.type}; it can't have a default value.`);
         if (asked.has(prop.id)) throw new ToolInputError(`"${prop.name}" is a question; its answer is what the row gets.`);
         return [prop.id, value];
       }),
@@ -710,6 +733,7 @@ export function createMcpServer(principal: McpPrincipal) {
         properties,
         await databases.rowValues(userId, row, properties),
         await databases.getLookups(userId, properties),
+        env.appUrl,
       ),
       url: pageUrl(database.workspaceId, row.id),
     };
@@ -900,6 +924,7 @@ export function createMcpServer(principal: McpPrincipal) {
             properties,
             await databases.rowValues(userId, page, properties),
             await databases.getLookups(userId, properties),
+            env.appUrl,
           );
         }
         if (page.kind === "database") {
@@ -1103,7 +1128,7 @@ export function createMcpServer(principal: McpPrincipal) {
     "attach_file",
     {
       title: "Attach a file to a page",
-      description: `Upload a file (image, video, audio, PDF or any other file) to a page, either from a public http(s) URL, which Esionage downloads, or from base64 data. By default it is added to the end of the page body as an image, video, audio or file block, chosen by its type; a history snapshot is saved first. With append false it is only stored: put the returned path into the body yourself (e.g. \`![caption](/api/files/…)\` with update_page) within a day, or the unused upload is removed. Files can be at most ${formatBytes(maxFile)}, and URLs must point at a public address. Only people who can see the page can open the file.`,
+      description: `Upload a file (image, video, audio, PDF or any other file) to a page, either from a public http(s) URL, which Esionage downloads, or from base64 data. By default it is added to the end of the page body as an image, video, audio or file block, chosen by its type; a history snapshot is saved first. With append false it is only stored: put the returned path into the body yourself (e.g. \`![caption](/api/files/…)\` with update_page) within a day, or the unused upload is removed. With property (a files property of the row the page is), the file is added to that property's value instead of the body. Files can be at most ${formatBytes(maxFile)}, and URLs must point at a public address. Only people who can see the page can open the file.`,
       inputSchema: z.object({
         page_id: id("page"),
         url: z.string().max(4000).optional().describe("A public http(s) URL to download the file from. Give url or base64."),
@@ -1115,12 +1140,16 @@ export function createMcpServer(principal: McpPrincipal) {
         name: z.string().max(200).optional().describe("File name, with its extension. Taken from the URL when missing; needed for base64."),
         content_type: z.string().max(255).optional().describe("Media type, e.g. image/png. Guessed from the name or the server when missing."),
         caption: z.string().max(1000).optional().describe("Caption shown under the block."),
-        append: z.boolean().default(true).describe("Add the file to the end of the page body (default true)."),
+        append: z.boolean().default(true).describe("Add the file to the end of the page body (default true). Ignored with property."),
+        property: z
+          .string()
+          .optional()
+          .describe("A files property (name or id) of the database row page_id is: the file is added to its value, not the body."),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       scopeChallenge: requireFiles,
     },
-    ({ page_id, url, base64, name, content_type, caption, append }) =>
+    ({ page_id, url, base64, name, content_type, caption, append, property }) =>
       runTool(async () => {
         assertWrite();
         if (!principal.scopes.includes(FILES_SCOPE)) {
@@ -1129,9 +1158,17 @@ export function createMcpServer(principal: McpPrincipal) {
           );
         }
         if ((url === undefined) === (base64 === undefined)) throw new ToolInputError("Give either url or base64, not both.");
-        const { page } = await loadPage(page_id);
+        const { page, parentDatabase } = await loadPage(page_id);
         if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in Esionage before adding files.");
         if (page.kind === "database") throw new ToolInputError("Databases have no body. Attach the file to one of its rows.");
+        let filesProp: PropertyDef | null = null;
+        if (property !== undefined) {
+          if (!parentDatabase) throw new ToolInputError("property only applies to database rows; this page is not one.");
+          const { properties } = await databases.getDatabase(userId, parentDatabase.id);
+          const prop = requireProperty(properties, property);
+          if (prop.type !== "files") throw new ToolInputError(`"${prop.name}" is a ${prop.type} property, not a files property.`);
+          filesProp = prop;
+        }
         let stored: files.StoredFile;
         try {
           if (url !== undefined) {
@@ -1149,6 +1186,20 @@ export function createMcpServer(principal: McpPrincipal) {
         } catch (error) {
           if (error instanceof files.FileError) throw new ToolInputError(`${error.message}.`);
           throw error;
+        }
+        if (filesProp) {
+          const current = asFiles(page.properties?.[filesProp.id]);
+          await databases.updateRowProperties(userId, page_id, { [filesProp.id]: [...current, { url: stored.url }] });
+          return {
+            id: stored.id,
+            name: stored.name,
+            content_type: stored.contentType,
+            size: stored.size,
+            path: stored.url,
+            url: `${env.appUrl}${stored.url}`,
+            property: filesProp.name,
+            row: await rowOutput(parentDatabase!.id, page_id),
+          };
         }
         const type = blockTypeFor(stored.contentType);
         if (append) {
@@ -1246,7 +1297,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Query database rows",
       description:
-        'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select / status option names as values; by default all filters must match, filter_combinator "or" lets any match, and groups ({type: "group", combinator, rules}) mix the two, e.g. Status is Done and (Assignee contains me or Priority is High). Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt, is_within. For a relation use contains / not_equals with a related row id or title; for a person, created_by or last_edited_by, contains / not_equals with a user id, email, name or "me". For dates, created_time and last_edited_time, equals (that day), gt (after) and lt (before) take a YYYY-MM-DD date, and is_within takes today, this_week (Monday to Sunday), this_month, or past_n_days / next_n_days with "days" (both include today), counted from the current date on the server. Checklists only support is_empty / is_not_empty. Sorting by a person orders rows by name, a status by its groups, a checklist by the share of ticked items. Returns property values by name; relations as [{id, title}], people as [{id, name}], checklists as [{text, checked}].',
+        'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select / status option names as values; by default all filters must match, filter_combinator "or" lets any match, and groups ({type: "group", combinator, rules}) mix the two, e.g. Status is Done and (Assignee contains me or Priority is High). Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt, is_within. For a relation use contains / not_equals with a related row id or title; for a person, created_by or last_edited_by, contains / not_equals with a user id, email, name or "me". For dates, created_time and last_edited_time, equals (that day), gt (after) and lt (before) take a YYYY-MM-DD date, and is_within takes today, this_week (Monday to Sunday), this_month, or past_n_days / next_n_days with "days" (both include today), counted from the current date on the server. Checklists and files only support is_empty / is_not_empty. Sorting by a person orders rows by name, a status by its groups, a checklist by the share of ticked items, files by how many there are. Returns property values by name; relations as [{id, title}], people as [{id, name}], checklists as [{text, checked}], files as [{name, url}].',
       inputSchema: z.object({
         database_id: id("database"),
         filters: filtersInput.optional(),
@@ -1282,7 +1333,7 @@ export function createMcpServer(principal: McpPrincipal) {
           rows: rows.slice(0, limit).map((r) => ({
             id: r.id,
             title: pageLabel(r.title),
-            properties: displayProperties(props, r.properties, lookups),
+            properties: displayProperties(props, r.properties, lookups, env.appUrl),
             url: pageUrl(database.workspaceId, r.id),
           })),
           ...(rows.length > limit ? { note: `Only the first ${limit} rows are shown; narrow the filters or raise limit.` } : {}),
@@ -1685,7 +1736,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a database view",
       description:
-        'Add a saved view to a database: a "table" (optionally grouped into collapsible sections with group_by), a "board" (cards in columns by group_by), a "calendar" (rows placed on the days of a date property), a "gallery" (cards with a cover: the first image in each row\'s body), a "list" (one compact line per row), a "timeline" (bars from a start date to an optional end date, optionally in swimlanes by group_by) or a "form" (questions people answer to add a row; see questions, defaults and public). Views group by a select, status (per option, or per todo / in_progress / done with group_status_by "group"), multi_select, person, created_by, last_edited_by, checkbox (unchecked / checked), date, created_time or last_edited_time (per day, week from Monday, month or year with group_date_by, month by default) or relation (one group per linked row); a row with several tags, people or links shows in each of their groups. Filters (with groups and filter_combinator) and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows, and is_within date filters count from the day the view is opened.',
+        'Add a saved view to a database: a "table" (optionally grouped into collapsible sections with group_by), a "board" (cards in columns by group_by), a "calendar" (rows placed on the days of a date property), a "gallery" (cards with a cover: the first image in each row\'s body, or in a files property with cover), a "list" (one compact line per row), a "timeline" (bars from a start date to an optional end date, optionally in swimlanes by group_by) or a "form" (questions people answer to add a row; see questions, defaults and public). Views group by a select, status (per option, or per todo / in_progress / done with group_status_by "group"), multi_select, person, created_by, last_edited_by, checkbox (unchecked / checked), date, created_time or last_edited_time (per day, week from Monday, month or year with group_date_by, month by default) or relation (one group per linked row); a row with several tags, people or links shows in each of their groups. Filters (with groups and filter_combinator) and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows, and is_within date filters count from the day the view is opened.',
       inputSchema: z.object({
         database_id: id("database"),
         name: z.string().min(1).max(100).describe("View name."),

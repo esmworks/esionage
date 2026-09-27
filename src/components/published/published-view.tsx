@@ -4,6 +4,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { PropertyDisplay } from "@/components/database/property-cell";
 import { PropertyTypeIcon } from "@/components/database/property-icons";
 import { PublishedMermaid } from "@/components/page/mermaid-diagram";
+import { PdfViewer } from "@/components/page/pdf-viewer";
 import { HeadingList, Trail } from "@/components/page/page-outline";
 import { BookmarkCard, EmbedFrame } from "@/components/page/web-card";
 import { displayHost } from "@/lib/web-blocks";
@@ -126,6 +127,10 @@ export async function PublishedView({ data }: { data: PublishedPage }) {
               ) : block.kind === "bookmark" ? (
                 <div key={i} className="my-2 px-4 sm:px-[54px]">
                   <BookmarkCard bookmark={block.bookmark} />
+                </div>
+              ) : block.kind === "pdf" ? (
+                <div key={i} className="my-2 px-4 sm:px-[54px]">
+                  <PdfViewer fileId={block.fileId} name={block.name} caption={block.caption} />
                 </div>
               ) : block.kind === "webEmbed" ? (
                 <div key={i} className="my-2 px-4 sm:px-[54px]">

@@ -1,6 +1,7 @@
 "use client";
 
 import { submitPublicFormAction } from "@/app/actions/forms";
+import { postFile } from "@/components/database/files-cell";
 import { FormFill } from "@/components/database/form-fill";
 import type { PublicForm } from "@/server/forms";
 
@@ -18,6 +19,7 @@ export function PublicFormFill({ form, ticket, note }: { form: PublicForm; ticke
       allowAnother={form.allowAnother}
       honeypot
       note={note}
+      upload={(file) => postFile(`/api/files?formToken=${encodeURIComponent(form.token)}`, file, { "X-Form-Ticket": ticket })}
       onSubmit={async (answers, { honeypot }) => {
         const result = await submitPublicFormAction(form.token, { answers, ticket, honeypot });
         return result.ok ? { ok: true } : result;

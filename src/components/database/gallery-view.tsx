@@ -8,7 +8,8 @@ import { cn, MenuItem, MenuSeparator, PageIcon } from "@/components/ui";
 import type { CardSize } from "@/db/schema/app";
 import { pageLabel } from "@/lib/labels";
 import { isHiddenInView } from "@/lib/properties";
-import { galleryCover } from "@/lib/views";
+import { firstImageFile } from "@/lib/files";
+import { coverProperty, galleryCover } from "@/lib/views";
 import { CardTitleInput } from "./board-view";
 import { Floating, useFloating } from "./floating";
 import { isEmptyValue, PropertyDisplay } from "./property-cell";
@@ -38,7 +39,11 @@ export function GalleryView({
   const t = useTranslations("database");
   const { editTitleOf, typed, create: createNew, stopEditing } = useNewRow((id, title) => void api.setCell(id, TITLE, title));
   const size = view.config.cardSize ?? "medium";
-  const withCover = galleryCover(view.config) === "first_image";
+  // Covers come from each row's body (first_image) or from a files property's first image.
+  const source = galleryCover(view.config);
+  const coverProp = coverProperty(view.config, properties);
+  const withCover = source === "first_image" || coverProp !== null;
+  const coverOf = (row: Row) => (coverProp ? (firstImageFile(row.properties[coverProp.id])?.url ?? null) : (row.cover ?? null));
   const cardProps = properties.filter((p) => !isHiddenInView(view, p));
 
   const add = async () => {
@@ -57,6 +62,7 @@ export function GalleryView({
             workspaceId={workspaceId}
             row={row}
             props={cardProps}
+            coverUrl={withCover ? coverOf(row) : null}
             coverClass={withCover ? COVER_HEIGHT[size] : null}
             readOnly={readOnly}
             editTitle={editTitleOf === row.id}
@@ -91,6 +97,7 @@ function GalleryCard({
   workspaceId,
   row,
   props,
+  coverUrl,
   coverClass,
   readOnly,
   editTitle,
@@ -101,6 +108,8 @@ function GalleryCard({
   workspaceId: string;
   row: Row;
   props: Property[];
+  /** The card's cover image, if it has one. */
+  coverUrl: string | null;
   /** Height of the cover area, or null when the view shows no covers. */
   coverClass: string | null;
   readOnly?: boolean;
@@ -116,7 +125,7 @@ function GalleryCard({
   const shown = props.filter((p) => !isEmptyValue(p, row.properties[p.id]));
   // A cover that fails to load leaves the plain cover area instead of a broken image.
   const [failed, setFailed] = useState<string | null>(null);
-  const cover = row.cover && row.cover !== failed ? row.cover : null;
+  const cover = coverUrl && coverUrl !== failed ? coverUrl : null;
 
   return (
     <div

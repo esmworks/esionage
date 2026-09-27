@@ -22,6 +22,7 @@ import {
   requiredFilterRules,
   valueDay,
 } from "./filters";
+import { asFiles, cleanFileName, fileIdOf, fileUrl, MAX_FILES_PER_VALUE, type FileValue } from "./files";
 import { derivedType, isErrorValue, rollupFormat } from "./derived";
 import {
   holdsOptions,
@@ -45,6 +46,7 @@ export const DATABASE_ERROR_CODES = [
   "invalidEmail",
   "invalidPhone",
   "invalidChecklist",
+  "invalidFile",
   "invalidNumber",
   "invalidCheckbox",
   "invalidDate",
@@ -234,6 +236,38 @@ function normalizeChecklist(prop: PropertyDef, value: unknown): ChecklistItem[] 
   return out.length ? out : null;
 }
 
+/**
+ * Files input: a list of uploaded files, each its URL (`/api/files/<id>`, absolute or not) or an
+ * object with a `url` (a stored value, `{name, url}` from MCP). Only the shape is checked here; the
+ * server checks that each file exists, may be read and belongs to the workspace, and puts in the
+ * file's own name and type (see databases.resolveFilesValue). Order is kept, repeats dropped.
+ */
+function normalizeFiles(prop: PropertyDef, value: unknown): FileValue[] | null {
+  const invalid = () =>
+    new PropertyValueError(`"${prop.name}" takes uploaded files: their URLs (/api/files/…) or {url, name} objects`, "invalidFile", {
+      property: prop.name,
+    });
+  const out: FileValue[] = [];
+  for (const entry of Array.isArray(value) ? value : [value]) {
+    const item = entry && typeof entry === "object" ? (entry as { url?: unknown; name?: unknown; type?: unknown }) : null;
+    const id = fileIdOf(item ? item.url : entry);
+    if (!id) throw invalid();
+    const url = fileUrl(id);
+    if (out.some((f) => f.url === url)) continue;
+    out.push({
+      url,
+      name: typeof item?.name === "string" && item.name.trim() ? cleanFileName(item.name) : "file",
+      type: typeof item?.type === "string" && item.type ? item.type : "application/octet-stream",
+    });
+  }
+  if (out.length > MAX_FILES_PER_VALUE) {
+    throw new PropertyValueError(`"${prop.name}" can hold at most ${MAX_FILES_PER_VALUE} files`, "invalidFile", {
+      property: prop.name,
+    });
+  }
+  return out.length ? out : null;
+}
+
 function findOption(options: SelectOption[] | undefined, input: unknown): SelectOption | undefined {
   if (typeof input !== "string") return undefined;
   const needle = input.trim().toLowerCase();
@@ -266,6 +300,8 @@ export function normalizeValue(prop: PropertyDef, value: unknown): unknown {
     }
     case "checklist":
       return normalizeChecklist(prop, value);
+    case "files":
+      return normalizeFiles(prop, value);
     case "url": {
       const url = String(value).trim();
       if (!/^https?:\/\//i.test(url) && !/^mailto:/i.test(url)) {
@@ -355,6 +391,10 @@ export function displayValue(prop: PropertyDef, value: unknown): unknown {
   }
   if (prop.type === "multi_select" && Array.isArray(value)) {
     return value.map((v) => findOption(prop.options.options, v)?.name).filter(Boolean);
+  }
+  if (prop.type === "files") {
+    const files = asFiles(value).map(({ name, url }) => ({ name, url }));
+    return files.length ? files : null;
   }
   return value;
 }
@@ -525,6 +565,8 @@ export function applyView<T extends RowLike>(
       return indices.length ? indices.map((i) => String(i).padStart(4, "0")).join(",") : null;
     }
     if (prop?.type === "checkbox") return v === true ? 1 : 0;
+    // Files sort by how many a row holds; rows without any go last.
+    if (prop?.type === "files") return asFiles(v).length || null;
     if (prop && holdsPeople(prop.type)) {
       const names = (Array.isArray(v) ? v : []).flatMap((id) => {
         const name = typeof id === "string" ? nameOf.get(id) : undefined;
@@ -614,6 +656,7 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
     case "last_edited_by":
       return [{ op: "contains", label: "contains" }, { op: "not_equals", label: "doesNotContain" }, ...empty];
     case "checklist":
+    case "files":
       return empty;
     case "date":
     case "created_time":
@@ -682,7 +725,10 @@ export function filterNeedsValue(op: FilterOp) {
   return op !== "is_empty" && op !== "is_not_empty";
 }
 
-/** Property types a view can sort by (relations hold row ids, which have no meaningful order). */
+/**
+ * Property types a view can sort by (relations hold row ids, which have no meaningful order).
+ * Files sort by how many a row holds (see applyView).
+ */
 export function isSortable(type: PropertyType | "title") {
   return type !== "relation";
 }
