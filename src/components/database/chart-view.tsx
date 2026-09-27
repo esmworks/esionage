@@ -659,6 +659,8 @@ function Donut({
     angle += share * Math.PI * 2;
     return { g, start, end: angle, share };
   });
+  // Separators only between slices you can see: a single full ring is drawn in two halves, without a seam.
+  const drawn = slices.filter((s) => s.end - s.start > 0).length;
 
   return (
     <div className={cn("flex gap-6", side ? "flex-row items-center" : "flex-col items-center")}>
@@ -672,7 +674,7 @@ function Donut({
                 d={arcPath(c, r0, r1, start, end)}
                 fill={colorOf(g.value, g.slot, g.other, false)}
                 stroke="var(--bg)"
-                strokeWidth={slices.length > 1 ? 2 : 0}
+                strokeWidth={drawn > 1 ? 2 : 0}
               />
             </g>
           ) : null,
