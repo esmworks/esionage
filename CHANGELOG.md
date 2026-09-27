@@ -16,6 +16,28 @@
   is built (fflate), one export at a time per person, and exports over `EXPORT_MAX_PAGES` (10,000)
   pages or `EXPORT_MAX_FILES_MB` (2,048) of files are refused up front with a message. No
   migration.
+- **Import Markdown and CSV** (#45): "Import" in the sidebar (and in the "+" menu) opens a dialog
+  that sends files to the new `POST /api/import` route.
+  - Markdown files, a picked folder or ZIP files become pages under a chosen page or at the top
+    level, keeping the folders as the page tree: a folder next to `Name.md` holds that page's
+    subpages, other folders become pages whose body is their `index.md`/`README.md`. Titles come
+    from front matter or a first `# Heading`, else the file name (Notion's ids left out). Links
+    between the imported files become page links (mentions); images and files a page shows by
+    relative path are uploaded to it and the links pointed at the uploads; images inside a line of
+    text get lines of their own. CSV files in the upload become databases, and pages in their
+    folder become the bodies of the rows with the same title (or new rows). Notion's layout is
+    understood (`Export-…` folder, split exports with ZIPs inside, `_all.csv`).
+  - A CSV file becomes a new database, each column typed as guessed from its values (number,
+    checkbox, date in ISO, day-first or month-first form, URL, email, select or multi-select for
+    few repeating values, else text) and changeable in the dialog, or its rows are added to an
+    existing database with a column → property mapping (options a select, multi-select or status
+    column names are added; people and related rows are found by name or email). Comma, semicolon
+    and tab separators, UTF-8 or Windows-1254 text, and Esionage's own CSV export read back.
+  - All or nothing: limits (100 MB upload, 300 MB unpacked, 2,000 files, 500 pages, 5,000 rows,
+    100 columns) are checked first, and a failure midway deletes what the import made. What it
+    left out is reported in the dialog: cells that didn't fit their property (left empty),
+    missing or too large images, skipped files. Needs edit access to the destination page or
+    database (top-level imports follow the usual rules for guests).
 - **Files & media property:** a database property that holds uploaded files. Images show as small
   thumbnails in tables, boards, lists, galleries and row pages, other files by name; the cell
   editor uploads (pick or drop, several at once) and removes them. Galleries can take their cover

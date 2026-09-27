@@ -145,6 +145,8 @@ export type CreatePageInput = {
   properties?: Record<string, unknown>;
   /** Names for a new database's starter properties and view, in the creator's language. */
   seedNames?: DatabaseSeedNames;
+  /** Databases: false leaves out the starter Status and Tags properties (imports bring their own). */
+  seedProperties?: boolean;
   /**
    * Adds a template instead of a page: a workspace template at the top level, a row template
    * under a database (see server/templates.ts).
@@ -227,16 +229,18 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
 
   if (kind === "database") {
     const names = input.seedNames ?? ENGLISH_SEED_NAMES;
-    await db.insert(databaseProperty).values([
-      {
-        databaseId: created.id,
-        name: names.status,
-        type: "status",
-        position: 1,
-        options: { options: makeStatusOptions([names.notStarted, names.inProgress, names.done]) },
-      },
-      { databaseId: created.id, name: names.tags, type: "multi_select", position: 2, options: { options: [] } },
-    ]);
+    if (input.seedProperties !== false) {
+      await db.insert(databaseProperty).values([
+        {
+          databaseId: created.id,
+          name: names.status,
+          type: "status",
+          position: 1,
+          options: { options: makeStatusOptions([names.notStarted, names.inProgress, names.done]) },
+        },
+        { databaseId: created.id, name: names.tags, type: "multi_select", position: 2, options: { options: [] } },
+      ]);
+    }
     await db.insert(databaseView).values({ databaseId: created.id, name: names.table, type: "table", position: 1 });
   }
 

@@ -10,7 +10,8 @@
     "inbox": "Gelen kutusu",
     "settings": "Ayarlar",
     "trash": "Çöp kutusu",
-    "templates": "Şablonlar"
+    "templates": "Şablonlar",
+    "import": "İçe aktar"
   },
   "toggle": {
     "open": "Kenar çubuğunu aç",
@@ -33,7 +34,8 @@
     "noChildren": "İçinde sayfa yok",
     "favorites": "Favoriler",
     "moveFailed": "Sayfa buraya taşınamadı. Başka bir sayfanın altına taşımak için sayfada tam erişiminiz olmalı.",
-    "fromTemplate": "Şablondan"
+    "fromTemplate": "Şablondan",
+    "import": "İçe aktar…"
   },
   "search": {
     "placeholder": "Sayfalarda ve içerikte ara…",
