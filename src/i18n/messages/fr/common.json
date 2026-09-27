@@ -1,0 +1,28 @@
+{
+  "appDescription": "Espace de travail open source pour vos documents et bases de données, avec un accès MCP pour les agents IA.",
+  "untitled": "Sans titre",
+  "cancel": "Annuler",
+  "save": "Enregistrer",
+  "saving": "Enregistrement…",
+  "saved": "Enregistré.",
+  "close": "Fermer",
+  "delete": "Supprimer",
+  "remove": "Retirer",
+  "restore": "Restaurer",
+  "loading": "Chargement…",
+  "copy": "Copier",
+  "copied": "Copié",
+  "genericError": "Une erreur s’est produite. Réessayez.",
+  "errorPage": {
+    "title": "Une erreur s’est produite",
+    "description": "Cette page n’a pas pu s’afficher, ou votre dernière modification n’a pas été prise en compte.",
+    "retry": "Réessayer",
+    "home": "Aller à l’accueil"
+  },
+  "export": {
+    "failed": "Impossible de lancer l’exportation. Réessayez.",
+    "tooManyPages": "C’est trop à exporter en une fois : une exportation contient au maximum {limit} pages. Exportez une plus petite partie de l’espace de travail.",
+    "tooLarge": "Les fichiers de cette exportation dépassent {size} au total. Exportez une plus petite partie de l’espace de travail.",
+    "busy": "Une exportation est déjà en cours. Attendez la fin de son téléchargement."
+  }
+}

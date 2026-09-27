@@ -1,0 +1,72 @@
+{
+  "access": {
+    "default": "Par défaut",
+    "open": "Ouvert",
+    "closed": "Fermé",
+    "private": "Privé"
+  },
+  "accessHint": {
+    "default": "Tous les membres de l’espace de travail en font partie et ne peuvent pas le quitter.",
+    "open": "Tous les membres de l’espace de travail peuvent le voir et le rejoindre. Tant qu’ils ne l’ont pas rejoint, ils peuvent lire et commenter ses pages.",
+    "closed": "Tous les membres de l’espace de travail peuvent voir qu’il existe. Seuls ses membres ouvrent ses pages ; ce sont ses propriétaires qui les ajoutent.",
+    "private": "Seuls ses membres peuvent le voir."
+  },
+  "roles": {
+    "owner": "Propriétaire",
+    "member": "Membre"
+  },
+  "errors": {
+    "nameRequired": "Donnez un nom à l’espace d’équipe.",
+    "creationRestricted": "Ici, seuls les propriétaires de l’espace de travail peuvent créer des espaces d’équipe.",
+    "ownersOnly": "Seuls les propriétaires de l’espace de travail peuvent modifier les espaces d’équipe dont tout le monde fait partie.",
+    "cannotLeaveDefault": "Tout le monde fait partie de cet espace d’équipe ; il est impossible de le quitter.",
+    "lastOwner": "Nommez d’abord quelqu’un d’autre propriétaire de l’espace d’équipe.",
+    "notJoinable": "Demandez à un propriétaire de cet espace d’équipe de vous ajouter.",
+    "archived": "Cet espace d’équipe est archivé.",
+    "notMember": "Seuls les propriétaires et les membres de l’espace de travail peuvent faire partie de ses espaces d’équipe.",
+    "invalidAccess": "Choisissez qui peut voir l’espace d’équipe.",
+    "inGroup": "Cette personne fait partie de l’espace d’équipe via un groupe. Retirez-la plutôt du groupe.",
+    "everyoneIn": "Tous les membres de l’espace de travail font déjà partie de cet espace d’équipe.",
+    "accessDenied": "Vous ne pouvez pas faire cela dans cet espace d’équipe."
+  },
+  "dialog": {
+    "createTitle": "Nouvel espace d’équipe",
+    "editTitle": "Modifier l’espace d’équipe",
+    "name": "Nom",
+    "namePlaceholder": "Marketing, Ingénierie…",
+    "icon": "Choisir une icône",
+    "description": "Description",
+    "descriptionPlaceholder": "À quoi sert cet espace d’équipe ?",
+    "access": "Qui peut le voir",
+    "defaultLocked": "Seuls les propriétaires de l’espace de travail peuvent modifier l’accès d’un espace d’équipe par défaut.",
+    "becomesDefault": "Tous les membres de l’espace de travail le rejoignent et ne peuvent pas le quitter.",
+    "leavesDefault": "Tout le monde en fait partie pour l’instant mais peut le quitter, et les nouveaux membres de l’espace de travail n’y sont pas ajoutés.",
+    "create": "Créer l’espace d’équipe",
+    "creating": "Création…"
+  },
+  "members": {
+    "title": "Membres de {name}",
+    "everyone": "Tous les membres de l’espace de travail font partie de cet espace d’équipe. Ses propriétaires peuvent le modifier et le gérer.",
+    "readOnly": "Seuls les propriétaires de cet espace d’équipe peuvent modifier ses membres.",
+    "add": "Ajouter des personnes",
+    "search": "Rechercher des personnes",
+    "addSelected": "{count, plural, =0 {Ajouter des personnes} other {Ajouter #}}",
+    "addAs": "Ajouter en tant que",
+    "noOneToAdd": "Tous les membres de l’espace de travail font déjà partie de cet espace d’équipe.",
+    "noMatches": "Personne ne correspond à votre recherche.",
+    "empty": "Personne ne fait partie de cet espace d’équipe.",
+    "list": "Personnes de cet espace d’équipe",
+    "roleOf": "Rôle de {name}",
+    "remove": "Retirer {name}",
+    "you": "(vous)",
+    "select": "Sélectionner {name}",
+    "viaGroups": "Via {groups}",
+    "groups": "Groupes",
+    "groupsHint": "Toutes les personnes de ces groupes sont membres de l’espace d’équipe tant qu’elles font partie du groupe.",
+    "noGroups": "Aucun groupe dans cet espace d’équipe.",
+    "chooseGroup": "Choisir un groupe",
+    "addGroupButton": "Ajouter le groupe",
+    "removeGroup": "Retirer {name}",
+    "groupMemberCount": "{count, plural, =0 {Aucun membre} one {# membre} other {# membres}}"
+  }
+}

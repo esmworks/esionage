@@ -1,0 +1,37 @@
+{
+  "metaTitle": "App autorisieren",
+  "expired": {
+    "title": "Dieser Link ist abgelaufen",
+    "body": "Die Autorisierungsanfrage ist ungültig oder zu alt. Kehre zu der App zurück, die du verbinden wolltest, und beginne von vorn."
+  },
+  "unknownClient": {
+    "title": "Unbekannte App",
+    "body": "Die App, die Zugriff anfordert, ist bei Esionage nicht registriert oder wurde deaktiviert. Geh zurück und versuch erneut, sie zu verbinden."
+  },
+  "heading": "{client} möchte auf dein Esionage-Konto zugreifen",
+  "identifiedBy": "Diese App wird durch {host} identifiziert.",
+  "unverified": "Diese App hat sich automatisch registriert und wurde von Esionage nicht geprüft. Fahre nur fort, wenn du diese Verbindung selbst gestartet hast.",
+  "notYou": "Nicht du?",
+  "willAllow": "Damit erlaubst du {client}:",
+  "readOnlyHint": "Entferne das Häkchen, um nur Lesezugriff zu gewähren. Jede Änderung wird vorher im Seitenverlauf gespeichert, sodass du sie rückgängig machen kannst.",
+  "access": {
+    "all": "Der Zugriff umfasst alle Workspaces, in denen du Mitglied bist. Du kannst die App jederzeit in den Einstellungen trennen.",
+    "listed": "Der Zugriff umfasst alle Workspaces, in denen du Mitglied bist: {workspaces}. Du kannst die App jederzeit in den Einstellungen trennen."
+  },
+  "deny": "Ablehnen",
+  "denying": "Wird abgelehnt…",
+  "allow": "Erlauben",
+  "allowing": "Wird erlaubt…",
+  "redirectNotice": "Du wirst zu {host} zurückgeleitet.",
+  "error": "Die Anfrage konnte nicht abgeschlossen werden. Kehre zur App zurück und versuch es noch einmal.",
+  "scopes": {
+    "openid": "Deine Identität bestätigen",
+    "profile": "Deinen Namen und dein Profilbild sehen",
+    "email": "Deine E-Mail-Adresse sehen",
+    "offlineAccess": "Verbunden bleiben, ohne dich erneut zur Anmeldung aufzufordern",
+    "pagesRead": "Seiten und Datenbanken in deinen Workspaces lesen",
+    "pagesWrite": "Seiten und Datenbankzeilen erstellen und bearbeiten sowie Seiten in den Papierkorb verschieben",
+    "notificationsRead": "Deine Benachrichtigungen im Posteingang lesen",
+    "filesWrite": "Dateien auf Seiten hochladen, über einen Link oder direkt aus der App"
+  }
+}

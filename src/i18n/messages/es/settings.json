@@ -1,0 +1,390 @@
+{
+  "metaTitle": "Configuración",
+  "title": "Configuración",
+  "nav": {
+    "account": "Cuenta",
+    "workspace": "Espacio de trabajo",
+    "general": "General",
+    "members": "Miembros",
+    "teamspaces": "Espacios de equipo",
+    "groups": "Grupos",
+    "security": "Seguridad",
+    "site": "Sitio",
+    "myAccount": "Mi cuenta"
+  },
+  "workspace": {
+    "heading": "Espacio de trabajo",
+    "nameLabel": "Nombre del espacio de trabajo",
+    "ownersOnly": "Solo los propietarios pueden cambiar el nombre del espacio de trabajo.",
+    "description": "El nombre y los ajustes básicos de este espacio de trabajo.",
+    "nameDescription": "Se muestra en la barra lateral, en las invitaciones y en los correos."
+  },
+  "export": {
+    "heading": "Exportar",
+    "title": "Exportar espacio de trabajo",
+    "description": "Descarga en un ZIP todas las páginas que puedes ver: las páginas como Markdown, las bases de datos como CSV y los archivos que muestran. Las páginas de la papelera se excluyen; las plantillas se guardan en una carpeta Plantillas.",
+    "button": "Exportar",
+    "preparing": "Preparando…"
+  },
+  "members": {
+    "heading": "Miembros",
+    "description": "Los miembros pueden ver y editar todas las páginas, salvo las que tengan el uso compartido restringido; los invitados solo ven las páginas compartidas con ellos. Los propietarios también pueden gestionar a los miembros.",
+    "tabs": {
+      "members": "Miembros",
+      "invitations": "Invitaciones pendientes"
+    },
+    "search": "Buscar",
+    "exportCsv": "Descargar miembros como CSV",
+    "addButton": "Añadir miembros",
+    "noMatches": "Nadie coincide con tu búsqueda.",
+    "noInvitations": "No hay invitaciones pendientes.",
+    "joinLink": {
+      "heading": "Añadir miembros con un enlace",
+      "descriptionOn": "Cualquier persona que abra este enlace e inicie sesión se une como miembro, o con el rol de una invitación pendiente para su correo. Solo los propietarios pueden verlo.",
+      "descriptionOff": "Activa un enlace que cualquiera pueda usar para unirse a este espacio de trabajo como miembro.",
+      "regenerate": "Crear un enlace nuevo",
+      "copy": "Copiar enlace",
+      "toggle": "Enlace para unirse",
+      "regenerateTitle": "¿Crear un enlace nuevo?",
+      "regenerateBody": "El enlace actual deja de funcionar de inmediato. Las personas que ya se unieron conservan su acceso.",
+      "regenerateConfirm": "Crear enlace nuevo"
+    },
+    "columns": {
+      "user": "Usuario",
+      "role": "Rol",
+      "teamspaces": "Espacios de equipo",
+      "groups": "Grupos",
+      "joined": "Fecha de ingreso",
+      "lastEdited": "Última edición",
+      "actions": "Acciones",
+      "email": "Correo electrónico",
+      "status": "Estado"
+    },
+    "you": "(tú)",
+    "roleOf": "Rol de {name}",
+    "roleLabel": "Rol",
+    "roles": {
+      "owner": "Propietario",
+      "member": "Miembro",
+      "guest": "Invitado"
+    },
+    "teamspaceCount": "{count, plural, one {# espacio de equipo} other {# espacios de equipo}}",
+    "teamspacesOf": "Espacios de equipo de {name}",
+    "groupCount": "{count, plural, one {# grupo} other {# grupos}}",
+    "groupsOf": "Grupos de {name}",
+    "neverEdited": "Sin ediciones todavía",
+    "actionsFor": "Acciones para {name}",
+    "transfer": "Hacer propietario y dejar de serlo",
+    "transferTitle": "¿Hacer propietario a {name}?",
+    "transferBody": "{name} pasa a ser propietario y tú pasas a ser miembro. Solo un propietario puede volver a hacerte propietario.",
+    "transferConfirm": "Transferir",
+    "leave": "Salir",
+    "leaveTitle": "¿Salir de este espacio de trabajo?",
+    "leaveBody": "Perderás el acceso a sus páginas. Las páginas que solo tú podías gestionar pasarán a un propietario. Un propietario puede volver a añadirte.",
+    "removeTitle": "¿Quitar a {name}?",
+    "removeBody": "{name} pierde el acceso a este espacio de trabajo de inmediato, también en las páginas abiertas y las apps conectadas. Las páginas que solo esa persona podía gestionar pasarán a ti.",
+    "expires": "El enlace caduca el {date}",
+    "expired": "El enlace caducó. Vuelve a invitar para obtener uno nuevo.",
+    "copyLink": "Copiar enlace",
+    "cancelInvitation": "Cancelar invitación",
+    "inviteLink": "Enlace de invitación",
+    "add": {
+      "title": "Añadir miembros",
+      "description": "Las personas con cuenta se añaden de inmediato. Las demás reciben un enlace de invitación.",
+      "emailsLabel": "Direcciones de correo",
+      "emailsPlaceholder": "nombre@example.com, otro@example.com",
+      "count": "{count, plural, =0 {Separa las direcciones con comas, espacios o saltos de línea. Hasta 50 a la vez.} one {# dirección} other {# direcciones}}",
+      "submit": "Añadir",
+      "submitting": "Añadiendo…",
+      "resultsTitle": "Resultados",
+      "added": "Añadido",
+      "emailed": "Invitación enviada por correo",
+      "emailFailed": "Falló el correo, comparte el enlace",
+      "linkOnly": "Comparte este enlace de invitación",
+      "linkValidity": "Los enlaces de invitación son válidos durante 7 días y solo para la dirección de correo invitada.",
+      "addMore": "Añadir más"
+    }
+  },
+  "teamspaces": {
+    "heading": "Espacios de equipo",
+    "description": "Los espacios de equipo agrupan páginas y a las personas que trabajan en ellas. Cada persona ve en su barra lateral los espacios de equipo de los que forma parte. Los invitados nunca están en espacios de equipo; solo ven las páginas compartidas con ellos.",
+    "newButton": "Nuevo espacio de equipo",
+    "search": "Buscar espacios de equipo",
+    "status": {
+      "active": "Activos",
+      "archived": "Archivados"
+    },
+    "ownerFilter": "Propietario",
+    "anyOwner": "Todos los propietarios",
+    "accessFilter": "Acceso",
+    "anyAccess": "Todos los accesos",
+    "columns": {
+      "teamspace": "Espacio de equipo",
+      "members": "Miembros",
+      "owners": "Propietarios",
+      "access": "Acceso",
+      "updated": "Actualizado",
+      "actions": "Acciones"
+    },
+    "joined": "Unido",
+    "noOwners": "Sin propietario",
+    "empty": "Todavía no hay espacios de equipo.",
+    "emptyArchived": "No hay espacios de equipo archivados.",
+    "noMatches": "Ningún espacio de equipo coincide con tus filtros.",
+    "actionsFor": "Acciones para {name}",
+    "edit": "Editar",
+    "manageMembers": "Gestionar miembros",
+    "viewMembers": "Ver miembros",
+    "join": "Unirse",
+    "leave": "Salir",
+    "archive": "Archivar",
+    "restore": "Restaurar",
+    "leaveTitle": "¿Salir de {name}?",
+    "leaveBody": "Sus páginas desaparecerán de tu barra lateral. Puedes volver a unirte por tu cuenta a un espacio de equipo abierto; si no, uno de sus propietarios tendrá que añadirte.",
+    "archiveTitle": "¿Archivar {name}?",
+    "archiveBody": "Desaparecerá de la barra lateral de todos y no admitirá páginas nuevas. Puedes restaurarlo desde los espacios de equipo archivados.",
+    "defaults": {
+      "heading": "Espacios de equipo predeterminados",
+      "description": "Todos los miembros del espacio de trabajo están en estos espacios de equipo y no pueden salir de ellos, incluidas las personas que se unan más adelante. No hay que actualizar nada cuando alguien se une. Las nuevas páginas de nivel superior van al más antiguo.",
+      "add": "Añadir un espacio de equipo predeterminado",
+      "addPlaceholder": "Elige un espacio de equipo…",
+      "empty": "No hay espacios de equipo predeterminados. Las nuevas páginas de nivel superior van a las páginas privadas de cada persona.",
+      "remove": "Quitar",
+      "removeFor": "Dejar de usar {name} como espacio de equipo predeterminado",
+      "makeTitle": "¿Hacer de {name} un espacio de equipo predeterminado?",
+      "makeBody": "Todos los miembros del espacio de trabajo, actuales y futuros, estarán en él y no podrán salir. Sus páginas aparecerán en la barra lateral de todos.",
+      "makeConfirm": "Hacer predeterminado",
+      "removeTitle": "¿Hacer de {name} un espacio de equipo abierto?",
+      "removeBody": "Por ahora todos siguen en él, pero pueden salir, y las personas que se unan más adelante al espacio de trabajo no se añadirán.",
+      "removeConfirm": "Hacer abierto"
+    },
+    "policyHeading": "Permisos",
+    "creation": {
+      "title": "Solo los propietarios del espacio de trabajo pueden crear espacios de equipo",
+      "description": "Desactivado: los propietarios y los miembros pueden crear espacios de equipo. Los invitados nunca pueden.",
+      "ownersOnly": "Solo los propietarios del espacio de trabajo pueden cambiar esto."
+    }
+  },
+  "groups": {
+    "heading": "Grupos",
+    "description": "Los grupos reúnen a personas para que puedas compartir una página con todas ellas o añadirlas a un espacio de equipo de una vez. Quien entra en un grupo obtiene lo que tiene el grupo; quien sale, lo pierde. Solo los propietarios y los miembros pueden estar en grupos, no los invitados.",
+    "ownersOnly": "Solo los propietarios del espacio de trabajo pueden crear y cambiar grupos.",
+    "newButton": "Nuevo grupo",
+    "search": "Buscar grupos",
+    "empty": "Aún no hay grupos.",
+    "emptyOwner": "Aún no hay grupos. Crea uno para compartir páginas con varias personas a la vez.",
+    "noMatches": "Ningún grupo coincide con tu búsqueda.",
+    "memberCount": "{count, plural, =0 {Sin miembros} one {# miembro} other {# miembros}}",
+    "columns": {
+      "group": "Grupo",
+      "members": "Miembros",
+      "teamspaces": "Espacios de equipo",
+      "actions": "Acciones"
+    },
+    "actionsFor": "Acciones para {name}",
+    "manageMembers": "Gestionar miembros",
+    "viewMembers": "Ver miembros",
+    "rename": "Cambiar nombre",
+    "delete": "Eliminar grupo",
+    "createTitle": "Nuevo grupo",
+    "renameTitle": "Cambiar nombre del grupo",
+    "name": "Nombre",
+    "namePlaceholder": "Diseño, Soporte, Dirección…",
+    "create": "Crear grupo",
+    "creating": "Creando…",
+    "deleteTitle": "¿Eliminar {name}?",
+    "deleteBody": "Sus miembros conservan el acceso que tienen por sí mismos. Lo que el grupo recibió en páginas y espacios de equipo desaparece, y se cierran las páginas abiertas que ya no pueden ver. Las páginas que solo el grupo podía gestionar pasan a ti.",
+    "members": {
+      "title": "Miembros de {name}",
+      "list": "Personas en este grupo",
+      "empty": "Todavía no hay nadie en este grupo.",
+      "add": "Añadir personas",
+      "search": "Buscar personas",
+      "select": "Seleccionar a {name}",
+      "addSelected": "{count, plural, =0 {Añadir personas} other {Añadir #}}",
+      "noOneToAdd": "Todos los propietarios y miembros del espacio de trabajo ya están en este grupo.",
+      "noMatches": "Nadie coincide con tu búsqueda.",
+      "remove": "Quitar a {name}",
+      "guestsHint": "Los invitados no pueden estar en grupos."
+    },
+    "errors": {
+      "nameRequired": "Ponle un nombre al grupo.",
+      "nameTaken": "Otro grupo ya tiene este nombre.",
+      "notMember": "Solo los propietarios y miembros del espacio de trabajo pueden estar en sus grupos.",
+      "accessDenied": "Solo los propietarios del espacio de trabajo pueden cambiar los grupos."
+    }
+  },
+  "preferences": {
+    "description": "Las preferencias de tu cuenta: cómo se ve Esionage en este navegador y qué correos recibes."
+  },
+  "language": {
+    "heading": "Idioma",
+    "label": "Idioma de la interfaz",
+    "followBrowser": "Usar el del navegador",
+    "note": "Este ajuste solo se aplica a este navegador."
+  },
+  "leaveWorkspace": {
+    "title": "Salir del espacio de trabajo",
+    "description": "Aquí eres invitado y solo ves las páginas compartidas contigo. Si sales, perderás ese acceso.",
+    "button": "Salir"
+  },
+  "copyManually": "Aquí no se puede copiar. Selecciona el texto y pulsa Ctrl+C (⌘C en un Mac).",
+  "connectedApps": {
+    "empty": "Todavía no hay apps conectadas.",
+    "connected": "Conectada el {date}",
+    "connectedAndUpdated": "Conectada el {connected}, actualizada el {updated}",
+    "revoke": "Revocar acceso",
+    "revoking": "Revocando…",
+    "disconnect": "Desconectar {name}",
+    "revokeError": "No se pudo revocar el acceso. Vuelve a intentarlo.",
+    "listHeading": "Apps a las que has dado acceso"
+  },
+  "mcp": {
+    "heading": "Conectar un asistente de IA",
+    "description": "Esionage tiene un servidor MCP integrado. Los asistentes compatibles con servidores MCP remotos pueden buscar, leer y editar tus páginas y bases de datos después de que inicies sesión y apruebes el acceso. Cada edición que hace un asistente se guarda antes en el historial de la página, así que puedes deshacerla.",
+    "serverUrl": "URL del servidor",
+    "claude": {
+      "title": "Claude",
+      "body": "Abre Configuración, luego Conectores, elige Añadir conector personalizado y pega la URL del servidor. Claude abrirá Esionage en tu navegador para que inicies sesión y permitas el acceso."
+    },
+    "claudeCode": {
+      "title": "Claude Code",
+      "body": "Ejecuta esto en una terminal y luego usa /mcp dentro de Claude Code para iniciar sesión."
+    },
+    "other": {
+      "title": "Otros clientes MCP",
+      "body": "Añade un servidor remoto con el transporte Streamable HTTP y la URL de arriba. El cliente descubre cómo iniciar sesión mediante metadatos estándar de OAuth 2.1; puede registrarse automáticamente o usar un documento de metadatos de ID de cliente. Elige acceso de solo lectura en la pantalla de aprobación si el cliente no debe editar nada."
+    }
+  },
+  "errors": {
+    "invalidSetting": "Ese ajuste no está disponible.",
+    "nameRequired": "Ponle un nombre al espacio de trabajo.",
+    "alreadyMember": "Esta persona ya es miembro.",
+    "notMember": "Esta persona no es miembro.",
+    "lastOwner": "Un espacio de trabajo necesita al menos un propietario.",
+    "lastOwnerRemove": "Un espacio de trabajo necesita al menos un propietario. Primero haz propietario a otra persona.",
+    "ownersOnly": "Solo los propietarios del espacio de trabajo pueden hacer esto.",
+    "unknownRole": "Rol desconocido.",
+    "invitationInvalid": "Esta invitación no es válida o ha caducado.",
+    "invitationEmailMismatch": "Esta invitación es para otra dirección de correo.",
+    "emailRequired": "Escribe al menos una dirección de correo.",
+    "invalidEmail": "No es una dirección de correo válida.",
+    "tooManyEmails": "Añade como máximo 50 personas a la vez.",
+    "joinLinkInvalid": "Este enlace para unirse no es válido o se desactivó.",
+    "transferToSelf": "Elige a otra persona para hacerla propietaria.",
+    "transferToGuest": "Hazla miembro antes de hacerla propietaria.",
+    "twoFactorFirst": "Primero activa la verificación en dos pasos en tu propia cuenta o inicia sesión con una llave de acceso."
+  },
+  "security": {
+    "description": "Decide cómo inician sesión las personas, quién puede traer personas a este espacio de trabajo, qué pueden hacer los invitados y quién puede publicar páginas en la web. Solo los propietarios pueden cambiar estos ajustes.",
+    "authenticationHeading": "Autenticación",
+    "requireTwoFactor": {
+      "title": "Exigir la verificación en dos pasos",
+      "description": "Todos deben usar una app de autenticación o iniciar sesión con una llave de acceso para abrir este espacio de trabajo. A quienes no tengan ninguna de las dos se les pedirá que configuren una primero. No afecta a las apps conectadas por MCP ni a los tokens de la API REST.",
+      "setUpFirst": "Primero activa la verificación en dos pasos en tu propia cuenta.",
+      "withoutCount": "{count, plural, one {# persona de aquí aún no la ha configurado.} other {# personas de aquí aún no la han configurado.}}"
+    },
+    "guestsHeading": "Invitados",
+    "guestInvites": {
+      "title": "Quién puede añadir invitados",
+      "description": "Las personas externas al espacio de trabajo se unen como invitados cuando alguien comparte una página con ellas por correo. Solo ven las páginas compartidas con ellas.",
+      "owners": "Solo los propietarios",
+      "members": "Propietarios y miembros"
+    },
+    "guestPrivatePages": {
+      "title": "Los invitados pueden crear páginas privadas",
+      "description": "Los invitados pueden añadir páginas en la parte superior de la barra lateral que solo ellos ven, y compartirlas como cualquier página. Desactivado: solo trabajan en las páginas compartidas con ellos."
+    },
+    "publishingHeading": "Publicación",
+    "publishing": {
+      "title": "Quién puede publicar en la web",
+      "description": "Cualquier persona con el enlace puede leer las páginas publicadas y rellenar los formularios públicos. Los invitados nunca pueden publicar. Las páginas y los formularios que ya están en la web siguen ahí hasta que alguien los desactive.",
+      "owners": "Solo los propietarios",
+      "members": "Propietarios y miembros"
+    },
+    "publications": {
+      "title": "Páginas publicadas",
+      "description": "Todas las páginas de este espacio de trabajo que están en la web. Los propietarios pueden retirar cualquiera de ellas.",
+      "empty": "No hay páginas publicadas.",
+      "privatePage": "Una página a la que no tienes acceso",
+      "inTrash": "En la papelera",
+      "publishedBy": "Publicada por {name} · {date}",
+      "publishedOn": "Publicada el {date}",
+      "open": "Abrir sitio",
+      "unpublish": "Dejar de publicar",
+      "confirm": "¿Dejar de publicar esta página? El enlace dejará de funcionar para todos.",
+      "indexable": "Motores de búsqueda permitidos"
+    },
+    "forms": {
+      "title": "Formularios públicos",
+      "description": "Todos los formularios de este espacio de trabajo que aceptan respuestas desde la web. Los propietarios pueden desactivar cualquiera de ellos.",
+      "empty": "Ningún formulario acepta respuestas desde la web.",
+      "privateForm": "Un formulario al que no tienes acceso",
+      "name": "{view} en {database}",
+      "inTrash": "En la papelera",
+      "anonymous": "Respuestas anónimas",
+      "publishedBy": "Abierto por {name} · {date}",
+      "publishedOn": "Abierto el {date}",
+      "open": "Abrir formulario",
+      "turnOff": "Desactivar",
+      "confirm": "¿Desactivar el enlace público de este formulario? Dejará de funcionar para todos.",
+      "stale": "No acepta respuestas: quien lo abrió perdió el acceso"
+    },
+    "ownersOnly": "Solo los propietarios pueden cambiar esto."
+  },
+  "notifications": {
+    "heading": "Notificaciones",
+    "description": "Elige qué aparece en tu bandeja de entrada y qué te llega también por correo.",
+    "inbox": "Bandeja de entrada",
+    "email": "Correo electrónico",
+    "assignmentTitle": "Asignaciones",
+    "assignmentDescription": "Alguien te asigna a una propiedad de persona en una fila de una base de datos.",
+    "assignmentChannel": "Asignaciones: {channel}",
+    "shareTitle": "Páginas compartidas contigo",
+    "shareDescription": "Alguien te da acceso a una página.",
+    "shareChannel": "Páginas compartidas contigo: {channel}",
+    "commentTitle": "Comentarios",
+    "commentDescription": "Alguien comenta en una página donde iniciaste un hilo de comentarios o respondiste a uno.",
+    "commentChannel": "Comentarios: {channel}",
+    "mentionTitle": "Menciones",
+    "mentionDescription": "Alguien te menciona en una página con @.",
+    "mentionChannel": "Menciones: {channel}",
+    "reminderTitle": "Recordatorios",
+    "reminderDescription": "Vence un recordatorio que configuraste en una fecha de una página.",
+    "reminderChannel": "Recordatorios: {channel}",
+    "mailOff": "Este servidor no puede enviar correos en este momento, así que no se envía ninguno."
+  },
+  "site": {
+    "description": "Dale a las páginas publicadas de este espacio de trabajo una dirección legible, una página de inicio y navegación entre ellas.",
+    "heading": "Sitio",
+    "notSetUp": "Este espacio de trabajo aún no tiene sitio. Sus páginas publicadas solo son accesibles a través de sus propios enlaces.",
+    "slugLabel": "Dirección",
+    "slugHint": "Letras minúsculas, números y guiones, de 3 a 40 caracteres.",
+    "titleLabel": "Título",
+    "titleHint": "Se muestra en la parte superior de todas las páginas del sitio.",
+    "homeLabel": "Página de inicio",
+    "homeHint": "La página que abre la dirección del sitio. Solo se pueden elegir páginas publicadas.",
+    "homeNone": "La primera página de la lista",
+    "create": "Crear sitio",
+    "save": "Guardar",
+    "open": "Abrir sitio",
+    "remove": "Retirar",
+    "confirmRemove": "¿Retirar el sitio? Su dirección dejará de funcionar; cada página publicada conserva su propio enlace.",
+    "membersOnly": "Solo los propietarios pueden cambiar el sitio.",
+    "pagesHeading": "Páginas del sitio",
+    "pagesDescription": "Las páginas publicadas que muestra el sitio, cada una con sus subpáginas. Las páginas que no aparecen siguen funcionando a través de sus propios enlaces, pero no se puede llegar a ellas desde el sitio.",
+    "pagesEmpty": "Todavía no hay páginas publicadas. Primero publica una página desde su menú Compartir.",
+    "listed": "Aparece en el sitio",
+    "privatePage": "Una página a la que no tienes acceso",
+    "home": "Página de inicio",
+    "errors": {
+      "tooShort": "La dirección necesita al menos 3 caracteres.",
+      "tooLong": "La dirección puede tener como máximo 40 caracteres.",
+      "invalid": "Usa letras minúsculas, números y guiones sueltos; empieza y termina con una letra o un número.",
+      "reserved": "Esta dirección está reservada. Elige otra.",
+      "slugTaken": "Otro espacio de trabajo usa esta dirección.",
+      "homeNotPublished": "Elige una página publicada de este espacio de trabajo que puedas ver.",
+      "ownersOnly": "Solo los propietarios del espacio de trabajo pueden hacer esto."
+    }
+  }
+}

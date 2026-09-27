@@ -1,0 +1,14 @@
+{
+  "metaTitle": "Workspace beitreten",
+  "title": "„{workspace}“ beitreten",
+  "invalidTitle": "Link nicht gefunden",
+  "invalidBody": "Dieser Beitrittslink ist ungültig oder wurde deaktiviert. Bitte einen Workspace-Inhaber um einen neuen.",
+  "home": "Zu Esionage",
+  "body": "Du trittst als Mitglied bei, sofern du nicht mit einer anderen Rolle eingeladen wurdest.",
+  "join": "Workspace beitreten",
+  "joining": "Beitritt läuft…",
+  "alreadyMember": "Du bist bereits Mitglied dieses Workspace.",
+  "open": "Workspace öffnen",
+  "signInBody": "Melde dich mit deinem Konto an, um beizutreten. Auf diesem Server können keine neuen Konten erstellt werden.",
+  "signIn": "Anmelden"
+}

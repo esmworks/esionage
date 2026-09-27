@@ -10,7 +10,8 @@
   "topLevel": "Top level of the workspace",
   "noDestination": "There is no page you can add pages to.",
   "pages": {
-    "help": "Markdown files become pages and folders keep their structure. CSV files become databases, and images that pages link to are uploaded. Exports from Notion work too.",
+    "help": "Markdown files become pages and folders keep their structure. CSV files become databases, and images that pages link to are uploaded.",
+    "notion": "From Notion: export as “Markdown & CSV” with subpages, and choose the ZIP as it downloaded (split exports work too). Subpages, databases, relations, callouts, toggles and images come along.",
     "chooseFiles": "Choose files",
     "chooseFolder": "Choose a folder",
     "drop": "or drop files here",
@@ -67,7 +68,9 @@
       "nestedZip": "“{path}” is a ZIP nested too deep and was left out.",
       "nestedDatabase": "“{path}” would be a database inside a database and was left out.",
       "duplicate": "“{path}” was left out: the full version of the same database was imported.",
-      "tooLarge": "“{path}” is too large for one page and was left out."
+      "tooLarge": "“{path}” is too large for one page and was left out.",
+      "unused": "“{path}” was left out: no page shows it or links to it.",
+      "unsafePath": "“{path}” was left out: its path leads outside the ZIP."
     },
     "more": "…and {count, plural, one {# more} other {# more}}."
   },

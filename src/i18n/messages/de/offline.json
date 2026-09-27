@@ -1,0 +1,18 @@
+{
+  "banner": "Offline",
+  "hint": "Du bist offline. Seiten, die du bereits geöffnet hattest, kannst du weiter lesen und bearbeiten; Änderungen werden synchronisiert, sobald die Verbindung wieder da ist.",
+  "needsConnection": "{action}: Verbindung erforderlich",
+  "readOnly": "Offline: schreibgeschützt",
+  "readOnlyCopy": "Offline-Kopie vom {time}, schreibgeschützt",
+  "signOutUnsynced": "Einige Seiten enthalten Änderungen, die den Server noch nicht erreicht haben. Wenn du dich abmeldest, werden sie aus diesem Browser entfernt. Trotzdem abmelden?",
+  "installApp": "App installieren",
+  "page": {
+    "documentTitle": "Offline",
+    "heading": "Du bist offline",
+    "body": "Esionage kann den Server gerade nicht erreichen. Die Seiten, die du auf diesem Gerät geöffnet hast, findest du unten; sie werden aus der Kopie in diesem Browser geöffnet.",
+    "saved": "Auf diesem Gerät gespeichert",
+    "unsynced": "Änderungen noch nicht synchronisiert",
+    "empty": "Auf diesem Gerät sind noch keine Seiten gespeichert. Seiten, die du online öffnest, werden für die Offline-Nutzung aufbewahrt.",
+    "retry": "Erneut versuchen"
+  }
+}

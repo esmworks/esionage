@@ -5,7 +5,7 @@
  *
  * In Docker: docker compose exec app tsx scripts/send-test-email.ts you@example.com
  */
-import { isLocale } from "../src/i18n/config";
+import { isLocale, LOCALES } from "../src/i18n/config";
 import { describeMailSetup, mailStatus, sendMail, testEmail } from "../src/server/mail";
 
 // The mail module reads its settings on first use, so loading .env here is early enough.
@@ -19,7 +19,7 @@ const locale = localeIndex === -1 ? "en" : args.splice(localeIndex, 2)[1];
 const [to] = args;
 
 if (!to || !to.includes("@") || !isLocale(locale)) {
-  console.error("Usage: pnpm mail:test you@example.com [--locale en|tr]");
+  console.error(`Usage: pnpm mail:test you@example.com [--locale ${LOCALES.join("|")}]`);
   process.exit(2);
 }
 

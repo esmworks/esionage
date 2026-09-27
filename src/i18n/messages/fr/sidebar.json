@@ -1,0 +1,106 @@
+{
+  "workspaceMenu": {
+    "myAccount": "Mon compte",
+    "newWorkspace": "Nouvel espace de travail",
+    "settingsAndMembers": "Paramètres et membres",
+    "signOut": "Se déconnecter"
+  },
+  "nav": {
+    "search": "Rechercher",
+    "home": "Accueil",
+    "inbox": "Boîte de réception",
+    "settings": "Paramètres",
+    "trash": "Corbeille",
+    "templates": "Modèles",
+    "import": "Importer"
+  },
+  "toggle": {
+    "open": "Ouvrir la barre latérale",
+    "close": "Masquer la barre latérale",
+    "resize": "Faites glisser pour redimensionner",
+    "pin": "Garder la barre latérale ouverte"
+  },
+  "pages": {
+    "heading": "Pages",
+    "new": "Nouveau",
+    "newPage": "Nouvelle page",
+    "newDatabase": "Nouvelle base de données",
+    "createFirst": "Créez votre première page",
+    "nothingShared": "Aucune page n’a encore été partagée avec vous",
+    "collapse": "Replier",
+    "expand": "Déplier",
+    "actions": "Actions sur la page",
+    "moveToTrash": "Placer dans la corbeille",
+    "addInside": "Ajouter une page à l’intérieur",
+    "noChildren": "Aucune page à l’intérieur",
+    "favorites": "Favoris",
+    "moveFailed": "Impossible de déplacer la page ici. Pour la déplacer ailleurs, vous devez disposer d’un accès complet.",
+    "fromTemplate": "À partir d’un modèle",
+    "import": "Importer…",
+    "confirmMoveSpace": "Déplacer cette page vers {place} ? Les personnes qui peuvent la voir changeront en conséquence."
+  },
+  "search": {
+    "placeholder": "Rechercher dans les pages et leur contenu…",
+    "label": "Rechercher",
+    "noResults": "Aucun résultat"
+  },
+  "trash": {
+    "title": "Corbeille",
+    "empty": "La corbeille est vide",
+    "deletePermanently": "Supprimer définitivement",
+    "confirmDelete": "Supprimer définitivement ? Cette action est irréversible."
+  },
+  "newWorkspace": {
+    "title": "Nouvel espace de travail",
+    "description": "Un espace distinct avec ses propres pages et ses propres membres.",
+    "namePlaceholder": "Nom de l’espace de travail",
+    "create": "Créer",
+    "creating": "Création…"
+  },
+  "inbox": {
+    "title": "Boîte de réception",
+    "empty": "Aucune notification pour l’instant",
+    "markAllRead": "Tout marquer comme lu",
+    "assignment": "{actor} vous a assigné à « {property} »",
+    "pageShared": "{actor} a partagé cette page avec vous",
+    "comment": "{actor} a commenté un fil auquel vous participez",
+    "mention": "{actor} vous a mentionné",
+    "reminder": "Rappel : {date}",
+    "someone": "Quelqu’un",
+    "unread": "Non lue",
+    "unreadCount": "{count, plural, one {# notification non lue} other {# notifications non lues}}"
+  },
+  "templates": {
+    "title": "Modèles",
+    "description": "Choisissez-en un pour créer une nouvelle page à partir de celui-ci.",
+    "workspace": "Dans cet espace de travail",
+    "builtIn": "Intégrés",
+    "empty": "Aucun modèle pour l’instant. Pour en ajouter un, ouvrez le menu ⋯ d’une page et choisissez « Enregistrer comme modèle ».",
+    "use": "Créer une page à partir de ce modèle",
+    "database": "Base de données",
+    "edit": "Modifier le modèle",
+    "open": "Ouvrir le modèle",
+    "delete": "Supprimer le modèle",
+    "confirmDelete": "Supprimer définitivement ce modèle ? Les pages déjà créées à partir de lui restent inchangées."
+  },
+  "teamspaces": {
+    "heading": "Espaces d’équipe",
+    "options": "Options des espaces d’équipe",
+    "new": "Nouvel espace d’équipe",
+    "browse": "Parcourir les espaces d’équipe",
+    "none": "Vous ne faites encore partie d’aucun espace d’équipe. Parcourir les espaces d’équipe",
+    "actions": "Actions pour {name}",
+    "addPage": "Ajouter une page à {name}",
+    "edit": "Modifier l’espace d’équipe",
+    "members": "Membres et paramètres",
+    "leave": "Quitter l’espace d’équipe",
+    "confirmLeave": "Quitter {name} ? Ses pages disparaîtront de votre barre latérale. Si l’espace d’équipe n’est pas ouvert, vous perdrez aussi l’accès à ces pages.",
+    "empty": "Aucune page pour l’instant. Ajoutez-en une",
+    "another": "un autre espace d’équipe"
+  },
+  "sections": {
+    "shared": "Partagé",
+    "private": "Privé",
+    "newPrivate": "Nouvelle page privée"
+  }
+}

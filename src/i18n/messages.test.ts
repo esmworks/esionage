@@ -1,63 +1,77 @@
 import { en as editorEn } from "@blocknote/core/locales";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { EDITOR_DICTIONARIES } from "./blocknote";
 import { tr as editorTr } from "./blocknote/tr";
-import { negotiateLocale, requestLocale } from "./config";
+import { checkTranslations, compareFile, formatIssues } from "./check";
+import { DEFAULT_LOCALE, LOCALES, negotiateLocale, requestLocale } from "./config";
 import { emailMessages } from "./messages/email";
+import { loadMessages, withFallback } from "./messages";
 import en from "./messages/en";
-import tr from "./messages/tr";
 
-type Tree = { [key: string]: unknown };
+const MESSAGES_DIR = fileURLToPath(new URL("./messages", import.meta.url));
 
-/** Every leaf key path, plus the ICU arguments its message uses (`{name}` or `{name, plural, …}`). */
-function leaves(tree: unknown, prefix = ""): Map<string, string[]> {
-  const out = new Map<string, string[]>();
-  if (typeof tree === "string") {
-    out.set(prefix, [...new Set([...tree.matchAll(/\{\s*(\w+)\s*[,}]/g)].map((m) => m[1]))].sort());
-    return out;
-  }
-  // Arrays (e.g. slash-menu search aliases) are one leaf: each language may list its own terms.
-  if (Array.isArray(tree) || typeof tree === "function" || tree === null || typeof tree !== "object") {
-    out.set(prefix, []);
-    return out;
-  }
-  for (const [key, value] of Object.entries(tree as Tree)) {
-    for (const [path, vars] of leaves(value, prefix ? `${prefix}.${key}` : key)) out.set(path, vars);
-  }
-  return out;
+/** Leaf key paths of a dictionary (BlockNote's alias lists count as one leaf: each language has its own). */
+function keys(tree: unknown, prefix = ""): string[] {
+  if (tree === null || typeof tree !== "object" || Array.isArray(tree)) return [prefix];
+  return Object.entries(tree).flatMap(([key, value]) => keys(value, prefix ? `${prefix}.${key}` : key));
 }
 
 describe("translations", () => {
-  it("Turkish has exactly the English message keys and placeholders", () => {
-    const a = leaves(en);
-    const b = leaves(tr);
-    expect([...b.keys()].sort()).toEqual([...a.keys()].sort());
-    for (const [path, vars] of a) expect(b.get(path), path).toEqual(vars);
+  // The same check as `pnpm i18n:check`; its report says what to fix.
+  it("every language has exactly the English files, keys and placeholders", () => {
+    const issues = checkTranslations(MESSAGES_DIR, LOCALES, DEFAULT_LOCALE);
+    expect(issues, `\n${formatIssues(issues)}\n\nRun \`pnpm i18n:check\` for this report.`).toHaveLength(0);
   });
 
-  it("Turkish emails have exactly the English keys and placeholders", () => {
-    const a = leaves(emailMessages.en);
-    const b = leaves(emailMessages.tr);
-    expect([...b.keys()].sort()).toEqual([...a.keys()].sort());
-    for (const [path, vars] of a) expect(b.get(path), path).toEqual(vars);
+  it("finds missing, extra and mismatched messages", () => {
+    const source = { a: "Hello {name}", b: { c: "{count, plural, one {# page} other {# pages}}" }, d: "Plain", e: "{kind, select, page {Page} other {Item}}" };
+    const problems = (target: unknown) => compareFile(source, target).map((issue) => `${issue.key}: ${issue.problem}`);
+    expect(problems({ a: "Hallo {name}", b: { c: "{count} Seiten" }, d: "Schlicht", e: "{kind, select, page {Seite} other {Ding}}" })).toEqual([]);
+    expect(problems({ a: "Hallo {nom}", b: { c: "{count, plural, one {# Seite}}" }, e: "{kind, select, other {Ding}}", x: "Extra" })).toEqual([
+      "a: placeholders",
+      "b.c: syntax",
+      "d: missing",
+      "e: select options",
+      "x: extra",
+    ]);
+    // An ASCII apostrophe before a brace quotes it in ICU, losing the placeholder.
+    expect(problems({ ...source, a: "Bonjour l'{name}" })).toEqual(["a: placeholders"]);
+    expect(problems({ ...source, d: " " })).toEqual(["d: empty"]);
   });
 
-  it("the Turkish editor dictionary covers every BlockNote key", () => {
-    expect([...leaves(editorTr).keys()].sort()).toEqual([...leaves(editorEn).keys()].sort());
+  it("falls back to English for texts a language lacks", async () => {
+    expect(withFallback({ a: "A", b: { c: "C", d: "D" } }, { a: "Ä", b: { c: 1 }, x: "X" })).toEqual({ a: "Ä", b: { c: "C", d: "D" } });
+    for (const locale of LOCALES) {
+      const messages = await loadMessages(locale);
+      expect(keys(messages).sort(), locale).toEqual(keys(en).sort());
+      expect(keys(emailMessages[locale]).sort(), locale).toEqual(keys(emailMessages.en).sort());
+    }
+    expect((await loadMessages("tr")).common.untitled).toBe("Adsız");
+  });
+
+  it("every language has an editor dictionary; the Turkish one covers every BlockNote key", () => {
+    for (const locale of LOCALES) expect(EDITOR_DICTIONARIES[locale], locale).toBeDefined();
+    expect(keys(editorTr).sort()).toEqual(keys(editorEn).sort());
   });
 
   it("negotiates the language from Accept-Language", () => {
     expect(negotiateLocale("tr-TR,tr;q=0.9,en;q=0.8")).toBe("tr");
-    expect(negotiateLocale("de-DE,de;q=0.9,tr;q=0.5")).toBe("tr");
-    expect(negotiateLocale("de-DE")).toBe("en");
+    expect(negotiateLocale("pt-BR,de;q=0.9,tr;q=0.5")).toBe("de");
+    expect(negotiateLocale("fr-CA")).toBe("fr");
+    expect(negotiateLocale("es-419,es;q=0.9")).toBe("es");
+    expect(negotiateLocale("pt-BR")).toBe("en");
     expect(negotiateLocale(null)).toBe("en");
     expect(negotiateLocale("en;q=0.2,tr;q=0.8")).toBe("tr");
+    expect(negotiateLocale("DE-de")).toBe("de");
   });
 
   it("prefers the saved language over Accept-Language for requests", () => {
     const headers = (init: Record<string, string>) => new Headers(init);
     expect(requestLocale(headers({ "accept-language": "tr-TR" }))).toBe("tr");
     expect(requestLocale(headers({ cookie: "TZ=Europe%2FIstanbul; NEXT_LOCALE=en", "accept-language": "tr" }))).toBe("en");
-    expect(requestLocale(headers({ cookie: "NEXT_LOCALE=de", "accept-language": "tr" }))).toBe("tr");
+    expect(requestLocale(headers({ cookie: "NEXT_LOCALE=fr", "accept-language": "tr" }))).toBe("fr");
+    expect(requestLocale(headers({ cookie: "NEXT_LOCALE=xx", "accept-language": "tr" }))).toBe("tr");
     expect(requestLocale(headers({}))).toBe("en");
   });
 });
