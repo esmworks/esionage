@@ -25,6 +25,7 @@ import { TimelineView } from "./timeline-view";
 import type { DatabaseSnapshot, View } from "./types";
 import { useDatabase } from "./use-database";
 import { OfflineNotice } from "@/components/offline/offline-notice";
+import { AiAutofillProvider, type AiAutofillContextValue } from "./ai-autofill";
 import { useIsOffline } from "@/components/offline/offline-context";
 import { ActiveRulesBar, ViewTabs, ViewToolbar } from "./view-bar";
 import { timelineDates, ViewLayoutMenu } from "./view-settings";
@@ -125,6 +126,15 @@ export function DatabasePage({
   const peopleContext = useMemo<PeopleContextValue>(
     () => ({ viewerId: snapshot?.viewerId ?? null, people: snapshot?.people ?? [] }),
     [snapshot?.viewerId, snapshot?.people],
+  );
+
+  const aiContext = useMemo<AiAutofillContextValue>(
+    () => ({
+      enabled: Boolean(snapshot?.ai?.enabled) && !offline,
+      states: snapshot?.ai?.states ?? {},
+      refresh: readOnly ? undefined : api.refreshAutofill,
+    }),
+    [snapshot?.ai, offline, readOnly, api.refreshAutofill],
   );
 
   // Changes to a linked view go to its block; the database's own views stay untouched.
@@ -237,185 +247,164 @@ export function DatabasePage({
     <RelationProvider value={relationContext}>
       <PeopleProvider value={peopleContext}>
         <SchemaProvider value={snapshot.properties}>
-          {/* Wide layout: controls sit in the page gutter, the board scrolls edge to edge. */}
-          <div className="min-w-0">
-            <div className="page-gutter">
-              {embed?.header?.(snapshot)}
-              {offline && <OfflineNotice savedAt={offlineCopyFrom} />}
-              {/* Phones stack the toolbar above the tabs so the tabs get the whole row. */}
-              <div className="flex flex-col-reverse gap-1 border-b border-border md:flex-row md:items-end md:justify-between md:gap-2">
-                <ViewTabs
-                  views={views}
-                  activeId={view?.id ?? ""}
-                  readOnly={readOnly || locked || !!linked}
-                  onSelect={selectView}
-                  onAdd={addView}
-                  onRename={(v, name) => api.updateView(v, { name })}
-                  onDelete={async (v) => {
-                    if (v.id === view?.id) {
-                      const next = views.find((x) => x.id !== v.id);
-                      if (next) selectView(next.id);
-                    }
-                    await api.deleteView(v.id);
-                  }}
-                />
-                {view?.type === "form" && (
-                  <div className="flex shrink-0 items-center gap-1 self-end md:pb-1.5">
-                    <FormToolbar
-                      view={view}
-                      properties={snapshot.properties}
-                      workspaceId={workspaceId}
-                      databaseId={databaseId}
-                      editable={!readOnly}
-                      preview={formPreview}
-                      onPreview={setFormPreview}
-                    />
-                  </div>
-                )}
-                {view && view.type !== "form" && (
-                  <div className="flex shrink-0 items-center gap-1 self-end md:pb-1.5">
-                    <ViewToolbar
-                      view={view}
-                      properties={snapshot.properties}
-                      readOnly={configReadOnly}
-                      locked={locked}
-                      onConfig={(config) => setConfig(view, config)}
-                      onCreateGroupProperty={createGroupProperty}
-                      onCreateDateProperty={createDateProperty}
-                    />
-                    <ViewLayoutMenu
-                      view={view}
-                      properties={snapshot.properties}
-                      readOnly={configReadOnly}
-                      locked={locked}
-                      onConfig={(config) => setConfig(view, config)}
-                      onCreateDateProperty={createDateProperty}
-                    />
-                    {!readOnly && (
-                      <div className="ml-1 flex items-center">
-                        <Button size="sm" variant="primary" onClick={() => void newRow()} className="rounded-r-none">
-                          <Plus className="h-3.5 w-3.5" />
-                          {t("page.new")}
-                        </Button>
-                        <RowTemplatesMenu
-                          workspaceId={workspaceId}
-                          snapshot={snapshot}
-                          onCreate={(templateId) => void newRow(templateId)}
-                          onChanged={() => void api.refetch()}
-                          onError={api.showError}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {error && (
-                <div
-                  role="alert"
-                  className="mt-2 flex items-center gap-2 rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-sm"
-                >
-                  <TriangleAlert className="h-4 w-4 shrink-0 text-danger" />
-                  <span className="flex-1">{error}</span>
-                  <button
-                    type="button"
-                    aria-label={t("page.dismiss")}
-                    onClick={api.clearError}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-hover hover:text-fg"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {view && view.type !== "form" && (
-                <ActiveRulesBar
-                  view={view}
-                  properties={snapshot.properties}
-                  readOnly={configReadOnly}
-                  onConfig={(config) => setConfig(view, config)}
-                />
-              )}
-            </div>
-
-            <div className="pt-2">
-              {!view ? (
-                <div className="page-gutter py-10 text-center text-sm text-fg-muted">
-                  {t("page.noViews")}
-                  {!readOnly && (
-                    <div className="mt-3">
-                      <Button size="sm" onClick={() => addView("table")}>
-                        <Plus className="h-3.5 w-3.5" />
-                        {t("page.addTableView")}
-                      </Button>
+          <AiAutofillProvider value={aiContext}>
+            {/* Wide layout: controls sit in the page gutter, the board scrolls edge to edge. */}
+            <div className="min-w-0">
+              <div className="page-gutter">
+                {embed?.header?.(snapshot)}
+                {offline && <OfflineNotice savedAt={offlineCopyFrom} />}
+                {/* Phones stack the toolbar above the tabs so the tabs get the whole row. */}
+                <div className="flex flex-col-reverse gap-1 border-b border-border md:flex-row md:items-end md:justify-between md:gap-2">
+                  <ViewTabs
+                    views={views}
+                    activeId={view?.id ?? ""}
+                    readOnly={readOnly || locked || !!linked}
+                    onSelect={selectView}
+                    onAdd={addView}
+                    onRename={(v, name) => api.updateView(v, { name })}
+                    onDelete={async (v) => {
+                      if (v.id === view?.id) {
+                        const next = views.find((x) => x.id !== v.id);
+                        if (next) selectView(next.id);
+                      }
+                      await api.deleteView(v.id);
+                    }}
+                  />
+                  {view?.type === "form" && (
+                    <div className="flex shrink-0 items-center gap-1 self-end md:pb-1.5">
+                      <FormToolbar
+                        view={view}
+                        properties={snapshot.properties}
+                        workspaceId={workspaceId}
+                        databaseId={databaseId}
+                        editable={!readOnly}
+                        preview={formPreview}
+                        onPreview={setFormPreview}
+                      />
+                    </div>
+                  )}
+                  {view && view.type !== "form" && (
+                    <div className="flex shrink-0 items-center gap-1 self-end md:pb-1.5">
+                      <ViewToolbar
+                        view={view}
+                        properties={snapshot.properties}
+                        readOnly={configReadOnly}
+                        locked={locked}
+                        onConfig={(config) => setConfig(view, config)}
+                        onCreateGroupProperty={createGroupProperty}
+                        onCreateDateProperty={createDateProperty}
+                      />
+                      <ViewLayoutMenu
+                        view={view}
+                        properties={snapshot.properties}
+                        readOnly={configReadOnly}
+                        locked={locked}
+                        onConfig={(config) => setConfig(view, config)}
+                        onCreateDateProperty={createDateProperty}
+                      />
+                      {!readOnly && (
+                        <div className="ml-1 flex items-center">
+                          <Button size="sm" variant="primary" onClick={() => void newRow()} className="rounded-r-none">
+                            <Plus className="h-3.5 w-3.5" />
+                            {t("page.new")}
+                          </Button>
+                          <RowTemplatesMenu
+                            workspaceId={workspaceId}
+                            snapshot={snapshot}
+                            onCreate={(templateId) => void newRow(templateId)}
+                            onChanged={() => void api.refetch()}
+                            onError={api.showError}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              ) : view.type === "form" ? (
-                <FormView
-                  key={view.id}
-                  view={view}
-                  properties={snapshot.properties}
-                  databaseTitle={snapshot.database.title}
-                  api={api}
-                  editable={!readOnly}
-                  archived={snapshot.database.archived}
-                  preview={formPreview}
-                />
-              ) : view.type === "board" ? (
-                <BoardView
-                  workspaceId={workspaceId}
-                  view={view}
-                  properties={snapshot.properties}
-                  rows={visibleRows}
-                  api={viewApi}
-                  readOnly={readOnly}
-                  locked={locked}
-                  onCreateGroupProperty={createGroupProperty}
-                />
-              ) : view.type === "gallery" ? (
-                <GalleryView
-                  workspaceId={workspaceId}
-                  view={view}
-                  properties={snapshot.properties}
-                  rows={visibleRows}
-                  api={viewApi}
-                  readOnly={readOnly}
-                />
-              ) : view.type === "list" ? (
-                <ListView
-                  workspaceId={workspaceId}
-                  view={view}
-                  properties={snapshot.properties}
-                  rows={visibleRows}
-                  api={viewApi}
-                  readOnly={readOnly}
-                />
-              ) : view.type === "timeline" ? (
-                <TimelineView
-                  key={view.id}
-                  workspaceId={workspaceId}
-                  view={view}
-                  properties={snapshot.properties}
-                  rows={visibleRows}
-                  api={viewApi}
-                  readOnly={readOnly}
-                  locked={locked}
-                  onCreateDateProperty={createDateProperty}
-                />
-              ) : view.type === "chart" ? (
-                <ChartView
-                  workspaceId={workspaceId}
-                  view={view}
-                  properties={snapshot.properties}
-                  rows={visibleRows}
-                  readOnly={readOnly}
-                  locked={locked}
-                  onCreateGroupProperty={createGroupProperty}
-                />
-              ) : view.type === "calendar" ? (
-                <div className="page-gutter">
-                  <CalendarView
+
+                {error && (
+                  <div
+                    role="alert"
+                    className="mt-2 flex items-center gap-2 rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-sm"
+                  >
+                    <TriangleAlert className="h-4 w-4 shrink-0 text-danger" />
+                    <span className="flex-1">{error}</span>
+                    <button
+                      type="button"
+                      aria-label={t("page.dismiss")}
+                      onClick={api.clearError}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-hover hover:text-fg"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {view && view.type !== "form" && (
+                  <ActiveRulesBar
+                    view={view}
+                    properties={snapshot.properties}
+                    readOnly={configReadOnly}
+                    onConfig={(config) => setConfig(view, config)}
+                  />
+                )}
+              </div>
+
+              <div className="pt-2">
+                {!view ? (
+                  <div className="page-gutter py-10 text-center text-sm text-fg-muted">
+                    {t("page.noViews")}
+                    {!readOnly && (
+                      <div className="mt-3">
+                        <Button size="sm" onClick={() => addView("table")}>
+                          <Plus className="h-3.5 w-3.5" />
+                          {t("page.addTableView")}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : view.type === "form" ? (
+                  <FormView
+                    key={view.id}
+                    view={view}
+                    properties={snapshot.properties}
+                    databaseTitle={snapshot.database.title}
+                    api={api}
+                    editable={!readOnly}
+                    archived={snapshot.database.archived}
+                    preview={formPreview}
+                  />
+                ) : view.type === "board" ? (
+                  <BoardView
+                    workspaceId={workspaceId}
+                    view={view}
+                    properties={snapshot.properties}
+                    rows={visibleRows}
+                    api={viewApi}
+                    readOnly={readOnly}
+                    locked={locked}
+                    onCreateGroupProperty={createGroupProperty}
+                  />
+                ) : view.type === "gallery" ? (
+                  <GalleryView
+                    workspaceId={workspaceId}
+                    view={view}
+                    properties={snapshot.properties}
+                    rows={visibleRows}
+                    api={viewApi}
+                    readOnly={readOnly}
+                  />
+                ) : view.type === "list" ? (
+                  <ListView
+                    workspaceId={workspaceId}
+                    view={view}
+                    properties={snapshot.properties}
+                    rows={visibleRows}
+                    api={viewApi}
+                    readOnly={readOnly}
+                  />
+                ) : view.type === "timeline" ? (
+                  <TimelineView
+                    key={view.id}
                     workspaceId={workspaceId}
                     view={view}
                     properties={snapshot.properties}
@@ -425,23 +414,46 @@ export function DatabasePage({
                     locked={locked}
                     onCreateDateProperty={createDateProperty}
                   />
-                </div>
-              ) : (
-                <TableView
-                  workspaceId={workspaceId}
-                  databaseId={databaseId}
-                  view={view}
-                  properties={snapshot.properties}
-                  rows={visibleRows}
-                  api={viewApi}
-                  readOnly={readOnly}
-                  locked={locked}
-                  filtered={rows.length > 0}
-                  guest={guest}
-                />
-              )}
+                ) : view.type === "chart" ? (
+                  <ChartView
+                    workspaceId={workspaceId}
+                    view={view}
+                    properties={snapshot.properties}
+                    rows={visibleRows}
+                    readOnly={readOnly}
+                    locked={locked}
+                    onCreateGroupProperty={createGroupProperty}
+                  />
+                ) : view.type === "calendar" ? (
+                  <div className="page-gutter">
+                    <CalendarView
+                      workspaceId={workspaceId}
+                      view={view}
+                      properties={snapshot.properties}
+                      rows={visibleRows}
+                      api={viewApi}
+                      readOnly={readOnly}
+                      locked={locked}
+                      onCreateDateProperty={createDateProperty}
+                    />
+                  </div>
+                ) : (
+                  <TableView
+                    workspaceId={workspaceId}
+                    databaseId={databaseId}
+                    view={view}
+                    properties={snapshot.properties}
+                    rows={visibleRows}
+                    api={viewApi}
+                    readOnly={readOnly}
+                    locked={locked}
+                    filtered={rows.length > 0}
+                    guest={guest}
+                  />
+                )}
+              </div>
             </div>
-          </div>
+          </AiAutofillProvider>
         </SchemaProvider>
       </PeopleProvider>
     </RelationProvider>

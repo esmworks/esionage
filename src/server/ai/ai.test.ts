@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { promptPlaceholders } from "@/lib/ai";
+import { checkAutofill, promptPlaceholders } from "@/lib/ai";
 import { describeAiConfig, readAiConfig } from "./config";
 import { AiError, aiInfo, complete, embed, embeddingsEnabled, isEnabled, stream } from "./index";
 import { autofillNeedsBody, autofillPrompt, cleanValue, editorPrompt, fillPlaceholders, formatValue, truncateText } from "./prompts";
@@ -155,6 +155,39 @@ describe("autofill prompts", () => {
     expect(cleanValue('  "Quoted"  ', 100)).toBe("Quoted");
     expect(cleanValue("```\nfenced\n```", 100)).toBe("fenced");
     expect(cleanValue("abcdef", 3)).toBe("abc");
+  });
+});
+
+describe("autofill settings", () => {
+  const props = [
+    { id: "p1", name: "Audience" },
+    { id: "self", name: "Pitch" },
+  ];
+
+  it("keeps only the fields a mode uses", () => {
+    expect(checkAutofill({ mode: "summary", prompt: "x", auto: true }, props, "self")).toEqual({ ok: true, config: { mode: "summary", auto: true } });
+    expect(checkAutofill({ mode: "translation", language: "tr", source: "p1", prompt: "x" }, props, "self")).toEqual({
+      ok: true,
+      config: { mode: "translation", language: "tr", source: "p1", auto: false },
+    });
+    expect(checkAutofill({ mode: "custom", prompt: "  Pitch {title} to {audience}  ", includeBody: true }, props, "self")).toEqual({
+      ok: true,
+      config: { mode: "custom", prompt: "Pitch {title} to {audience}", includeBody: true, auto: false },
+    });
+  });
+
+  it("refuses what can't work", () => {
+    expect(checkAutofill({ mode: "poem" }, props)).toMatchObject({ ok: false, code: "invalidMode" });
+    expect(checkAutofill({ mode: "translation", language: "xx" }, props)).toMatchObject({ ok: false, code: "unknownLanguage" });
+    expect(checkAutofill({ mode: "translation", language: "de", source: "self" }, props, "self")).toMatchObject({ ok: false, code: "unknownSource" });
+    expect(checkAutofill({ mode: "custom", prompt: " " }, props)).toMatchObject({ ok: false, code: "promptRequired" });
+    expect(checkAutofill({ mode: "custom", prompt: "x".repeat(2001) }, props)).toMatchObject({ ok: false, code: "promptTooLong" });
+    // A property can't read itself.
+    expect(checkAutofill({ mode: "custom", prompt: "Improve {Pitch}" }, props, "self")).toEqual({
+      ok: false,
+      code: "unknownPlaceholder",
+      params: { name: "Pitch" },
+    });
   });
 });
 

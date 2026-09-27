@@ -59,6 +59,28 @@ services:
       S3_PREFIX: ${S3_PREFIX:-}
       EXPORT_MAX_PAGES: ${EXPORT_MAX_PAGES:-}
       EXPORT_MAX_FILES_MB: ${EXPORT_MAX_FILES_MB:-}
+      # AI features stay off unless AI_PROVIDER and AI_MODEL are set (see the README's AI section).
+      AI_PROVIDER: ${AI_PROVIDER:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      AI_EMBEDDINGS_MODEL: ${AI_EMBEDDINGS_MODEL:-}
+      AI_EMBEDDINGS_BASE_URL: ${AI_EMBEDDINGS_BASE_URL:-}
+      AI_EMBEDDINGS_API_KEY: ${AI_EMBEDDINGS_API_KEY:-}
+      AI_EMBEDDINGS_DIMENSIONS: ${AI_EMBEDDINGS_DIMENSIONS:-}
+      AI_MAX_INPUT_CHARS: ${AI_MAX_INPUT_CHARS:-}
+      AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-}
+      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-}
+      AI_RATE_LIMIT: ${AI_RATE_LIMIT:-}
+      AI_WORKSPACE_RATE_LIMIT: ${AI_WORKSPACE_RATE_LIMIT:-}
+      AI_CONCURRENCY: ${AI_CONCURRENCY:-}
+      AI_CONTEXT_WINDOW: ${AI_CONTEXT_WINDOW:-}
+    # Lets AI_BASE_URL=http://host.docker.internal:11434/v1 reach Ollama or LM Studio on the host (Linux too).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - uploads:/app/data/uploads
     ports:

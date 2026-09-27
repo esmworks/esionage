@@ -12,7 +12,7 @@ export type FauxRequest = { system: string; prompt: string };
 /** Returns the answer's text, or throws to make the provider fail with that message. */
 export type FauxScript = (request: FauxRequest) => string | Promise<string>;
 
-type ContextLike = { messages: { role: string; content: unknown }[] };
+type ContextLike = { systemPrompt?: string; messages: { role: string; content: unknown }[] };
 
 function textOf(content: unknown): string {
   if (typeof content === "string") return content;
@@ -32,7 +32,8 @@ export function useFauxAi(
   let current = script;
   const faux = fauxProvider({ provider: "faux", models: [{ id: "faux-writer" }], tokensPerSecond: options.tokensPerSecond });
   const answer = async (context: ContextLike): Promise<AssistantMessage> => {
-    const system = context.messages.filter((m) => m.role === "system").map((m) => textOf(m.content)).join("\n");
+    // The faux provider hands the system prompt over as a "system" message.
+    const system = context.systemPrompt ?? context.messages.filter((m) => m.role === "system").map((m) => textOf(m.content)).join("\n");
     const users = context.messages.filter((m) => m.role === "user");
     const prompt = textOf(users[users.length - 1]?.content);
     try {

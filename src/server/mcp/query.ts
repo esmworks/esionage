@@ -10,6 +10,7 @@ import type {
   ViewType,
 } from "@/db/schema/app";
 import type { AggregateResult } from "@/lib/aggregate";
+import { AUTOFILL_BODY, AUTOFILL_TITLE, type AiAutofillConfig } from "@/lib/ai";
 import { canStack, chartData, chartGroupProperty, chartMeasure, chartSortOf, chartTypeOf, OTHER_KEY } from "@/lib/chart";
 import {
   isDayCount,
@@ -469,6 +470,20 @@ export function describeChartSeries(
   };
 }
 
+/** How an AI autofill property is filled in, with property names instead of ids. */
+function describeAutofill(config: AiAutofillConfig, props: PropertyDef[]) {
+  const source =
+    config.source === AUTOFILL_TITLE || config.source === AUTOFILL_BODY
+      ? config.source
+      : props.find((p) => p.id === config.source)?.name;
+  return {
+    mode: config.mode,
+    ...(config.mode === "translation" ? { language: config.language, source } : {}),
+    ...(config.mode === "custom" ? { prompt: config.prompt, include_body: Boolean(config.includeBody) } : {}),
+    auto_update: Boolean(config.auto),
+  };
+}
+
 /** The grouping settings that apply to how a view groups by `prop`. */
 function describeGrouping(prop: PropertyDef | undefined, config: ViewConfig) {
   return {
@@ -512,6 +527,8 @@ export function describeProperty(prop: PropertyDef, lookups: Lookups = NO_LOOKUP
         }
       : {}),
     ...(isReadOnlyType(prop.type) ? { read_only: true } : {}),
+    // Filled in by the app's AI (values stay ordinary, editable text); see lib/ai AiAutofillConfig.
+    ...(prop.type === "text" && prop.options.ai ? { ai_autofill: describeAutofill(prop.options.ai, props) } : {}),
   };
 }
 

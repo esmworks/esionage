@@ -275,13 +275,26 @@ function prepare(request: AiRequest) {
   const timer = setTimeout(() => timeout.abort(), config.limits.timeoutMs);
   const signal = request.signal ? AbortSignal.any([request.signal, timeout.signal]) : timeout.signal;
   const maxTokens = Math.min(request.maxOutputTokens ?? config.limits.maxOutputTokens, config.limits.maxOutputTokens);
-  return { signal, maxTokens, timedOut: () => timeout.signal.aborted, done: () => clearTimeout(timer) };
+  return {
+    signal,
+    maxTokens,
+    timedOut: () => timeout.signal.aborted,
+    cancelled: () => request.signal?.aborted === true,
+    done: () => clearTimeout(timer),
+  };
 }
 
 /** Turns a failed or cancelled answer into an AiError (and logs it). */
-function failure(message: AssistantMessage | null, error: unknown, timedOut: boolean, entry: Omit<LogEntry, "status">): AiError {
+function failure(
+  message: AssistantMessage | null,
+  error: unknown,
+  state: { timedOut: boolean; cancelled: boolean },
+  entry: Omit<LogEntry, "status">,
+): AiError {
   let result: AiError;
-  if (timedOut) result = new AiError("timeout", "The AI provider took too long to answer");
+  // The caller's cancel wins, however the provider reported it (an error, a closed stream).
+  if (state.cancelled) result = new AiError("aborted", "Cancelled");
+  else if (state.timedOut) result = new AiError("timeout", "The AI provider took too long to answer");
   else if (message?.stopReason === "aborted" || (error instanceof Error && error.name === "AbortError")) {
     result = new AiError("aborted", "Cancelled");
   } else if (error instanceof AiError) result = error;
@@ -331,7 +344,7 @@ export function stream(request: AiRequest): AiStream {
       logUsage({ feature: request.feature, userId: request.userId, workspaceId: request.workspaceId, status: "ok", ms: performance.now() - started, usage: result.usage, model });
       return result;
     } catch (error) {
-      throw failure(final, error, prepared.timedOut(), {
+      throw failure(final, error, { timedOut: prepared.timedOut(), cancelled: prepared.cancelled() }, {
         feature: request.feature,
         userId: request.userId,
         workspaceId: request.workspaceId,
@@ -397,7 +410,7 @@ export async function embed(
     });
     return vectors;
   } catch (error) {
-    throw failure(null, error, timeout.aborted, {
+    throw failure(null, error, { timedOut: timeout.aborted, cancelled: request.signal?.aborted === true }, {
       feature: request.feature,
       userId: request.userId,
       workspaceId: request.workspaceId,

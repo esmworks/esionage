@@ -10,12 +10,15 @@ import {
   loadRowAction,
   updateRowPropertiesAction,
 } from "@/app/actions/databases";
+import { addAutofillPropertyAction, refreshAutofillAction } from "@/app/actions/ai";
 import { useChannel, useChannels } from "@/components/collab/use-channel";
 import { useIsOffline, useOffline } from "@/components/offline/offline-context";
 import { OfflineNotice } from "@/components/offline/offline-notice";
 import { deleteSnapshot, loadSnapshot, rowSnapshotKey, saveSnapshot } from "@/components/offline/offline-store";
+import type { AiAutofillConfig, AiCellState } from "@/lib/ai";
 import { withFormulas } from "@/lib/derived";
 import type { PropertyType, SelectOption } from "@/db/schema/app";
+import { AiAutofillProvider, AiCell, type AiAutofillContextValue } from "./ai-autofill";
 import { Floating, useFloating } from "./floating";
 import { PeopleProvider, type PeopleContextValue } from "./person-cell";
 import { uploadToPage } from "./files-cell";
@@ -37,6 +40,8 @@ type Loaded = {
   relations: Record<string, RelationTarget>;
   people: PersonRef[];
   viewerId: string;
+  /** AI autofill: whether AI is available, and this row's pending and failed values. */
+  ai?: { enabled: boolean; states: Record<string, AiCellState> };
 };
 
 /** Editable property list shown above a database row's page body. */
@@ -96,6 +101,7 @@ export function RowProperties({
         relations: res.data.relations,
         people: res.data.people,
         viewerId: res.data.viewerId,
+        ai: res.data.ai,
       };
       setData(loaded);
       setOfflineCopyFrom(null);
@@ -181,6 +187,22 @@ export function RowProperties({
     await refetch();
   };
 
+  const addAutofillProperty = async (name: string, config: AiAutofillConfig) => {
+    const res = await safe(addAutofillPropertyAction(databaseId, name, config, [rowId]));
+    if (!res.ok) setError(res.error);
+    await refetch();
+  };
+
+  const refreshAutofill = useCallback(
+    async (propertyId: string) => {
+      setData((d) => d && { ...d, ai: d.ai && { ...d.ai, states: { ...d.ai.states, [propertyId]: { status: "pending" } } } });
+      const res = await safe(refreshAutofillAction(propertyId, [rowId]));
+      if (!res.ok) setError(res.error);
+      await refetch();
+    },
+    [rowId, safe, refetch],
+  );
+
   const createRelatedRow = useCallback(
     async (targetDatabaseId: string, title: string) => {
       const res = await safe(createRowAction(workspaceId, targetDatabaseId, { title }));
@@ -208,6 +230,15 @@ export function RowProperties({
   const peopleContext = useMemo<PeopleContextValue>(
     () => ({ viewerId: data?.viewerId ?? null, people: data?.people ?? [] }),
     [data?.viewerId, data?.people],
+  );
+  const aiEnabled = Boolean(data?.ai?.enabled) && !offline;
+  const aiContext = useMemo<AiAutofillContextValue>(
+    () => ({
+      enabled: aiEnabled,
+      states: { [rowId]: data?.ai?.states ?? {} },
+      refresh: readOnly ? undefined : (propertyId) => void refreshAutofill(propertyId),
+    }),
+    [aiEnabled, rowId, data?.ai?.states, readOnly, refreshAutofill],
   );
 
   // Edited values show right away, with the row's formulas worked out again from them.
@@ -239,36 +270,42 @@ export function RowProperties({
     <RelationProvider value={relationContext}>
       <PeopleProvider value={peopleContext}>
         <SchemaProvider value={data.properties}>
-          <div className="mb-6 border-b border-border pb-4">
-            {offline && <OfflineNotice savedAt={offlineCopyFrom} />}
-            <div className="flex flex-col gap-0.5">
-              {data.properties.map((p) => (
-                <div key={p.id} className="flex min-h-[30px] items-start gap-2">
-                  <div className="flex h-[30px] w-28 shrink-0 items-center gap-1.5 px-1 text-sm text-fg-muted sm:w-40">
-                    <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate" title={p.name}>
-                      {p.name}
-                    </span>
+          <AiAutofillProvider value={aiContext}>
+            <div className="mb-6 border-b border-border pb-4">
+              {offline && <OfflineNotice savedAt={offlineCopyFrom} />}
+              <div className="flex flex-col gap-0.5">
+                {data.properties.map((p) => (
+                  <div key={p.id} className="flex min-h-[30px] items-start gap-2">
+                    <div className="flex h-[30px] w-28 shrink-0 items-center gap-1.5 px-1 text-sm text-fg-muted sm:w-40">
+                      <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate" title={p.name}>
+                        {p.name}
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <AiCell prop={p} rowId={rowId} readOnly={readOnly}>
+                        <PropertyCell
+                          variant="panel"
+                          wrap
+                          prop={p}
+                          value={valueOf(p.id)}
+                          readOnly={readOnly}
+                          onChange={(v) => void setValue(p.id, v)}
+                          onCreateOption={createOption}
+                          upload={p.type === "files" ? uploadToPage(rowId) : undefined}
+                        />
+                      </AiCell>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <PropertyCell
-                      variant="panel"
-                      wrap
-                      prop={p}
-                      value={valueOf(p.id)}
-                      readOnly={readOnly}
-                      onChange={(v) => void setValue(p.id, v)}
-                      onCreateOption={createOption}
-                      upload={p.type === "files" ? uploadToPage(rowId) : undefined}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">{t("noProperties")}</p>}
+              {!readOnly && !data.locked && (
+                <AddPropertyRow onCreate={addProperty} onCreateAutofill={aiEnabled ? addAutofillProperty : undefined} />
+              )}
+              {error && <p className="mt-2 px-1 text-xs text-danger">{error}</p>}
             </div>
-            {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">{t("noProperties")}</p>}
-            {!readOnly && !data.locked && <AddPropertyRow onCreate={addProperty} />}
-            {error && <p className="mt-2 px-1 text-xs text-danger">{error}</p>}
-          </div>
+          </AiAutofillProvider>
         </SchemaProvider>
       </PeopleProvider>
     </RelationProvider>
@@ -277,8 +314,10 @@ export function RowProperties({
 
 function AddPropertyRow({
   onCreate,
+  onCreateAutofill,
 }: {
   onCreate: (name: string, type: PropertyType, relation?: RelationInput, derived?: DerivedInput) => Promise<void>;
+  onCreateAutofill?: (name: string, config: AiAutofillConfig) => Promise<void>;
 }) {
   const t = useTranslations("database.rowProperties");
   const menu = useFloating<HTMLButtonElement>();
@@ -294,7 +333,7 @@ function AddPropertyRow({
         {t("addProperty")}
       </button>
       <Floating open={menu.open} anchor={menu.el} onClose={menu.close}>
-        <AddPropertyPanel onCreate={onCreate} onDone={menu.close} />
+        <AddPropertyPanel onCreate={onCreate} onCreateAutofill={onCreateAutofill} onDone={menu.close} />
       </Floating>
     </>
   );

@@ -314,19 +314,13 @@ export async function requestAutofill(userId: string, propertyId: string, rowIds
  * marked pending that no job of this process is working on (the server restarted meanwhile) shows
  * as failed ("interrupted"), so it can be refreshed.
  */
-export async function autofillStates(properties: Property[], rowIds?: string[]): Promise<Record<string, Record<string, AiCellState>>> {
+export async function autofillStates(properties: Property[]): Promise<Record<string, Record<string, AiCellState>>> {
   const ids = properties.filter((p) => p.type === "text" && p.options.ai).map((p) => p.id);
-  if (!ids.length || rowIds?.length === 0) return {};
+  if (!ids.length) return {};
   const found = await db
     .select({ rowId: aiPropertyState.rowId, propertyId: aiPropertyState.propertyId, status: aiPropertyState.status, error: aiPropertyState.error })
     .from(aiPropertyState)
-    .where(
-      and(
-        inArray(aiPropertyState.propertyId, ids),
-        inArray(aiPropertyState.status, ["pending", "error"]),
-        rowIds ? inArray(aiPropertyState.rowId, rowIds) : undefined,
-      ),
-    );
+    .where(and(inArray(aiPropertyState.propertyId, ids), inArray(aiPropertyState.status, ["pending", "error"])));
   const out: Record<string, Record<string, AiCellState>> = {};
   for (const s of found) {
     const state: AiCellState =
@@ -371,4 +365,17 @@ onRowChanged("ai-autofill", scheduleFollowUp);
 /** Called once at startup (server.ts): logs the AI setup; importing this module starts listening. */
 export function startAiProperties() {
   console.log(describeAiSetup());
+}
+
+/**
+ * What the database UI needs about AI: whether it's available in the database's workspace, and
+ * the pending and failed values of `rowIds` (the rows the person sees).
+ */
+export async function databaseAi(databaseId: string, properties: Property[], rowIds: string[]) {
+  const [database] = await db.select({ workspaceId: page.workspaceId }).from(page).where(eq(page.id, databaseId)).limit(1);
+  const enabled = database ? await aiAvailable(database.workspaceId) : false;
+  const all = await autofillStates(properties);
+  const seen = new Set(rowIds);
+  const states = Object.fromEntries(Object.entries(all).filter(([rowId]) => seen.has(rowId)));
+  return { enabled, states };
 }

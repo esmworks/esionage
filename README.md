@@ -104,6 +104,11 @@ approve them over OAuth.
 - **Two-step verification and passkeys**: an authenticator app with one-time recovery codes,
   passkeys, and a workspace policy that requires one of them (see
   [Two-step verification and passkeys](#two-step-verification-and-passkeys)).
+- **AI writing assistant and AI properties** (optional, off until a provider is set up): improve,
+  shorten, fix, translate or rewrite selected text as you ask, continue writing, and summarize a
+  page, as a suggestion you accept or discard; database text properties that AI fills in (a
+  summary, a translation or your own prompt over the row's values). Anthropic, OpenAI, Google,
+  any OpenAI-compatible server, or a local model with Ollama or LM Studio (see [AI features](#ai-features)).
 - **English and Turkish** interface.
 - **MCP server with OAuth 2.1**: remote MCP endpoint at `/mcp`.
   - Supports Client ID Metadata Documents and Dynamic Client Registration, with PKCE and a
@@ -406,6 +411,82 @@ handles database backups on its own. No compose file is involved.
 5. Deploy. Migrations run when the container starts. Turn on auto deploy to redeploy on every
    push.
 
+## AI features
+
+Esionage can use a language model for a writing assistant in pages and for database properties
+that AI fills in. Both are **off** until the server has a provider: set `AI_PROVIDER` and
+`AI_MODEL` (plus a key for hosted providers) in `.env` and restart. Nothing is sent anywhere while
+they are unset.
+
+| Provider | `AI_PROVIDER` | Needs |
+| --- | --- | --- |
+| Anthropic | `anthropic` | `AI_API_KEY` (or `ANTHROPIC_API_KEY`) |
+| OpenAI | `openai` | `AI_API_KEY` (or `OPENAI_API_KEY`) |
+| Google Gemini | `google` | `AI_API_KEY` (or `GEMINI_API_KEY`) |
+| Any OpenAI-compatible server (vLLM, LiteLLM, OpenRouter, llama.cpp…) | `openai-compatible` | `AI_BASE_URL` (the `/v1` root), a key if it wants one |
+| Ollama (local) | `ollama` | the model pulled; `AI_BASE_URL` defaults to `http://localhost:11434/v1` |
+| LM Studio (local) | `lmstudio` | the model loaded; `AI_BASE_URL` defaults to `http://localhost:1234/v1` |
+
+```bash
+AI_PROVIDER=anthropic
+AI_MODEL=claude-haiku-4-5
+AI_API_KEY=sk-ant-...
+
+# or a local model
+AI_PROVIDER=ollama
+AI_MODEL=llama3.2
+```
+
+In Docker, a model running on the host is at `AI_BASE_URL=http://host.docker.internal:11434/v1`
+(Ollama) or `http://host.docker.internal:1234/v1` (LM Studio). The server log says which provider
+and model it uses at startup (never the key), and Settings → General → AI shows them.
+
+**Writing assistant.** Select text and choose *Ask AI* in the formatting toolbar, or type `/` and
+pick *Ask AI*, *Continue writing* or *Summarize page*. On a selection: improve writing, fix
+spelling and grammar, make shorter, translate (choose the language), or type your own
+instruction. The answer streams into a panel; *Replace selection* or *Insert below* adds it to the
+page, *Try again* asks again and *Discard* (or Escape) drops it. *Stop* cancels the request. Before
+a suggestion is added, the page's current version is saved in its history ("Before AI assistant
+edit"), and the change is an ordinary edit everyone sees live, which Undo takes back. Only people
+who may edit a page can use it there.
+
+**AI properties.** In a database, *+* → *AI autofill* adds a text property that AI fills in; any
+text property's menu has *AI autofill…* too. It can write a summary of each row's page, a
+translation of the row's name, page content or another property, or follow your own prompt, where
+`{Property name}` stands for that property's value of the row and `{title}` for its name
+(optionally with the row's page content). Values are ordinary text: filters, sorting, CSV export,
+the REST API and MCP see them like any other text, and people can still edit them. They are worked
+out in the background, when the property is added, when you hover a cell and click *Update with
+AI* (or on a row's page), with *Update all rows in this view* in the property's menu, and, if you
+tick *Update when the row changes*, a few seconds after a row's values or page change (only when
+what the value depends on changed). Cells show when a value is being worked out or failed, and
+why. Turning AI autofill off leaves the values as plain text.
+
+**Privacy.** Requests run as the person who asked, with their access at the time: the assistant
+works only on pages they may edit, and an AI property sends only the row values they can see.
+Nothing is sent without someone asking (automatic updates follow an edit and run as its author).
+Owners can turn AI off for a workspace in Settings → General → AI, which stops both features
+there. The server logs each request's feature, model, token counts and cost, never its content.
+With a hosted provider, what is sent is subject to that provider's terms; a local model keeps
+everything on your machines.
+
+**Limits.**
+
+| Variable | Default | |
+| --- | --- | --- |
+| `AI_MAX_INPUT_CHARS` | 48000 | Characters one request may send; a longer selection is refused, a longer page is cut |
+| `AI_MAX_OUTPUT_TOKENS` | 2048 | Tokens one answer may have |
+| `AI_TIMEOUT_SECONDS` | 60 | |
+| `AI_RATE_LIMIT` | 20 | Requests per person per minute |
+| `AI_WORKSPACE_RATE_LIMIT` | 120 | Requests per workspace per minute, AI property values included (they wait for their turn) |
+| `AI_CONCURRENCY` | 2 | AI property values worked out at the same time |
+| `AI_CONTEXT_WINDOW` | 32768 | Context size assumed for OpenAI-compatible and local models |
+
+**Embeddings** (for semantic search): `AI_EMBEDDINGS_MODEL` turns them on. They use an
+OpenAI-compatible `/embeddings` endpoint: the chat provider's by default (OpenAI, Google, local
+servers; Anthropic has none, so set `AI_EMBEDDINGS_BASE_URL`), with `AI_EMBEDDINGS_API_KEY` and
+`AI_EMBEDDINGS_DIMENSIONS` if needed.
+
 ## Connect an AI assistant
 
 The server URL is `<APP_URL>/mcp`. My account → *Connected apps* shows ready-to-copy
@@ -532,6 +613,12 @@ Useful scripts:
   connects, so offline edits merge on reconnect like any other change; a hand-written service
   worker (`public/sw.js`) keeps the app's scripts and the signed-in pages' HTML per user. See
   `src/lib/offline.ts` for what is stored where and when it is wiped.
+- AI features go through one interface, `src/server/ai` (config from the environment, streaming
+  chat with tool calls, embeddings, limits, usage logging), built on `@earendil-works/pi-ai` with
+  only the Anthropic, OpenAI, Google and OpenAI-compatible APIs loaded; nothing else imports the
+  library. Embeddings are a plain `fetch` to an OpenAI-compatible `/embeddings` endpoint. AI
+  property values are worked out by an in-process queue (`src/server/ai-properties.ts`) whose
+  pending and failed states live in `ai_property_state`.
 - Auth is Better Auth: email/password, GitHub/Google, two-factor and passkey plugins for people,
   and the OAuth provider, JWT, MCP and CIMD plugins for apps. Data access uses Drizzle ORM on PostgreSQL 18.
 
