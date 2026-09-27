@@ -94,7 +94,7 @@ export async function POST(request: Request) {
         );
         result = {
           pages: [{ id: imported.database.id, title: imported.database.title, kind: "database" }],
-          created: { pages: 0, databases: 1, rows: imported.rows.length, files: 0 },
+          created: { pages: 0, databases: 1, rows: imported.rows.length, templates: 0, files: 0 },
           warnings: warnings.list,
           moreWarnings: warnings.more,
         };
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
         );
         result = {
           pages: [{ id: imported.database.id, title: imported.database.title, kind: "database" }],
-          created: { pages: 0, databases: 0, rows: imported.rows.length, files: 0 },
+          created: { pages: 0, databases: 0, rows: imported.rows.length, templates: 0, files: 0 },
           warnings: warnings.list,
           moreWarnings: warnings.more,
         };

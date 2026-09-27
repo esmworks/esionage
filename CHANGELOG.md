@@ -26,7 +26,12 @@
     relative path are uploaded to it and the links pointed at the uploads; images inside a line of
     text get lines of their own. CSV files in the upload become databases, and pages in their
     folder become the bodies of the rows with the same title (or new rows). Notion's layout is
-    understood (`Export-…` folder, split exports with ZIPs inside, `_all.csv`).
+    understood (`Export-…` folder, split exports with ZIPs inside, `_all.csv`), and so is Esionage's
+    own export: its `Templates/` folders become the database's row templates and, when importing
+    at the top level, workspace templates again (under a page they're pages of a "Templates"
+    page), and the property list at the top of a row's page is left out of the row's body when it
+    says what the CSV does. Exporting such an import gives the same archive back
+    (`scripts/roundtrip-e2e.ts`).
   - A CSV file becomes a new database, each column typed as guessed from its values (number,
     checkbox, date in ISO, day-first or month-first form, URL, email, select or multi-select for
     few repeating values, else text) and changeable in the dialog, or its rows are added to an

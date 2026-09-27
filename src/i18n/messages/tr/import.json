@@ -51,6 +51,7 @@
     "pages": "{count, plural, one {# sayfa} other {# sayfa}}",
     "databases": "{count, plural, one {# veritabanı} other {# veritabanı}}",
     "rows": "{count, plural, one {# satır} other {# satır}}",
+    "templates": "{count, plural, one {# şablon} other {# şablon}}",
     "files": "{count, plural, one {# dosya} other {# dosya}}"
   },
   "warnings": {

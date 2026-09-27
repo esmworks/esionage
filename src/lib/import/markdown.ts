@@ -17,7 +17,12 @@
  *     Old.md
  *
  * Notion adds a 32-character id to every name ("Project 1a2b….md"); titles leave it out.
+ *
+ * Esionage's own export (lib/export-layout) adds `Templates/` folders: in a database's folder its
+ * row templates, at the top the workspace's templates.
  */
+
+import { TEMPLATES_FOLDER } from "../export-layout";
 
 const MB = 1024 * 1024;
 
@@ -112,6 +117,33 @@ export function splitTitle(markdown: string, fallback: string): { title: string;
   return { title: (title ?? fallback).slice(0, 200), body: text.replace(/^\s*\n/, "") };
 }
 
+/** A cell as the export writes it in a row page's property list: on one line. */
+const oneLine = (value: string) => value.replace(/\s*\n\s*/g, ", ").trim();
+
+/**
+ * A row page's body without the property list Esionage's export puts at its top (`- Status: Done`,
+ * one line per filled cell in column order, the title's left out) when the list is what the export
+ * writes for `cells`, the row's cells in the CSV: those values are in the row's properties already.
+ * Any other body, a list the page itself starts with included, comes back as it is. Files are links
+ * in the list and "name (path)" in the CSV, so values that are links aren't compared.
+ */
+export function stripRowProperties(body: string, headers: string[], cells: string[], titleColumn: number | null): string {
+  const expected = headers
+    .map((header, i) => ({ header, value: oneLine(cells[i] ?? ""), i }))
+    .filter((c) => c.i !== titleColumn && c.value !== "");
+  if (!expected.length) return body;
+  const lines = body.split("\n");
+  if (lines.length > expected.length && lines[expected.length].trim() !== "") return body;
+  const matches = expected.every(({ header, value }, k) => {
+    const prefix = `- ${header}: `;
+    const line = lines[k] ?? "";
+    if (!line.startsWith(prefix)) return false;
+    const written = line.slice(prefix.length).trim();
+    return written === value || written.includes("](");
+  });
+  return matches ? lines.slice(expected.length).join("\n").replace(/^\s*\n/, "") : body;
+}
+
 export type PlanNode = {
   /** The file's path, or a folder's path with a trailing slash. */
   key: string;
@@ -121,6 +153,11 @@ export type PlanNode = {
   source: string | null;
   /** The title to use when the content doesn't give one. */
   title: string;
+  /**
+   * A template: from a `Templates/` folder in a database's folder (a row template, kind "row") or,
+   * when importing at the workspace's top level, at the top of the upload (a workspace template).
+   */
+  template?: boolean;
   /** Key of the node it goes under; null for the import's destination. */
   parent: string | null;
 };
@@ -138,7 +175,7 @@ const INDEX_NAMES = ["index", "readme"];
 const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
 /** Which files become which pages; see the layout at the top. `paths` are normalized paths of files. */
-export function planImport(paths: string[]): ImportPlan {
+export function planImport(paths: string[], { topLevel = false }: { topLevel?: boolean } = {}): ImportPlan {
   const skipped: ImportPlan["skipped"] = [];
   let files = [...new Set(paths)].filter((p) => !isIgnoredPath(p));
   for (const p of files) if (importFileKind(p) === "zip") skipped.push({ path: p, reason: "nestedZip" });
@@ -179,9 +216,21 @@ export function planImport(paths: string[]): ImportPlan {
       own.find((p) => cleanTitle(p).toLowerCase() === cleanTitle(folder).toLowerCase());
     if (pick) indexOf.set(folder, pick);
   }
+
+  // Templates/ folders as Esionage's export writes them (the name is only used by the layout when
+  // no page of that name sits beside it): a database's row templates, and at the top the
+  // workspace's templates, which only a top-level import makes templates again.
+  const templateFolders = new Set<string>();
+  for (const folder of folders) {
+    if (basename(folder) !== TEMPLATES_FOLDER || siblingOf.has(folder)) continue;
+    const outer = dirname(folder);
+    if (outer ? importFileKind(siblingOf.get(outer) ?? "") === "csv" : topLevel) templateFolders.add(folder);
+  }
+  for (const folder of templateFolders) indexOf.delete(folder);
   const indexFiles = new Set(indexOf.values());
 
-  const folderKey = (folder: string): string | null => (folder ? (siblingOf.get(folder) ?? `${folder}/`) : null);
+  const folderKey = (folder: string): string | null =>
+    !folder ? null : templateFolders.has(folder) ? folderKey(dirname(folder)) : (siblingOf.get(folder) ?? `${folder}/`);
   const draft = new Map<string, PlanNode>();
   for (const p of content) {
     if (indexFiles.has(p)) continue;
@@ -191,10 +240,11 @@ export function planImport(paths: string[]): ImportPlan {
       source: p,
       title: cleanTitle(p) || "Untitled",
       parent: folderKey(dirname(p)),
+      ...(templateFolders.has(dirname(p)) ? { template: true } : {}),
     });
   }
   for (const folder of folders) {
-    if (siblingOf.has(folder)) continue;
+    if (siblingOf.has(folder) || templateFolders.has(folder)) continue;
     const key = `${folder}/`;
     draft.set(key, {
       key,
@@ -202,10 +252,11 @@ export function planImport(paths: string[]): ImportPlan {
       source: indexOf.get(folder) ?? null,
       title: cleanTitle(folder) || "Untitled",
       parent: folderKey(dirname(folder)),
+      ...(templateFolders.has(dirname(folder)) ? { template: true } : {}),
     });
   }
 
-  // Inside a database: pages are rows; a database can't hold another database.
+  // Inside a database: pages are rows (or row templates); a database can't hold another database.
   const depth = new Map<string, number>();
   const depthOf = (node: PlanNode): number => {
     if (depth.has(node.key)) return depth.get(node.key)!;
