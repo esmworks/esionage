@@ -25,8 +25,9 @@ const { registerCollab } = await import("@/server/collab/bridge");
 const { createCollab } = await import("@/server/collab/service");
 const { createMcpServer } = await import("@/server/mcp/tools");
 const { READ_SCOPE, WRITE_SCOPE } = await import("@/server/mcp/principal");
-const { addProperty, addView, deleteProperty, getDatabaseSnapshot, getProperties, updateRowProperties, updateView } =
+const { addProperty, addView, deleteProperty, deleteView, getDatabaseSnapshot, getProperties, updateRowProperties, updateView } =
   await import("@/server/databases");
+const { getPublishedPage, publishPage } = await import("@/server/publication");
 const { duplicatePage } = await import("@/server/duplicate");
 const { createPage } = await import("@/server/pages");
 const { setPagePermission } = await import("@/server/permissions");
@@ -272,6 +273,22 @@ try {
   const described = await callTool(ids.owner, "get_database", { database_id: tasks.id });
   const roadmap = described.data.views.find((v: { id: string }) => v.id === created.data.id);
   check(roadmap?.type === "timeline" && roadmap.show_table === false, "get_database describes timeline settings", roadmap);
+
+  // A published database shows the columns its first view shows, whatever the view's type
+  const published = await createPage(actor, { workspaceId, kind: "database", title: "Public list" });
+  const [firstView] = (await getDatabaseSnapshot(ids.owner, published.id)).views;
+  const notes = await addProperty(ids.owner, published.id, { name: "Notes", type: "text" });
+  const when = await addProperty(ids.owner, published.id, { name: "When", type: "date" });
+  const compact = await addView(ids.owner, published.id, { name: "Compact", type: "list" });
+  await updateView(ids.owner, compact.id, { config: { shown: [when.id] } });
+  await deleteView(ids.owner, firstView.id);
+  const { token } = await publishPage(ids.owner, published.id);
+  const publicColumns = (await getPublishedPage(token))?.database?.properties.map((p) => p.id);
+  check(
+    publicColumns?.length === 1 && publicColumns[0] === when.id && !publicColumns.includes(notes.id),
+    "a published list shows only the properties the list shows",
+    publicColumns,
+  );
 
   console.log(`\n${passed} checks passed`);
 } finally {

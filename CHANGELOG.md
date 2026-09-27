@@ -25,6 +25,20 @@
 - **System properties:** when a row was created, when it was last edited, and who edited it last.
   They are read-only and can be filtered (including relative dates) and sorted. They are included
   in CSV export and MCP. Editing a row's body counts as an edit.
+- **More grouping:** boards and tables group by multi-select, checkbox, date (day, week, month or
+  year), created or edited time and relation, and statuses by their to do / in progress / done
+  group. Tables show groups as collapsible sections with counts, their own calculations and a
+  New row that fills in the group's value.
+- **Gallery view:** cards with the first image of each row's page as cover, in three sizes.
+- **List view:** one compact line per row, with the properties you choose on the right.
+- **Timeline view:** bars from a start date to an optional end date, day, week or month zoom,
+  drag to move or resize, swimlanes by any groupable property, and a "No date" section you can
+  drag rows from. MCP `create_database_view` and `update_database_view` handle the new views.
+
+### Changed
+
+- **Published databases** show the columns their first view shows. A board no longer publishes
+  the text and number properties it hides on its cards.
 
 ## 0.2.0 — 2026-09-27
 

@@ -358,7 +358,8 @@ async function publishedDatabase(publisher: string, databaseId: string): Promise
   }
   // Filters and sorts may use relation and people properties; applyView needs every property for that.
   // Grouping is left out: published pages show every view as one flat table (boards too), since
-  // groups by people or linked rows would name what the page doesn't publish.
+  // groups by people or linked rows would name what the page doesn't publish. The columns are the
+  // ones the view itself shows, so a list or timeline never publishes what it keeps hidden.
   const rows = await publicValues(
     stored.map(({ createdBy, updatedBy, ...row }) => ({
       ...row,
@@ -367,7 +368,7 @@ async function publishedDatabase(publisher: string, databaseId: string): Promise
     allProperties,
   );
   return {
-    properties: properties.filter((prop) => !isHiddenInView({ type: "table", config: view.config }, prop)),
+    properties: properties.filter((prop) => !isHiddenInView(view, prop)),
     view: { id: view.id, name: view.name, type: view.type },
     rows: applyView(rows, view.config, allProperties, { people: await sortNames(rows, allProperties, view.config) }),
   };

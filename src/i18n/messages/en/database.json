@@ -363,6 +363,7 @@
     "needsDateBody": "This database has no date property yet.",
     "addDateProperty": "Add {name} property",
     "defaultDateProperty": "Date",
+    "defaultEndProperty": "End",
     "addOnDay": "Add a row on {date}",
     "noDate": "{count, plural, one {# row} other {# rows}} without {property}",
     "noDateTitle": "Rows without {property}"

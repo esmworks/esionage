@@ -363,6 +363,7 @@
     "needsDateBody": "Bu veritabanında henüz tarih özelliği yok.",
     "addDateProperty": "{name} özelliği ekle",
     "defaultDateProperty": "Tarih",
+    "defaultEndProperty": "Bitiş",
     "addOnDay": "{date} için satır ekle",
     "noDate": "{property} olmayan {count, plural, other {# satır}}",
     "noDateTitle": "{property} olmayan satırlar"
