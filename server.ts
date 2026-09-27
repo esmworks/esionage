@@ -20,6 +20,7 @@ const hostname = process.env.HOSTNAME ?? "0.0.0.0";
 const { createCollab } = await import("./src/server/collab/service");
 const { registerCollab } = await import("./src/server/collab/bridge");
 const { describeMailSetup } = await import("./src/server/mail");
+const { startAssignmentEmails } = await import("./src/server/assignments");
 
 const { hocuspocus, service } = createCollab();
 registerCollab(service);
@@ -67,6 +68,7 @@ server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
 server.listen(port, hostname, () => {
   console.log(`esionage ready on http://localhost:${port} (${dev ? "dev" : "production"})`);
   console.log(describeMailSetup());
+  startAssignmentEmails();
 });
 
 let shuttingDown = false;

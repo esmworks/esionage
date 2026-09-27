@@ -3,6 +3,7 @@ import { type MailConfig, MailConfigError, readMailConfig } from "./config";
 
 export { MailConfigError } from "./config";
 export {
+  assignmentEmail,
   type EmailContent,
   type RenderedEmail,
   invitationEmail,

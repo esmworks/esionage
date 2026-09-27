@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { FilterRule, PropertyOptions, PropertyType } from "@/db/schema/app";
 import {
   applyView,
+  boardGroupProperty,
+  groupRowsByPerson,
+  movePersonValue,
+  newAssignees,
   defaultsFromFilters,
   displayValue,
   filterNeedsValue,
@@ -362,5 +366,66 @@ describe("person properties", () => {
     expect(
       defaultsFromFilters([{ propertyId: "p_person", op: "contains", value: "u2" }], [owner], { viewerId: "u1" }),
     ).toEqual({ p_person: ["u2"] });
+  });
+});
+
+describe("person boards", () => {
+  const owner = prop("person");
+  const people = [
+    { id: "u1", name: "Ayşe", active: true },
+    { id: "u2", name: "Mert", active: true },
+    { id: "u3", name: "Eski", active: false },
+    { id: "u4", name: "Yeni", active: true },
+  ];
+
+  it("groups by the view's choice, else the first select, else the first person property", () => {
+    expect(boardGroupProperty([owner, status])?.id).toBe("p_select");
+    expect(boardGroupProperty([owner, status], "p_person")?.id).toBe("p_person");
+    expect(boardGroupProperty([owner, prop("text")])?.id).toBe("p_person");
+    expect(boardGroupProperty([prop("text")], "p_text")).toBeUndefined();
+  });
+
+  it("shows a card in each assignee's column and former members only while assigned", () => {
+    const rows = [
+      row("a", "A", { p_person: ["u1", "u2"] }),
+      row("b", "B", { p_person: ["u2", "gone"] }),
+      row("c", "C", { p_person: ["gone"] }),
+      row("d", "D"),
+    ];
+    const groups = groupRowsByPerson(rows, owner, people);
+    expect(groups.map((g) => [g.option?.id ?? "", g.rows.map((r) => r.id)])).toEqual([
+      ["", ["c", "d"]],
+      ["u1", ["a"]],
+      ["u2", ["a", "b"]],
+      ["u4", []],
+    ]);
+    expect(groups[1].person).toEqual(people[0]);
+    const withFormer = groupRowsByPerson([row("e", "E", { p_person: ["u3"] })], owner, people);
+    expect(withFormer.map((g) => g.option?.id ?? "")).toEqual(["", "u1", "u2", "u3", "u4"]);
+  });
+
+  it("moves a card by swapping the column's person", () => {
+    expect(movePersonValue(["u1", "u2"], "u1", "u4")).toEqual(["u4", "u2"]);
+    expect(movePersonValue(["u1", "u2"], "u1", "u2")).toEqual(["u2"]);
+    expect(movePersonValue(undefined, null, "u1")).toEqual(["u1"]);
+    expect(movePersonValue(["u2"], null, "u1")).toEqual(["u2", "u1"]);
+    expect(movePersonValue(["u1", "u2"], "u1", null)).toEqual([]);
+  });
+});
+
+describe("newAssignees", () => {
+  const props = [{ id: "p_owner" }, { id: "p_reviewer" }];
+
+  it("lists people added to person properties, except the one who added them", () => {
+    expect(
+      newAssignees(props, { p_owner: ["u1"] }, { p_owner: ["u1", "u2", "me-id"], p_reviewer: ["u3"] }, "me-id"),
+    ).toEqual([
+      { propertyId: "p_owner", userId: "u2" },
+      { propertyId: "p_reviewer", userId: "u3" },
+    ]);
+  });
+
+  it("ignores removals, unchanged values and other properties", () => {
+    expect(newAssignees(props, { p_owner: ["u1", "u2"] }, { p_owner: ["u2"], p_text: ["u9"] }, "me-id")).toEqual([]);
   });
 });

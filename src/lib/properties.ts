@@ -393,7 +393,85 @@ export function positionBetween(before?: number | null, after?: number | null): 
   return 1;
 }
 
-export type RowGroup<T> = { option: SelectOption | null; rows: T[] };
+export type RowGroup<T> = {
+  /** The column's option; for person columns a stand-in carrying the person's id and name. */
+  option: SelectOption | null;
+  /** Set on person columns. */
+  person?: GroupPerson;
+  rows: T[];
+};
+
+type GroupPerson = { id: string; name: string; active: boolean };
+
+/** Property types a board can group by. */
+export function isGroupable(type: PropertyType) {
+  return type === "select" || type === "person";
+}
+
+/** The property a board groups by: the view's choice, else the first select, else the first person property. */
+export function boardGroupProperty<P extends { id: string; type: PropertyType }>(props: P[], groupBy?: string) {
+  const groupable = props.filter((p) => isGroupable(p.type));
+  return groupable.find((p) => p.id === groupBy) ?? groupable.find((p) => p.type === "select") ?? groupable[0];
+}
+
+/**
+ * Buckets rows by a person property: first the rows without anyone, then one column per person
+ * in `people` order. A row assigned to several people shows in each of their columns. Former
+ * members only get a column while someone is still assigned to them.
+ */
+export function groupRowsByPerson<T extends { properties: Record<string, unknown> }>(
+  rows: T[],
+  prop: { id: string },
+  people: GroupPerson[],
+): RowGroup<T>[] {
+  const known = new Set(people.map((p) => p.id));
+  const none: RowGroup<T> = { option: null, rows: [] };
+  const byPerson = new Map(people.map((p) => [p.id, [] as T[]]));
+  for (const row of rows) {
+    const value = row.properties[prop.id];
+    const ids = Array.isArray(value) ? value.filter((id): id is string => typeof id === "string" && known.has(id)) : [];
+    if (!ids.length) none.rows.push(row);
+    for (const id of new Set(ids)) byPerson.get(id)!.push(row);
+  }
+  const groups = people
+    .filter((p) => p.active || byPerson.get(p.id)!.length)
+    .map((person) => ({
+      option: { id: person.id, name: person.name, color: "gray" },
+      person,
+      rows: byPerson.get(person.id)!,
+    }));
+  return [none, ...groups];
+}
+
+/** People added to person properties by a change, leaving out whoever made it (they know). */
+export function newAssignees(
+  personProps: { id: string }[],
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+  actorId: string,
+) {
+  const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  return personProps.flatMap((prop) => {
+    const was = ids(before[prop.id]);
+    return ids(after[prop.id])
+      .filter((id) => id !== actorId && !was.includes(id))
+      .map((userId) => ({ propertyId: prop.id, userId }));
+  });
+}
+
+/**
+ * A person value after dragging its card from one person's column (`from`, null for the no-person
+ * column) to another's (`to`): `to` takes `from`'s place, everyone else stays. Dropping on the
+ * no-person column unassigns everyone, so the card really lands there.
+ */
+export function movePersonValue(value: unknown, from: string | null | undefined, to: string | null | undefined): string[] {
+  if (!to) return [];
+  const ids = Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
+  if (ids.includes(to)) return from ? ids.filter((id) => id !== from) : ids;
+  const at = from ? ids.indexOf(from) : -1;
+  if (at === -1) return [...ids, to];
+  return ids.map((id, i) => (i === at ? to : id));
+}
 
 /**
  * Buckets rows by a select property: first a group for rows without a (known) value, then one

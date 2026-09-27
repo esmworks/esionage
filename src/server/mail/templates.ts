@@ -114,6 +114,25 @@ export function invitationEmail(
   });
 }
 
+export function assignmentEmail(
+  locale: Locale,
+  assignment: { actorName: string; rowTitle: string; databaseTitle: string; propertyName: string; link: string },
+): RenderedEmail {
+  const t = emailTranslator(locale);
+  const names = {
+    actor: assignment.actorName,
+    row: assignment.rowTitle,
+    database: assignment.databaseTitle,
+    property: assignment.propertyName,
+  };
+  return renderEmail(locale, {
+    subject: t("assignment.subject", names),
+    heading: t("assignment.heading", names),
+    paragraphs: [t("assignment.body", names), t("assignment.optOut")],
+    action: { label: t("assignment.action"), url: assignment.link },
+  });
+}
+
 /** Minutes a password reset link stays valid; also the Better Auth token lifetime. */
 export const PASSWORD_RESET_MINUTES = 60;
 

@@ -24,5 +24,13 @@
     "body": "Merhaba {name}, Esionage hesabınızın şifresini sıfırlamak için bir istek yapıldı. İsteği siz yaptıysanız aşağıdaki düğmeyle yeni bir şifre belirleyin.",
     "expires": "Bağlantı {minutes} dakika boyunca ve yalnızca bir kez çalışır. Bu isteği siz yapmadıysanız bu e-postayı yok sayın; şifreniz değişmez.",
     "action": "Yeni şifre belirle"
+  },
+  "assignment": {
+    "subject": "{actor} sizi “{row}” işine atadı",
+    "heading": "Size bir iş atandı: “{row}”",
+    "body": "{actor}, sizi {database} içinde “{property}” alanına ekledi.",
+    "action": "Aç",
+    "untitled": "Adsız",
+    "optOut": "Bu e-postaları Ayarlar > Tercihler bölümünden kapatabilirsiniz."
   }
 }

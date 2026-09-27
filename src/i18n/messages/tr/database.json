@@ -57,7 +57,7 @@
     "group": "Grupla",
     "groupWithName": "Grup: {name}",
     "groupBy": "Grupla",
-    "groupNeedsSelect": "Panolar bir seçim özelliğine göre gruplanır.",
+    "groupNeedsSelect": "Panolar bir seçim veya kişi özelliğine göre gruplanır.",
     "newSelectProperty": "Yeni seçim özelliği",
     "properties": "Özellikler",
     "shownInView": "Bu görünümde gösterilenler",
@@ -128,8 +128,8 @@
     "open": "Aç"
   },
   "board": {
-    "needsSelectTitle": "Panolar satırları bir seçim özelliğine göre gruplar",
-    "needsSelectBody": "Bu veritabanında henüz seçim özelliği yok.",
+    "needsSelectTitle": "Panolar satırları bir seçim veya kişi özelliğine göre gruplar",
+    "needsSelectBody": "Bu veritabanında henüz seçim veya kişi özelliği yok.",
     "addGroupProperty": "{name} özelliği ekle",
     "noValue": "{property} yok",
     "cardCount": "{count, plural, other {# kart}}",

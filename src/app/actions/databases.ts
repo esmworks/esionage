@@ -71,7 +71,7 @@ export async function updateRowPropertiesAction(rowId: string, patch: Record<str
 
 export async function moveRowAction(
   rowId: string,
-  move: { position?: number; groupBy?: string; groupValue?: string | null },
+  move: { position?: number; groupBy?: string; groupValue?: string | null; groupFrom?: string | null },
 ) {
   return run((userId) => databases.moveRow(userId, rowId, move));
 }

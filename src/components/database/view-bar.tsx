@@ -20,7 +20,15 @@ import { useEffect, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem, MenuSeparator } from "@/components/ui";
 import type { FilterOp, FilterRule, SortRule, ViewConfig, ViewType } from "@/db/schema/app";
 import { pageLabel } from "@/lib/labels";
-import { filterNeedsValue, filterOperators, isHiddenInView, isSortable, toggleHiddenInView } from "@/lib/properties";
+import {
+  boardGroupProperty,
+  filterNeedsValue,
+  filterOperators,
+  isGroupable,
+  isHiddenInView,
+  isSortable,
+  toggleHiddenInView,
+} from "@/lib/properties";
 import { PERSON_ME } from "@/lib/property-types";
 import { Floating, useFloating } from "./floating";
 import { usePeople } from "./person-cell";
@@ -264,8 +272,8 @@ export function ViewToolbar({
   const sorts = config.sorts ?? [];
   const hiddenCount = properties.filter((p) => isHiddenInView(view, p)).length;
   const columns = columnsOf(properties, t("nameColumn"));
-  const selectProps = properties.filter((p) => p.type === "select");
-  const groupBy = selectProps.find((p) => p.id === config.groupBy) ?? selectProps[0];
+  const groupProps = properties.filter((p) => isGroupable(p.type));
+  const groupBy = boardGroupProperty(properties, config.groupBy);
   const dateMenu = useFloating<HTMLButtonElement>();
   const dateProps = properties.filter((p) => p.type === "date");
   const dateBy = dateProps.find((p) => p.id === config.dateBy) ?? dateProps[0];
@@ -311,7 +319,7 @@ export function ViewToolbar({
           />
           <Floating open={groupMenu.open} anchor={groupMenu.el} onClose={groupMenu.close} align="end">
             <div className="px-2 pt-1 pb-1.5 text-xs text-fg-muted">{t("toolbar.groupBy")}</div>
-            {selectProps.map((p) => (
+            {groupProps.map((p) => (
               <MenuItem
                 key={p.id}
                 active={p.id === groupBy?.id}
@@ -324,7 +332,7 @@ export function ViewToolbar({
                 {p.name}
               </MenuItem>
             ))}
-            {!selectProps.length && (
+            {!groupProps.length && (
               <div className="px-2 pb-1 text-xs text-fg-faint">{t("toolbar.groupNeedsSelect")}</div>
             )}
             {!locked && (

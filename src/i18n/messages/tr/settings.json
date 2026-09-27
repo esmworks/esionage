@@ -91,7 +91,7 @@
     }
   },
   "preferences": {
-    "description": "Esionage'ın bu tarayıcıda nasıl görüneceği."
+    "description": "Hesabınızın tercihleri: bu tarayıcıdaki görünüm ve e-posta bildirimleri."
   },
   "language": {
     "heading": "Dil",
@@ -166,5 +166,11 @@
       "description": "Misafirler kenar çubuğunun en üstüne yalnızca kendilerinin görebildiği sayfalar ekleyebilir ve bunları her sayfa gibi paylaşabilir. Kapalıyken yalnızca kendileriyle paylaşılan sayfalarda çalışırlar."
     },
     "ownersOnly": "Bunu yalnızca sahipler değiştirebilir."
+  },
+  "notifications": {
+    "heading": "Bildirimler",
+    "assignmentTitle": "Atama e-postaları",
+    "assignmentDescription": "Biri sizi bir veritabanı satırındaki kişi alanına atadığında e-posta alırsınız.",
+    "mailOff": "Bu sunucuda e-posta gönderimi kapalı olduğu için şu an e-posta gitmiyor."
   }
 }

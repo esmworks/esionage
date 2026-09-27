@@ -16,6 +16,7 @@ import {
 import { PERSON_ME } from "@/lib/property-types";
 import {
   applyView,
+  movePersonValue,
   normalizeValue,
   PropertyValueError,
   SELECT_COLORS,
@@ -30,6 +31,7 @@ import {
   requirePageAccess,
   type RequiredLevel,
 } from "@/server/access";
+import { scheduleAssignmentEmails } from "@/server/assignments";
 import { getCollab } from "@/server/collab/bridge";
 import { workspacePeople, type WorkspacePerson } from "@/server/workspaces";
 
@@ -332,8 +334,19 @@ export async function updateRowProperties(userId: string, rowId: string, patch: 
   }
   await db.update(page).set({ properties: next, updatedBy: userId }).where(eq(page.id, rowId));
   await syncPairedRelations(rowId, row.parentId, row.properties, next);
+  await emailNewAssignees(userId, row.parentId, [{ rowId, before: row.properties, after: next }]);
   notifyRows(row.parentId);
   return next;
+}
+
+/** Emails the people these row writes newly assign (see server/assignments). */
+export async function emailNewAssignees(
+  actorId: string,
+  databaseId: string,
+  changes: { rowId: string; before: Record<string, unknown>; after: Record<string, unknown> }[],
+) {
+  const personProps = (await getProperties(databaseId)).filter((p) => p.type === "person");
+  if (personProps.length) await scheduleAssignmentEmails(actorId, personProps, changes);
 }
 
 export type NewRow = { title: string; properties?: Record<string, unknown> };
@@ -377,6 +390,11 @@ export async function createRows(userId: string, databaseId: string, rows: NewRo
   await db.insert(page).values(created);
 
   for (const row of created) await syncPairedRelations(row.id, databaseId, {}, row.properties);
+  await emailNewAssignees(
+    userId,
+    databaseId,
+    created.map((row) => ({ rowId: row.id, before: {}, after: row.properties })),
+  );
   notifyTree(database.workspaceId);
   notifyRows(databaseId);
   return created.map(({ id, title }) => ({ id, title }));
@@ -693,24 +711,45 @@ export async function deleteView(userId: string, viewId: string) {
   notifyTree(view.workspaceId);
 }
 
-/** Reorders a row (board drag) and optionally changes its group value in one step. */
+/**
+ * Reorders a row (board drag) and optionally changes its group value in one step. On a board
+ * grouped by people, `groupFrom` is the person whose column the card left: `groupValue` takes
+ * their place (see movePersonValue).
+ */
 export async function moveRow(
   userId: string,
   rowId: string,
-  { position, groupBy, groupValue }: { position?: number; groupBy?: string; groupValue?: string | null },
+  {
+    position,
+    groupBy,
+    groupValue,
+    groupFrom,
+  }: { position?: number; groupBy?: string; groupValue?: string | null; groupFrom?: string | null },
 ) {
   const row = await requirePageAccess(userId, rowId, "edit");
   if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
   await requireDatabase(userId, row.parentId, "view");
   const properties = { ...row.properties };
+  let person = false;
   if (groupBy) {
-    if (groupValue) properties[groupBy] = groupValue;
+    const [prop] = await db
+      .select({ type: databaseProperty.type })
+      .from(databaseProperty)
+      .where(and(eq(databaseProperty.id, groupBy), eq(databaseProperty.databaseId, row.parentId)));
+    person = prop?.type === "person";
+    if (person) {
+      const next = movePersonValue(properties[groupBy], groupFrom, groupValue);
+      const normalized = await normalizeRowProperties(userId, row.parentId, { [groupBy]: next }, row.properties);
+      if (normalized[groupBy]) properties[groupBy] = normalized[groupBy];
+      else delete properties[groupBy];
+    } else if (groupValue) properties[groupBy] = groupValue;
     else delete properties[groupBy];
   }
   await db
     .update(page)
     .set({ properties, ...(position !== undefined ? { position } : {}), updatedBy: userId })
     .where(eq(page.id, rowId));
+  if (person) await emailNewAssignees(userId, row.parentId, [{ rowId, before: row.properties, after: properties }]);
   notifyRows(row.parentId);
 }
 

@@ -23,7 +23,7 @@ import {
   requirePageAccess,
 } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
-import { normalizeRowProperties, syncPairedRelations, withCode } from "@/server/databases";
+import { emailNewAssignees, normalizeRowProperties, syncPairedRelations, withCode } from "@/server/databases";
 import { makePagePrivate } from "@/server/permissions";
 import { requireTopLevel } from "@/server/workspaces";
 
@@ -221,6 +221,7 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
   }
 
   if (parentKind === "database") await syncPairedRelations(created.id, input.parentId!, {}, properties);
+  if (parentKind === "database") await emailNewAssignees(userId, input.parentId!, [{ rowId: created.id, before: {}, after: properties }]);
 
   const collab = getCollab();
   if (input.markdown?.trim()) await collab.replaceContent(created.id, input.markdown, actor);

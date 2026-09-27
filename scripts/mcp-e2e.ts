@@ -477,7 +477,7 @@ async function main() {
   const boardUpdated = await mcp.ok("update_database_view", { database_id: dbPage.id, view_id: board.id, name: "Board", filters: [] });
   check(boardUpdated.name === "Board" && !boardUpdated.filters && boardUpdated.group_by === "Status", "update_database_view clears filters and keeps grouping", boardUpdated);
   const listView = await mcp.call("create_database_view", { database_id: dbPage.id, name: "Bad", type: "board", group_by: "Tags" });
-  check(listView.isError && listView.text.includes("select property"), "boards refuse non-select grouping", listView.text);
+  check(listView.isError && listView.text.includes("select or person property"), "boards refuse grouping by anything but select or person", listView.text);
 
   // ---- relations (two-way sync) and calendar views
   const customers = await mcp.ok("create_database", { parent_id: root.id, title: "Customers" });

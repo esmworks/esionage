@@ -24,5 +24,13 @@
     "body": "Hi {name}, someone asked to reset the password of your Esionage account. If it was you, choose a new password with the button below.",
     "expires": "The link works for {minutes} minutes and only once. If you didn't ask for this, ignore this email; your password stays the same.",
     "action": "Choose a new password"
+  },
+  "assignment": {
+    "subject": "{actor} assigned you to “{row}”",
+    "heading": "You were assigned to “{row}”",
+    "body": "{actor} added you to “{property}” in {database}.",
+    "action": "Open",
+    "untitled": "Untitled",
+    "optOut": "You can turn these emails off in Settings > Preferences."
   }
 }

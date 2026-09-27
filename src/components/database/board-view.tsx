@@ -7,8 +7,18 @@ import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Button, cn, MenuItem, MenuSeparator } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
 import type { SelectOption } from "@/db/schema/app";
-import { groupRows, isHiddenInView, orderGroups, positionBetween, SELECT_COLORS, type RowGroup } from "@/lib/properties";
+import {
+  boardGroupProperty,
+  groupRows,
+  groupRowsByPerson,
+  isHiddenInView,
+  orderGroups,
+  positionBetween,
+  SELECT_COLORS,
+  type RowGroup,
+} from "@/lib/properties";
 import { Floating, useFloating } from "./floating";
+import { PersonAvatar, usePeople } from "./person-cell";
 import { isEmptyValue, OptionChip, PropertyDisplay } from "./property-cell";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
@@ -34,9 +44,13 @@ export function BoardView({
   onCreateGroupProperty: () => void;
 }) {
   const t = useTranslations("database");
-  const selectProps = properties.filter((p) => p.type === "select");
-  const groupBy = selectProps.find((p) => p.id === view.config.groupBy) ?? selectProps[0];
+  const { people } = usePeople();
+  const groupBy = boardGroupProperty(properties, view.config.groupBy);
+  const byPerson = groupBy?.type === "person";
   const [dragId, setDragId] = useState<string | null>(null);
+  // The column a card was picked up from: on a person board the same card shows in every
+  // assignee's column, and moving it replaces only that column's person.
+  const [dragFrom, setDragFrom] = useState<string | null>(null);
   const [drop, setDrop] = useState<{ group: string; index: number } | null>(null);
   const [editTitleOf, setEditTitleOf] = useState<string | null>(null);
   // Column drag: the dragged column's key and the insertion index among the shown columns.
@@ -65,7 +79,10 @@ export function BoardView({
 
   const cardProps = properties.filter((p) => p.id !== groupBy.id && !isHiddenInView(view, p));
   const groupKey = (g: RowGroup<Row>) => g.option?.id ?? "";
-  const ordered = orderGroups(groupRows(rows, groupBy), view.config.groupOrder);
+  const ordered = orderGroups(
+    byPerson ? groupRowsByPerson(rows, groupBy, people) : groupRows(rows, groupBy),
+    view.config.groupOrder,
+  );
   // The "no value" column only earns space when it has cards; while dragging a card it appears at
   // the end (so the other columns don't shift) as a place to clear the value.
   const noValue = ordered.find((g) => !g.option)!;
@@ -148,16 +165,19 @@ export function BoardView({
     e.preventDefault();
     const rowId = dragId ?? e.dataTransfer.getData("text/plain");
     const index = drop?.group === groupKey(group) ? drop.index : group.rows.length;
+    const from = dragFrom;
     setDragId(null);
+    setDragFrom(null);
     setDrop(null);
     const row = rows.find((r) => r.id === rowId);
     if (!row) return;
     const others = group.rows.filter((r) => r.id !== rowId);
-    const sameGroup = group.rows.some((r) => r.id === rowId);
-    const move: { position?: number; groupBy?: string; groupValue?: string | null } = {};
+    const sameGroup = byPerson && from !== null ? from === groupKey(group) : group.rows.some((r) => r.id === rowId);
+    const move: { position?: number; groupBy?: string; groupValue?: string | null; groupFrom?: string | null } = {};
     if (!sameGroup) {
       move.groupBy = groupBy.id;
       move.groupValue = group.option?.id ?? null;
+      if (byPerson) move.groupFrom = from || null;
     }
     if (manualOrder) {
       const position = positionBetween(others[index - 1]?.position, others[index]?.position);
@@ -169,7 +189,8 @@ export function BoardView({
   };
 
   const addCard = async (group: RowGroup<Row>) => {
-    const id = await api.createRow(group.option ? { properties: { [groupBy.id]: group.option.id } } : {});
+    const value = byPerson ? [group.option?.id] : group.option?.id;
+    const id = await api.createRow(group.option ? { properties: { [groupBy.id]: value } } : {});
     if (id) setEditTitleOf(id);
   };
 
@@ -197,7 +218,7 @@ export function BoardView({
               data-col={key}
               aria-label={group.option?.name ?? t("board.noValue", { property: groupBy.name })}
               className={cn(
-                `tint-${group.option?.color ?? "gray"}`,
+                `tint-${(!byPerson && group.option?.color) || "gray"}`,
                 "group/col relative flex w-[17rem] shrink-0 flex-col rounded-xl bg-[var(--opt-tint)] p-2 transition-[box-shadow,opacity]",
                 dropping && "ring-2 ring-accent/50",
                 dragCol === key && "opacity-50",
@@ -232,6 +253,8 @@ export function BoardView({
                       if (name && name !== group.option?.name) void updateOption(key, { name });
                     }}
                   />
+                ) : group.person ? (
+                  <PersonGroupLabel person={group.person} />
                 ) : group.option ? (
                   <OptionChip option={group.option} className="min-w-0 truncate font-medium" />
                 ) : (
@@ -246,7 +269,7 @@ export function BoardView({
                 <span className="flex-1" />
                 {!readOnly && (
                   <GroupMenu
-                    option={group.option}
+                    option={byPerson ? null : group.option}
                     locked={locked}
                     onRename={() => setRenaming(key)}
                     onColor={(color) => updateOption(key, { color })}
@@ -295,9 +318,11 @@ export function BoardView({
                           e.dataTransfer.setData("text/plain", row.id);
                           e.dataTransfer.effectAllowed = "move";
                           setDragId(row.id);
+                          setDragFrom(key);
                         }}
                         onDragEnd={() => {
                           setDragId(null);
+                          setDragFrom(null);
                           setDrop(null);
                         }}
                       />
@@ -321,7 +346,7 @@ export function BoardView({
         })}
         {(!readOnly || hiddenGroups.length > 0) && (
           <div className="flex shrink-0 flex-col items-start gap-1">
-            {!readOnly && !locked && <NewGroup onCreate={(name) => api.createOption(groupBy.id, name)} />}
+            {!readOnly && !locked && !byPerson && <NewGroup onCreate={(name) => api.createOption(groupBy.id, name)} />}
             {hiddenGroups.length > 0 && (
               <HiddenGroups
                 groups={hiddenGroups}
@@ -469,7 +494,9 @@ function HiddenGroups({
         <div className="w-60">
           {groups.map((g) => (
             <div key={g.option?.id ?? ""} className="flex items-center gap-2 rounded px-2 py-1 hover:bg-bg-hover">
-              {g.option ? (
+              {g.person ? (
+                <PersonGroupLabel person={g.person} />
+              ) : g.option ? (
                 <OptionChip option={g.option} className="min-w-0 truncate" />
               ) : (
                 <span className="min-w-0 truncate text-sm text-fg-muted">{noValueLabel}</span>
@@ -495,6 +522,20 @@ function HiddenGroups({
         </div>
       </Floating>
     </>
+  );
+}
+
+/** A person column's title: their avatar and name, muted once they left the workspace. */
+function PersonGroupLabel({ person }: { person: NonNullable<RowGroup<Row>["person"]> }) {
+  const t = useTranslations("database.person");
+  return (
+    <span
+      className={cn("flex min-w-0 items-center gap-1.5 text-sm font-medium", !person.active && "text-fg-muted")}
+      title={person.active ? undefined : t("former")}
+    >
+      <PersonAvatar person={person} />
+      <span className="truncate">{person.name || t("unknown")}</span>
+    </span>
   );
 }
 

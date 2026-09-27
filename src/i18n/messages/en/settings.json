@@ -91,7 +91,7 @@
     }
   },
   "preferences": {
-    "description": "How Esionage looks in this browser."
+    "description": "Your account's preferences: how Esionage looks in this browser and which emails you get."
   },
   "language": {
     "heading": "Language",
@@ -166,5 +166,11 @@
       "description": "Guests can add pages at the top of the sidebar that only they can see, and share them like any page. Off: they only work in pages shared with them."
     },
     "ownersOnly": "Only owners can change this."
+  },
+  "notifications": {
+    "heading": "Notifications",
+    "assignmentTitle": "Assignment emails",
+    "assignmentDescription": "Get an email when someone assigns you to a person property in a database row.",
+    "mailOff": "This server can't send email right now, so none go out."
   }
 }

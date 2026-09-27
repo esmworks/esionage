@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MailConfigError, readMailConfig } from "./config";
-import { invitationEmail, PASSWORD_RESET_MINUTES, passwordResetEmail, renderEmail, testEmail } from "./templates";
+import { assignmentEmail, invitationEmail, PASSWORD_RESET_MINUTES, passwordResetEmail, renderEmail, testEmail } from "./templates";
 
 const FROM = "Esionage <no-reply@example.com>";
 
@@ -120,5 +120,27 @@ describe("invitationEmail", () => {
     const tr = passwordResetEmail("tr", { name: "Ayşe", url });
     expect(tr.subject).toBe("Esionage şifrenizi sıfırlayın");
     expect(tr.text).toContain(`Yeni şifre belirle: ${url}`);
+  });
+});
+
+describe("assignmentEmail", () => {
+  const assignment = {
+    actorName: "Erhan",
+    rowTitle: "Teklif <hazırla>",
+    databaseTitle: "İşlerim",
+    propertyName: "Sorumlu",
+    link: "https://notes.example.com/w/ws/p/row1",
+  };
+
+  it("names who assigned what, with a link to the row", () => {
+    const tr = assignmentEmail("tr", assignment);
+    expect(tr.subject).toBe("Erhan sizi “Teklif <hazırla>” işine atadı");
+    expect(tr.text).toContain("Erhan, sizi İşlerim içinde “Sorumlu” alanına ekledi.");
+    expect(tr.text).toContain("Aç: https://notes.example.com/w/ws/p/row1");
+    expect(tr.html).toContain("Teklif &lt;hazırla&gt;");
+
+    const en = assignmentEmail("en", assignment);
+    expect(en.subject).toBe("Erhan assigned you to “Teklif <hazırla>”");
+    expect(en.text).toContain("Erhan added you to “Sorumlu” in İşlerim.");
   });
 });

@@ -96,7 +96,9 @@ function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput,
   if (input.group_by !== undefined) {
     if (type !== "board") throw new ToolInputError("group_by only applies to board views.");
     const prop = requireProperty(props, input.group_by);
-    if (prop.type !== "select") throw new ToolInputError(`Boards group by a select property; "${prop.name}" is ${prop.type}.`);
+    if (prop.type !== "select" && prop.type !== "person") {
+      throw new ToolInputError(`Boards group by a select or person property; "${prop.name}" is ${prop.type}.`);
+    }
     patch.groupBy = prop.id;
   }
   if (input.date_by !== undefined) {
@@ -768,12 +770,12 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a database view",
       description:
-        'Add a saved view to a database: a "table", a "board" (cards grouped by a select property) or a "calendar" (rows placed on the days of a date property). Filters and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows.',
+        'Add a saved view to a database: a "table", a "board" (cards grouped by a select or person property; a card assigned to several people shows under each) or a "calendar" (rows placed on the days of a date property). Filters and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows.',
       inputSchema: z.object({
         database_id: id("database"),
         name: z.string().min(1).max(100).describe("View name."),
         type: z.enum(["table", "board", "calendar"]).default("table"),
-        group_by: z.string().optional().describe("Board only: the select property to group cards by. Defaults to the first select property."),
+        group_by: z.string().optional().describe("Board only: the select or person property to group cards by. Defaults to the first select property."),
         date_by: z.string().optional().describe("Calendar only: the date property that places rows on days. Defaults to the first date property."),
         filters: filtersInput.optional(),
         sorts: sortsInput.optional(),
@@ -806,7 +808,7 @@ export function createMcpServer(principal: McpPrincipal) {
         database_id: id("database"),
         view_id: id("view"),
         name: z.string().min(1).max(100).optional().describe("New view name."),
-        group_by: z.string().optional().describe("Board only: the select property to group cards by."),
+        group_by: z.string().optional().describe("Board only: the select or person property to group cards by."),
         date_by: z.string().optional().describe("Calendar only: the date property that places rows on days."),
         filters: filtersInput.optional(),
         sorts: sortsInput.optional(),
