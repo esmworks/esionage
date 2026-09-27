@@ -5,6 +5,7 @@ import { bodyReferences } from "@/lib/mentions";
 import { accessRank, getMembership, isGuest, levelFromRank, pageVisibleTo, requirePageAccess, workspacesHeldBack } from "@/server/access";
 import { recordMentions, recordReminder, withdrawMentions } from "@/server/notifications";
 import { workspacePeople } from "@/server/workspaces";
+import { avatarSrc } from "@/lib/avatar";
 
 /**
  * Mentions, page links and reminders on the server. The page's document holds them; each time the
@@ -301,7 +302,7 @@ export async function listBacklinks(userId: string, pageId: string): Promise<Bac
 }
 
 export type MentionCandidates = {
-  people: { id: string; name: string }[];
+  people: { id: string; name: string; image: string | null }[];
   pages: { id: string; title: string; icon: string | null; kind: PageKind }[];
 };
 
@@ -320,7 +321,7 @@ export async function mentionCandidates(userId: string, pageId: string, query: s
           .filter((p) => !lower || p.name.toLocaleLowerCase().includes(lower) || p.email.toLocaleLowerCase().startsWith(lower))
           .sort((a, b) => (a.id === userId ? 1 : 0) - (b.id === userId ? 1 : 0) || a.name.localeCompare(b.name))
           .slice(0, 6)
-          .map((p) => ({ id: p.id, name: p.name }))
+          .map((p) => ({ id: p.id, name: p.name, image: avatarSrc(p.image) }))
       : [];
   const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   const pages = await db

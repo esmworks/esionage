@@ -55,6 +55,12 @@ export interface CollabService {
    * verification (after the workspace started requiring it).
    */
   disconnectHeldBack(workspaceId: string): Promise<void>;
+  /**
+   * Drops the user's browser connections, in every workspace, except those of the sessions in
+   * `keep` (after signing out other sessions; an empty list drops them all, as for a deleted
+   * account). Connections whose token names no session are dropped only when `keep` is empty.
+   */
+  disconnectSessions(userId: string, keep: string[]): Promise<void>;
 }
 
 const KEY = "__esionageCollab";

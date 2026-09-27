@@ -4,9 +4,9 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
-import type { SocialProvider } from "@/lib/social-providers";
+import { SOCIAL_PROVIDER_NAMES, type SocialProvider } from "@/lib/social-providers";
 
-const NAMES: Record<SocialProvider, string> = { github: "GitHub", google: "Google" };
+const NAMES = SOCIAL_PROVIDER_NAMES;
 
 function GitHubMark() {
   return (

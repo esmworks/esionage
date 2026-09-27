@@ -1,5 +1,6 @@
 {
   "workspaceMenu": {
+    "myAccount": "Hesabım",
     "newWorkspace": "Yeni çalışma alanı",
     "settingsAndMembers": "Ayarlar ve üyeler",
     "signOut": "Çıkış yap"

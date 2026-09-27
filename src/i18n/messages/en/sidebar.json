@@ -1,5 +1,6 @@
 {
   "workspaceMenu": {
+    "myAccount": "My account",
     "newWorkspace": "New workspace",
     "settingsAndMembers": "Settings & members",
     "signOut": "Sign out"

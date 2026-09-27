@@ -6,11 +6,16 @@ import { PRESENCE_FIELD, type Presence } from "@/lib/presence";
  */
 export function stampPresence(
   states: Map<number, Record<string, unknown>>,
-  signedIn: { userId?: string; userName?: string } | undefined,
+  signedIn: { userId?: string; userName?: string; userImage?: string | null } | undefined,
 ) {
   for (const state of states.values()) {
     if (!state || state[PRESENCE_FIELD] == null) continue;
-    if (signedIn?.userId) state[PRESENCE_FIELD] = { id: signedIn.userId, name: signedIn.userName ?? "" } satisfies Presence;
-    else delete state[PRESENCE_FIELD];
+    if (signedIn?.userId) {
+      state[PRESENCE_FIELD] = {
+        id: signedIn.userId,
+        name: signedIn.userName ?? "",
+        ...(signedIn.userImage ? { image: signedIn.userImage } : {}),
+      } satisfies Presence;
+    } else delete state[PRESENCE_FIELD];
   }
 }

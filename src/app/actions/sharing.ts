@@ -37,7 +37,7 @@ export async function getSharingAction(pageId: string) {
     ...permissions,
     /** Whether they may share with people outside the workspace (Settings > Security). */
     canInvite,
-    members: members.map((m) => ({ userId: m.userId, name: m.name, email: m.email, role: m.role })),
+    members: members.map((m) => ({ userId: m.userId, name: m.name, email: m.email, image: m.image, role: m.role })),
   };
 }
 

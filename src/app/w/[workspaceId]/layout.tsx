@@ -39,7 +39,7 @@ export default async function WorkspaceLayout({
           initialTree={tree}
           initialFavorites={favorites}
           topLevel={topLevel}
-          user={{ id: user.id, name: user.name, email: user.email }}
+          user={{ id: user.id, name: user.name, email: user.email, image: user.image ?? null }}
         />
         <main className="min-w-0 flex-1 overflow-y-auto">
           <FloatingSidebarButton />

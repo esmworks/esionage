@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { user } from "@/db/schema";
 import { cleanCommentBody, CommentError, threadParticipants, type CommentAnchor, type CommentOp, type PlainThread } from "@/lib/comments";
 import { AccessError, getMembership, hasLevel, isGuest, requirePageAccess, resolvePageAccess } from "@/server/access";
+import { avatarSrc } from "@/lib/avatar";
 import { getCollab } from "@/server/collab/bridge";
 import type { CommentOpResult } from "@/server/collab/bridge";
 import { recordComment, withdrawComments } from "@/server/notifications";
@@ -124,5 +125,5 @@ export async function commentUsers(userId: string, pageId: string, userIds: stri
   const allowed = wanted.filter((v) => members.has(v) || inThreads.has(v));
   if (!allowed.length) return [];
   const rows = await db.select({ id: user.id, name: user.name, image: user.image }).from(user).where(inArray(user.id, allowed));
-  return rows.map((r) => ({ id: r.id, username: r.name, avatarUrl: r.image ?? "" }));
+  return rows.map((r) => ({ id: r.id, username: r.name, avatarUrl: avatarSrc(r.image) ?? "" }));
 }

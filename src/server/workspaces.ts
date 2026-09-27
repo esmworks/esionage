@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { and, asc, eq, gt, isNotNull, max, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNotNull, max, sql } from "drizzle-orm";
 import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/db";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
+  file,
   page,
   pageInvitation,
   passkey,
@@ -16,6 +17,7 @@ import {
   type WorkspaceSettings,
 } from "@/db/schema";
 import { isLocale, type Locale } from "@/i18n/config";
+import { type DeletionPlan, planAccountDeletion, type WorkspaceStanding } from "@/lib/account";
 import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
 import { env } from "@/lib/env";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
@@ -122,6 +124,7 @@ export async function listMembers(userId: string, workspaceId: string) {
       userId: user.id,
       name: user.name,
       email: user.email,
+      image: user.image,
       role: workspaceMember.role,
       joinedAt: workspaceMember.createdAt,
     })
@@ -131,7 +134,7 @@ export async function listMembers(userId: string, workspaceId: string) {
     .orderBy(asc(workspaceMember.createdAt));
 }
 
-export type WorkspacePerson = { id: string; name: string; email: string; role: WorkspaceRole };
+export type WorkspacePerson = { id: string; name: string; email: string; image: string | null; role: WorkspaceRole };
 
 /**
  * Everyone in a workspace, guests included, for person properties. No access check: callers
@@ -139,7 +142,7 @@ export type WorkspacePerson = { id: string; name: string; email: string; role: W
  */
 export async function workspacePeople(workspaceId: string): Promise<WorkspacePerson[]> {
   return db
-    .select({ id: user.id, name: user.name, email: user.email, role: workspaceMember.role })
+    .select({ id: user.id, name: user.name, email: user.email, image: user.image, role: workspaceMember.role })
     .from(workspaceMember)
     .innerJoin(user, eq(user.id, workspaceMember.userId))
     .where(eq(workspaceMember.workspaceId, workspaceId));
@@ -602,9 +605,64 @@ export async function removeMember(actorId: string, workspaceId: string, targetI
   await getCollab().disconnectUser(targetId, workspaceId);
 }
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-async function oldestOwner(tx: Tx, workspaceId: string) {
+async function standingsOf(reader: Pick<typeof db, "select">, userId: string): Promise<WorkspaceStanding[]> {
+  const rows = await reader
+    .select({
+      id: workspace.id,
+      name: workspace.name,
+      role: workspaceMember.role,
+      people: sql<number>`(select count(*)::int from ${workspaceMember} x where x.workspace_id = ${workspace.id})`,
+      owners: sql<number>`(select count(*)::int from ${workspaceMember} x where x.workspace_id = ${workspace.id} and x.role = 'owner')`,
+    })
+    .from(workspaceMember)
+    .innerJoin(workspace, eq(workspace.id, workspaceMember.workspaceId))
+    .where(eq(workspaceMember.userId, userId))
+    .orderBy(asc(workspace.createdAt));
+  return rows.map((r) => ({ ...r, people: Number(r.people), owners: Number(r.owners) }));
+}
+
+/** What deleting `userId`'s account would do to each of their workspaces (see lib/account.ts). */
+export async function accountDeletionPlan(userId: string): Promise<DeletionPlan> {
+  return planAccountDeletion(await standingsOf(db, userId));
+}
+
+/**
+ * For deleting an account (server/account.ts), inside its transaction: unless `plan.blockers`
+ * names workspaces the person is the only owner of (then nothing changes), deletes the workspaces
+ * nobody else is in, with their pages and files (returning the files' storage keys, to remove once
+ * the transaction commits), and leaves the others the way leaving does: an owner takes over the
+ * pages only this person could manage.
+ */
+export async function withdrawFromWorkspaces(tx: Tx, userId: string): Promise<{ plan: DeletionPlan; fileKeys: string[] }> {
+  const ids = (
+    await tx.select({ id: workspaceMember.workspaceId }).from(workspaceMember).where(eq(workspaceMember.userId, userId))
+  ).map((r) => r.id);
+  // Locking the workspaces holds off people joining them (adding a member takes a key-share lock
+  // on its workspace row) and owner changes until this transaction ends.
+  if (ids.length) {
+    await tx.select({ id: workspace.id }).from(workspace).where(inArray(workspace.id, ids)).orderBy(asc(workspace.id)).for("update");
+  }
+  const plan = planAccountDeletion(await standingsOf(tx, userId));
+  if (plan.blockers.length) return { plan, fileKeys: [] };
+
+  const fileKeys: string[] = [];
+  const deleted = plan.deleted.map((w) => w.id);
+  if (deleted.length) {
+    const files = await tx.delete(file).where(inArray(file.workspaceId, deleted)).returning({ key: file.storageKey });
+    fileKeys.push(...files.map((f) => f.key));
+    await tx.delete(workspace).where(inArray(workspace.id, deleted));
+  }
+  for (const { id } of plan.left) {
+    await tx.delete(workspaceMember).where(and(eq(workspaceMember.workspaceId, id), eq(workspaceMember.userId, userId)));
+    const heir = await oldestOwner(tx, id);
+    if (heir) await handOverOrphanedPages(tx, id, heir);
+  }
+  return { plan, fileKeys };
+}
+
+export async function oldestOwner(tx: Tx, workspaceId: string) {
   const [owner] = await tx
     .select({ userId: workspaceMember.userId })
     .from(workspaceMember)
@@ -620,7 +678,7 @@ async function oldestOwner(tx: Tx, workspaceId: string) {
  * Only pages with entries of their own can be stranded: the others inherit from a parent, or are
  * open to every member. Private pages stay private from everyone else.
  */
-async function handOverOrphanedPages(tx: Tx, workspaceId: string, heirId: string) {
+export async function handOverOrphanedPages(tx: Tx, workspaceId: string, heirId: string) {
   // Same lock as sharing changes, so one can't strand a page this has just checked.
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`page_permission:${workspaceId}`}))`);
   const handed = await tx.execute<{ page_id: string }>(sql`

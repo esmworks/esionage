@@ -249,7 +249,7 @@ async function pagesShowing(found: FileRow): Promise<string[]> {
   return [...new Set([...(found.pageId ? [found.pageId] : []), ...refs.map((r) => r.pageId)])];
 }
 
-async function removeStored(keys: string[]) {
+export async function removeStored(keys: string[]) {
   const storage = getStorage();
   for (const key of keys) {
     try {

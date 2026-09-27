@@ -2,6 +2,7 @@
 
 import { Check, Link2, Mail, Search, Send, Users, X } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { UserAvatar } from "@/components/user-avatar";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   getSharingAction,
@@ -193,7 +194,7 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
                   }}
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-bg-hover"
                 >
-                  <Avatar name={m.name} />
+                  <Avatar name={m.name} image={m.image} />
                   <PersonLabel name={m.name} detail={m.email} />
                 </button>
               ))}
@@ -246,7 +247,7 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
 
       <ul className="mt-3 space-y-0.5">
         <Row
-          avatar={<Avatar name={myName} />}
+          avatar={<Avatar name={myName} image={self?.image ?? mine?.image} />}
           label={
             <PersonLabel
               name={`${myName} (${t("you")})`}
@@ -276,7 +277,7 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
         {others.map((entry) => (
           <Row
             key={entry.userId}
-            avatar={<Avatar name={entry.name ?? "?"} />}
+            avatar={<Avatar name={entry.name ?? "?"} image={entry.image} />}
             label={
               <PersonLabel
                 name={entry.name ?? entry.email ?? "?"}
@@ -389,12 +390,8 @@ function PersonLabel({ name, detail }: { name: string; detail?: string | null })
   );
 }
 
-function Avatar({ name }: { name: string }) {
-  return (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-medium text-accent">
-      {(name.trim()[0] ?? "?").toLocaleUpperCase()}
-    </span>
-  );
+function Avatar({ name, image }: { name: string; image?: string | null }) {
+  return <UserAvatar name={name} image={image} size="md" colors="bg-accent/15 text-accent" />;
 }
 
 function LevelText({ level }: { level: PageLevel }) {

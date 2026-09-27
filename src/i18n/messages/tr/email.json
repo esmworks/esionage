@@ -32,7 +32,7 @@
     "action": "Aç",
     "untitled": "Adsız",
     "someone": "Biri",
-    "optOut": "Bu e-postaları Ayarlar > Tercihler bölümünden kapatabilirsiniz."
+    "optOut": "Bu e-postaları Hesabım > Tercihler bölümünden kapatabilirsiniz."
   },
   "share": {
     "subject": "{actor} “{page}” sayfasını sizinle paylaştı",
@@ -46,7 +46,7 @@
     },
     "action": "Sayfayı aç",
     "untitled": "Adsız",
-    "optOut": "Bu e-postaları Ayarlar > Tercihler bölümünden kapatabilirsiniz."
+    "optOut": "Bu e-postaları Hesabım > Tercihler bölümünden kapatabilirsiniz."
   },
   "comment": {
     "subject": "{actor}, “{page}” sayfasına yorum yazdı",
@@ -54,7 +54,7 @@
     "quote": "“{text}”",
     "body": "Yorum, {workspace} çalışma alanındaki “{page}” sayfasında. Sayfadan yanıtlayabilir ya da çözüldü olarak işaretleyebilirsiniz.",
     "action": "Sayfayı aç",
-    "optOut": "Bu yorum konusuna katıldığınız için bu e-postaları alıyorsunuz. Ayarlar > Tercihler'den kapatabilirsiniz."
+    "optOut": "Bu yorum konusuna katıldığınız için bu e-postaları alıyorsunuz. Hesabım > Tercihler'den kapatabilirsiniz."
   },
   "mention": {
     "subject": "{actor}, “{page}” sayfasında sizden bahsetti",
@@ -62,13 +62,32 @@
     "body": "Bahsetme, {workspace} çalışma alanındaki “{page}” sayfasında.",
     "action": "Sayfayı aç",
     "someone": "Biri",
-    "optOut": "Biri sizden bahsettiği için bu e-postaları alıyorsunuz. Ayarlar > Tercihler'den kapatabilirsiniz."
+    "optOut": "Biri sizden bahsettiği için bu e-postaları alıyorsunuz. Hesabım > Tercihler'den kapatabilirsiniz."
   },
   "reminder": {
     "subject": "Hatırlatma: “{page}” sayfasındaki {date}",
     "heading": "Hatırlatma: {date}",
     "body": "{workspace} çalışma alanındaki “{page}” sayfasında {date} için hatırlatma istemiştiniz.",
     "action": "Sayfayı aç",
-    "optOut": "Hatırlatma kurduğunuz için bu e-postaları alıyorsunuz. Ayarlar > Tercihler'den kapatabilirsiniz."
+    "optOut": "Hatırlatma kurduğunuz için bu e-postaları alıyorsunuz. Hesabım > Tercihler'den kapatabilirsiniz."
+  },
+  "emailChange": {
+    "subject": "Yeni e-posta adresinizi onaylayın",
+    "heading": "Yeni e-posta adresinizi onaylayın",
+    "body": "Merhaba {name}, Esionage hesabınızda {old} yerine bu adresi kullanmak istediniz. Aşağıdaki düğmeyle onaylayın.",
+    "expires": "Bağlantı {hours} saat boyunca ve yalnızca bir kez çalışır. Bu isteği siz yapmadıysanız bu e-postayı yok sayın; hiçbir şey değişmez.",
+    "action": "E-posta adresini onayla"
+  },
+  "emailChanged": {
+    "subject": "Esionage hesabınızın e-posta adresi değişti",
+    "heading": "E-posta adresiniz değişti",
+    "body": "Merhaba {name}, Esionage hesabınızın e-posta adresi {old} adresinden {new} adresine değişti. Bundan sonra yeni adresle giriş yapın.",
+    "warning": "Bu değişikliği siz yapmadıysanız hemen çalışma alanınızın bir sahibine haber verin."
+  },
+  "passwordChanged": {
+    "subject": "Esionage şifreniz değişti",
+    "heading": "Şifreniz değişti",
+    "body": "Merhaba {name}, Esionage hesabınızın şifresi az önce değiştirildi.",
+    "warning": "Bu değişikliği siz yapmadıysanız giriş sayfasından şifrenizi sıfırlayın ve çalışma alanınızın bir sahibine haber verin."
   }
 }

@@ -17,6 +17,7 @@ import {
   Settings,
   Trash2,
   Upload,
+  UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -30,6 +31,7 @@ import { useChannel } from "@/components/collab/use-channel";
 import { ViewIcon } from "@/components/database/property-icons";
 import { markNewPage } from "@/components/page/new-page-focus";
 import { cn, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, Popover } from "@/components/ui";
+import { UserAvatar } from "@/components/user-avatar";
 import type { PageKind } from "@/db/schema/app";
 import { authClient } from "@/lib/auth-client";
 import { FAVORITES_EVENT } from "@/lib/favorites-event";
@@ -72,7 +74,7 @@ export function Sidebar({
   initialFavorites: FavoritePage[];
   /** Whether they may add top-level pages; a guest's are private to them. */
   topLevel: "shared" | "private" | null;
-  user: { id: string; name: string; email: string };
+  user: { id: string; name: string; email: string; image: string | null };
 }) {
   const router = useRouter();
   const t = useTranslations("sidebar");
@@ -251,6 +253,7 @@ export function Sidebar({
   }
 
   const roots = children.get(null) ?? [];
+  const accountPath = `/account?from=${encodeURIComponent(workspaceId)}`;
   return (
     <>
       {sidebar?.drawerOpen && (
@@ -294,7 +297,23 @@ export function Sidebar({
             >
               {(close) => (
                 <>
-                  <div className="px-2 py-1.5 text-xs text-fg-muted">{user.email}</div>
+                  {/* Who is signed in; opens their account page (profile, password, sessions, …). */}
+                  <button
+                    type="button"
+                    title={t("workspaceMenu.myAccount")}
+                    onClick={() => {
+                      close();
+                      router.push(accountPath);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left hover:bg-bg-hover"
+                  >
+                    <UserAvatar name={user.name || user.email} image={user.image} size="md" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{user.name || user.email}</span>
+                      <span className="block truncate text-xs text-fg-muted">{user.email}</span>
+                    </span>
+                  </button>
+                  <MenuSeparator />
                   {workspaces.map((w) => (
                     <MenuItem
                       key={w.id}
@@ -325,6 +344,15 @@ export function Sidebar({
                     }}
                   >
                     {t("workspaceMenu.settingsAndMembers")}
+                  </MenuItem>
+                  <MenuItem
+                    icon={<UserRound className="h-4 w-4" />}
+                    onClick={() => {
+                      close();
+                      router.push(accountPath);
+                    }}
+                  >
+                    {t("workspaceMenu.myAccount")}
                   </MenuItem>
                   <MenuItem icon={<LogOut className="h-4 w-4" />} onClick={signOut}>
                     {t("workspaceMenu.signOut")}

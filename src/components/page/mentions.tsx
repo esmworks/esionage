@@ -9,6 +9,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { backlinksAction, mentionCandidatesAction, resolvePagesAction } from "@/app/actions/mentions";
 import { useChannel } from "@/components/collab/use-channel";
 import { cn, Dialog, PageIcon, pageLabel } from "@/components/ui";
+import { UserAvatar } from "@/components/user-avatar";
 import {
   formatIsoDate,
   isIsoDate,
@@ -425,7 +426,7 @@ export function MentionMenu({ editor, workspaceId, pageId }: { editor: PageEdito
         (p): DefaultReactSuggestionItem => ({
           title: p.name,
           group: t("people"),
-          icon: <CircleUser size={18} />,
+          icon: p.image ? <UserAvatar name={p.name} image={p.image} size="xs" /> : <CircleUser size={18} />,
           onItemClick: () => insert({ kind: "user", id: newMentionId(), userId: p.id, name: p.name }),
         }),
       );

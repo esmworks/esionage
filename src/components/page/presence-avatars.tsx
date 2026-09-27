@@ -2,7 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import { cn, Popover } from "@/components/ui";
-import { initialOf, splitViewers, textOn, type Presence } from "@/lib/presence";
+import { UserAvatar } from "@/components/user-avatar";
+import { splitViewers, textOn, type Presence } from "@/lib/presence";
 import { userColor } from "./use-page-doc";
 
 /**
@@ -57,18 +58,18 @@ export function PresenceAvatars({ viewers }: { viewers: Presence[] }) {
   );
 }
 
+/** Their picture, or their initial in their cursor color. */
 function Avatar({ viewer, title, ring = false }: { viewer: Presence; title?: string; ring?: boolean }) {
   const color = userColor(viewer.id);
   return (
-    <span
+    <UserAvatar
+      name={viewer.name}
+      image={viewer.image}
+      size="sm"
       title={title}
+      colors="font-semibold"
       style={{ backgroundColor: color, color: textOn(color) }}
-      className={cn(
-        "relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold",
-        ring && "ring-2 ring-bg",
-      )}
-    >
-      {initialOf(viewer.name)}
-    </span>
+      className={cn(ring && "ring-2 ring-bg")}
+    />
   );
 }

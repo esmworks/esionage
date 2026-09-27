@@ -25,6 +25,14 @@ describe("stampPresence", () => {
     expect(s.get(2)).toEqual({ presence: null });
   });
 
+  it("adds the signed-in user's picture, never the browser's", () => {
+    const s = states({ presence: { id: "u1", name: "Bob", image: "https://evil.example.com/x.png" } });
+    stampPresence(s, { userId: "u1", userName: "Bob", userImage: "/api/avatars/u1/pic" });
+    expect(s.get(1)?.presence).toEqual({ id: "u1", name: "Bob", image: "/api/avatars/u1/pic" });
+    stampPresence(s, { userId: "u1", userName: "Bob", userImage: null });
+    expect(s.get(1)?.presence).toEqual({ id: "u1", name: "Bob" });
+  });
+
   it("drops presence that no signed-in user backs", () => {
     const s = states({ presence: { id: "u1", name: "Bob" }, other: 1 });
     stampPresence(s, undefined);

@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { closedSignUpAdmits, inviteTokenOf, joinTokenOf, socialTokenOf } from "./auth-options";
+import { closedSignUpAdmits, guardUpdateUser, inviteTokenOf, joinTokenOf, socialTokenOf } from "./auth-options";
+
+describe("guardUpdateUser", () => {
+  it("lets a valid name through, and removing the picture", () => {
+    expect(() => guardUpdateUser({ name: "Ayşe" })).not.toThrow();
+    expect(() => guardUpdateUser({ image: null })).not.toThrow();
+  });
+
+  it("refuses picture URLs and other fields: pictures are uploaded", () => {
+    expect(() => guardUpdateUser({ image: "https://tracker.example.com/p.gif" })).toThrow(/Only the name/);
+    expect(() => guardUpdateUser({ image: "/api/avatars/someone-else/0123456789abcdef0123456789abcdef-png" })).toThrow();
+    expect(() => guardUpdateUser({ name: "Ok", twoFactorEnabled: false })).toThrow(/Only the name/);
+  });
+
+  it("refuses empty and overlong names", () => {
+    expect(() => guardUpdateUser({ name: "  " })).toThrow(/name/);
+    expect(() => guardUpdateUser({ name: "x".repeat(81) })).toThrow(/name/);
+  });
+});
 
 describe("inviteTokenOf", () => {
   it("reads the parsed query first", () => {

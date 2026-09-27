@@ -6,16 +6,17 @@
 
 export const PRESENCE_FIELD = "presence";
 
-export type Presence = { id: string; name: string };
+/** `image`: their profile picture (`user.image`), when they have one. */
+export type Presence = { id: string; name: string; image?: string | null };
 
 /** At most this many avatars show in the page header; the rest fold into "+N". */
 export const MAX_AVATARS = 4;
 
 function asPresence(value: unknown): Presence | null {
   if (!value || typeof value !== "object") return null;
-  const { id, name } = value as Record<string, unknown>;
+  const { id, name, image } = value as Record<string, unknown>;
   if (typeof id !== "string" || !id || typeof name !== "string") return null;
-  return { id, name };
+  return typeof image === "string" && image ? { id, name, image } : { id, name };
 }
 
 /**
@@ -34,7 +35,7 @@ export function viewersOf(states: Map<number, Record<string, unknown>>, selfId: 
 }
 
 export function sameViewers(a: Presence[], b: Presence[]) {
-  return a.length === b.length && a.every((p, i) => p.id === b[i].id && p.name === b[i].name);
+  return a.length === b.length && a.every((p, i) => p.id === b[i].id && p.name === b[i].name && p.image === b[i].image);
 }
 
 /** The avatars to show and how many fold into "+N". Never folds just one person away. */

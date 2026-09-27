@@ -8,5 +8,5 @@ import { requireUserId } from "@/server/session";
 export async function revokeConnectedAppAction(clientId: string) {
   const userId = await requireUserId();
   await revokeConnectedApp(userId, clientId);
-  revalidatePath("/w/[workspaceId]/settings", "page");
+  revalidatePath("/account");
 }
