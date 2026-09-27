@@ -479,8 +479,12 @@ async function main() {
   check(viaView.total === 1 && viaView.rows[0].id === rowB.id, "the new view filters rows", viaView);
   const boardUpdated = await mcp.ok("update_database_view", { database_id: dbPage.id, view_id: board.id, name: "Board", filters: [] });
   check(boardUpdated.name === "Board" && !boardUpdated.filters && boardUpdated.group_by === "Status", "update_database_view clears filters and keeps grouping", boardUpdated);
-  const listView = await mcp.call("create_database_view", { database_id: dbPage.id, name: "Bad", type: "board", group_by: "Tags" });
-  check(listView.isError && listView.text.includes("select, status, person, created_by or last_edited_by property"), "boards refuse grouping by anything but select, status or people", listView.text);
+  const tagBoard = await mcp.ok("create_database_view", { database_id: dbPage.id, name: "By tag", type: "board", group_by: "Tags" });
+  check(tagBoard.group_by === "Tags", "boards group by multi-select properties too", tagBoard);
+  const groupedTable = await mcp.ok("create_database_view", { database_id: dbPage.id, name: "Grouped", group_by: "Status", hide_empty_groups: true });
+  check(groupedTable.type === "table" && groupedTable.group_by === "Status" && groupedTable.hide_empty_groups === true, "tables group by a property", groupedTable);
+  const calendarGroup = await mcp.call("create_database_view", { database_id: dbPage.id, name: "Bad", type: "calendar", group_by: "Tags" });
+  check(calendarGroup.isError && calendarGroup.text.includes("only applies to board and table views"), "calendars refuse grouping", calendarGroup.text);
 
   // ---- "created by": filled in with each row's creator, filterable on "me", read-only
   await mcp.ok("add_database_property", { database_id: dbPage.id, name: "Created by", type: "created_by" });

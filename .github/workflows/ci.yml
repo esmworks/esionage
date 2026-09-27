@@ -85,6 +85,9 @@ jobs:
       - name: Status, checklist and system properties end-to-end
         run: pnpm tsx scripts/property-types-e2e.ts
 
+      - name: Grouping end-to-end
+        run: pnpm tsx scripts/grouping-e2e.ts
+
       - name: Start the server
         run: |
           pnpm start > "$RUNNER_TEMP/server.log" 2>&1 &

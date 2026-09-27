@@ -230,4 +230,25 @@ describe("remapViewConfig", () => {
       calculations: { amount2: "sum", title: "count_all" },
     });
   });
+
+  it("maps group keys of a relation grouping to the copied rows, and keeps option keys", () => {
+    const ids = new Map([
+      ["link", "link2"],
+      ["status", "status2"],
+    ]);
+    const rows = new Map([["r1", "r1copy"]]);
+    const rowIdsFor = (id: string) => (id === "link" ? rows : null);
+    const groups = { groupOrder: ["r1", "", "outside"], hiddenGroups: ["r1"], collapsedGroups: ["outside", "r1"] };
+    expect(remapViewConfig({ groupBy: "link", ...groups }, ids, rowIdsFor)).toEqual({
+      groupBy: "link2",
+      groupOrder: ["r1copy", "", "outside"],
+      hiddenGroups: ["r1copy"],
+      collapsedGroups: ["outside", "r1copy"],
+    });
+    expect(remapViewConfig({ groupBy: "status", groupOrder: ["o1"], hiddenGroups: ["o2"] }, ids, rowIdsFor)).toEqual({
+      groupBy: "status2",
+      groupOrder: ["o1"],
+      hiddenGroups: ["o2"],
+    });
+  });
 });

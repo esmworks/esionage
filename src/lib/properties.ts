@@ -663,6 +663,8 @@ export function positionBetween(before?: number | null, after?: number | null): 
 }
 
 export type RowGroup<T> = {
+  /** Stable id of the group within its grouping: the option or person id, "" for no value. */
+  key: string;
   /** The column's option; for person columns a stand-in carrying the person's id and name. */
   option: SelectOption | null;
   /** Set on person columns. */
@@ -670,22 +672,32 @@ export type RowGroup<T> = {
   rows: T[];
 };
 
-type GroupPerson = { id: string; name: string; active: boolean };
+export type GroupPerson = { id: string; name: string; active: boolean };
 
-/** Property types a board can group by. */
+/** Property types a view can group by (see lib/grouping for how each one buckets rows). */
 export function isGroupable(type: PropertyType) {
-  return type === "select" || type === "status" || holdsPeople(type);
+  return (
+    type === "select" ||
+    type === "status" ||
+    type === "multi_select" ||
+    type === "checkbox" ||
+    type === "date" ||
+    type === "relation" ||
+    holdsTimestamp(type) ||
+    holdsPeople(type)
+  );
 }
 
 /**
  * The property a board groups by: the view's choice, else the first select or status, else the
- * first people property.
+ * first people property, else the first other groupable one.
  */
 export function boardGroupProperty<P extends { id: string; type: PropertyType }>(props: P[], groupBy?: string) {
   const groupable = props.filter((p) => isGroupable(p.type));
   return (
     groupable.find((p) => p.id === groupBy) ??
     groupable.find((p) => p.type === "select" || p.type === "status") ??
+    groupable.find((p) => holdsPeople(p.type)) ??
     groupable[0]
   );
 }
@@ -701,7 +713,7 @@ export function groupRowsByPerson<T extends { properties: Record<string, unknown
   people: GroupPerson[],
 ): RowGroup<T>[] {
   const known = new Set(people.map((p) => p.id));
-  const none: RowGroup<T> = { option: null, rows: [] };
+  const none: RowGroup<T> = { key: "", option: null, rows: [] };
   const byPerson = new Map(people.map((p) => [p.id, [] as T[]]));
   for (const row of rows) {
     const value = row.properties[prop.id];
@@ -712,6 +724,7 @@ export function groupRowsByPerson<T extends { properties: Record<string, unknown
   const groups = people
     .filter((p) => p.active || byPerson.get(p.id)!.length)
     .map((person) => ({
+      key: person.id,
       option: { id: person.id, name: person.name, color: "gray" },
       person,
       rows: byPerson.get(person.id)!,
@@ -759,8 +772,8 @@ export function groupRows<T extends { properties: Record<string, unknown> }>(
   prop: { id: string; type?: PropertyType; options: PropertyOptions },
 ): RowGroup<T>[] {
   const options = prop.type === "status" ? sortStatusOptions(prop.options.options ?? []) : (prop.options.options ?? []);
-  const groups: RowGroup<T>[] = options.map((option) => ({ option, rows: [] }));
-  const none: RowGroup<T> = { option: null, rows: [] };
+  const groups: RowGroup<T>[] = options.map((option) => ({ key: option.id, option, rows: [] }));
+  const none: RowGroup<T> = { key: "", option: null, rows: [] };
   const index = new Map(options.map((o, i) => [o.id, i]));
   for (const row of rows) {
     const value = row.properties[prop.id];
@@ -799,11 +812,11 @@ export function toggleHiddenInView(
   return { ...view.config, hidden, shown };
 }
 
-/** Puts board groups in the view's saved order; groups it doesn't list keep their relative order at the end. */
-export function orderGroups<T>(groups: RowGroup<T>[], order: string[] | undefined): RowGroup<T>[] {
+/** Puts groups in the view's saved order; groups it doesn't list keep their relative order at the end. */
+export function orderGroups<G extends { key: string }>(groups: G[], order: string[] | undefined): G[] {
   if (!order?.length) return groups;
   const rank = new Map(order.map((key, i) => [key, i]));
-  const keyed = groups.map((g, i) => ({ g, i, r: rank.get(g.option?.id ?? "") }));
+  const keyed = groups.map((g, i) => ({ g, i, r: rank.get(g.key) }));
   keyed.sort((a, b) => {
     if (a.r !== undefined && b.r !== undefined) return a.r - b.r;
     if (a.r !== undefined) return -1;

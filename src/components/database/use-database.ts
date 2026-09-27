@@ -22,7 +22,7 @@ import {
 import { archivePageAction, renamePageAction } from "@/app/actions/pages";
 import { useChannel, useChannels } from "@/components/collab/use-channel";
 import type { PropertyType, SelectOption, ViewConfig, ViewType } from "@/db/schema/app";
-import { movePersonValue } from "@/lib/properties";
+import { moveGroupValue } from "@/lib/grouping";
 import type { DatabaseSnapshot, Property, RelationInput, Row, View } from "./types";
 import { TITLE } from "./types";
 
@@ -274,11 +274,11 @@ export function useDatabase(databaseId: string) {
                 rows: s.rows.map((r) => {
                   if (r.id !== rowId) return r;
                   const properties = { ...r.properties };
-                  if (move.groupBy) {
-                    const person = s.properties.find((p) => p.id === move.groupBy)?.type === "person";
-                    const value = person ? movePersonValue(properties[move.groupBy], move.groupFrom, move.groupValue) : move.groupValue;
-                    if (Array.isArray(value) ? value.length : value) properties[move.groupBy] = value;
-                    else delete properties[move.groupBy];
+                  const prop = move.groupBy ? s.properties.find((p) => p.id === move.groupBy) : undefined;
+                  if (prop) {
+                    const value = moveGroupValue(prop, properties[prop.id], move.groupFrom, move.groupValue);
+                    if (value === null || (Array.isArray(value) && !value.length)) delete properties[prop.id];
+                    else properties[prop.id] = value;
                   }
                   return { ...r, properties, position: move.position ?? r.position };
                 }).sort((a, b) => a.position - b.position),

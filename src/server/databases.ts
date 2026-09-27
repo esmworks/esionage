@@ -15,11 +15,12 @@ import {
 } from "@/db/schema";
 import { filterConfigError, filterRules, mapFilterRules } from "@/lib/filters";
 import { holdsOptions, holdsPeople, isComputed, PERSON_ME, type StatusGroup } from "@/lib/property-types";
+import { moveGroupValue } from "@/lib/grouping";
 import {
   applyView,
   computedValues,
+  isGroupable,
   makeStatusOptions,
-  movePersonValue,
   normalizeValue,
   PropertyValueError,
   SELECT_COLORS,
@@ -887,9 +888,11 @@ export async function deleteView(userId: string, viewId: string) {
 }
 
 /**
- * Reorders a row (board drag) and optionally changes its group value in one step. On a board
- * grouped by people, `groupFrom` is the person whose column the card left: `groupValue` takes
- * their place (see movePersonValue).
+ * Reorders a row (board drag) and optionally moves it to another group in one step. `groupValue`
+ * is the target group (see groupTarget in lib/grouping): an option, person or related row id,
+ * "true" / "false" for checkboxes, a day for dates, null for no value. For list values
+ * (multi-select, people, relations) `groupFrom` is the group the card left: `groupValue` takes
+ * its place and the rest stays (see moveGroupValue). The result is validated like any edit.
  */
 export async function moveRow(
   userId: string,
@@ -905,28 +908,29 @@ export async function moveRow(
   if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
   await requireDatabase(userId, row.parentId, "view");
   const properties = { ...row.properties };
-  let person = false;
+  let type: PropertyType | undefined;
   if (groupBy) {
-    const [prop] = await db
-      .select({ type: databaseProperty.type })
-      .from(databaseProperty)
-      .where(and(eq(databaseProperty.id, groupBy), eq(databaseProperty.databaseId, row.parentId)));
-    // Who created or last edited a row can't be changed by dragging it to someone else's column.
-    if (prop && isComputed(prop.type)) await normalizeRowProperties(userId, row.parentId, { [groupBy]: groupValue });
-    person = prop?.type === "person";
-    if (person) {
-      const next = movePersonValue(properties[groupBy], groupFrom, groupValue);
-      const normalized = await normalizeRowProperties(userId, row.parentId, { [groupBy]: next }, row.properties);
-      if (normalized[groupBy]) properties[groupBy] = normalized[groupBy];
-      else delete properties[groupBy];
-    } else if (groupValue) properties[groupBy] = groupValue;
-    else delete properties[groupBy];
+    const prop = (await getProperties(row.parentId)).find((p) => p.id === groupBy);
+    // Unknown properties and who created or last edited a row (and when) are refused here.
+    if (!prop || isComputed(prop.type)) await normalizeRowProperties(userId, row.parentId, { [groupBy]: groupValue });
+    if (!prop || !isGroupable(prop.type)) {
+      throw new PropertyValueError(`Rows can't be grouped by a ${prop?.type} property`, "unsupportedType", {
+        type: String(prop?.type),
+      });
+    }
+    type = prop.type;
+    const next = moveGroupValue(prop, properties[groupBy], groupFrom, groupValue);
+    const normalized = await normalizeRowProperties(userId, row.parentId, { [groupBy]: next }, row.properties);
+    const value = normalized[groupBy];
+    if (value === null || value === undefined || (Array.isArray(value) && !value.length)) delete properties[groupBy];
+    else properties[groupBy] = value;
   }
   await db
     .update(page)
     .set({ properties, ...(position !== undefined ? { position } : {}), updatedBy: userId })
     .where(eq(page.id, rowId));
-  if (person) await announceAssignments(userId, row.parentId, [{ rowId, before: row.properties, after: properties }]);
+  if (type === "relation") await syncPairedRelations(rowId, row.parentId, row.properties, properties);
+  if (type === "person") await announceAssignments(userId, row.parentId, [{ rowId, before: row.properties, after: properties }]);
   notifyRows(row.parentId);
 }
 

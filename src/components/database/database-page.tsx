@@ -137,7 +137,9 @@ export function DatabasePage({
       t("page.defaultGroupOptions.inProgress"),
       t("page.defaultGroupOptions.done"),
     ]);
-    if (created && view?.type === "board") await setConfig(view, { ...view.config, groupBy: created.id });
+    if (created && (view?.type === "board" || view?.type === "table")) {
+      await setConfig(view, { ...view.config, groupBy: created.id });
+    }
   };
 
   const createDateProperty = async () => {

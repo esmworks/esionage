@@ -338,6 +338,8 @@ async function publishedDatabase(publisher: string, databaseId: string): Promise
     return { properties, view: null, rows };
   }
   // Filters and sorts may use relation and people properties; applyView needs every property for that.
+  // Grouping is left out: published pages show every view as one flat table (boards too), since
+  // groups by people or linked rows would name what the page doesn't publish.
   const allProperties = await db.select().from(databaseProperty).where(eq(databaseProperty.databaseId, databaseId));
   const rows = stored.map(({ createdBy, updatedBy, ...row }) => ({
     ...row,

@@ -139,7 +139,7 @@ export function remapRowProperties(
 /**
  * Points a view config at the copied properties. Option ids (`groupOrder`, `hiddenGroups`, filter
  * values of selects) stay: options keep their ids when copied. Relation filter values are row ids
- * and follow `rowIdsFor` like row values do.
+ * and follow `rowIdsFor` like row values do, and so do group keys of a view grouped by a relation.
  */
 export function remapViewConfig(
   config: ViewConfig,
@@ -148,7 +148,17 @@ export function remapViewConfig(
 ): ViewConfig {
   const map = through(propIds);
   const out: ViewConfig = structuredClone(config);
-  if (config.groupBy !== undefined) out.groupBy = map(config.groupBy);
+  if (config.groupBy !== undefined) {
+    out.groupBy = map(config.groupBy);
+    // Grouped by a relation, group keys are linked row ids and follow the copied rows.
+    const rowIds = rowIdsFor(config.groupBy);
+    if (rowIds) {
+      const remapKeys = (keys: string[] | undefined) => keys?.map((key) => rowIds.get(key) ?? key);
+      if (config.groupOrder) out.groupOrder = remapKeys(config.groupOrder);
+      if (config.hiddenGroups) out.hiddenGroups = remapKeys(config.hiddenGroups);
+      if (config.collapsedGroups) out.collapsedGroups = remapKeys(config.collapsedGroups);
+    }
+  }
   if (config.dateBy !== undefined) out.dateBy = map(config.dateBy);
   if (config.sorts) out.sorts = config.sorts.map((s) => ({ ...s, propertyId: map(s.propertyId) }));
   if (config.filters) {
