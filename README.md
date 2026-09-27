@@ -7,17 +7,30 @@ approve them over OAuth.
 ## Features
 
 - **Pages**: nested pages, a block editor (BlockNote) with slash menu and markdown shortcuts,
-  icons, trash with restore, and full-text search over titles and content.
+  icons, favorites, duplicate, move, trash with restore, export as Markdown, and full-text search
+  over titles and content.
 - **Realtime collaboration**: several people can edit the same page at once (Yjs over WebSocket
   via Hocuspocus), with live cursors.
-- **Databases**: typed properties (text, number, select, multi-select, date, checkbox, URL, and
-  one- or two-way relations to other databases), table, board and calendar views, filters, sorting
-  and grouping. Every row is also a page.
+- **Databases**: every row is also a page.
+  - Properties: text, number, select, multi-select, date, checkbox, URL, person, "created by", and
+    one- or two-way relations to other databases.
+  - Views: table, board and calendar, each with its own filters, sorting and grouping. A "Me"
+    filter shows each viewer their own rows.
+  - Lock a database to freeze its properties and views, and export its rows as CSV.
+- **Assignments**: people assigned to a row get an email and a notification in their inbox.
 - **Page history**: versions are saved automatically while you edit and before every AI edit.
   You can preview and restore any version.
+- **Sharing and permissions**: give members or everyone full, edit, view or no access to a page.
+  Subpages inherit it unless you change them. Share a page with someone outside the workspace by
+  email and they join as a guest who sees only the pages shared with them.
+- **Publish to the web**: a read-only public link for a page and its subpages, hidden from search
+  engines. Owners decide whether members may publish and can take any published page offline.
 - **Workspaces and members**: add people by email (several at once) as owners or members, send
   an invitation link to people who don't have an account yet, or turn on a join link anyone can
-  use. Owners can export the member list as CSV and hand ownership to someone else.
+  use. Owners can export the member list as CSV, hand ownership to someone else, and decide who
+  may invite guests.
+- **Email**: invitations, password reset and assignment notifications over SMTP (see [Email](#email)).
+- **English and Turkish** interface.
 - **MCP server with OAuth 2.1**: remote MCP endpoint at `/mcp`.
   - Supports Client ID Metadata Documents and Dynamic Client Registration, with PKCE and a
     consent screen.
@@ -105,11 +118,19 @@ instructions. For example, with Claude Code:
 claude mcp add --transport http esionage http://localhost:3000/mcp
 ```
 
-The client opens a browser window where you sign in and approve access. Tools include `list_workspaces`,
-`search`, `get_page`, `list_pages`, `create_page`, `update_page`, `archive_page`,
-`get_database`, `query_database`, `create_database_row`, `update_database_row`,
-`create_database`, `add_database_property` (including one- or two-way relations) and
-`create_database_view` (table, board or calendar).
+The client opens a browser window where you sign in and approve access. The tools cover:
+
+- **Finding things:** `list_workspaces`, `search`, `list_pages`, `list_recent_pages`, `list_users`.
+- **Pages:** `get_page`, `create_page`, `update_page`, `move_page`, `archive_page`, `list_trash`,
+  `restore_page`.
+- **Page history:** `list_page_history`, `get_page_version`, `restore_page_version`.
+- **Databases:** `get_database`, `query_database`, `create_database`, `create_database_row`,
+  `create_database_rows`, `update_database_row`, `add_database_property` (including one- or
+  two-way relations), `update_database_property`, `delete_database_property`,
+  `create_database_view` and `update_database_view` (table, board or calendar).
+
+An app only ever sees the pages its user can see. Read-only apps can't call the tools that
+change anything.
 
 ## Development
 
@@ -132,6 +153,7 @@ Useful scripts:
 | `pnpm build` | Production build |
 | `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
+| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. `database-e2e.ts`, `person-e2e.ts` and `trash-e2e.ts` do the same for their areas. |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
 
