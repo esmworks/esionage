@@ -15,6 +15,7 @@ import {
   type ViewType,
 } from "@/db/schema/app";
 import { AGGREGATE_FNS, ROLLUP_DISPLAYS, type AggregateFn } from "@/lib/aggregate";
+import { markdownReferences } from "@/lib/embed-blocks";
 import { FILTER_COMBINATORS, MAX_FILTER_DEPTH, MAX_RELATIVE_DAYS, RELATIVE_DATE_RANGES } from "@/lib/filters";
 import {
   canStack,
@@ -35,6 +36,7 @@ import { holdsOptions, holdsTimestamp, STATUS_GROUPS } from "@/lib/property-type
 import { CARD_SIZES, COVER_SOURCES, TIMELINE_ZOOMS, VIEW_TYPES } from "@/lib/views";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import * as databases from "@/server/databases";
+import { resolveEmbeds } from "@/server/embeds";
 import * as notifications from "@/server/notifications";
 import * as pages from "@/server/pages";
 import * as workspaces from "@/server/workspaces";
@@ -63,6 +65,9 @@ list_notifications shows the user's inbox: rows someone assigned them to and pag
 Always share the returned url with the user when you create or change something.`;
 
 const MAX_BULK_ROWS = 100;
+
+const EMBED_NOTE =
+  "Databases shown inside a page body appear in its Markdown as their own lines, `<!-- esionage:database <id> -->` (an inline database) or `<!-- esionage:linked-view <id> -->` (a linked view of a database); get_page lists them under embedded_databases.";
 
 const id = (what: string) => z.string().min(1).describe(`The ${what} id (a UUID from another tool's output).`);
 
@@ -665,7 +670,7 @@ export function createMcpServer(principal: McpPrincipal) {
     "get_page",
     {
       title: "Read a page",
-      description: `Read a page: title, breadcrumb path, Markdown body, sub-pages and a link. For database rows it also returns the row's properties; for databases it returns the schema summary (use query_database for rows). Long bodies are cut at ${MAX_MARKDOWN_CHARS} characters; pass offset to continue reading.`,
+      description: `Read a page: title, breadcrumb path, Markdown body, sub-pages and a link. For database rows it also returns the row's properties; for databases it returns the schema summary (use query_database for rows). Long bodies are cut at ${MAX_MARKDOWN_CHARS} characters; pass offset to continue reading. ${EMBED_NOTE}`,
       inputSchema: z.object({
         page_id: id("page"),
         offset: z.number().int().min(0).default(0).describe("Character offset into the Markdown body, for long pages."),
@@ -715,6 +720,18 @@ export function createMcpServer(principal: McpPrincipal) {
             out.markdown_truncated = true;
             out.markdown_total_chars = body.totalChars;
             if ("note" in body) out.note = body.note;
+          }
+          const embeds = await resolveEmbeds(userId, markdownReferences(content.markdown));
+          if (embeds.length) {
+            out.embedded_databases = embeds.map((e) => ({
+              database_id: e.databaseId,
+              kind: e.type === "database" ? "inline_database" : "linked_view",
+              // Seeing the page doesn't mean seeing the database: its title stays private then.
+              title: e.database ? pageLabel(e.database.title) : null,
+              accessible: Boolean(e.database),
+              in_trash: e.database?.inTrash ?? false,
+              url: e.database ? pageUrl(e.database.workspaceId, e.database.id) : null,
+            }));
           }
           const children = await pages.listChildren(userId, page.workspaceId, page.id);
           out.child_pages = children.slice(0, 100).map((c) => ({ id: c.id, title: pageLabel(c.title), kind: c.kind }));
@@ -769,7 +786,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Update a page",
       description:
-        'Change a page\'s title and/or body. mode "replace" overwrites the whole body with the given Markdown; mode "append" adds it to the end. A history snapshot is saved before the body changes, and open editors update live. Works for database rows too (use update_database_row for their properties).',
+        `Change a page's title and/or body. mode "replace" overwrites the whole body with the given Markdown; mode "append" adds it to the end. A history snapshot is saved before the body changes, and open editors update live. Works for database rows too (use update_database_row for their properties). ${EMBED_NOTE} Keep those lines where the databases should stay; a linked view whose line is left out is removed, while an inline database whose line is left out stays at the end of the page.`,
       inputSchema: z.object({
         page_id: id("page"),
         title: z.string().min(1).max(500).optional().describe("New title."),

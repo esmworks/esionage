@@ -24,5 +24,6 @@
   "name": "Name",
   "noRows": "No rows to show.",
   "readOnly": "Read-only",
-  "home": "Go to Esionage"
+  "home": "Go to Esionage",
+  "embedUnavailable": "This database isn't published with this page."
 }

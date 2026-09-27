@@ -97,6 +97,9 @@ jobs:
       - name: Formula and rollup end-to-end
         run: pnpm tsx scripts/formula-e2e.ts
 
+      - name: Inline databases and linked views end-to-end
+        run: pnpm tsx scripts/inline-db-e2e.ts
+
       - name: Start the server
         run: |
           pnpm start > "$RUNNER_TEMP/server.log" 2>&1 &

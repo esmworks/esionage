@@ -119,5 +119,35 @@
       "invitesRestricted": "This workspace doesn't let you share pages with people outside it. Ask an owner.",
       "generic": "Couldn't update sharing."
     }
+  },
+  "embed": {
+    "label": "Database",
+    "linkedLabel": "Linked view of a database",
+    "unavailable": "This database isn't available. It may have been deleted, or you don't have access to it.",
+    "inTrash": "This database is in the trash.",
+    "creating": "Creating database…",
+    "createFailed": "Couldn't create the database: {error}",
+    "open": "Open as page",
+    "linked": "Linked view",
+    "layout": "Layout",
+    "viewOnly": "Only people who can edit this page can change this view.",
+    "picker": {
+      "title": "Choose a database",
+      "search": "Search databases",
+      "empty": "No databases found.",
+      "failed": "Couldn't load databases."
+    },
+    "slash": {
+      "database": {
+        "title": "Database",
+        "subtext": "A new database inside this page",
+        "aliases": "database db inline table"
+      },
+      "linkedView": {
+        "title": "Linked view of database",
+        "subtext": "Show an existing database with a view of its own",
+        "aliases": "linked view database db"
+      }
+    }
   }
 }

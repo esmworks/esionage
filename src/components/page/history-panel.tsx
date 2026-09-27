@@ -6,26 +6,33 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote } from "@blocknote/react";
 import { History, X } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { getSnapshotAction, listSnapshotsAction, restoreSnapshotAction } from "@/app/actions/pages";
 import { Button, cn, IconButton, pageLabel } from "@/components/ui";
 import { useEditorDictionary } from "@/i18n/blocknote";
+import { DATABASE_BLOCK, mapReferenceLines } from "@/lib/embed-blocks";
 
 type SnapshotItem = Awaited<ReturnType<typeof listSnapshotsAction>>[number];
 
 function Preview({ markdown }: { markdown: string }) {
   const dictionary = useEditorDictionary();
+  const te = useTranslations("page.embed");
   const editor = useCreateBlockNote({ dictionary }, [dictionary]);
+  // A database block is only named here: the version keeps which database, not its rows back then.
+  const text = useMemo(
+    () => mapReferenceLines(markdown || "", (ref) => `*${te(ref.type === DATABASE_BLOCK ? "label" : "linkedLabel")}*`),
+    [markdown, te],
+  );
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const blocks = await editor.tryParseMarkdownToBlocks(markdown || "");
+      const blocks = await editor.tryParseMarkdownToBlocks(text);
       if (!cancelled) editor.replaceBlocks(editor.document, blocks.length ? blocks : [{ type: "paragraph" }]);
     })();
     return () => {
       cancelled = true;
     };
-  }, [editor, markdown]);
+  }, [editor, text]);
   return <BlockNoteView editor={editor} editable={false} sideMenu={false} slashMenu={false} formattingToolbar={false} />;
 }
 

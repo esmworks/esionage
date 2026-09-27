@@ -3,10 +3,12 @@
 import { Plus, TriangleAlert, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui";
 import type { ViewConfig, ViewType } from "@/db/schema/app";
+import type { LinkedView } from "@/lib/embed-blocks";
 import { applyView, defaultsFromFilters } from "@/lib/properties";
+import { galleryCover } from "@/lib/views";
 import { BoardView } from "./board-view";
 import { CalendarView } from "./calendar-view";
 import { ChartView } from "./chart-view";
@@ -17,16 +19,28 @@ import { RelationProvider, type RelationContextValue } from "./relation-context"
 import { SchemaProvider } from "./schema-context";
 import { TableView } from "./table-view";
 import { TimelineView } from "./timeline-view";
-import type { View } from "./types";
+import type { DatabaseSnapshot, View } from "./types";
 import { useDatabase } from "./use-database";
 import { ActiveRulesBar, ViewTabs, ViewToolbar } from "./view-bar";
 import { timelineDates, ViewLayoutMenu } from "./view-settings";
+
+/** A database shown inside a page body (see components/page/embed-blocks). */
+export type DatabaseEmbed = {
+  /**
+   * A linked view: one view whose settings the block keeps instead of the database. Without
+   * `onChange` (the reader may not edit the page) its filters, sorts and layout stay as they are.
+   */
+  linked?: { view: LinkedView; onChange?: (view: LinkedView) => void };
+  /** Shown above the view tabs once the database has loaded (its name, a link to open it). */
+  header?: (snapshot: DatabaseSnapshot) => ReactNode;
+};
 
 export function DatabasePage({
   workspaceId,
   databaseId,
   canEdit = true,
   guest = false,
+  embed,
 }: {
   workspaceId: string;
   databaseId: string;
@@ -34,33 +48,58 @@ export function DatabasePage({
   canEdit?: boolean;
   /** Guests get fewer bulk actions (no trash). */
   guest?: boolean;
+  /** Shown inside a page: the selected view stays out of the URL and new rows don't open. */
+  embed?: DatabaseEmbed;
 }) {
   const t = useTranslations("database");
   const locale = useLocale();
-  const { snapshot, rows, loadError, error, api } = useDatabase(databaseId);
+  const linked = embed?.linked;
+  const embedded = embed !== undefined;
+  const { snapshot, rows, loadError, error, api } = useDatabase(databaseId, {
+    covers: linked?.view.type === "gallery" && galleryCover(linked.view.config) === "first_image",
+  });
   const router = useRouter();
   const searchParams = useSearchParams();
-  const viewParam = searchParams.get("view");
+  const viewParam = embedded ? null : searchParams.get("view");
   const [selectedViewId, setSelectedViewId] = useState<string | null>(viewParam);
   // Sidebar view links change only the query string, so the page stays mounted: follow the URL.
   useEffect(() => {
     if (viewParam) setSelectedViewId(viewParam);
   }, [viewParam]);
 
-  const views = snapshot?.views ?? [];
+  const linkedSettings = linked?.view;
+  const linkedView = useMemo<View | null>(
+    () =>
+      linkedSettings
+        ? ({
+            id: `linked:${databaseId}`,
+            databaseId,
+            name: t(`views.${linkedSettings.type}`),
+            type: linkedSettings.type,
+            config: linkedSettings.config,
+            position: 0,
+            createdAt: new Date(0),
+          } as View)
+        : null,
+    [linkedSettings, databaseId, t],
+  );
+  const views = linkedView ? [linkedView] : (snapshot?.views ?? []);
   const view = views.find((v) => v.id === selectedViewId) ?? views[0] ?? null;
   const readOnly = (snapshot?.database.archived ?? false) || !canEdit;
   const locked = snapshot?.database.locked ?? false;
+  // A linked view's settings belong to the page showing it, not to the database.
+  const configReadOnly = linked ? !linked.onChange : readOnly;
 
   const selectView = useCallback((id: string) => {
     setSelectedViewId(id);
+    if (embedded) return;
     // Shallow URL update: keeps the view shareable without a server round trip. A null state lets
     // Next sync its router with the new URL; passing its own state object would make it ignore the
     // change, and the next server action would put the old URL back.
     const url = new URL(window.location.href);
     url.searchParams.set("view", id);
     window.history.replaceState(null, "", url);
-  }, []);
+  }, [embedded]);
 
   const relationContext = useMemo<RelationContextValue | null>(
     () =>
@@ -79,6 +118,18 @@ export function DatabasePage({
     [snapshot?.viewerId, snapshot?.people],
   );
 
+  // Changes to a linked view go to its block; the database's own views stay untouched.
+  const onLinkedChange = linked?.onChange;
+  const isLinked = linked !== undefined;
+  const baseApi = useMemo(() => {
+    if (!isLinked) return api;
+    const updateView = async (v: View, patch: { name?: string; config?: ViewConfig }) => {
+      if (patch.config && onLinkedChange) onLinkedChange({ type: v.type, config: patch.config });
+      return null;
+    };
+    return { ...api, updateView: updateView as typeof api.updateView };
+  }, [api, isLinked, onLinkedChange]);
+
   // New rows get the values the active filters ask for, so they don't vanish right after creation.
   const viewApi = useMemo(() => {
     const defaults =
@@ -90,13 +141,13 @@ export function DatabasePage({
             view.config.filterCombinator,
           )
         : {};
-    if (!Object.keys(defaults).length) return api;
+    if (!Object.keys(defaults).length) return baseApi;
     return {
-      ...api,
-      createRow: (input: Parameters<typeof api.createRow>[0] = {}) =>
-        api.createRow({ ...input, properties: { ...defaults, ...input.properties } }),
+      ...baseApi,
+      createRow: (input: Parameters<typeof baseApi.createRow>[0] = {}) =>
+        baseApi.createRow({ ...input, properties: { ...defaults, ...input.properties } }),
     };
-  }, [api, view, snapshot]);
+  }, [baseApi, view, snapshot]);
 
   const visibleRows = useMemo(() => {
     if (!view || !snapshot) return [];
@@ -121,7 +172,7 @@ export function DatabasePage({
     );
   }
 
-  const setConfig = (v: View, config: ViewConfig) => api.updateView(v, { config });
+  const setConfig = (v: View, config: ViewConfig) => baseApi.updateView(v, { config });
 
   const addView = async (type: ViewType) => {
     // Names for new views follow the UI language; existing names are stored data and stay as-is.
@@ -165,7 +216,8 @@ export function DatabasePage({
 
   const newRow = async () => {
     const id = await viewApi.createRow();
-    if (id) router.push(`/w/${workspaceId}/p/${id}`);
+    // Inside a page the new row shows up in place; leaving the page would lose the reader's spot.
+    if (id && !embedded) router.push(`/w/${workspaceId}/p/${id}`);
   };
 
   return (
@@ -175,11 +227,12 @@ export function DatabasePage({
           {/* Wide layout: controls sit in the page gutter, the board scrolls edge to edge. */}
           <div className="min-w-0">
             <div className="page-gutter">
+              {embed?.header?.(snapshot)}
               <div className="flex items-end justify-between gap-2 border-b border-border">
                 <ViewTabs
                   views={views}
                   activeId={view?.id ?? ""}
-                  readOnly={readOnly || locked}
+                  readOnly={readOnly || locked || !!linked}
                   onSelect={selectView}
                   onAdd={addView}
                   onRename={(v, name) => api.updateView(v, { name })}
@@ -196,7 +249,7 @@ export function DatabasePage({
                     <ViewToolbar
                       view={view}
                       properties={snapshot.properties}
-                      readOnly={readOnly}
+                      readOnly={configReadOnly}
                       locked={locked}
                       onConfig={(config) => setConfig(view, config)}
                       onCreateGroupProperty={createGroupProperty}
@@ -205,7 +258,7 @@ export function DatabasePage({
                     <ViewLayoutMenu
                       view={view}
                       properties={snapshot.properties}
-                      readOnly={readOnly}
+                      readOnly={configReadOnly}
                       locked={locked}
                       onConfig={(config) => setConfig(view, config)}
                       onCreateDateProperty={createDateProperty}
@@ -242,7 +295,7 @@ export function DatabasePage({
                 <ActiveRulesBar
                   view={view}
                   properties={snapshot.properties}
-                  readOnly={readOnly}
+                  readOnly={configReadOnly}
                   onConfig={(config) => setConfig(view, config)}
                 />
               )}

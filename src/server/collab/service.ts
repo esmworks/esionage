@@ -1,5 +1,4 @@
 import { Hocuspocus, type Document, type Extension } from "@hocuspocus/server";
-import { ServerBlockNoteEditor } from "@blocknote/server-util";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import * as Y from "yjs";
 import { db } from "@/db";
@@ -9,6 +8,7 @@ import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { markdownImageHint, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { migrateDocTitle, readDocTitle, writeDocTitle } from "@/lib/collab-title";
 import { AccessError } from "@/server/access";
+import { blocksToMarkdown, markdownToBlocks, serverEditor as editor } from "@/server/blocknote";
 import { authorizeCollab, parseDocName as parseName } from "./authorize";
 import type { Channel, CollabService, PageContent, WriteActor } from "./bridge";
 import { verifyCollabToken } from "./token";
@@ -18,15 +18,13 @@ type Context = { userId?: string; userName?: string; oauthClientId?: string | nu
 const AUTO_SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
 const debug = process.env.COLLAB_DEBUG ? (...args: unknown[]) => console.log("[collab]", ...args) : () => {};
 
-const editor = ServerBlockNoteEditor.create();
-
 const pageDocName = (pageId: string) => `page:${pageId}`;
 
 const readTitle = readDocTitle;
 
 async function deriveContent(doc: Y.Doc) {
   const blocks = editor.yXmlFragmentToBlocks(doc.getXmlFragment(COLLAB_FRAGMENT));
-  const markdown = (await editor.blocksToMarkdownLossy(blocks)).trim();
+  const markdown = (await blocksToMarkdown(blocks)).trim();
   return { blocks, markdown, text: blocksToPlainText(blocks) };
 }
 
@@ -233,7 +231,8 @@ export function createCollab() {
     },
 
     async replaceContent(pageId, markdown, actor, snapshot = false) {
-      await writeBlocks(pageId, actor, async () => editor.tryParseMarkdownToBlocks(markdown), snapshot);
+      // Database blocks the Markdown names keep their settings; inline databases it leaves out stay.
+      await writeBlocks(pageId, actor, async (existing) => markdownToBlocks(markdown, existing), snapshot);
     },
 
     async appendContent(pageId, markdown, actor, snapshot = false) {
@@ -241,7 +240,7 @@ export function createCollab() {
         pageId,
         actor,
         async (existing) => {
-          const added = await editor.tryParseMarkdownToBlocks(markdown);
+          const added = await markdownToBlocks(markdown, existing, { keepMissingInline: false });
           // A fresh page holds one empty paragraph; drop it instead of leaving a gap.
           const trimmed = existing.filter(
             (b, i) => !(i === existing.length - 1 && b.type === "paragraph" && !blocksToPlainText([b]) && !b.children.length),

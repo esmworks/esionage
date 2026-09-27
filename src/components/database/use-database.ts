@@ -44,7 +44,11 @@ async function unwrap<T>(p: Promise<ActionResult<T>>): Promise<T> {
  * `db:<id>` signal channel. Cell edits are layered as pending overlays until the server confirms,
  * so a refetch that races an in-flight write never flashes the old value.
  */
-export function useDatabase(databaseId: string) {
+export function useDatabase(
+  databaseId: string,
+  /** `covers`: load gallery covers for a gallery the database itself doesn't have (a linked view). */
+  { covers = false }: { covers?: boolean } = {},
+) {
   const tc = useTranslations("common");
   const tb = useTranslations("database.bulk");
   const genericError = tc("genericError");
@@ -64,7 +68,7 @@ export function useDatabase(databaseId: string) {
 
   const refetch = useCallback(async () => {
     const mine = ++seq.current;
-    const res = await loadDatabaseAction(databaseId).catch((e: unknown) => ({ ok: false as const, error: message(e) }));
+    const res = await loadDatabaseAction(databaseId, { covers }).catch((e: unknown) => ({ ok: false as const, error: message(e) }));
     if (mine !== seq.current) return;
     if (!res.ok) {
       setLoadError(res.error);
@@ -72,7 +76,7 @@ export function useDatabase(databaseId: string) {
     }
     setLoadError(null);
     setSnapshot(res.data);
-  }, [databaseId, message]);
+  }, [databaseId, covers, message]);
 
   useEffect(() => {
     void refetch();
