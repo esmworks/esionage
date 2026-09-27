@@ -268,6 +268,70 @@ describe("person properties", () => {
   });
 });
 
+describe("system, status and checklist properties", () => {
+  const edited: PropertyDef = { id: "p_edited", name: "Edited", type: "last_edited_time", options: {} };
+  const editor: PropertyDef = { id: "p_editor", name: "Edited by", type: "last_edited_by", options: {} };
+  const todo: PropertyDef = { id: "p_todo", name: "Todo", type: "checklist", options: {} };
+  const stage: PropertyDef = {
+    id: "p_stage",
+    name: "Stage",
+    type: "status",
+    options: {
+      options: [
+        { id: "s1", name: "New", color: "gray", group: "todo" },
+        { id: "s2", name: "Shipped", color: "green", group: "done" },
+      ],
+    },
+  };
+  const all = [edited, editor, todo, stage];
+  const lookups = { relations: {}, people: [{ id: "u1", name: "Ayşe", email: "ayse@example.com" }] };
+
+  it("filters timestamps by day", () => {
+    expect(toFilterRule(all, { property: "edited", op: "gt", value: "2026-09-27T10:00:00Z" })).toEqual({
+      propertyId: "p_edited",
+      op: "gt",
+      value: "2026-09-27",
+    });
+    expect(() => toFilterRule(all, { property: "Edited", op: "contains", value: "2026" })).toThrow(/supports equals/);
+    expect(() => toFilterRule(all, { property: "Edited", op: "equals", value: "yesterday" })).toThrow(/YYYY-MM-DD/);
+    expect(toFilterRule(all, { property: "Edited", op: "is_within", value: "past_n_days", days: 7 })).toEqual({
+      propertyId: "p_edited",
+      op: "is_within",
+      value: "past_n_days",
+      days: 7,
+    });
+    expect(() => toFilterRule(all, { property: "Edited by", op: "is_within", value: "today" })).toThrow(/only applies to date/);
+  });
+
+  it("treats last edited by like a person and names it in errors", () => {
+    expect(toFilterRule(all, { property: "Edited by", op: "contains", value: "ayse@example.com" }, lookups).value).toBe("u1");
+    expect(() => toFilterRule(all, { property: "Edited by", op: "equals", value: "u1" }, lookups)).toThrow(
+      /Last edited by "Edited by"/,
+    );
+  });
+
+  it("only checks checklists for emptiness", () => {
+    expect(toFilterRule(all, { property: "Todo", op: "is_empty" })).toEqual({ propertyId: "p_todo", op: "is_empty" });
+    expect(() => toFilterRule(all, { property: "Todo", op: "contains", value: "x" })).toThrow(/is_empty and is_not_empty/);
+    expect(displayProperties(all, { p_todo: [{ id: "i", text: "Write", checked: true }] })).toEqual({
+      Todo: [{ text: "Write", checked: true }],
+    });
+  });
+
+  it("filters statuses by option name and describes their groups", () => {
+    expect(toFilterRule(all, { property: "Stage", op: "equals", value: "shipped" }).value).toBe("s2");
+    expect(describeProperty(stage)).toEqual({
+      id: "p_stage",
+      name: "Stage",
+      type: "status",
+      options: ["New", "Shipped"],
+      status_groups: { todo: ["New"], in_progress: [], done: ["Shipped"] },
+    });
+    expect(describeProperty(edited)).toMatchObject({ read_only: true });
+    expect(describeProperty(editor, lookups)).toEqual({ id: "p_editor", name: "Edited by", type: "last_edited_by", read_only: true });
+  });
+});
+
 describe("filter groups and relative dates", () => {
   const all: PropertyDef[] = [...props, { id: "p_due", name: "Due", type: "date", options: {} }];
 

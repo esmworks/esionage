@@ -12,7 +12,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import type { AggregateFn } from "../../lib/aggregate";
-import { PROPERTY_TYPES, type PropertyType } from "../../lib/property-types";
+import { PROPERTY_TYPES, type PropertyType, type StatusGroup } from "../../lib/property-types";
 import { user } from "./auth";
 
 const bytea = customType<{ data: Uint8Array; driverData: Buffer }>({
@@ -143,8 +143,11 @@ export const page = pgTable(
   ],
 );
 
-export { PROPERTY_TYPES, type PropertyType };
-export type SelectOption = { id: string; name: string; color: string };
+export { PROPERTY_TYPES, type PropertyType, type StatusGroup };
+/** An option of a select, multi-select or status property. Status options belong to a `group`. */
+export type SelectOption = { id: string; name: string; color: string; group?: StatusGroup };
+/** One entry of a checklist value; the value is a list of these, in order. */
+export type ChecklistItem = { id: string; text: string; checked: boolean };
 /**
  * A relation links rows of this database to rows of another database in the same workspace.
  * Values are arrays of row ids. A two-way relation has a paired relation property on the target

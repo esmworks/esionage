@@ -1,5 +1,5 @@
 import { toCsv } from "@/lib/csv";
-import { displayValue } from "@/lib/properties";
+import { asChecklist, displayValue } from "@/lib/properties";
 import { holdsPeople } from "@/lib/property-types";
 import { AccessError } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
@@ -61,11 +61,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
         if (typeof value === "boolean") return value ? "true" : "false";
         return typeof value === "number" ? value : String(value);
       };
+      // One line per checklist item, "[x] Done thing" / "[ ] Open thing".
+      const checklist = (value: unknown) =>
+        asChecklist(value)
+          .map((item) => `[${item.checked ? "x" : " "}] ${item.text}`)
+          .join("\n") || null;
       const csv = toCsv([
         ["Name", ...snapshot.properties.map((p) => p.name)],
         ...rows.map((row) => [
           row.title,
-          ...snapshot.properties.map((p) => cell(displayValue(p, row.properties[p.id]), holdsPeople(p.type) ? nameOf : titleOf)),
+          ...snapshot.properties.map((p) =>
+            p.type === "checklist"
+              ? checklist(row.properties[p.id])
+              : cell(displayValue(p, row.properties[p.id]), holdsPeople(p.type) ? nameOf : titleOf),
+          ),
         ]),
       ]);
       return download(csv, "text/csv", fileName(target.title, "csv"));

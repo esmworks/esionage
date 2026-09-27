@@ -14,14 +14,17 @@ import {
   type ViewType,
 } from "@/db/schema";
 import { filterConfigError, filterRules, mapFilterRules } from "@/lib/filters";
-import { holdsPeople, PERSON_ME } from "@/lib/property-types";
+import { holdsOptions, holdsPeople, isComputed, PERSON_ME, type StatusGroup } from "@/lib/property-types";
 import {
   applyView,
   computedValues,
+  makeStatusOptions,
   movePersonValue,
   normalizeValue,
   PropertyValueError,
   SELECT_COLORS,
+  sortStatusOptions,
+  statusColor,
   type DatabaseErrorCode,
 } from "@/lib/properties";
 import {
@@ -52,14 +55,28 @@ export type DatabaseRow = {
   updatedAt: Date;
 };
 
-/** Rows as read from the database, with values Esionage fills in (who created them) merged in. */
-function withComputed<T extends { properties: Record<string, unknown>; createdBy: string | null }>(
+/**
+ * Rows as read from the database, with values Esionage fills in (who created and last edited
+ * them, and when) merged in.
+ */
+function withComputed<T extends StoredRow>(
   rows: T[],
   properties: { id: string; type: PropertyType }[],
-): (Omit<T, "createdBy"> & { properties: Record<string, unknown> })[] {
-  if (!properties.some((p) => p.type === "created_by")) return rows.map(({ createdBy: _, ...row }) => row);
-  return rows.map(({ createdBy, ...row }) => ({ ...row, properties: { ...row.properties, ...computedValues(properties, { createdBy }) } }));
+): (Omit<T, "createdBy" | "updatedBy"> & { properties: Record<string, unknown> })[] {
+  if (!properties.some((p) => isComputed(p.type))) return rows.map(({ createdBy: _, updatedBy: __, ...row }) => row);
+  return rows.map(({ createdBy, updatedBy, ...row }) => ({
+    ...row,
+    properties: { ...row.properties, ...computedValues(properties, { createdBy, updatedBy, ...row }) },
+  }));
 }
+
+type StoredRow = {
+  properties: Record<string, unknown>;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 /** Sorting by a people property orders rows by names, so the view needs to know them. */
 async function peopleForSorts(userId: string, properties: DatabaseProperty[], config: ViewConfig) {
@@ -142,6 +159,7 @@ export async function listRows(userId: string, databaseId: string, config: ViewC
         icon: page.icon,
         properties: page.properties,
         createdBy: page.createdBy,
+        updatedBy: page.updatedBy,
         createdAt: page.createdAt,
         updatedAt: page.updatedAt,
       })
@@ -580,7 +598,7 @@ async function hideInCalendars(exec: Executor, databaseId: string, propertyId: s
 export async function addProperty(
   userId: string,
   databaseId: string,
-  input: { name: string; type: PropertyType; options?: string[]; relation?: RelationInput },
+  input: { name: string; type: PropertyType; options?: OptionInput[]; relation?: RelationInput },
 ) {
   const database = await requireDatabase(userId, databaseId, "edit");
   assertUnlocked(database);
@@ -610,10 +628,12 @@ export async function addProperty(
   }
   const options: PropertyOptions =
     input.type === "select" || input.type === "multi_select"
-      ? { options: (input.options ?? []).map((name, i) => makeOption(name, i)) }
-      : target
-        ? { relation: { databaseId: target.id } }
-        : {};
+      ? { options: (input.options ?? []).map((o, i) => makeOption(typeof o === "string" ? o : o.name, i)) }
+      : input.type === "status"
+        ? { options: makeStatusOptions(input.options) }
+        : target
+          ? { relation: { databaseId: target.id } }
+          : {};
   const created = await db.transaction(async (tx) => {
     const [created] = await tx
       .insert(databaseProperty)
@@ -656,6 +676,18 @@ export async function addProperty(
   return created;
 }
 
+/**
+ * An option to create: its name, or for status properties its name and group (options given by
+ * name only are spread over the groups, see makeStatusOptions).
+ */
+export type OptionInput = string | { name: string; group?: StatusGroup };
+
+/**
+ * For row writes that follow a schema change (a deleted property or option): the rows weren't
+ * edited, so their "last edited" time stays.
+ */
+const KEEP_EDIT_TIME = { updatedAt: sql<Date>`${page.updatedAt}` };
+
 export function makeOption(name: string, index = 0): SelectOption {
   return { id: crypto.randomUUID(), name: name.trim(), color: SELECT_COLORS[index % SELECT_COLORS.length] };
 }
@@ -678,6 +710,8 @@ export async function updateProperty(
   patch: { name?: string; options?: SelectOption[]; position?: number },
 ) {
   const prop = await requireProperty(userId, propertyId);
+  // Status options are kept in group order with a valid group each.
+  if (patch.options && prop.type === "status") patch = { ...patch, options: sortStatusOptions(patch.options) };
   // Rows must not keep ids of deleted options: they'd show as empty yet fail validation on the next edit.
   const removed = patch.options
     ? (prop.options.options ?? []).filter((o) => !patch.options!.some((n) => n.id === o.id)).map((o) => o.id)
@@ -698,10 +732,10 @@ export async function updateProperty(
     )}${sql.raw("]::text[]")}`;
     // Explicit casts: inside set() drizzle would send the parameters as jsonb, like the column.
     const current = sql`(${page.properties} -> ${propertyId}::text)`;
-    if (prop.type === "select") {
+    if (prop.type === "select" || prop.type === "status") {
       await tx
         .update(page)
-        .set({ properties: sql`${page.properties} - ${propertyId}::text` })
+        .set({ properties: sql`${page.properties} - ${propertyId}::text`, ...KEEP_EDIT_TIME })
         .where(and(eq(page.parentId, prop.databaseId), sql`${page.properties} ->> ${propertyId}::text = any(${ids})`));
     } else if (prop.type === "multi_select") {
       await tx
@@ -709,6 +743,7 @@ export async function updateProperty(
         .set({
           properties: sql`case when (${current} - ${ids}) = '[]'::jsonb then ${page.properties} - ${propertyId}::text
             else jsonb_set(${page.properties}, ${`{${propertyId}}`}::text[], ${current} - ${ids}) end`,
+          ...KEEP_EDIT_TIME,
         })
         .where(and(eq(page.parentId, prop.databaseId), sql`${current} ?| ${ids}`));
     }
@@ -720,16 +755,21 @@ export async function updateProperty(
 /** Adds a select option by name if missing and returns it (used when typing a new tag). */
 export async function ensureOption(userId: string, propertyId: string, name: string) {
   const prop = await requireProperty(userId, propertyId, { cellEdit: true });
-  if (prop.type !== "select" && prop.type !== "multi_select") {
+  if (!holdsOptions(prop.type)) {
     throw withCode(new Error("Not a select property"), "notASelectProperty");
   }
   const options = prop.options.options ?? [];
   const existing = options.find((o) => o.name.toLowerCase() === name.trim().toLowerCase());
   if (existing) return existing;
-  const option = makeOption(name, options.length);
+  // A status option added by name (a new board column) starts out as to do.
+  const option: SelectOption =
+    prop.type === "status"
+      ? { ...makeOption(name), color: statusColor("todo"), group: "todo" }
+      : makeOption(name, options.length);
+  const next = [...options, option];
   await db
     .update(databaseProperty)
-    .set({ options: { ...prop.options, options: [...options, option] } })
+    .set({ options: { ...prop.options, options: prop.type === "status" ? sortStatusOptions(next) : next } })
     .where(eq(databaseProperty.id, propertyId));
   notifySchema(prop.databaseId);
   return option;
@@ -750,7 +790,7 @@ export async function deleteProperty(userId: string, propertyId: string) {
     }
     await tx
       .update(page)
-      .set({ properties: sql`${page.properties} - ${propertyId}` })
+      .set({ properties: sql`${page.properties} - ${propertyId}`, ...KEEP_EDIT_TIME })
       .where(eq(page.parentId, prop.databaseId));
     // Drop references from view configs.
     const views = await tx.select().from(databaseView).where(eq(databaseView.databaseId, prop.databaseId));
@@ -782,7 +822,7 @@ export async function addView(userId: string, databaseId: string, input: { name:
   assertUnlocked(database);
   const props = await getProperties(databaseId);
   const config: ViewConfig = {};
-  if (input.type === "board") config.groupBy = props.find((p) => p.type === "select")?.id;
+  if (input.type === "board") config.groupBy = props.find((p) => p.type === "select" || p.type === "status")?.id;
   if (input.type === "calendar") {
     config.dateBy = props.find((p) => p.type === "date")?.id;
     // Calendar entries are small: show only titles until the user picks properties to show.
@@ -871,8 +911,8 @@ export async function moveRow(
       .select({ type: databaseProperty.type })
       .from(databaseProperty)
       .where(and(eq(databaseProperty.id, groupBy), eq(databaseProperty.databaseId, row.parentId)));
-    // Who created a row can't be changed by dragging it to someone else's column.
-    if (prop?.type === "created_by") await normalizeRowProperties(userId, row.parentId, { [groupBy]: groupValue });
+    // Who created or last edited a row can't be changed by dragging it to someone else's column.
+    if (prop && isComputed(prop.type)) await normalizeRowProperties(userId, row.parentId, { [groupBy]: groupValue });
     person = prop?.type === "person";
     if (person) {
       const next = movePersonValue(properties[groupBy], groupFrom, groupValue);
@@ -905,6 +945,7 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
       icon: page.icon,
       properties: page.properties,
       createdBy: page.createdBy,
+      updatedBy: page.updatedBy,
       position: page.position,
       createdAt: page.createdAt,
       updatedAt: page.updatedAt,
@@ -1022,14 +1063,14 @@ export async function getPeople(userId: string, properties: DatabaseProperty[]):
   const [members, rows, views] = await Promise.all([
     workspacePeopleOf(databaseId),
     db
-      .select({ properties: page.properties, createdBy: page.createdBy })
+      .select({ properties: page.properties, createdBy: page.createdBy, updatedBy: page.updatedBy })
       .from(page)
       .where(and(eq(page.parentId, databaseId), pageVisibleTo(userId))),
     db.select({ config: databaseView.config }).from(databaseView).where(eq(databaseView.databaseId, databaseId)),
   ]);
   const referenced = new Set<string>();
-  for (const { properties: stored, createdBy } of rows) {
-    const values = { ...stored, ...computedValues(personProps, { createdBy }) };
+  for (const { properties: stored, createdBy, updatedBy } of rows) {
+    const values = { ...stored, ...computedValues(personProps, { createdBy, updatedBy }) };
     for (const prop of personProps) for (const id of asIds(values[prop.id])) referenced.add(id);
   }
   for (const view of views) {

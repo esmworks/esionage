@@ -49,6 +49,11 @@ describe("valueKind", () => {
     expect(valueKind("person")).toBe("people");
     expect(valueKind("created_by")).toBe("people");
     expect(valueKind("relation")).toBe("relation");
+    expect(valueKind("status")).toBe("options");
+    expect(valueKind("email")).toBe("text");
+    expect(valueKind("last_edited_time")).toBe("date");
+    expect(valueKind("last_edited_by")).toBe("people");
+    expect(valueKind("checklist")).toBe("checklist");
   });
 
   it("falls back to other for unknown types, including Object prototype names", () => {
@@ -210,6 +215,23 @@ describe("aggregateValues: dates", () => {
     const mixed = ["2024-01-02", "2024-01-01T23:00:00.000Z", "2024-01-01T01:00:00.000Z"];
     expect(run(mixed, "earliest_date", "created_time")).toEqual({ format: "date", value: "2024-01-01T01:00:00.000Z" });
     expect(run(mixed, "latest_date", "created_time")).toEqual({ format: "date", value: "2024-01-02" });
+  });
+});
+
+describe("aggregateValues: checklists", () => {
+  const item = (text: string, checked = false) => ({ id: text, text, checked });
+  const values = [[item("Draft", true), item("Review")], [], null, [item("Draft")]];
+
+  it("counts items by their text and empty checklists as empty", () => {
+    expect(run(values, "count_values", "checklist")).toEqual(num(3));
+    expect(run(values, "count_unique", "checklist")).toEqual(num(2));
+    expect(run(values, "count_empty", "checklist")).toEqual(num(2));
+    expect(run(values, "percent_not_empty", "checklist")).toEqual(pct(0.5));
+  });
+
+  it("only offers the generic counts", () => {
+    expect(aggregateFunctions("checklist")).not.toContain("count_checked");
+    expect(run(values, "sum", "checklist")).toBeNull();
   });
 });
 

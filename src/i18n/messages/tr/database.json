@@ -5,12 +5,19 @@
     "number": "Sayı",
     "select": "Seçim",
     "multiSelect": "Çoklu seçim",
+    "status": "Durum",
     "date": "Tarih",
     "checkbox": "Onay kutusu",
     "url": "URL",
+    "email": "E-posta",
+    "phone": "Telefon",
+    "checklist": "Kontrol listesi",
     "relation": "İlişki",
     "person": "Kişi",
-    "createdBy": "Oluşturan"
+    "createdBy": "Oluşturan",
+    "createdTime": "Oluşturulma zamanı",
+    "lastEditedBy": "Son düzenleyen",
+    "lastEditedTime": "Son düzenlenme zamanı"
   },
   "views": {
     "table": "Tablo",
@@ -58,7 +65,7 @@
     "group": "Grupla",
     "groupWithName": "Grup: {name}",
     "groupBy": "Grupla",
-    "groupNeedsSelect": "Panolar bir seçim veya kişi özelliğine göre gruplanır.",
+    "groupNeedsSelect": "Panolar bir seçim, durum veya kişi özelliğine göre gruplanır.",
     "newSelectProperty": "Yeni seçim özelliği",
     "properties": "Özellikler",
     "shownInView": "Bu görünümde gösterilenler",
@@ -220,8 +227,8 @@
     }
   },
   "board": {
-    "needsSelectTitle": "Panolar satırları bir seçim veya kişi özelliğine göre gruplar",
-    "needsSelectBody": "Bu veritabanında henüz seçim veya kişi özelliği yok.",
+    "needsSelectTitle": "Panolar satırları bir seçim, durum veya kişi özelliğine göre gruplar",
+    "needsSelectBody": "Bu veritabanında henüz seçim, durum veya kişi özelliği yok.",
     "addGroupProperty": "{name} özelliği ekle",
     "noValue": "{property} yok",
     "cardCount": "{count, plural, other {# kart}}",
@@ -247,6 +254,8 @@
     "removeOption": "{name} seçeneğini kaldır",
     "enterNumber": "Bir sayı girin",
     "enterUrl": "Geçerli bir URL (https://…) veya e-posta adresi girin",
+    "enterEmail": "Bir e-posta adresi girin",
+    "enterPhone": "Bir telefon numarası girin",
     "date": "Tarih",
     "today": "Bugün",
     "clear": "Temizle",
@@ -255,7 +264,24 @@
     "typeToCreate": "Seçenek oluşturmak için yazın",
     "selectOptions": "Seçenekleri seçin veya yenisini oluşturun",
     "selectOption": "Bir seçenek seçin veya yenisini oluşturun",
-    "create": "Oluştur"
+    "create": "Oluştur",
+    "selectStatus": "Bir durum seçin",
+    "noStatusOptions": "Henüz seçenek yok. Özellik menüsünden ekleyebilirsiniz.",
+    "searchStatus": "Durum arayın"
+  },
+  "checklist": {
+    "addItem": "Madde ekleyin",
+    "newItem": "Yeni madde",
+    "item": "Madde {index}",
+    "toggle": "“{text}” tamamlandı olarak işaretle",
+    "remove": "“{text}” maddesini kaldır",
+    "progress": "{total} maddenin {done} tanesi tamam",
+    "empty": "Henüz madde yok"
+  },
+  "statusGroups": {
+    "todo": "Yapılacak",
+    "in_progress": "Devam ediyor",
+    "done": "Tamamlandı"
   },
   "propertyMenu": {
     "name": "Özellik adı",
@@ -277,7 +303,10 @@
     "color": "Renk: {color}",
     "addOptionPlaceholder": "Seçenek ekleyin",
     "newOption": "Yeni seçenek",
-    "addOption": "Seçenek ekle"
+    "addOption": "Seçenek ekle",
+    "statusGroup": "Grup",
+    "addToGroup": "{group} grubuna seçenek ekle",
+    "readOnlyHint": "Otomatik doldurulur"
   },
   "rowProperties": {
     "noProperties": "Özellik yok",
@@ -330,6 +359,9 @@
   },
   "errors": {
     "invalidUrl": "“{property}” bir http(s) veya mailto URL’si olmalıdır.",
+    "invalidEmail": "“{property}” bir e-posta adresi olmalıdır.",
+    "invalidPhone": "“{property}” bir telefon numarası olmalıdır.",
+    "invalidChecklist": "“{property}” bir madde listesi olmalıdır.",
     "invalidNumber": "“{property}” bir sayı olmalıdır.",
     "invalidCheckbox": "“{property}” doğru ya da yanlış olmalıdır.",
     "invalidDate": "“{property}” bir tarih (YYYY-AA-GG) olmalıdır.",

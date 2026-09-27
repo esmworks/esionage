@@ -5,12 +5,19 @@
     "number": "Number",
     "select": "Select",
     "multiSelect": "Multi-select",
+    "status": "Status",
     "date": "Date",
     "checkbox": "Checkbox",
     "url": "URL",
+    "email": "Email",
+    "phone": "Phone",
+    "checklist": "Checklist",
     "relation": "Relation",
     "person": "Person",
-    "createdBy": "Created by"
+    "createdBy": "Created by",
+    "createdTime": "Created time",
+    "lastEditedBy": "Last edited by",
+    "lastEditedTime": "Last edited time"
   },
   "views": {
     "table": "Table",
@@ -58,7 +65,7 @@
     "group": "Group",
     "groupWithName": "Group: {name}",
     "groupBy": "Group by",
-    "groupNeedsSelect": "Boards group by a select or person property.",
+    "groupNeedsSelect": "Boards group by a select, status or person property.",
     "newSelectProperty": "New select property",
     "properties": "Properties",
     "shownInView": "Shown in this view",
@@ -220,8 +227,8 @@
     }
   },
   "board": {
-    "needsSelectTitle": "Boards group rows by a select or person property",
-    "needsSelectBody": "This database has no select or person property yet.",
+    "needsSelectTitle": "Boards group rows by a select, status or person property",
+    "needsSelectBody": "This database has no select, status or person property yet.",
     "addGroupProperty": "Add a {name} property",
     "noValue": "No {property}",
     "cardCount": "{count, plural, one {# card} other {# cards}}",
@@ -247,6 +254,8 @@
     "removeOption": "Remove {name}",
     "enterNumber": "Enter a number",
     "enterUrl": "Enter a valid URL (https://…) or email",
+    "enterEmail": "Enter an email address",
+    "enterPhone": "Enter a phone number",
     "date": "Date",
     "today": "Today",
     "clear": "Clear",
@@ -255,7 +264,24 @@
     "typeToCreate": "Type to create an option",
     "selectOptions": "Select options or create one",
     "selectOption": "Select an option or create one",
-    "create": "Create"
+    "create": "Create",
+    "selectStatus": "Select a status",
+    "noStatusOptions": "No options yet. Add them from the property menu.",
+    "searchStatus": "Search for a status"
+  },
+  "checklist": {
+    "addItem": "Add an item",
+    "newItem": "New item",
+    "item": "Item {index}",
+    "toggle": "Mark “{text}” done",
+    "remove": "Remove “{text}”",
+    "progress": "{done} of {total} done",
+    "empty": "No items yet"
+  },
+  "statusGroups": {
+    "todo": "To-do",
+    "in_progress": "In progress",
+    "done": "Complete"
   },
   "propertyMenu": {
     "name": "Property name",
@@ -277,7 +303,10 @@
     "color": "Color {color}",
     "addOptionPlaceholder": "Add an option",
     "newOption": "New option",
-    "addOption": "Add option"
+    "addOption": "Add option",
+    "statusGroup": "Group",
+    "addToGroup": "Add an option to {group}",
+    "readOnlyHint": "Filled in automatically"
   },
   "rowProperties": {
     "noProperties": "No properties",
@@ -330,6 +359,9 @@
   },
   "errors": {
     "invalidUrl": "“{property}” must be an http(s) or mailto URL.",
+    "invalidEmail": "“{property}” must be an email address.",
+    "invalidPhone": "“{property}” must be a phone number.",
+    "invalidChecklist": "“{property}” must be a list of items.",
     "invalidNumber": "“{property}” must be a number.",
     "invalidCheckbox": "“{property}” must be true or false.",
     "invalidDate": "“{property}” must be a date (YYYY-MM-DD).",

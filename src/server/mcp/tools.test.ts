@@ -237,6 +237,41 @@ describe("database properties", () => {
     expect(r.data.property).toEqual({ id: "prop-status", name: "State", type: "select", options: ["To do", "Blocked"] });
   });
 
+  it("adds status options to groups and moves them between groups", async () => {
+    const stage = {
+      id: "prop-stage",
+      name: "Stage",
+      type: "status",
+      options: {
+        options: [
+          { id: "s-new", name: "New", color: "gray", group: "todo" },
+          { id: "s-done", name: "Shipped", color: "green", group: "done" },
+        ],
+      },
+    };
+    databases.getDatabase.mockResolvedValueOnce({ database: { id: "db-1", workspaceId: "ws-1" }, properties: [stage], views: [] });
+    const r = await callTool(writer, "update_database_property", {
+      database_id: "db-1",
+      property: "Stage",
+      add_options: [{ name: "Review", group: "in_progress" }, "Idea"],
+      option_groups: [{ option: "shipped", group: "in_progress" }],
+    });
+    expect(r.isError).toBe(false);
+    expect(databases.updateProperty.mock.calls[0][2].options.map((o: { name: string; group: string }) => [o.name, o.group])).toEqual([
+      ["New", "todo"],
+      ["Idea", "todo"],
+      ["Shipped", "in_progress"],
+      ["Review", "in_progress"],
+    ]);
+    expect(r.data.property.status_groups).toEqual({ todo: ["New", "Idea"], in_progress: ["Shipped", "Review"], done: [] });
+    const wrong = await callTool(writer, "update_database_property", {
+      database_id: "db-1",
+      property: "Status",
+      option_groups: [{ option: "Todo", group: "done" }],
+    });
+    expect(wrong.text).toMatch(/only status options belong to groups/);
+  });
+
   it("names the existing options when one is unknown", async () => {
     const r = await callTool(writer, "update_database_property", { database_id: "db-1", property: "Status", remove_options: ["Later"] });
     expect(r.isError).toBe(true);
@@ -246,7 +281,7 @@ describe("database properties", () => {
 
   it("rejects option changes on non-select properties and duplicate names", async () => {
     const opts = await callTool(writer, "update_database_property", { database_id: "db-1", property: "Notes", add_options: ["x"] });
-    expect(opts.text).toMatch(/only select and multi_select/);
+    expect(opts.text).toMatch(/only select, multi_select and status/);
     const dup = await callTool(writer, "update_database_property", { database_id: "db-1", property: "Notes", name: "status" });
     expect(dup.text).toMatch(/already exists/);
     expect(databases.updateProperty).not.toHaveBeenCalled();
@@ -386,7 +421,7 @@ describe("update_database_rows", () => {
 describe("database views", () => {
   it("validates board grouping before creating the view", async () => {
     const r = await callTool(writer, "create_database_view", { database_id: "db-1", name: "By notes", type: "board", group_by: "Notes" });
-    expect(r.text).toMatch(/select, person or created_by property/);
+    expect(r.text).toMatch(/select, status, person, created_by or last_edited_by property/);
     expect(databases.addView).not.toHaveBeenCalled();
   });
 

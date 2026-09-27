@@ -6,14 +6,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem } from "@/components/ui";
 import { Floating, useFloating } from "./floating";
 import { PersonPicker } from "./person-cell";
-import { OptionPicker, parseInput } from "./property-cell";
+import { INPUT_MODE, INVALID_INPUT, OptionPicker, parseInput } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
 import { RelationPicker } from "./relation-cell";
 import type { Property, Row } from "./types";
 import type { DatabaseApi } from "./use-database";
 
 /** Property types a selection can be edited in, each with an editor below. */
-const BULK_EDITABLE = new Set<string>(["text", "number", "url", "date", "checkbox", "select", "multi_select", "relation", "person"]);
+const BULK_EDITABLE = new Set<string>([
+  "text",
+  "number",
+  "url",
+  "email",
+  "phone",
+  "date",
+  "checkbox",
+  "select",
+  "multi_select",
+  "status",
+  "relation",
+  "person",
+]);
 
 /**
  * Which rows of a table are selected. Rows that leave the view (filtered out, trashed, deleted
@@ -328,6 +341,7 @@ function BulkValueEditor({
   switch (prop.type) {
     case "select":
     case "multi_select":
+    case "status":
       return <OptionPicker prop={prop} value={value} onChange={onApply} onCreateOption={api.createOption} onDone={onDone} />;
     case "relation":
       return <RelationPicker prop={prop} value={value} onChange={onApply} />;
@@ -364,7 +378,7 @@ function initialText(value: unknown, locale: string) {
   return decimal === "," && !s.includes("e") ? s.replace(".", ",") : s;
 }
 
-/** Text, number, URL and date values: type, then Apply (Enter) or Clear. */
+/** Text, number, URL, email, phone and date values: type, then Apply (Enter) or Clear. */
 function TextValueEditor({
   prop,
   value,
@@ -404,7 +418,7 @@ function TextValueEditor({
       <Input
         autoFocus
         type={date ? "date" : "text"}
-        inputMode={prop.type === "number" ? "decimal" : undefined}
+        inputMode={INPUT_MODE[prop.type]}
         value={draft}
         aria-label={prop.name}
         onChange={(e) => {
@@ -414,7 +428,7 @@ function TextValueEditor({
         className={cn("h-8", date && "[color-scheme:light_dark]")}
       />
       {invalid && (
-        <div className="mt-1 text-xs text-danger">{prop.type === "number" ? tc("enterNumber") : tc("enterUrl")}</div>
+        <div className="mt-1 text-xs text-danger">{tc(INVALID_INPUT[prop.type] ?? "enterUrl")}</div>
       )}
       <div className="mt-2 flex justify-end gap-1">
         <Button

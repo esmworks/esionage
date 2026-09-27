@@ -1,5 +1,5 @@
 import type { PropertyOptions } from "@/db/schema/app";
-import { CREATED_KEY, TITLE_KEY, UPDATED_KEY, type RowLike } from "./properties";
+import { asChecklist, CREATED_KEY, TITLE_KEY, UPDATED_KEY, type RowLike } from "./properties";
 
 /**
  * Column calculations (table footers today; rollups and charts later). Pure: no React, no
@@ -37,10 +37,19 @@ export function isAggregateFn(fn: unknown): fn is AggregateFn {
 
 /**
  * How a property's values are read for calculations. `options` values are option ids (deleted
- * options don't count), `people` and `relation` values are lists of ids; `other` only gets the
- * generic counts.
+ * options don't count), `people` and `relation` values are lists of ids, `checklist` values lists
+ * of items (counted by their text); `other` only gets the generic counts.
  */
-export type ValueKind = "text" | "number" | "date" | "checkbox" | "options" | "people" | "relation" | "other";
+export type ValueKind =
+  | "text"
+  | "number"
+  | "date"
+  | "checkbox"
+  | "options"
+  | "people"
+  | "relation"
+  | "checklist"
+  | "other";
 
 /**
  * Property type (or special column key) → value kind. A new property type only needs a line
@@ -67,6 +76,7 @@ const VALUE_KINDS: Record<string, ValueKind> = {
   created_by: "people",
   last_edited_by: "people",
   relation: "relation",
+  checklist: "checklist",
 };
 
 export function valueKind(type: string): ValueKind {
@@ -90,6 +100,7 @@ const BY_KIND: Record<ValueKind, AggregateFn[]> = {
   options: GENERIC,
   people: GENERIC,
   relation: GENERIC,
+  checklist: GENERIC,
   number: [...GENERIC, "sum", "average", "median", "min", "max", "range"],
   date: [...GENERIC, "earliest_date", "latest_date", "date_range"],
   checkbox: ["count_all", "count_checked", "count_unchecked", "percent_checked", "percent_unchecked"],
@@ -138,6 +149,8 @@ function items(value: unknown, kind: ValueKind, options: PropertyOptions | undef
     case "people":
     case "relation":
       return (Array.isArray(value) ? value : [value]).filter((id) => typeof id === "string" && id !== "");
+    case "checklist":
+      return asChecklist(value).map((item) => item.text);
     case "checkbox":
       return value === true ? [true] : [];
     case "number":

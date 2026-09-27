@@ -3,7 +3,7 @@ import { ServerBlockNoteEditor } from "@blocknote/server-util";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import * as Y from "yjs";
 import { db } from "@/db";
-import { page, pageSnapshot, type SnapshotReason } from "@/db/schema";
+import { databaseProperty, page, pageSnapshot, type SnapshotReason } from "@/db/schema";
 import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { migrateDocTitle, readDocTitle, writeDocTitle } from "@/lib/collab-title";
@@ -61,6 +61,21 @@ async function maybeAutoSnapshot(pageId: string, doc: Y.Doc, markdown: string, t
   await insertSnapshot(pageId, doc, "auto", { userId }, title);
 }
 
+/** Whether a database has a property showing when or by whom its rows were last edited. */
+async function showsLastEdited(databaseId: string) {
+  const [found] = await db
+    .select({ id: databaseProperty.id })
+    .from(databaseProperty)
+    .where(
+      and(
+        eq(databaseProperty.databaseId, databaseId),
+        inArray(databaseProperty.type, ["last_edited_time", "last_edited_by"]),
+      ),
+    )
+    .limit(1);
+  return Boolean(found);
+}
+
 export function createCollab() {
   let hocuspocus: Hocuspocus<Context>;
 
@@ -90,6 +105,9 @@ export function createCollab() {
     if (title !== row.title) {
       broadcast(`ws:${row.workspaceId}`, "tree");
       if (row.parentId) broadcast(`db:${row.parentId}`, "rows");
+    } else if (row.parentId && (await showsLastEdited(row.parentId))) {
+      // A body edit moves the row's "last edited" values, which open views of its database show.
+      broadcast(`db:${row.parentId}`, "rows");
     }
     await maybeAutoSnapshot(pageId, doc, markdown, title, userId);
   };

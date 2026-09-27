@@ -82,6 +82,9 @@ jobs:
       - name: Bulk row actions end-to-end
         run: pnpm tsx scripts/bulk-e2e.ts
 
+      - name: Status, checklist and system properties end-to-end
+        run: pnpm tsx scripts/property-types-e2e.ts
+
       - name: Start the server
         run: |
           pnpm start > "$RUNNER_TEMP/server.log" 2>&1 &

@@ -4,9 +4,9 @@ import { ArrowDown, ArrowLeft, ArrowUp, EyeOff, Plus, Settings2, Trash2 } from "
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem, MenuSeparator } from "@/components/ui";
-import { PROPERTY_TYPES } from "@/lib/property-types";
+import { isComputed, PROPERTY_TYPES, STATUS_GROUPS, type StatusGroup } from "@/lib/property-types";
 import { pageLabel } from "@/lib/labels";
-import { SELECT_COLORS } from "@/lib/properties";
+import { SELECT_COLORS, sortStatusOptions, statusColor, statusGroupOf } from "@/lib/properties";
 import { OptionChip } from "./property-cell";
 import { PropertyTypeIcon, usePropertyTypeLabel } from "./property-icons";
 import { RelationSetup } from "./relation-cell";
@@ -138,7 +138,7 @@ export function PropertyMenu({
     );
   }
 
-  const selectType = prop?.type === "select" || prop?.type === "multi_select";
+  const selectType = prop?.type === "select" || prop?.type === "multi_select" || prop?.type === "status";
   return (
     <div className="w-60">
       {prop && (
@@ -165,6 +165,7 @@ export function PropertyMenu({
             {typeLabel(prop.type)}
           </div>
           {prop.type === "relation" && <RelationInfo prop={prop} />}
+          {isComputed(prop.type) && <div className="px-2 pb-1 text-xs text-fg-faint">{t("readOnlyHint")}</div>}
           <MenuSeparator />
         </>
       )}
@@ -229,26 +230,165 @@ function OptionsEditor({
 }) {
   const t = useTranslations("database.propertyMenu");
   const tColor = useTranslations("database.colors");
+  const tGroup = useTranslations("database.statusGroups");
+  const status = prop.type === "status";
   // Edited locally and saved per change; the parent applies it optimistically.
-  const [options, setOptions] = useState<SelectOption[]>(prop.options.options ?? []);
+  const [options, setOptions] = useState<SelectOption[]>(() =>
+    status ? sortStatusOptions(prop.options.options ?? []) : (prop.options.options ?? []),
+  );
   const [editing, setEditing] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  // Status: the group whose "add an option" field is open.
+  const [addingTo, setAddingTo] = useState<StatusGroup | null>(null);
 
   const save = (next: SelectOption[]) => {
-    setOptions(next);
-    onChange(next);
+    const ordered = status ? sortStatusOptions(next) : next;
+    setOptions(ordered);
+    onChange(ordered);
   };
 
-  const add = () => {
+  const add = (group?: StatusGroup) => {
     const name = newName.trim();
     if (!name) return;
     if (options.some((o) => o.name.toLowerCase() === name.toLowerCase())) {
       setNewName("");
       return;
     }
-    save([...options, { id: crypto.randomUUID(), name, color: SELECT_COLORS[options.length % SELECT_COLORS.length] }]);
+    const option: SelectOption = group
+      ? { id: crypto.randomUUID(), name, color: statusColor(group), group }
+      : { id: crypto.randomUUID(), name, color: SELECT_COLORS[options.length % SELECT_COLORS.length] };
+    save([...options, option]);
     setNewName("");
   };
+
+  const optionRow = (o: SelectOption) => (
+    <div key={o.id} className="rounded px-1 py-0.5 hover:bg-bg-subtle">
+      <div className="flex items-center gap-1">
+        {editing === o.id ? (
+          <OptionNameInput
+            name={o.name}
+            label={t("optionName")}
+            onSave={(name) => {
+              // Names stay unique: lookups by name (typing a tag, MCP) would pick the wrong one.
+              const taken = options.some((x) => x.id !== o.id && x.name.toLowerCase() === name.toLowerCase());
+              if (name && name !== o.name && !taken) save(options.map((x) => (x.id === o.id ? { ...x, name } : x)));
+            }}
+            onDone={() => setEditing(null)}
+          />
+        ) : (
+          <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setEditing(o.id)} title={t("renameOption")}>
+            <OptionChip option={o} dot={status} />
+          </button>
+        )}
+        {status && (
+          <select
+            aria-label={t("statusGroup")}
+            title={t("statusGroup")}
+            value={statusGroupOf(o)}
+            onChange={(e) => {
+              const group = e.target.value as StatusGroup;
+              save(options.map((x) => (x.id === o.id ? { ...x, group } : x)));
+            }}
+            className="h-6 max-w-24 shrink-0 rounded border border-border bg-bg px-1 text-xs text-fg-muted outline-none focus:border-accent"
+          >
+            {STATUS_GROUPS.map((group) => (
+              <option key={group} value={group}>
+                {tGroup(group)}
+              </option>
+            ))}
+          </select>
+        )}
+        <button
+          type="button"
+          aria-label={t("deleteOptionNamed", { name: o.name })}
+          title={t("deleteOption")}
+          onClick={() => save(options.filter((x) => x.id !== o.id))}
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-fg-muted hover:bg-bg-hover hover:text-danger"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="mt-1 mb-0.5 flex gap-1">
+        {SELECT_COLORS.map((color) => (
+          <button
+            key={color}
+            type="button"
+            aria-label={t("color", { color: tColor(color) })}
+            title={tColor(color)}
+            onClick={() => color !== o.color && save(options.map((x) => (x.id === o.id ? { ...x, color } : x)))}
+            className={cn(
+              `opt-${color} h-4 w-4 rounded`,
+              color === o.color ? "ring-2 ring-accent ring-offset-1 ring-offset-bg" : "hover:ring-1 hover:ring-border",
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
+  const newOptionInput = (group?: StatusGroup) => (
+    <div className="flex items-center gap-1 p-1">
+      <Input
+        autoFocus={Boolean(group)}
+        value={newName}
+        placeholder={t("addOptionPlaceholder")}
+        aria-label={group ? t("addToGroup", { group: tGroup(group) }) : t("newOption")}
+        className="h-7"
+        onChange={(e) => setNewName(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && add(group)}
+      />
+      <button
+        type="button"
+        aria-label={t("addOption")}
+        onClick={() => add(group)}
+        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-hover hover:text-fg"
+      >
+        <Plus className="h-4 w-4" />
+      </button>
+    </div>
+  );
+
+  if (status) {
+    return (
+      <div className="w-80">
+        <div className="flex items-center gap-1 px-1 pb-1">
+          <button
+            type="button"
+            aria-label={t("back")}
+            onClick={onBack}
+            className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-hover hover:text-fg"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+          </button>
+          <span className="text-sm font-medium">{t("optionsTitle", { name: prop.name })}</span>
+        </div>
+        <MenuSeparator />
+        <div className="max-h-96 overflow-y-auto">
+          {STATUS_GROUPS.map((group) => (
+            <div key={group} className="pb-1">
+              <div className="flex items-center justify-between px-2 pt-1.5 pb-0.5">
+                <span className="text-xs font-medium text-fg-muted">{tGroup(group)}</span>
+                <button
+                  type="button"
+                  aria-label={t("addToGroup", { group: tGroup(group) })}
+                  title={t("addToGroup", { group: tGroup(group) })}
+                  onClick={() => {
+                    setNewName("");
+                    setAddingTo(addingTo === group ? null : group);
+                  }}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-bg-hover hover:text-fg"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {options.filter((o) => statusGroupOf(o) === group).map(optionRow)}
+              {addingTo === group && newOptionInput(group)}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-72">
@@ -331,7 +471,7 @@ function OptionsEditor({
         <button
           type="button"
           aria-label={t("addOption")}
-          onClick={add}
+          onClick={() => add()}
           className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-hover hover:text-fg"
         >
           <Plus className="h-4 w-4" />

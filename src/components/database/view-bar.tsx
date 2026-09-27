@@ -47,7 +47,7 @@ import {
   isSortable,
   toggleHiddenInView,
 } from "@/lib/properties";
-import { holdsPeople, PERSON_ME } from "@/lib/property-types";
+import { holdsOptions, holdsPeople, holdsTimestamp, PERSON_ME } from "@/lib/property-types";
 import { Floating, useFloating } from "./floating";
 import { usePeople } from "./person-cell";
 import { useFormatDate } from "./property-cell";
@@ -558,7 +558,7 @@ function useDescribeFilter() {
       return t("filterWithoutValue", { property: col.name, operator });
     }
     let value = String(f.value ?? "");
-    if (col.prop && (col.type === "select" || col.type === "multi_select")) {
+    if (col.prop && holdsOptions(col.type)) {
       value = col.prop.options.options?.find((o) => o.id === f.value)?.name ?? "…";
     } else if (col.prop && col.type === "relation") {
       const row = linkedRows(relations?.targets[col.prop.id], [f.value])[0];
@@ -567,7 +567,7 @@ function useDescribeFilter() {
       value = f.value === PERSON_ME ? tf("me") : (people.find((p) => p.id === f.value)?.name || tp("unknown"));
     } else if (col.type === "number" && typeof f.value === "number") {
       value = format.number(f.value, { maximumFractionDigits: 10 });
-    } else if (col.type === "date" && value) {
+    } else if ((col.type === "date" || holdsTimestamp(col.type)) && value) {
       value = formatDate(value);
     }
     return t("filterWithValue", { property: col.name, operator, value: value || "…" });
@@ -930,7 +930,7 @@ function FilterValue({
       />
     );
   }
-  if ((col.type === "select" || col.type === "multi_select") && col.prop) {
+  if (holdsOptions(col.type) && col.prop) {
     const options = col.prop.options.options ?? [];
     return (
       <NativeSelect
@@ -942,7 +942,8 @@ function FilterValue({
       />
     );
   }
-  if (col.type === "date") {
+  // Created and last edited times are filtered by day, like dates.
+  if (col.type === "date" || holdsTimestamp(col.type)) {
     return (
       <Input
         type="date"

@@ -196,6 +196,7 @@ export async function getPublishedPage(token: string, pageId?: string): Promise<
       parentId: page.parentId,
       properties: page.properties,
       ydoc: page.ydoc,
+      createdAt: page.createdAt,
       updatedAt: page.updatedAt,
     })
     .from(page)
@@ -233,7 +234,10 @@ export async function getPublishedPage(token: string, pageId?: string): Promise<
     crumbs,
     children,
     database,
-    row: rowProperties ? { properties: rowProperties, values: target.properties } : null,
+    // Public properties hold no people, so only the created and last edited times are filled in.
+    row: rowProperties
+      ? { properties: rowProperties, values: { ...target.properties, ...computedValues(rowProperties, { createdBy: null, ...target }) } }
+      : null,
   };
 }
 
@@ -283,7 +287,12 @@ async function publicProperties(databaseId: string) {
   return db
     .select()
     .from(databaseProperty)
-    .where(and(eq(databaseProperty.databaseId, databaseId), notInArray(databaseProperty.type, ["relation", "person", "created_by"])))
+    .where(
+      and(
+        eq(databaseProperty.databaseId, databaseId),
+        notInArray(databaseProperty.type, ["relation", "person", "created_by", "last_edited_by"]),
+      ),
+    )
     .orderBy(asc(databaseProperty.position), asc(databaseProperty.createdAt));
 }
 
@@ -313,6 +322,7 @@ async function publishedDatabase(publisher: string, databaseId: string): Promise
         icon: page.icon,
         properties: page.properties,
         createdBy: page.createdBy,
+        updatedBy: page.updatedBy,
         createdAt: page.createdAt,
         updatedAt: page.updatedAt,
       })
@@ -320,12 +330,18 @@ async function publishedDatabase(publisher: string, databaseId: string): Promise
       .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt), pageVisibleTo(publisher)))
       .orderBy(asc(page.position), asc(page.createdAt)),
   ]);
-  if (!view) return { properties, view: null, rows: stored.map(({ createdBy: _, ...row }) => row) };
+  if (!view) {
+    const rows = stored.map(({ createdBy: _, updatedBy: __, ...row }) => ({
+      ...row,
+      properties: { ...row.properties, ...computedValues(properties, { createdBy: null, ...row }) },
+    }));
+    return { properties, view: null, rows };
+  }
   // Filters and sorts may use relation and people properties; applyView needs every property for that.
   const allProperties = await db.select().from(databaseProperty).where(eq(databaseProperty.databaseId, databaseId));
-  const rows = stored.map(({ createdBy, ...row }) => ({
+  const rows = stored.map(({ createdBy, updatedBy, ...row }) => ({
     ...row,
-    properties: { ...row.properties, ...computedValues(allProperties, { createdBy }) },
+    properties: { ...row.properties, ...computedValues(allProperties, { createdBy, updatedBy, ...row }) },
   }));
   return {
     properties: properties.filter((prop) => !isHiddenInView({ type: "table", config: view.config }, prop)),
