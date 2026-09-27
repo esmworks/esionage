@@ -125,7 +125,10 @@ For example, with `APP_URL=https://notes.example.com` the GitHub callback URL is
 
 - **Existing accounts:** signing in with a provider opens the account that has the same email,
   as long as the provider says the address is verified. Otherwise the person is asked to sign in
-  with their password.
+  with their password. If that account's email was never verified, signing in this way also
+  removes its password and signs out its other sessions and connected apps: anyone could have
+  registered the address before its owner did. The owner can get a password back with "Forgot
+  password", which proves the address by email.
 - **Closed sign-up:** with `DISABLE_SIGNUP=true`, a provider signs in only people who already
   have an account, or who were invited with that email. It never creates other accounts.
 

@@ -1,4 +1,4 @@
-import type { BetterAuthOptions } from "better-auth";
+import type { BetterAuthOptions, GenericEndpointContext } from "better-auth";
 import { addOAuthServerContext, APIError, createAuthMiddleware, getOAuthState } from "better-auth/api";
 import { jwt } from "better-auth/plugins";
 import { mcp } from "@better-auth/mcp";
@@ -74,6 +74,31 @@ export function closedSignUpGuard(check?: InvitationCheck) {
   };
 }
 
+/**
+ * `databaseHooks.account.create.after`. Anyone could have created a password account with someone
+ * else's unverified email beforehand (pre-account-takeover). When a sign-in links a provider
+ * account to such a user by email, the provider has just proven who owns the address, so the
+ * earlier password, sessions and app grants go; the owner can set a password by resetting it by
+ * email. Better Auth links the account before it creates the new session, so that one survives.
+ */
+export function claimOnEmailLink(revokeAppGrants?: (userId: string) => Promise<void>) {
+  return async (account: { id: string; userId: string; providerId: string }, ctx: GenericEndpointContext | null) => {
+    if (!ctx || account.providerId === "credential") return;
+    // An explicit /link-social by the signed-in user, not a link by email.
+    if ((await getOAuthState())?.link) return;
+    const adapter = ctx.context.internalAdapter;
+    const user = await adapter.findUserById(account.userId);
+    if (!user || user.emailVerified) return;
+    const others = (await adapter.findAccounts(account.userId)).filter((other) => other.id !== account.id);
+    // No other account: the user was created by this same sign-in, there is nothing to claim.
+    if (others.length === 0) return;
+    for (const other of others) if (other.providerId === "credential") await adapter.deleteAccount(other.id);
+    await adapter.deleteUserSessions(account.userId);
+    await revokeAppGrants?.(account.userId);
+    await adapter.updateUser(account.userId, { emailVerified: true });
+  };
+}
+
 /** Sign-in with the providers configured in the environment, and linking them to existing accounts. */
 export function socialAuthOptions(providers: Partial<Record<SocialProvider, SocialCredentials>>) {
   return {
@@ -86,7 +111,8 @@ export function socialAuthOptions(providers: Partial<Record<SocialProvider, Soci
         enabled: true,
         // A provider account joins the existing account with its email when the provider says the
         // address is verified (neither is trusted blindly). Email/password sign-up never verifies
-        // addresses, so requiring that on our side would keep every existing account from linking.
+        // addresses, so requiring that on our side would keep every existing account from linking;
+        // claimOnEmailLink handles what such an unverified account may carry.
         requireLocalEmailVerified: false,
       },
     },

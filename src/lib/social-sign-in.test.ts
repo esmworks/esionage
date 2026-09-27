@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { baseAuthOptions, closedSignUpGuard, signUpTokenOf, socialAuthOptions } from "./auth-options";
+import { baseAuthOptions, claimOnEmailLink, closedSignUpGuard, signUpTokenOf, socialAuthOptions } from "./auth-options";
 
 /**
  * The social sign-in flow against an in-memory database, with GitHub's token and profile
@@ -16,6 +16,7 @@ function setup({ invitedEmail = "invited@example.com" } = {}) {
   const db: Db = { user: [], session: [], account: [], verification: [] };
   const check = async (token: string, email: string) => token === INVITE && email === invitedEmail;
   const signUps: { email: string; invite: string | null; join: string | null }[] = [];
+  const revokedApps: string[] = [];
   const auth = betterAuth({
     baseURL: BASE,
     secret: "test-secret-that-is-long-enough-for-better-auth",
@@ -36,9 +37,20 @@ function setup({ invitedEmail = "invited@example.com" } = {}) {
           },
         },
       },
+      account: {
+        create: { after: claimOnEmailLink(async (userId) => void revokedApps.push(userId)) },
+      },
     },
   });
-  return { auth, db, signUps };
+  return { auth, db, signUps, revokedApps };
+}
+
+/** The session cookie a response set, as a request `cookie` header. */
+function cookieOf(res: Response) {
+  return res.headers
+    .getSetCookie()
+    .map((line) => line.split(";")[0])
+    .join("; ");
 }
 
 /** What GitHub answers for the signed-in person. */
@@ -59,7 +71,7 @@ function stubGitHub(email: string, verified = true) {
 }
 
 /** Starts a GitHub sign-in the way the sign-in buttons do and follows the provider back. */
-async function signInWithGitHub(auth: ReturnType<typeof setup>["auth"], query = "") {
+async function gitHubSignIn(auth: ReturnType<typeof setup>["auth"], query = "") {
   const start = await auth.handler(
     new Request(`${BASE}/api/auth/sign-in/social${query}`, {
       method: "POST",
@@ -70,15 +82,33 @@ async function signInWithGitHub(auth: ReturnType<typeof setup>["auth"], query = 
   const { url } = (await start.json()) as { url: string };
   const authorize = new URL(url);
   expect(authorize.searchParams.get("redirect_uri")).toBe(`${BASE}/api/auth/callback/github`);
-  const cookie = start.headers
-    .getSetCookie()
-    .map((line) => line.split(";")[0])
-    .join("; ");
   const state = authorize.searchParams.get("state")!;
   const callback = await auth.handler(
-    new Request(`${BASE}/api/auth/callback/github?code=code&state=${encodeURIComponent(state)}`, { headers: { cookie } }),
+    new Request(`${BASE}/api/auth/callback/github?code=code&state=${encodeURIComponent(state)}`, {
+      headers: { cookie: cookieOf(start) },
+    }),
   );
-  return new URL(callback.headers.get("location")!, BASE);
+  return { to: new URL(callback.headers.get("location")!, BASE), cookie: cookieOf(callback) };
+}
+
+const signInWithGitHub = async (auth: ReturnType<typeof setup>["auth"], query = "") =>
+  (await gitHubSignIn(auth, query)).to;
+
+async function sessionUser(auth: ReturnType<typeof setup>["auth"], cookie: string) {
+  return (await auth.api.getSession({ headers: new Headers({ cookie }) }))?.user ?? null;
+}
+
+async function signUpWithPassword(auth: ReturnType<typeof setup>["auth"], email: string) {
+  const res = await auth.api.signUpEmail({
+    body: { email, password: "password-123", name: "Someone" },
+    asResponse: true,
+  });
+  return cookieOf(res);
+}
+
+async function passwordWorks(auth: ReturnType<typeof setup>["auth"], email: string) {
+  const res = await auth.api.signInEmail({ body: { email, password: "password-123" }, asResponse: true });
+  return res.ok;
 }
 
 beforeEach(() => vi.stubEnv("DISABLE_SIGNUP", ""));
@@ -144,11 +174,53 @@ describe("social sign-in", () => {
     expect(to.pathname).toBe("/");
     expect(db.user).toHaveLength(1);
     const userId = db.user[0].id;
-    expect(db.account.map((a) => [a.providerId, a.userId])).toEqual([
-      ["credential", userId],
-      ["github", userId],
-    ]);
+    // The unverified password account is claimed by the verified provider (see below).
+    expect(db.account.map((a) => [a.providerId, a.userId])).toEqual([["github", userId]]);
     expect(db.user[0].emailVerified).toBe(true);
+  });
+
+  it("takes an unverified account back from whoever registered someone else's email", async () => {
+    const { auth, db, revokedApps } = setup();
+    const attacker = await signUpWithPassword(auth, "victim@example.com");
+    expect((await sessionUser(auth, attacker))?.email).toBe("victim@example.com");
+    const userId = db.user[0].id;
+
+    stubGitHub("victim@example.com");
+    const { to, cookie: victim } = await gitHubSignIn(auth);
+    expect(to.pathname).toBe("/");
+
+    expect(await passwordWorks(auth, "victim@example.com")).toBe(false);
+    expect(await sessionUser(auth, attacker)).toBeNull();
+    expect((await sessionUser(auth, victim))?.id).toBe(userId);
+    expect(db.user).toHaveLength(1);
+    expect(db.user[0].emailVerified).toBe(true);
+    expect(db.account.map((a) => a.providerId)).toEqual(["github"]);
+    expect(revokedApps).toEqual([userId]);
+  });
+
+  it("leaves the password and sessions of an account whose email is verified", async () => {
+    const { auth, db, revokedApps } = setup();
+    const owner = await signUpWithPassword(auth, "me@example.com");
+    db.user[0].emailVerified = true;
+
+    stubGitHub("me@example.com");
+    const { cookie } = await gitHubSignIn(auth);
+
+    expect(await passwordWorks(auth, "me@example.com")).toBe(true);
+    expect((await sessionUser(auth, owner))?.email).toBe("me@example.com");
+    expect((await sessionUser(auth, cookie))?.email).toBe("me@example.com");
+    expect(db.account.map((a) => a.providerId)).toEqual(["credential", "github"]);
+    expect(revokedApps).toEqual([]);
+  });
+
+  it("does not treat signing in again with a linked provider as a new claim", async () => {
+    const { auth, db, revokedApps } = setup();
+    stubGitHub("new@example.com");
+    const first = (await gitHubSignIn(auth)).cookie;
+    await gitHubSignIn(auth);
+    expect(await sessionUser(auth, first)).not.toBeNull();
+    expect(db.account.map((a) => a.providerId)).toEqual(["github"]);
+    expect(revokedApps).toEqual([]);
   });
 
   it("does not link an existing account when the provider has not verified the email", async () => {

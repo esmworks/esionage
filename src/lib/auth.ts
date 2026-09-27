@@ -4,7 +4,14 @@ import { nextCookies } from "better-auth/next-js";
 import { db, schema } from "@/db";
 import { requestLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
-import { baseAuthOptions, closedSignUpGuard, signUpTokenOf, socialAuthOptions } from "@/lib/auth-options";
+import {
+  baseAuthOptions,
+  claimOnEmailLink,
+  closedSignUpGuard,
+  signUpTokenOf,
+  socialAuthOptions,
+} from "@/lib/auth-options";
+import { revokeAllConnectedApps } from "@/server/mcp/grants";
 import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetEmail, sendMail } from "@/server/mail";
 import { acceptInvitation, createPersonalWorkspace, invitationAllowsSignUp, joinWithLink } from "@/server/workspaces";
 
@@ -70,6 +77,9 @@ export const auth = betterAuth({
           await createPersonalWorkspace(user.id, user.name);
         },
       },
+    },
+    account: {
+      create: { after: claimOnEmailLink(revokeAllConnectedApps) },
     },
   },
   plugins: [...base.plugins, nextCookies()],
