@@ -2,6 +2,7 @@ import { McpServer, type ScopeChallengeHandler } from "@modelcontextprotocol/ser
 import * as z from "zod";
 import { PROPERTY_TYPES, type SelectOption, type ViewConfig, type ViewType } from "@/db/schema/app";
 import { pageLabel } from "@/lib/labels";
+import { computedValues, isGroupable } from "@/lib/properties";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import * as databases from "@/server/databases";
 import * as pages from "@/server/pages";
@@ -23,7 +24,7 @@ import {
 } from "./query";
 
 const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
-Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, date, checkbox, url, relation, person). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user.
+Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, date, checkbox, url, relation, person, created_by). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A created_by property shows who created each row; it is filled in automatically and can't be written.
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
 Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / restore_page_version).
 Always share the returned url with the user when you create or change something.`;
@@ -36,7 +37,7 @@ const rowValue = z.union([z.string(), z.number(), z.boolean(), z.array(z.string(
 const rowProperties = z
   .record(z.string(), rowValue)
   .describe(
-    'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an array of row ids (or exact row titles) of the related database for relation, an array of user ids, emails, names or "me" for person, and null to clear a value. Setting a relation or person replaces its values. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"], "Assignee": ["me"]}',
+    'Property values keyed by property name (case-insensitive) or id. Use option names for select / multi_select (an array for multi_select), ISO dates (YYYY-MM-DD) for date, true/false for checkbox, an array of row ids (or exact row titles) of the related database for relation, an array of user ids, emails, names or "me" for person, and null to clear a value. Setting a relation or person replaces its values. created_by properties are read-only. Example: {"Status": "In progress", "Tags": ["urgent"], "Due": "2026-10-01", "Customer": ["Acme Ltd"], "Assignee": ["me"]}',
   );
 
 const filtersInput = z.array(
@@ -96,8 +97,8 @@ function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput,
   if (input.group_by !== undefined) {
     if (type !== "board") throw new ToolInputError("group_by only applies to board views.");
     const prop = requireProperty(props, input.group_by);
-    if (prop.type !== "select" && prop.type !== "person") {
-      throw new ToolInputError(`Boards group by a select or person property; "${prop.name}" is ${prop.type}.`);
+    if (!isGroupable(prop.type)) {
+      throw new ToolInputError(`Boards group by a select, person or created_by property; "${prop.name}" is ${prop.type}.`);
     }
     patch.groupBy = prop.id;
   }
@@ -166,7 +167,11 @@ export function createMcpServer(principal: McpPrincipal) {
       id: row.id,
       title: pageLabel(row.title),
       database_id: databaseId,
-      properties: displayProperties(properties, row.properties, await databases.getLookups(userId, properties)),
+      properties: displayProperties(
+        properties,
+        { ...row.properties, ...computedValues(properties, row) },
+        await databases.getLookups(userId, properties),
+      ),
       url: pageUrl(database.workspaceId, row.id),
     };
   };
@@ -293,7 +298,11 @@ export function createMcpServer(principal: McpPrincipal) {
         if (parentDatabase) {
           const { properties } = await databases.getDatabase(userId, parentDatabase.id);
           out.database_id = parentDatabase.id;
-          out.properties = displayProperties(properties, page.properties, await databases.getLookups(userId, properties));
+          out.properties = displayProperties(
+            properties,
+            { ...page.properties, ...computedValues(properties, page) },
+            await databases.getLookups(userId, properties),
+          );
         }
         if (page.kind === "database") {
           const { properties } = await databases.getDatabase(userId, page.id);
@@ -465,7 +474,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Query database rows",
       description:
-        'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select option names as values; all filters must match. Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt. For a relation use contains / not_equals with a related row id or title; for a person, contains / not_equals with a user id, email, name or "me". Returns property values by name; relations as [{id, title}], people as [{id, name}].',
+        'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select option names as values; all filters must match. Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt. For a relation use contains / not_equals with a related row id or title; for a person or created_by, contains / not_equals with a user id, email, name or "me". Sorting by a person or created_by orders rows by name. Returns property values by name; relations as [{id, title}], people as [{id, name}].',
       inputSchema: z.object({
         database_id: id("database"),
         filters: filtersInput.optional(),
@@ -647,7 +656,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Add a database property",
       description:
-        "Add a property (column) to a database. For select and multi_select, pass the option names; other types ignore options. For a relation, pass related_database_id (a database in the same workspace, or this one); with two_way the related database also gets a property listing the links back.",
+        "Add a property (column) to a database. For select and multi_select, pass the option names; other types ignore options. For a relation, pass related_database_id (a database in the same workspace, or this one); with two_way the related database also gets a property listing the links back. A created_by property fills itself in with each row's creator.",
       inputSchema: z.object({
         database_id: id("database"),
         name: z.string().min(1).max(100).describe("Property name; must be unique within the database."),
@@ -775,7 +784,7 @@ export function createMcpServer(principal: McpPrincipal) {
         database_id: id("database"),
         name: z.string().min(1).max(100).describe("View name."),
         type: z.enum(["table", "board", "calendar"]).default("table"),
-        group_by: z.string().optional().describe("Board only: the select or person property to group cards by. Defaults to the first select property."),
+        group_by: z.string().optional().describe("Board only: the select, person or created_by property to group cards by. Defaults to the first select property."),
         date_by: z.string().optional().describe("Calendar only: the date property that places rows on days. Defaults to the first date property."),
         filters: filtersInput.optional(),
         sorts: sortsInput.optional(),
@@ -808,7 +817,7 @@ export function createMcpServer(principal: McpPrincipal) {
         database_id: id("database"),
         view_id: id("view"),
         name: z.string().min(1).max(100).optional().describe("New view name."),
-        group_by: z.string().optional().describe("Board only: the select or person property to group cards by."),
+        group_by: z.string().optional().describe("Board only: the select, person or created_by property to group cards by."),
         date_by: z.string().optional().describe("Calendar only: the date property that places rows on days."),
         filters: filtersInput.optional(),
         sorts: sortsInput.optional(),

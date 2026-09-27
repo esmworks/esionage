@@ -8,7 +8,7 @@ import type {
   ViewConfig,
   ViewType,
 } from "@/db/schema/app";
-import { PERSON_ME } from "./property-types";
+import { holdsPeople, PERSON_ME } from "./property-types";
 
 export const SELECT_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
 
@@ -33,6 +33,7 @@ export const DATABASE_ERROR_CODES = [
   "invalidRelation",
   "invalidRelationTarget",
   "invalidPerson",
+  "readOnlyProperty",
   "relationTargetReadOnly",
   "databaseLocked",
 ] as const;
@@ -56,6 +57,23 @@ export class PropertyValueError extends Error {
 
 type PropertyDef = { id: string; name: string; type: PropertyType; options: PropertyOptions };
 
+/** Written by Esionage itself (who created the row), never by users or agents. */
+function readOnlyError(prop: PropertyDef) {
+  return new PropertyValueError(`"${prop.name}" is set automatically and can't be changed`, "readOnlyProperty", {
+    property: prop.name,
+  });
+}
+
+/**
+ * Values Esionage fills in instead of storing: a "created by" property holds the row's creator.
+ * Rows read from the database get these merged into their properties.
+ */
+export function computedValues(props: { id: string; type: PropertyType }[], row: { createdBy: string | null }) {
+  const out: Record<string, unknown> = {};
+  for (const prop of props) if (prop.type === "created_by") out[prop.id] = row.createdBy ? [row.createdBy] : null;
+  return out;
+}
+
 function findOption(options: SelectOption[] | undefined, input: unknown): SelectOption | undefined {
   if (typeof input !== "string") return undefined;
   const needle = input.trim().toLowerCase();
@@ -67,6 +85,7 @@ function findOption(options: SelectOption[] | undefined, input: unknown): Select
  * callers may pass option names (MCP does), which are resolved here. Returns `null` to clear.
  */
 export function normalizeValue(prop: PropertyDef, value: unknown): unknown {
+  if (prop.type === "created_by") throw readOnlyError(prop);
   if (value === null || value === undefined || value === "") return null;
   switch (prop.type) {
     case "text":
@@ -229,15 +248,18 @@ export function isIncompleteFilter(rule: FilterRule) {
   return filterNeedsValue(rule.op) && (rule.value === undefined || rule.value === null || rule.value === "");
 }
 
-/** Who is looking at a view: person filters on "me" match their rows. */
-export type ViewViewer = { viewerId?: string | null };
+/**
+ * Who is looking at a view (person filters on "me" match their rows) and the names of the people
+ * rows hold, which person sorts order by.
+ */
+export type ViewViewer = { viewerId?: string | null; people?: { id: string; name: string }[] };
 
 /**
  * A person rule's value with "me" swapped for the viewer's id. Without a viewer (a published
  * page) "me" is nobody, so "contains me" matches no row.
  */
 function resolveViewer(rule: FilterRule, prop: PropertyDef | undefined, viewerId: string | null | undefined): FilterRule {
-  if (prop?.type !== "person" || rule.value !== PERSON_ME) return rule;
+  if (!prop || !holdsPeople(prop.type) || rule.value !== PERSON_ME) return rule;
   return { ...rule, value: viewerId ?? "\u0000nobody" };
 }
 
@@ -245,10 +267,12 @@ export function applyView<T extends RowLike>(
   rows: T[],
   { filters = [], sorts = [] }: { filters?: FilterRule[]; sorts?: SortRule[] },
   props: PropertyDef[] = [],
-  { viewerId }: ViewViewer = {},
+  { viewerId, people = [] }: ViewViewer = {},
 ): T[] {
   const byId = new Map(props.map((p) => [p.id, p]));
-  // Select sorts compare option order, not option ids; checkboxes sort unchecked < checked.
+  const nameOf = new Map(people.map((p) => [p.id, p.name]));
+  // Select sorts compare option order, not option ids; checkboxes sort unchecked < checked;
+  // people sort by their names in the order they were added, so the first person counts most.
   const sortValue = (row: T, key: string) => {
     const prop = byId.get(key);
     const v = rawValue(row, key);
@@ -262,6 +286,13 @@ export function applyView<T extends RowLike>(
       return indices.length ? indices.map((i) => String(i).padStart(4, "0")).join(",") : null;
     }
     if (prop?.type === "checkbox") return v === true ? 1 : 0;
+    if (prop && holdsPeople(prop.type)) {
+      const names = (Array.isArray(v) ? v : []).flatMap((id) => {
+        const name = typeof id === "string" ? nameOf.get(id) : undefined;
+        return name ? [name] : [];
+      });
+      return names.length ? names.join("\u0000") : null;
+    }
     return v;
   };
   const active = filters
@@ -330,6 +361,7 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
     case "multi_select":
     case "relation":
     case "person":
+    case "created_by":
       return [{ op: "contains", label: "contains" }, { op: "not_equals", label: "doesNotContain" }, ...empty];
     case "date":
       return [
@@ -378,9 +410,9 @@ export function filterNeedsValue(op: FilterOp) {
   return op !== "is_empty" && op !== "is_not_empty";
 }
 
-/** Property types a view can sort by (relations and people hold ids, which have no meaningful order). */
+/** Property types a view can sort by (relations hold row ids, which have no meaningful order). */
 export function isSortable(type: PropertyType | "title") {
-  return type !== "relation" && type !== "person";
+  return type !== "relation";
 }
 
 /** A position strictly between two neighbours (either may be missing) for manual ordering. */
@@ -405,10 +437,10 @@ type GroupPerson = { id: string; name: string; active: boolean };
 
 /** Property types a board can group by. */
 export function isGroupable(type: PropertyType) {
-  return type === "select" || type === "person";
+  return type === "select" || holdsPeople(type);
 }
 
-/** The property a board groups by: the view's choice, else the first select, else the first person property. */
+/** The property a board groups by: the view's choice, else the first select, else the first people property. */
 export function boardGroupProperty<P extends { id: string; type: PropertyType }>(props: P[], groupBy?: string) {
   const groupable = props.filter((p) => isGroupable(p.type));
   return groupable.find((p) => p.id === groupBy) ?? groupable.find((p) => p.type === "select") ?? groupable[0];

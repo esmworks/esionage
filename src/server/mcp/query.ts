@@ -1,7 +1,7 @@
 import type { FilterOp, FilterRule, PropertyOptions, PropertyType, SortRule, ViewConfig } from "@/db/schema/app";
 import { pageLabel } from "@/lib/labels";
 import { CREATED_KEY, displayValue, isSortable, PropertyValueError, TITLE_KEY, UPDATED_KEY } from "@/lib/properties";
-import { PERSON_ME } from "@/lib/property-types";
+import { holdsPeople, PERSON_ME } from "@/lib/property-types";
 
 export type PropertyDef = { id: string; name: string; type: PropertyType; options: PropertyOptions };
 
@@ -112,10 +112,10 @@ export function toFilterRule(props: PropertyDef[], input: FilterInput, lookups: 
       );
     }
     value = relatedRowId(prop, lookups.relations, value);
-  } else if (prop?.type === "person") {
+  } else if (prop && holdsPeople(prop.type)) {
     if (input.op !== "contains" && input.op !== "not_equals") {
       throw new PropertyValueError(
-        `Person "${prop.name}" supports contains, not_equals (does not contain), is_empty and is_not_empty`,
+        `${prop.type === "person" ? "Person" : "Created by"} "${prop.name}" supports contains, not_equals (does not contain), is_empty and is_not_empty`,
       );
     }
     value = personId(prop, lookups.people, value);
@@ -138,7 +138,7 @@ export function toFilterRule(props: PropertyDef[], input: FilterInput, lookups: 
 export function toSortRule(props: PropertyDef[], input: SortInput): SortRule {
   const { key, prop } = resolvePropertyKey(props, input.property);
   if (prop && !isSortable(prop.type)) {
-    throw new PropertyValueError(`${prop.type === "person" ? "Person" : "Relation"} "${prop.name}" can't be sorted`);
+    throw new PropertyValueError(`Relation "${prop.name}" can't be sorted`);
   }
   return { propertyId: key, direction: input.direction ?? "asc" };
 }
@@ -153,7 +153,7 @@ export function displayProperties(props: PropertyDef[], values: Record<string, u
     const value =
       prop.type === "relation"
         ? relatedRows(prop, lookups.relations, values[prop.id])
-        : prop.type === "person"
+        : holdsPeople(prop.type)
           ? assignedPeople(lookups.people, values[prop.id])
           : displayValue(prop, values[prop.id]);
     if (value === null || value === undefined || (Array.isArray(value) && value.length === 0)) continue;
@@ -189,7 +189,7 @@ function keyName(props: PropertyDef[], key: string) {
 export function describeViewConfig(props: PropertyDef[], config: ViewConfig, lookups: Lookups = NO_LOOKUPS) {
   const byId = new Map(props.map((p) => [p.id, p]));
   const filterValue = (prop: PropertyDef, value: unknown) => {
-    if (prop.type === "person") return lookups.people.find((p) => p.id === value)?.name ?? value;
+    if (holdsPeople(prop.type)) return lookups.people.find((p) => p.id === value)?.name ?? value;
     if (prop.type !== "relation") return displayValue(prop, value) ?? value;
     const row = lookups.relations[prop.id]?.rows.find((r) => r.id === value);
     return row ? pageLabel(row.title) : value;
@@ -237,5 +237,6 @@ export function describeProperty(prop: PropertyDef, lookups: Lookups = NO_LOOKUP
             .map((p) => ({ id: p.id, name: p.name, ...(p.email ? { email: p.email } : {}) })),
         }
       : {}),
+    ...(prop.type === "created_by" ? { read_only: true } : {}),
   };
 }

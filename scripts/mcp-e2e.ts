@@ -477,7 +477,22 @@ async function main() {
   const boardUpdated = await mcp.ok("update_database_view", { database_id: dbPage.id, view_id: board.id, name: "Board", filters: [] });
   check(boardUpdated.name === "Board" && !boardUpdated.filters && boardUpdated.group_by === "Status", "update_database_view clears filters and keeps grouping", boardUpdated);
   const listView = await mcp.call("create_database_view", { database_id: dbPage.id, name: "Bad", type: "board", group_by: "Tags" });
-  check(listView.isError && listView.text.includes("select or person property"), "boards refuse grouping by anything but select or person", listView.text);
+  check(listView.isError && listView.text.includes("select, person or created_by property"), "boards refuse grouping by anything but select or person", listView.text);
+
+  // ---- "created by": filled in with each row's creator, filterable on "me", read-only
+  await mcp.ok("add_database_property", { database_id: dbPage.id, name: "Created by", type: "created_by" });
+  const mineOnly = await mcp.ok("query_database", {
+    database_id: dbPage.id,
+    filters: [{ property: "Created by", op: "contains", value: "me" }],
+    sorts: [{ property: "Created by" }],
+  });
+  check(
+    mineOnly.total > 0 && mineOnly.rows.every((r: { properties: Record<string, { name: string }[]> }) => r.properties["Created by"]?.[0]?.name),
+    "created_by shows the creator's name, filters on me and sorts",
+    mineOnly,
+  );
+  const writeCreator = await mcp.call("update_database_row", { row_id: rowB.id, properties: { "Created by": ["me"] } });
+  check(writeCreator.isError && writeCreator.text.includes("set automatically"), "created_by can't be written", writeCreator.text);
 
   // ---- relations (two-way sync) and calendar views
   const customers = await mcp.ok("create_database", { parent_id: root.id, title: "Customers" });

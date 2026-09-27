@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
-import { and, asc, eq, isNull, notInArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { databaseProperty, databaseView, page, pagePublication, type PageKind, type ViewType } from "@/db/schema";
-import { applyView, isHiddenInView } from "@/lib/properties";
+import { databaseProperty, databaseView, page, pagePublication, user, type PageKind, type ViewConfig, type ViewType } from "@/db/schema";
+import { applyView, computedValues, isHiddenInView } from "@/lib/properties";
+import { holdsPeople } from "@/lib/property-types";
 import { accessRank, pageVisibleTo, requirePageAccess } from "@/server/access";
 import type { DatabaseProperty } from "@/server/databases";
 
@@ -213,12 +214,22 @@ async function publicProperties(databaseId: string) {
   return db
     .select()
     .from(databaseProperty)
-    .where(and(eq(databaseProperty.databaseId, databaseId), notInArray(databaseProperty.type, ["relation", "person"])))
+    .where(and(eq(databaseProperty.databaseId, databaseId), notInArray(databaseProperty.type, ["relation", "person", "created_by"])))
     .orderBy(asc(databaseProperty.position), asc(databaseProperty.createdAt));
 }
 
+/**
+ * Names of the people a view sorts rows by. They only order the rows: people properties aren't
+ * published, so the names never reach the page.
+ */
+async function sortNames(rows: { properties: Record<string, unknown> }[], props: DatabaseProperty[], config: ViewConfig) {
+  const sortedBy = props.filter((p) => holdsPeople(p.type) && config.sorts?.some((s) => s.propertyId === p.id));
+  const ids = [...new Set(rows.flatMap((row) => sortedBy.flatMap((p) => row.properties[p.id]).filter((v) => typeof v === "string")))];
+  return ids.length ? db.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, ids as string[])) : [];
+}
+
 async function publishedDatabase(publisher: string, databaseId: string): Promise<PublishedDatabase> {
-  const [properties, [view], rows] = await Promise.all([
+  const [properties, [view], stored] = await Promise.all([
     publicProperties(databaseId),
     db
       .select()
@@ -232,6 +243,7 @@ async function publishedDatabase(publisher: string, databaseId: string): Promise
         title: page.title,
         icon: page.icon,
         properties: page.properties,
+        createdBy: page.createdBy,
         createdAt: page.createdAt,
         updatedAt: page.updatedAt,
       })
@@ -239,12 +251,16 @@ async function publishedDatabase(publisher: string, databaseId: string): Promise
       .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt), pageVisibleTo(publisher)))
       .orderBy(asc(page.position), asc(page.createdAt)),
   ]);
-  if (!view) return { properties, view: null, rows };
-  // Filters and sorts may use relation properties; applyView needs every property for that.
+  if (!view) return { properties, view: null, rows: stored.map(({ createdBy: _, ...row }) => row) };
+  // Filters and sorts may use relation and people properties; applyView needs every property for that.
   const allProperties = await db.select().from(databaseProperty).where(eq(databaseProperty.databaseId, databaseId));
+  const rows = stored.map(({ createdBy, ...row }) => ({
+    ...row,
+    properties: { ...row.properties, ...computedValues(allProperties, { createdBy }) },
+  }));
   return {
     properties: properties.filter((prop) => !isHiddenInView({ type: "table", config: view.config }, prop)),
     view: { id: view.id, name: view.name, type: view.type },
-    rows: applyView(rows, view.config, allProperties),
+    rows: applyView(rows, view.config, allProperties, { people: await sortNames(rows, allProperties, view.config) }),
   };
 }

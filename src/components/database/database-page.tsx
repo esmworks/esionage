@@ -86,7 +86,7 @@ export function DatabasePage({
 
   const visibleRows = useMemo(() => {
     if (!view || !snapshot) return [];
-    return applyView(rows, view.config, snapshot.properties, { viewerId: snapshot.viewerId });
+    return applyView(rows, view.config, snapshot.properties, { viewerId: snapshot.viewerId, people: snapshot.people });
   }, [rows, view, snapshot]);
 
   if (!snapshot) {

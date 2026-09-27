@@ -3,6 +3,7 @@ import type { FilterRule, PropertyOptions, PropertyType } from "@/db/schema/app"
 import {
   applyView,
   boardGroupProperty,
+  computedValues,
   groupRowsByPerson,
   movePersonValue,
   newAssignees,
@@ -322,6 +323,41 @@ describe("defaultsFromFilters", () => {
   });
 });
 
+describe("created by properties", () => {
+  const creator = prop("created_by");
+  const rows = [
+    row("a", "Mine", computedValues([creator], { createdBy: "u1" })),
+    row("b", "Theirs", computedValues([creator], { createdBy: "u2" })),
+    row("c", "Unknown", computedValues([creator], { createdBy: null })),
+  ];
+
+  it("holds the row's creator, filled in rather than stored", () => {
+    expect(computedValues([creator, prop("text")], { createdBy: "u1" })).toEqual({ p_created_by: ["u1"] });
+    expect(computedValues([creator], { createdBy: null })).toEqual({ p_created_by: null });
+  });
+
+  it("can't be written", () => {
+    expect(() => normalizeValue(creator, ["u1"])).toThrow(PropertyValueError);
+    expect(() => normalizeValue(creator, null)).toThrow(/set automatically/);
+  });
+
+  it("filters on me, sorts by name and groups boards like a person property", () => {
+    const mine: FilterRule[] = [{ propertyId: "p_created_by", op: "contains", value: "me" }];
+    expect(applyView(rows, { filters: mine }, [creator], { viewerId: "u2" }).map((r) => r.id)).toEqual(["b"]);
+    const people = [
+      { id: "u1", name: "Zeynep" },
+      { id: "u2", name: "Ahmet" },
+    ];
+    expect(
+      applyView(rows, { sorts: [{ propertyId: "p_created_by", direction: "asc" }] }, [creator], { people }).map((r) => r.id),
+    ).toEqual(["b", "a", "c"]);
+    expect(filterOperators("created_by").map((o) => o.op)).toEqual(["contains", "not_equals", "is_empty", "is_not_empty"]);
+    expect(boardGroupProperty([prop("text"), creator])).toBe(creator);
+    // New rows in a "created by me" view need nothing: they are the creator's anyway.
+    expect(defaultsFromFilters(mine, [creator], { viewerId: "u1" })).toEqual({});
+  });
+});
+
 describe("person properties", () => {
   const owner = prop("person");
   const rows = [
@@ -354,9 +390,28 @@ describe("person properties", () => {
     expect(ids([{ propertyId: "p_person", op: "is_not_empty" }])).toEqual(["a", "b", "c"]);
   });
 
-  it("offers contains / does not contain / empty filters and no sorting", () => {
+  it("offers contains / does not contain / empty filters and sorting", () => {
     expect(filterOperators("person").map((o) => o.op)).toEqual(["contains", "not_equals", "is_empty", "is_not_empty"]);
-    expect(isSortable("person")).toBe(false);
+    expect(isSortable("person")).toBe(true);
+  });
+
+  it("sorts by the names of the people, the first one counting most, empty rows last", () => {
+    const people = [
+      { id: "u1", name: "Zeynep" },
+      { id: "u2", name: "Ahmet" },
+    ];
+    const sorted = (direction: "asc" | "desc") =>
+      applyView(rows, { sorts: [{ propertyId: "p_person", direction }] }, [owner], { people }).map((r) => r.id);
+    // Shared (Ahmet, Zeynep) and Theirs (Ahmet) both start with Ahmet; the second name breaks the tie.
+    expect(sorted("asc")).toEqual(["c", "b", "a", "d"]);
+    expect(sorted("desc")).toEqual(["a", "b", "c", "d"]);
+    // Without names nobody is known, so the order stays as it was.
+    expect(applyView(rows, { sorts: [{ propertyId: "p_person", direction: "asc" }] }, [owner]).map((r) => r.id)).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
   });
 
   it("assigns new rows of a me view to their creator", () => {

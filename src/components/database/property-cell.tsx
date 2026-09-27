@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/components/ui";
+import { holdsPeople } from "@/lib/property-types";
 import { Floating } from "./floating";
 import { PersonChips, PersonPicker } from "./person-cell";
 import { RelationChips, RelationPicker } from "./relation-cell";
@@ -79,7 +80,7 @@ export function useFormatNumber() {
 
 export function isEmptyValue(prop: Property, value: unknown) {
   if (value === null || value === undefined || value === "") return true;
-  if (prop.type === "relation" || prop.type === "person") return !Array.isArray(value) || value.length === 0;
+  if (prop.type === "relation" || holdsPeople(prop.type)) return !Array.isArray(value) || value.length === 0;
   if (Array.isArray(value)) return selectedOptions(prop, value).length === 0;
   if (prop.type === "select") return selectedOptions(prop, value).length === 0;
   if (prop.type === "checkbox") return value !== true;
@@ -115,6 +116,7 @@ export function PropertyDisplay({ prop, value, wrap }: { prop: Property; value: 
     case "relation":
       return <RelationChips prop={prop} value={value} wrap={wrap} />;
     case "person":
+    case "created_by":
       return <PersonChips value={value} wrap={wrap} />;
     case "select":
     case "multi_select": {
@@ -154,7 +156,7 @@ export function PropertyCell({
   value,
   onChange,
   onCreateOption,
-  readOnly,
+  readOnly: readOnlyProp,
   variant = "table",
   wrap,
   autoEdit,
@@ -173,6 +175,8 @@ export function PropertyCell({
 }) {
   const t = useTranslations("database.cell");
   const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
+  // Who created a row is filled in by Esionage and never edited.
+  const readOnly = readOnlyProp || prop.type === "created_by";
   const [editing, setEditing] = useState(Boolean(autoEdit) && !readOnly);
 
   const base = cn(

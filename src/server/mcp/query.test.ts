@@ -211,8 +211,20 @@ describe("person properties", () => {
     expect(() => toFilterRule(all, { property: "Owner", op: "equals", value: "u1" }, lookups)).toThrow(/supports contains/);
   });
 
-  it("is not sortable", () => {
-    expect(() => toSortRule(all, { property: "Owner" })).toThrow(/Person "Owner" can't be sorted/);
+  it("is sortable (by name)", () => {
+    expect(toSortRule(all, { property: "Owner", direction: "desc" })).toEqual({ propertyId: "p_owner", direction: "desc" });
+  });
+
+  it("treats created by like a person, read-only", () => {
+    const creator: PropertyDef = { id: "p_creator", name: "Created by", type: "created_by", options: {} };
+    const withCreator = [...all, creator];
+    expect(toFilterRule(withCreator, { property: "created by", op: "contains", value: "mehmet@example.com" }, lookups).value).toBe("u2");
+    expect(toFilterRule(withCreator, { property: "Created by", op: "contains", value: "me" }, lookups).value).toBe("me");
+    expect(() => toFilterRule(withCreator, { property: "Created by", op: "equals", value: "u1" }, lookups)).toThrow(
+      /Created by "Created by" supports contains/,
+    );
+    expect(displayProperties(withCreator, { p_creator: ["u1"] }, lookups)).toEqual({ "Created by": [{ id: "u1", name: "Ayşe Yılmaz" }] });
+    expect(describeProperty(creator, lookups)).toEqual({ id: "p_creator", name: "Created by", type: "created_by", read_only: true });
   });
 
   it("shows people as id and name, skipping unknown ids", () => {

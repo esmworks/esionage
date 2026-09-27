@@ -9,7 +9,8 @@
     "checkbox": "Onay kutusu",
     "url": "URL",
     "relation": "İlişki",
-    "person": "Kişi"
+    "person": "Kişi",
+    "createdBy": "Oluşturan"
   },
   "views": {
     "table": "Tablo",
@@ -255,6 +256,7 @@
     "invalidRelationTarget": "İlişki aynı çalışma alanındaki bir veritabanını göstermelidir.",
     "relationTargetReadOnly": "O veritabanını yalnızca görüntüleyebiliyorsun, bu yüzden bağlantı orada gösterilemez. O seçeneğin işaretini kaldır ya da düzenleme izni iste.",
     "databaseLocked": "Veritabanı kilitli. Özellikleri ve görünümleri değiştirmek için önce kilidi açın.",
-    "invalidPerson": "“{property}” yalnızca bu çalışma alanındaki kişileri içerebilir."
+    "invalidPerson": "“{property}” yalnızca bu çalışma alanındaki kişileri içerebilir.",
+    "readOnlyProperty": "“{property}” otomatik doldurulur, değiştirilemez."
   }
 }

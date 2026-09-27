@@ -3,7 +3,8 @@
  * emails and names; guests see only the people already assigned and can't look anyone up;
  * "me" filters show each viewer their own rows; former members keep showing where assigned;
  * people assigned by someone else get one email after the delay, queued in the database, unless
- * they turned them off; board drags swap assignees.
+ * they turned them off; board drags swap assignees; rows sort by assignee name; a "created by"
+ * property shows each row's creator, filters on "me" and can't be written.
  * Creates its own users and workspace and deletes them afterwards.
  *
  *   pnpm tsx scripts/person-e2e.ts
@@ -234,6 +235,47 @@ try {
   await updateRowProperties(ids.owner, job.id, { Assignee: [ids.bystander, ids.member] });
   await flushAssignmentEmails();
   check(sentCount() === 1 && sent[0].to === `${ids.member}@example.test`, "turning them back on works", sent);
+
+  // Sorting by a person property orders rows by the assignees' names
+  const byName = await listRows(ids.owner, tasks.id, { sorts: [{ propertyId: owner.id, direction: "asc" }] });
+  check(
+    same(
+      byName.map((r) => r.title),
+      ["Notify me", "theirs", "mine"],
+    ),
+    "rows sort by the first assignee's name (Bystander, Former, Owner)",
+    byName.map((r) => [r.title, r.properties[owner.id]]),
+  );
+
+  // "Created by" shows who created each row and can't be changed
+  const creator = await addProperty(ids.owner, tasks.id, { name: "Created by", type: "created_by" });
+  const theirsToo = await createPage({ userId: ids.member }, { workspaceId, parentId: tasks.id, title: "member made" });
+  const createdBy = async (userId: string) =>
+    (await listRows(userId, tasks.id, { filters: [{ propertyId: creator.id, op: "contains", value: "me" }] })).map((r) => r.title);
+  check(same(await createdBy(ids.member), ["member made"]), "\"created by me\" lists the rows the viewer created");
+  const snap = await getDatabaseSnapshot(ids.owner, tasks.id);
+  check(
+    same(snap.rows.find((r) => r.id === theirsToo.id)?.properties[creator.id], [ids.member]) &&
+      same(snap.rows.find((r) => r.id === mine.id)?.properties[creator.id], [ids.owner]),
+    "rows carry their creator without it being stored",
+    snap.rows.map((r) => [r.title, r.properties[creator.id]]),
+  );
+  check(!(creator.id in (await values(theirsToo.id))), "…nothing is written to the row for it");
+  check(
+    same((await getRow(ids.owner, theirsToo.id)).row.properties[creator.id], [ids.member]),
+    "the row panel shows the creator too",
+  );
+  const readOnly = (write: Promise<unknown>) =>
+    write.then(
+      () => false,
+      (error: unknown) => error instanceof PropertyValueError && error.code === "readOnlyProperty",
+    );
+  check(await readOnly(updateRowProperties(ids.owner, theirsToo.id, { "Created by": ["me"] })), "the creator can't be overwritten");
+  check(
+    await readOnly(moveRow(ids.owner, theirsToo.id, { groupBy: creator.id, groupFrom: ids.member, groupValue: ids.owner })),
+    "…not even by dragging the card to someone else's column",
+  );
+  check(await readOnly(createPage(actor, { workspaceId, parentId: tasks.id, title: "x", properties: { "Created by": [ids.member] } })), "…or when creating a row");
 
   console.log(`\n${passed} checks passed`);
 } finally {

@@ -29,7 +29,7 @@ import {
   isSortable,
   toggleHiddenInView,
 } from "@/lib/properties";
-import { PERSON_ME } from "@/lib/property-types";
+import { holdsPeople, PERSON_ME } from "@/lib/property-types";
 import { Floating, useFloating } from "./floating";
 import { usePeople } from "./person-cell";
 import { useFormatDate } from "./property-cell";
@@ -520,7 +520,7 @@ function useDescribeFilter() {
     } else if (col.prop && col.type === "relation") {
       const row = linkedRows(relations?.targets[col.prop.id], [f.value])[0];
       value = row ? pageLabel(row.title, tc("untitled")) : "…";
-    } else if (col.type === "person") {
+    } else if (holdsPeople(col.type)) {
       value = f.value === PERSON_ME ? tf("me") : (people.find((p) => p.id === f.value)?.name || tp("unknown"));
     } else if (col.type === "number" && typeof f.value === "number") {
       value = format.number(f.value, { maximumFractionDigits: 10 });
@@ -648,7 +648,7 @@ function FilterValue({
   const relations = useRelations();
   const { people, viewerId } = usePeople();
   const tp = useTranslations("database.person");
-  if (col.type === "person") {
+  if (holdsPeople(col.type)) {
     // Former members stay listed only while a filter still points at them.
     const listed = people.filter((p) => p.active || p.id === value);
     return (

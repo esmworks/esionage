@@ -1,5 +1,6 @@
 import { toCsv } from "@/lib/csv";
 import { displayValue } from "@/lib/properties";
+import { holdsPeople } from "@/lib/property-types";
 import { AccessError } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 import { getDatabaseSnapshot } from "@/server/databases";
@@ -48,7 +49,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pag
         ["Name", ...snapshot.properties.map((p) => p.name)],
         ...rows.map((row) => [
           row.title,
-          ...snapshot.properties.map((p) => cell(displayValue(p, row.properties[p.id]), p.type === "person" ? nameOf : titleOf)),
+          ...snapshot.properties.map((p) => cell(displayValue(p, row.properties[p.id]), holdsPeople(p.type) ? nameOf : titleOf)),
         ]),
       ]);
       return download(csv, "text/csv", fileName(target.title, "csv"));

@@ -345,7 +345,7 @@ describe("create_database_rows", () => {
 describe("database views", () => {
   it("validates board grouping before creating the view", async () => {
     const r = await callTool(writer, "create_database_view", { database_id: "db-1", name: "By notes", type: "board", group_by: "Notes" });
-    expect(r.text).toMatch(/select or person property/);
+    expect(r.text).toMatch(/select, person or created_by property/);
     expect(databases.addView).not.toHaveBeenCalled();
   });
 

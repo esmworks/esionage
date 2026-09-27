@@ -13,9 +13,10 @@ import {
   type ViewConfig,
   type ViewType,
 } from "@/db/schema";
-import { PERSON_ME } from "@/lib/property-types";
+import { holdsPeople, PERSON_ME } from "@/lib/property-types";
 import {
   applyView,
+  computedValues,
   movePersonValue,
   normalizeValue,
   PropertyValueError,
@@ -45,6 +46,21 @@ export type DatabaseRow = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+/** Rows as read from the database, with values Esionage fills in (who created them) merged in. */
+function withComputed<T extends { properties: Record<string, unknown>; createdBy: string | null }>(
+  rows: T[],
+  properties: { id: string; type: PropertyType }[],
+): (Omit<T, "createdBy"> & { properties: Record<string, unknown> })[] {
+  if (!properties.some((p) => p.type === "created_by")) return rows.map(({ createdBy: _, ...row }) => row);
+  return rows.map(({ createdBy, ...row }) => ({ ...row, properties: { ...row.properties, ...computedValues(properties, { createdBy }) } }));
+}
+
+/** Sorting by a people property orders rows by names, so the view needs to know them. */
+async function peopleForSorts(userId: string, properties: DatabaseProperty[], config: ViewConfig) {
+  const sorted = (config.sorts ?? []).some((s) => properties.some((p) => p.id === s.propertyId && holdsPeople(p.type)));
+  return sorted ? getPeople(userId, properties) : [];
+}
 
 /**
  * Tags a guard error with a stable code the UI translates. The class and English message are
@@ -120,6 +136,7 @@ export async function listRows(userId: string, databaseId: string, config: ViewC
         title: page.title,
         icon: page.icon,
         properties: page.properties,
+        createdBy: page.createdBy,
         createdAt: page.createdAt,
         updatedAt: page.updatedAt,
       })
@@ -128,7 +145,8 @@ export async function listRows(userId: string, databaseId: string, config: ViewC
       .orderBy(asc(page.position), asc(page.createdAt)),
     getProperties(databaseId),
   ]);
-  return applyView<DatabaseRow>(rows, config, properties, { viewerId: userId });
+  const people = await peopleForSorts(userId, properties, config);
+  return applyView<DatabaseRow>(withComputed(rows, properties), config, properties, { viewerId: userId, people });
 }
 
 /**
@@ -736,6 +754,8 @@ export async function moveRow(
       .select({ type: databaseProperty.type })
       .from(databaseProperty)
       .where(and(eq(databaseProperty.id, groupBy), eq(databaseProperty.databaseId, row.parentId)));
+    // Who created a row can't be changed by dragging it to someone else's column.
+    if (prop?.type === "created_by") await normalizeRowProperties(userId, row.parentId, { [groupBy]: groupValue });
     person = prop?.type === "person";
     if (person) {
       const next = movePersonValue(properties[groupBy], groupFrom, groupValue);
@@ -761,12 +781,13 @@ export type DatabaseRowWithPosition = DatabaseRow & { position: number };
  */
 export async function getDatabaseSnapshot(userId: string, databaseId: string) {
   const { database, properties, views } = await getDatabase(userId, databaseId);
-  const rows: DatabaseRowWithPosition[] = await db
+  const stored = await db
     .select({
       id: page.id,
       title: page.title,
       icon: page.icon,
       properties: page.properties,
+      createdBy: page.createdBy,
       position: page.position,
       createdAt: page.createdAt,
       updatedAt: page.updatedAt,
@@ -781,6 +802,7 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
       ),
     )
     .orderBy(asc(page.position), asc(page.createdAt));
+  const rows: DatabaseRowWithPosition[] = withComputed(stored, properties);
   return {
     database: {
       id: database.id,
@@ -873,7 +895,7 @@ export type PersonRef = {
  * Former members still assigned somewhere come along as inactive, so their name keeps showing.
  */
 export async function getPeople(userId: string, properties: DatabaseProperty[]): Promise<PersonRef[]> {
-  const personProps = properties.filter((p) => p.type === "person");
+  const personProps = properties.filter((p) => holdsPeople(p.type));
   if (!personProps.length) return [];
   const databaseId = personProps[0].databaseId;
   const [database] = await db.select({ workspaceId: page.workspaceId }).from(page).where(eq(page.id, databaseId));
@@ -882,13 +904,16 @@ export async function getPeople(userId: string, properties: DatabaseProperty[]):
   const [members, rows, views] = await Promise.all([
     workspacePeopleOf(databaseId),
     db
-      .select({ properties: page.properties })
+      .select({ properties: page.properties, createdBy: page.createdBy })
       .from(page)
       .where(and(eq(page.parentId, databaseId), pageVisibleTo(userId))),
     db.select({ config: databaseView.config }).from(databaseView).where(eq(databaseView.databaseId, databaseId)),
   ]);
   const referenced = new Set<string>();
-  for (const row of rows) for (const prop of personProps) for (const id of asIds(row.properties[prop.id])) referenced.add(id);
+  for (const { properties: stored, createdBy } of rows) {
+    const values = { ...stored, ...computedValues(personProps, { createdBy }) };
+    for (const prop of personProps) for (const id of asIds(values[prop.id])) referenced.add(id);
+  }
   for (const view of views) {
     for (const rule of view.config.filters ?? []) {
       const person = personProps.some((p) => p.id === rule.propertyId);
@@ -935,7 +960,7 @@ export async function getRow(userId: string, rowId: string) {
     databaseId: row.parentId,
     databaseTitle: database.title,
     databaseLocked: Boolean(database.lockedAt),
-    row: { id: row.id, title: row.title, properties: row.properties },
+    row: { id: row.id, title: row.title, properties: { ...row.properties, ...computedValues(properties, row) } },
     properties,
     relations: await getRelationTargets(userId, properties),
     people: await getPeople(userId, properties),

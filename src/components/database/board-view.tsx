@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Button, cn, MenuItem, MenuSeparator } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
+import { holdsPeople } from "@/lib/property-types";
 import type { SelectOption } from "@/db/schema/app";
 import {
   boardGroupProperty,
@@ -44,9 +45,11 @@ export function BoardView({
   onCreateGroupProperty: () => void;
 }) {
   const t = useTranslations("database");
-  const { people } = usePeople();
+  const { people, viewerId } = usePeople();
   const groupBy = boardGroupProperty(properties, view.config.groupBy);
-  const byPerson = groupBy?.type === "person";
+  const byPerson = groupBy ? holdsPeople(groupBy.type) : false;
+  // Grouped by who created each card: cards can't change column, and new cards are the viewer's.
+  const byCreator = groupBy?.type === "created_by";
   const [dragId, setDragId] = useState<string | null>(null);
   // The column a card was picked up from: on a person board the same card shows in every
   // assignee's column, and moving it replaces only that column's person.
@@ -146,6 +149,7 @@ export function BoardView({
 
   const onDragOver = (e: DragEvent<HTMLDivElement>, group: RowGroup<Row>) => {
     if (!dragId) return;
+    if (byCreator && dragFrom !== groupKey(group)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     const cards = [...e.currentTarget.querySelectorAll<HTMLElement>("[data-card]")].filter(
@@ -173,6 +177,7 @@ export function BoardView({
     if (!row) return;
     const others = group.rows.filter((r) => r.id !== rowId);
     const sameGroup = byPerson && from !== null ? from === groupKey(group) : group.rows.some((r) => r.id === rowId);
+    if (byCreator && !sameGroup) return;
     const move: { position?: number; groupBy?: string; groupValue?: string | null; groupFrom?: string | null } = {};
     if (!sameGroup) {
       move.groupBy = groupBy.id;
@@ -190,9 +195,12 @@ export function BoardView({
 
   const addCard = async (group: RowGroup<Row>) => {
     const value = byPerson ? [group.option?.id] : group.option?.id;
-    const id = await api.createRow(group.option ? { properties: { [groupBy.id]: value } } : {});
+    const id = await api.createRow(group.option && !byCreator ? { properties: { [groupBy.id]: value } } : {});
     if (id) setEditTitleOf(id);
   };
+
+  // On a creator board a new card always lands in the viewer's own column.
+  const canAdd = (group: RowGroup<Row>) => !readOnly && (!byCreator || group.option?.id === viewerId);
 
   return (
     <div className="page-gutter overflow-x-auto pb-6 [color-scheme:light_dark]">
@@ -277,7 +285,7 @@ export function BoardView({
                     onDelete={() => deleteGroup(group)}
                   />
                 )}
-                {!readOnly && (
+                {canAdd(group) && (
                   <button
                     type="button"
                     aria-label={t("board.addCard")}
@@ -330,7 +338,7 @@ export function BoardView({
                   );
                 })}
                 {dropping && manualOrder && drop.index >= group.rows.filter((r) => r.id !== dragId).length && <DropLine />}
-                {!readOnly && (
+                {canAdd(group) && (
                   <button
                     type="button"
                     onClick={() => addCard(group)}

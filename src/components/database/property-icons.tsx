@@ -12,6 +12,7 @@ import {
   SquareCheck,
   Type,
   UserRound,
+  UserRoundPen,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -29,6 +30,7 @@ export const PROPERTY_TYPE_META = {
   url: { label: "url", icon: LinkIcon },
   relation: { label: "relation", icon: ArrowUpRight },
   person: { label: "person", icon: UserRound },
+  created_by: { label: "createdBy", icon: UserRoundPen },
 } as const satisfies Record<PropertyType, { label: string; icon: LucideIcon }>;
 
 /** Translated display name of a property type. */
