@@ -25,7 +25,8 @@
     "calendar": "Takvim",
     "gallery": "Galeri",
     "list": "Liste",
-    "timeline": "Zaman çizelgesi"
+    "timeline": "Zaman çizelgesi",
+    "chart": "Grafik"
   },
   "colors": {
     "gray": "Gri",
@@ -392,6 +393,47 @@
   "list": {
     "new": "Yeni",
     "empty": "Gösterilecek satır yok."
+  },
+  "chart": {
+    "type": "Grafik türü",
+    "types": {
+      "bar": "Dikey çubuk",
+      "horizontal_bar": "Yatay çubuk",
+      "line": "Çizgi",
+      "donut": "Halka"
+    },
+    "groupBy": "Grupla",
+    "measure": "Değer",
+    "count": "Satırları say",
+    "countShort": "Adet",
+    "measureOf": "{property} ({calculation})",
+    "calculation": "Hesaplama",
+    "stackBy": "Yığınla",
+    "noStack": "Yok",
+    "stackHint": "Çubuklar, satırları saydığında ya da değerleri topladığında yığınlanır.",
+    "sort": "Grupları sırala",
+    "sorts": {
+      "group": "Grup sırası",
+      "value_desc": "Değer, büyükten küçüğe",
+      "value_asc": "Değer, küçükten büyüğe"
+    },
+    "showNoValue": "Değeri olmayan satırları göster",
+    "showValues": "Değerleri göster",
+    "showLegend": "Göstergeyi göster",
+    "other": "Diğer",
+    "total": "Toplam",
+    "share": "Toplam içinde {share}",
+    "segment": "{group}, {series}",
+    "needsGroupTitle": "Grafikler satırları seçim, durum, kişi ya da tarih gibi bir özelliğe göre gruplar",
+    "needsGroupBody": "Bu veritabanında henüz grafiğin gruplayabileceği bir özellik yok.",
+    "empty": "Grafikte gösterilecek satır yok.",
+    "title": "{property} özelliğine göre {measure} ({type})",
+    "tableCaption": "{name} değerleri",
+    "groupColumn": "Grup",
+    "rowCount": "{count, plural, other {# satır}}",
+    "rowsIn": "{group} içindeki satırlar",
+    "noRows": "Bu grupta satır yok.",
+    "openRows": "{group}: {value}. Satırları göster"
   },
   "timeline": {
     "needsDateTitle": "Zaman çizelgeleri satırları bir tarih özelliğine göre yerleştirir",

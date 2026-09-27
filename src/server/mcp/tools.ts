@@ -3,6 +3,8 @@ import * as z from "zod";
 import {
   PROPERTY_TYPES,
   type CardSize,
+  type ChartSort,
+  type ChartType,
   type FilterCombinator,
   type SelectOption,
   type StatusGroup,
@@ -12,6 +14,17 @@ import {
   type ViewType,
 } from "@/db/schema/app";
 import { FILTER_COMBINATORS, MAX_FILTER_DEPTH, MAX_RELATIVE_DAYS, RELATIVE_DATE_RANGES } from "@/lib/filters";
+import type { AggregateFn } from "@/lib/aggregate";
+import {
+  canStack,
+  CHART_AGGREGATE_FNS,
+  CHART_SORTS,
+  CHART_TYPES,
+  chartAggregateFunctions,
+  chartGroupProperty,
+  chartMeasure,
+  chartTypeOf,
+} from "@/lib/chart";
 import { GROUP_DATE_BY } from "@/lib/grouping";
 import { pageLabel } from "@/lib/labels";
 import { computedValues, isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
@@ -26,6 +39,7 @@ import { MAX_MARKDOWN_CHARS, pageUrl, runTool, sliceText, ToolInputError } from 
 import { NOTIFICATIONS_SCOPE, READ_SCOPE, WRITE_SCOPE, type McpPrincipal } from "./principal";
 import {
   describeProperty,
+  describeChartSeries,
   describeViewConfig,
   displayProperties,
   FILTER_OPS,
@@ -184,6 +198,33 @@ const viewLayoutInputs = {
     .enum(COVER_SOURCES)
     .optional()
     .describe('Gallery only: "first_image" shows the first image in each row\'s body on its card (the default), "none" no cover.'),
+  chart_type: z
+    .enum(CHART_TYPES)
+    .optional()
+    .describe('Chart only: "bar" (vertical columns, the default), "horizontal_bar", "line" or "donut" (a pie chart with a hole).'),
+  aggregate: z
+    .enum(["count", ...CHART_AGGREGATE_FNS])
+    .optional()
+    .describe(
+      'Chart only: what each group measures. "count" (the default) counts rows; the others calculate over aggregate_property: sum, average, median, min, max, range for numbers; count_values, count_unique, count_empty, count_not_empty, percent_empty, percent_not_empty for any property; date_range (in days) for dates; count_checked, count_unchecked, percent_checked, percent_unchecked for checkboxes.',
+    ),
+  aggregate_property: z
+    .string()
+    .optional()
+    .describe("Chart only: the property the aggregate calculates over (needed for every aggregate but count)."),
+  stack_by: z
+    .string()
+    .nullable()
+    .optional()
+    .describe(
+      "Bar and horizontal_bar charts only: split each bar into segments by a second groupable property (null for none). Only for measures that add up: count, sum, count_values, count_empty, count_not_empty, count_checked, count_unchecked.",
+    ),
+  chart_sort: z
+    .enum(CHART_SORTS)
+    .optional()
+    .describe('Chart only: "group" keeps the grouping\'s order (options in option order, dates oldest first; the default), "value_desc" / "value_asc" order by value.'),
+  show_values: z.boolean().optional().describe("Chart only: print each value on its bar or point, and in a donut's legend (false by default)."),
+  show_legend: z.boolean().optional().describe("Donut charts only: show the legend (true by default)."),
 };
 
 type ViewInput = {
@@ -197,6 +238,13 @@ type ViewInput = {
   show_table?: boolean;
   card_size?: CardSize;
   cover?: ViewCover["source"];
+  chart_type?: ChartType;
+  aggregate?: "count" | AggregateFn;
+  aggregate_property?: string;
+  stack_by?: string | null;
+  chart_sort?: ChartSort;
+  show_values?: boolean;
+  show_legend?: boolean;
   filters?: FilterEntryInput[];
   filter_combinator?: FilterCombinator;
   sorts?: SortInput[];
@@ -216,18 +264,25 @@ const groupSettingsInput = {
 };
 
 /** The view settings the caller asked to change, converted from names to stored ids. */
-function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput, lookups: Lookups): ViewConfig {
+function viewConfigPatch(
+  props: PropertyDef[],
+  type: ViewType,
+  input: ViewInput,
+  lookups: Lookups,
+  current: ViewConfig = {},
+): ViewConfig {
   const patch: ViewConfig = {};
   const only = (setting: string, ...types: ViewType[]) => {
     if (types.includes(type)) return;
     const names = types.length > 1 ? `${types.slice(0, -1).join(", ")} and ${types.at(-1)}` : types[0];
     throw new ToolInputError(`${setting} only applies to ${names} views.`);
   };
-  const grouped = type === "board" || type === "table";
+  const grouped = type === "board" || type === "table" || type === "chart";
   if (input.group_by !== undefined) {
-    only("group_by", "board", "table", "timeline");
+    only("group_by", "board", "table", "timeline", "chart");
     if (input.group_by === null) {
       if (type === "board") throw new ToolInputError("Boards always group their cards; pass a property to group by.");
+      if (type === "chart") throw new ToolInputError("Charts always group their rows; pass a property to group by.");
       patch.groupBy = undefined;
     } else {
       const prop = requireProperty(props, input.group_by);
@@ -247,7 +302,7 @@ function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput,
   }
   const groupSettings = input.group_date_by ?? input.group_status_by ?? input.hide_empty_groups;
   if (groupSettings !== undefined && !grouped) {
-    throw new ToolInputError("group_date_by, group_status_by and hide_empty_groups only apply to board and table views.");
+    throw new ToolInputError("group_date_by, group_status_by and hide_empty_groups only apply to board, table and chart views.");
   }
   if (input.group_date_by) patch.groupDateBy = input.group_date_by;
   if (input.group_status_by) patch.groupStatusBy = input.group_status_by === "group" ? "group" : undefined;
@@ -290,12 +345,71 @@ function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput,
     only("cover", "gallery");
     patch.cover = { source: input.cover };
   }
+  if (type === "chart") Object.assign(patch, chartConfigPatch(props, input, { ...current, ...patch }));
+  else {
+    for (const setting of ["chart_type", "aggregate", "aggregate_property", "stack_by", "chart_sort", "show_values", "show_legend"] as const) {
+      if (input[setting] !== undefined) only(setting, "chart");
+    }
+  }
   if (input.filters) patch.filters = toFilterEntries(props, input.filters, lookups);
   // New filters replace the old ones together with how they combine ("and" unless given).
   if (input.filters || input.filter_combinator) {
     patch.filterCombinator = input.filter_combinator === "or" ? "or" : undefined;
   }
   if (input.sorts) patch.sorts = input.sorts.map((s) => toSortRule(props, s));
+  return patch;
+}
+
+/** A chart's settings from tool input; `current` is the saved config the patch will be merged into. */
+function chartConfigPatch(props: PropertyDef[], input: ViewInput, current: ViewConfig): ViewConfig {
+  const patch: ViewConfig = {};
+  if (input.chart_type !== undefined) patch.chartType = input.chart_type;
+  if (input.chart_sort !== undefined) patch.chartSort = input.chart_sort === "group" ? undefined : input.chart_sort;
+  if (input.show_values !== undefined) patch.showValues = input.show_values || undefined;
+  if (input.show_legend !== undefined) patch.showLegend = input.show_legend ? undefined : false;
+  if (input.aggregate === "count") {
+    if (input.aggregate_property !== undefined) throw new ToolInputError('aggregate_property doesn\'t apply to "count", which counts rows.');
+    patch.chartAggregate = undefined;
+  } else if (input.aggregate !== undefined || input.aggregate_property !== undefined) {
+    // Either may change alone: the other one comes from the saved calculation.
+    const fn = input.aggregate ?? current.chartAggregate?.fn;
+    const ref = input.aggregate_property ?? props.find((p) => p.id === current.chartAggregate?.propertyId)?.id;
+    if (!fn) throw new ToolInputError("aggregate_property needs an aggregate to calculate, such as sum or average.");
+    if (!ref) throw new ToolInputError(`aggregate "${fn}" needs aggregate_property: the property to calculate over.`);
+    const prop = requireProperty(props, ref);
+    const offered = chartAggregateFunctions(prop.type);
+    if (!offered.includes(fn)) {
+      throw new ToolInputError(
+        `Charts can't calculate ${fn} over "${prop.name}" (${prop.type}); it offers count, ${offered.join(", ")}.`,
+      );
+    }
+    patch.chartAggregate = { fn, propertyId: prop.id };
+  }
+  if (input.stack_by !== undefined) {
+    if (input.stack_by === null) patch.stackBy = undefined;
+    else {
+      const prop = requireProperty(props, input.stack_by);
+      if (!isGroupable(prop.type)) {
+        throw new ToolInputError(`Charts stack by a property they could group by; "${prop.name}" is ${prop.type}.`);
+      }
+      patch.stackBy = prop.id;
+    }
+  }
+  // A new stack property must work with the settings as they'll be saved: bars, a measure that adds
+  // up, and another property than the groups. A saved one merely rests while it doesn't (like in the app).
+  const next = { ...current, ...patch };
+  const stackBy = input.stack_by && props.find((p) => p.id === next.stackBy);
+  if (stackBy) {
+    const chartType = chartTypeOf(next);
+    if (!canStack(chartType, chartMeasure(next, props))) {
+      throw new ToolInputError(
+        `stack_by only applies to bar and horizontal_bar charts measuring count, sum, count_values, count_empty, count_not_empty, count_checked or count_unchecked.`,
+      );
+    }
+    if (chartGroupProperty(props, next)?.id === stackBy.id) {
+      throw new ToolInputError(`A chart can't stack by "${stackBy.name}", the property it groups by.`);
+    }
+  }
   return patch;
 }
 
@@ -310,7 +424,7 @@ function viewOutput(
     name: view.name,
     type: view.type,
     database_id: database.id,
-    ...describeViewConfig(props, view.config, lookups),
+    ...describeViewConfig(props, view.config, lookups, view.type),
     url: pageUrl(database.workspaceId, database.id),
   };
 }
@@ -705,7 +819,7 @@ export function createMcpServer(principal: McpPrincipal) {
             { name: "title", type: "title", note: "Every row's title; filter and sort on it with property \"title\"." },
             ...properties.map((p) => describeProperty(p, lookups)),
           ],
-          views: views.map((v) => ({ id: v.id, name: v.name, type: v.type, ...describeViewConfig(properties, v.config, lookups) })),
+          views: views.map((v) => ({ id: v.id, name: v.name, type: v.type, ...describeViewConfig(properties, v.config, lookups, v.type) })),
           url: pageUrl(database.workspaceId, database.id),
         };
       }),
@@ -756,6 +870,15 @@ export function createMcpServer(principal: McpPrincipal) {
             url: pageUrl(database.workspaceId, r.id),
           })),
           ...(rows.length > limit ? { note: `Only the first ${limit} rows are shown; narrow the filters or raise limit.` } : {}),
+          // A chart view also returns what it plots, over every matching row (not just the returned ones).
+          ...(view?.type === "chart"
+            ? {
+                chart: {
+                  ...describeViewConfig(props, { ...view.config, filters: undefined, sorts: undefined }, lookups, "chart"),
+                  ...describeChartSeries(props, view.config, rows, lookups),
+                },
+              }
+            : {}),
         };
       }),
   );
@@ -1146,7 +1269,7 @@ export function createMcpServer(principal: McpPrincipal) {
         const view = views.find((v) => v.id === view_id);
         if (!view) throw new ToolInputError(`No view with id "${view_id}" in this database. Call get_database for view ids.`);
         const lookups = await databases.getLookups(userId, properties);
-        const patch = viewConfigPatch(properties, view.type, { ...settings, filters, filter_combinator, sorts }, lookups);
+        const patch = viewConfigPatch(properties, view.type, { ...settings, filters, filter_combinator, sorts }, lookups, view.config);
         if (name === undefined && !Object.keys(patch).length) {
           throw new ToolInputError("Nothing to change: provide name, a view setting, filters, filter_combinator or sorts.");
         }

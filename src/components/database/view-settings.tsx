@@ -1,16 +1,29 @@
 "use client";
 
-import { Check, Plus, SlidersHorizontal } from "lucide-react";
+import { ChartBarBig, ChartColumnBig, ChartLine, ChartPie, Check, Plus, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { cn, MenuItem, MenuSeparator } from "@/components/ui";
-import type { ViewConfig } from "@/db/schema/app";
+import type { ChartSort, GroupDateBy, ViewConfig } from "@/db/schema/app";
+import type { AggregateFn } from "@/lib/aggregate";
+import {
+  canStack,
+  CHART_SORTS,
+  CHART_TYPES,
+  chartAggregateFunctions,
+  chartGroupProperty,
+  chartMeasure,
+  chartSortOf,
+  chartTypeOf,
+} from "@/lib/chart";
+import { GROUP_DATE_BY, groupDateByOf } from "@/lib/grouping";
 import { isGroupable } from "@/lib/properties";
 import { holdsTimestamp } from "@/lib/property-types";
 import { CARD_SIZES, COVER_SOURCES, galleryCover } from "@/lib/views";
 import { Floating, useFloating } from "./floating";
 import { PropertyTypeIcon } from "./property-icons";
 import type { Property, View } from "./types";
+import { NativeSelect } from "./view-bar";
 
 /** Date properties a timeline can start bars at (created and edited times are read-only there). */
 export function timelineStartProps(properties: Property[]) {
@@ -53,7 +66,7 @@ export function ViewLayoutMenu({
 }) {
   const t = useTranslations("database.layout");
   const menu = useFloating<HTMLButtonElement>();
-  if (readOnly || (view.type !== "gallery" && view.type !== "timeline")) return null;
+  if (readOnly || (view.type !== "gallery" && view.type !== "timeline" && view.type !== "chart")) return null;
   const config = view.config;
   const set = (patch: ViewConfig) => onConfig({ ...config, ...patch });
 
@@ -70,8 +83,10 @@ export function ViewLayoutMenu({
         <SlidersHorizontal className="h-4 w-4" />
       </button>
       <Floating open={menu.open} anchor={menu.el} onClose={menu.close} align="end">
-        <div className="max-h-[70vh] w-64 overflow-y-auto">
-          {view.type === "gallery" ? (
+        <div className={cn("max-h-[70vh] overflow-y-auto", view.type === "chart" ? "w-72 max-w-[calc(100vw-2rem)]" : "w-64")}>
+          {view.type === "chart" ? (
+            <ChartSettings view={view} properties={properties} onSet={set} />
+          ) : view.type === "gallery" ? (
             <>
               <Heading>{t("cardSize")}</Heading>
               {CARD_SIZES.map((size) => (
@@ -165,30 +180,186 @@ function TimelineSettings({
         </MenuItem>
       ))}
       <MenuSeparator />
-      <button
-        type="button"
-        role="switch"
-        aria-checked={showTable}
-        onClick={() => onSet({ showTable: !showTable })}
-        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover"
-      >
-        <span className="flex-1">{t("showTable")}</span>
-        <span
-          aria-hidden
-          className={cn(
-            "relative h-4 w-7 rounded-full transition-colors",
-            showTable ? "bg-accent" : "bg-bg-active",
-          )}
-        >
-          <span
-            className={cn(
-              "absolute top-0.5 h-3 w-3 rounded-full bg-bg shadow transition-[left]",
-              showTable ? "left-3.5" : "left-0.5",
-            )}
-          />
-        </span>
-      </button>
+      <Toggle on={showTable} onChange={(on) => onSet({ showTable: on })}>
+        {t("showTable")}
+      </Toggle>
     </>
+  );
+}
+
+const CHART_ICONS = { bar: ChartColumnBig, horizontal_bar: ChartBarBig, line: ChartLine, donut: ChartPie } as const;
+
+/**
+ * Chart settings: the kind of chart, what it groups by (with the date and status grouping), what
+ * it measures, stacking, group order, and what it shows.
+ */
+function ChartSettings({ view, properties, onSet }: { view: View; properties: Property[]; onSet: (patch: ViewConfig) => void }) {
+  const t = useTranslations("database");
+  const config = view.config;
+  const chartType = chartTypeOf(config);
+  const groupBy = chartGroupProperty(properties, config);
+  const measure = chartMeasure(config, properties);
+  const groupable = properties.filter((p) => isGroupable(p.type));
+  const measurable = properties.filter((p) => chartAggregateFunctions(p.type).length > 0);
+  const stackable = canStack(chartType, measure);
+  const stackBy = groupable.find((p) => p.id === config.stackBy && p.id !== groupBy?.id);
+  const hiddenGroups = config.hiddenGroups ?? [];
+  const showsNoValue = !hiddenGroups.includes("");
+  const dates = groupBy && (groupBy.type === "date" || holdsTimestamp(groupBy.type));
+  const bars = chartType === "bar" || chartType === "horizontal_bar";
+
+  const setMeasure = (propertyId: string) => {
+    const prop = properties.find((p) => p.id === propertyId);
+    if (!prop) return onSet({ chartAggregate: undefined });
+    const fns = chartAggregateFunctions(prop.type);
+    // Numbers are summed and checkboxes counted by default; other types count their values.
+    const fn = fns.includes("sum") ? "sum" : fns[0];
+    onSet({ chartAggregate: { fn, propertyId: prop.id } });
+  };
+
+  return (
+    <>
+      <Heading>{t("chart.type")}</Heading>
+      <div className="grid grid-cols-2 gap-0.5">
+        {CHART_TYPES.map((type) => {
+          const Icon = CHART_ICONS[type];
+          return (
+            <MenuItem key={type} active={type === chartType} icon={<Icon className="h-3.5 w-3.5" />} onClick={() => onSet({ chartType: type })}>
+              {t(`chart.types.${type}`)}
+            </MenuItem>
+          );
+        })}
+      </div>
+      <MenuSeparator />
+      <SettingRow label={t("chart.groupBy")}>
+        <NativeSelect
+          label={t("chart.groupBy")}
+          value={groupBy?.id ?? ""}
+          onChange={(id) => onSet({ groupBy: id, hiddenGroups: undefined, groupOrder: undefined })}
+          options={groupable.map((p) => ({ value: p.id, label: p.name }))}
+          className="w-36"
+        />
+      </SettingRow>
+      {dates && (
+        <SettingRow label={t("group.dateBy")}>
+          <NativeSelect
+            label={t("group.dateBy")}
+            value={groupDateByOf(config)}
+            onChange={(v) => onSet({ groupDateBy: v as GroupDateBy })}
+            options={GROUP_DATE_BY.map((by) => ({ value: by, label: t(`group.dateByOptions.${by}`) }))}
+            className="w-36"
+          />
+        </SettingRow>
+      )}
+      {groupBy?.type === "status" && (
+        <SettingRow label={t("group.statusBy")}>
+          <NativeSelect
+            label={t("group.statusBy")}
+            value={config.groupStatusBy === "group" ? "group" : "option"}
+            onChange={(v) => onSet({ groupStatusBy: v === "group" ? "group" : undefined })}
+            options={[
+              { value: "option", label: t("group.statusByOptions.option") },
+              { value: "group", label: t("group.statusByOptions.group") },
+            ]}
+            className="w-36"
+          />
+        </SettingRow>
+      )}
+      <SettingRow label={t("chart.measure")}>
+        <NativeSelect
+          label={t("chart.measure")}
+          value={measure.kind === "count" ? "" : measure.prop.id}
+          onChange={setMeasure}
+          options={[{ value: "", label: t("chart.count") }, ...measurable.map((p) => ({ value: p.id, label: p.name }))]}
+          className="w-36"
+        />
+      </SettingRow>
+      {measure.kind === "aggregate" && (
+        <SettingRow label={t("chart.calculation")}>
+          <NativeSelect
+            label={t("chart.calculation")}
+            value={measure.fn}
+            onChange={(fn) => onSet({ chartAggregate: { fn: fn as AggregateFn, propertyId: measure.prop.id } })}
+            options={chartAggregateFunctions(measure.prop.type).map((fn) => ({ value: fn, label: t(`calculate.menu.${fn}`) }))}
+            className="w-36"
+          />
+        </SettingRow>
+      )}
+      {bars && (
+        <>
+          <SettingRow label={t("chart.stackBy")}>
+            <NativeSelect
+              label={t("chart.stackBy")}
+              value={stackable ? (stackBy?.id ?? "") : ""}
+              onChange={(id) => onSet({ stackBy: id || undefined })}
+              options={[
+                { value: "", label: t("chart.noStack") },
+                ...groupable.filter((p) => p.id !== groupBy?.id).map((p) => ({ value: p.id, label: p.name })),
+              ]}
+              className="w-36"
+              disabled={!stackable}
+            />
+          </SettingRow>
+          {!stackable && <p className="px-2 pb-1 text-xs text-fg-faint">{t("chart.stackHint")}</p>}
+        </>
+      )}
+      <SettingRow label={t("chart.sort")}>
+        <NativeSelect
+          label={t("chart.sort")}
+          value={chartSortOf(config)}
+          onChange={(v) => onSet({ chartSort: v === "group" ? undefined : (v as ChartSort) })}
+          options={CHART_SORTS.map((sort) => ({ value: sort, label: t(`chart.sorts.${sort}`) }))}
+          className="w-36"
+        />
+      </SettingRow>
+      <MenuSeparator />
+      <Toggle on={!!config.hideEmptyGroups} onChange={(on) => onSet({ hideEmptyGroups: on || undefined })}>
+        {t("group.hideEmpty")}
+      </Toggle>
+      <Toggle
+        on={showsNoValue}
+        onChange={(on) =>
+          onSet({ hiddenGroups: on ? hiddenGroups.filter((k) => k !== "") : [...hiddenGroups, ""] })
+        }
+      >
+        {t("chart.showNoValue")}
+      </Toggle>
+      <Toggle on={!!config.showValues} onChange={(on) => onSet({ showValues: on || undefined })}>
+        {t("chart.showValues")}
+      </Toggle>
+      {chartType === "donut" && (
+        <Toggle on={config.showLegend !== false} onChange={(on) => onSet({ showLegend: on ? undefined : false })}>
+          {t("chart.showLegend")}
+        </Toggle>
+      )}
+    </>
+  );
+}
+
+function SettingRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="flex items-center justify-between gap-3 px-2 py-1 text-sm">
+      <span className="min-w-0 truncate text-fg-muted">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+/** An on/off setting shown as a switch. */
+function Toggle({ on, onChange, children }: { on: boolean; onChange: (on: boolean) => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={() => onChange(!on)}
+      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover"
+    >
+      <span className="flex-1">{children}</span>
+      <span aria-hidden className={cn("relative h-4 w-7 shrink-0 rounded-full transition-colors", on ? "bg-accent" : "bg-bg-active")}>
+        <span className={cn("absolute top-0.5 h-3 w-3 rounded-full bg-bg shadow transition-[left]", on ? "left-3.5" : "left-0.5")} />
+      </span>
+    </button>
   );
 }
 

@@ -1119,26 +1119,29 @@ function MenuItemInline({ icon, children, onClick }: { icon: React.ReactNode; ch
   );
 }
 
-function NativeSelect({
+export function NativeSelect({
   label,
   value,
   onChange,
   options,
   className,
+  disabled,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
   className?: string;
+  disabled?: boolean;
 }) {
   return (
     <select
       aria-label={label}
       value={value}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       className={cn(
-        "h-7 min-w-0 rounded-md border border-border bg-bg px-1.5 text-sm outline-none focus:border-accent",
+        "h-7 min-w-0 rounded-md border border-border bg-bg px-1.5 text-sm outline-none focus:border-accent disabled:opacity-50",
         className,
       )}
     >

@@ -23,7 +23,7 @@ export type CalculationColumn = { key: string; name: string; type: string; optio
 /** Averages and medians rarely end evenly; two decimals are plenty in a footer. */
 const ROUNDED: AggregateFn[] = ["average", "median"];
 
-function useFormatResult() {
+export function useFormatResult() {
   const t = useTranslations("database.calculate");
   const format = useFormatter();
   const formatDate = useFormatDate();

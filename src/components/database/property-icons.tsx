@@ -3,6 +3,7 @@ import {
   ArrowUpRight,
   Calendar,
   CalendarDays,
+  ChartColumnBig,
   ChartGantt,
   CircleChevronDown,
   CircleDotDashed,
@@ -63,6 +64,7 @@ const VIEW_ICONS = {
   gallery: LayoutGrid,
   list: LayoutList,
   timeline: ChartGantt,
+  chart: ChartColumnBig,
 } as const satisfies Record<ViewType, LucideIcon>;
 
 export function ViewIcon({ type, className }: { type: ViewType; className?: string }) {

@@ -469,7 +469,7 @@ describe("database views", () => {
     const due = { id: "prop-due", name: "Due", type: "date", options: {} };
     databases.getDatabase.mockResolvedValue({ ...database, properties: [status, notes, due] });
     const onCalendar = await callTool(writer, "create_database_view", { database_id: "db-1", name: "C", type: "calendar", group_by: "Due" });
-    expect(onCalendar.text).toMatch(/only applies to board, table and timeline/);
+    expect(onCalendar.text).toMatch(/only applies to board, table, timeline and chart/);
     const wrongProp = await callTool(writer, "create_database_view", {
       database_id: "db-1",
       name: "T",

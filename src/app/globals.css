@@ -153,6 +153,60 @@
 }
 
 /*
+ * Chart marks. `--chart-1`…`--chart-8` color groups that have no color of their own, in this
+ * order (it keeps neighbors apart for color-blind readers); a single series uses `--chart-1`.
+ * `--chart-<option color>` paint select and status groups in their option's hue, strong enough
+ * for a bar; `--chart-none` is the no-value group and "Other". Text never takes these colors.
+ */
+:root {
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #008300;
+  --chart-7: #4a3aa7;
+  --chart-8: #e34948;
+  --chart-gray: #9b9a97;
+  --chart-brown: #a27763;
+  --chart-orange: #e8883f;
+  --chart-yellow: #d9a520;
+  --chart-green: #4dab6f;
+  --chart-blue: #3d8fd1;
+  --chart-purple: #9a6dd7;
+  --chart-pink: #dd5c9f;
+  --chart-red: #e05050;
+  --chart-none: #c7c8cc;
+  --chart-grid: #ececef;
+  --chart-axis: #c9cacf;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-3: #199e70;
+    --chart-4: #c98500;
+    --chart-5: #d55181;
+    --chart-6: #008300;
+    --chart-7: #9085e9;
+    --chart-8: #e66767;
+    --chart-gray: #8c8e94;
+    --chart-brown: #a0735f;
+    --chart-orange: #d9772f;
+    --chart-yellow: #c99a1c;
+    --chart-green: #3f9c62;
+    --chart-blue: #4a90d9;
+    --chart-purple: #9a78dc;
+    --chart-pink: #d45a98;
+    --chart-red: #e06262;
+    --chart-none: #4d4f55;
+    --chart-grid: #26272b;
+    --chart-axis: #3a3c41;
+  }
+}
+
+/*
  * Wide (database) pages use the full width like Notion's full-width pages: a 6rem gutter, easing
  * down to 3rem on narrower windows, while boards and tables scroll edge to edge.
  */

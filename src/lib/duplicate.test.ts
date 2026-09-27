@@ -235,6 +235,27 @@ describe("remapViewConfig", () => {
     ).toEqual({ dateBy: "start2", endDateBy: "end2", groupBy: "status2", zoom: "month", showTable: false });
   });
 
+  it("maps a chart's group, stack and measured properties and keeps its settings", () => {
+    const ids = new Map([
+      ["status", "status2"],
+      ["owner", "owner2"],
+      ["amount", "amount2"],
+    ]);
+    expect(
+      remapViewConfig(
+        { chartType: "horizontal_bar", groupBy: "status", stackBy: "owner", chartAggregate: { fn: "sum", propertyId: "amount" }, showValues: true },
+        ids,
+        () => null,
+      ),
+    ).toEqual({
+      chartType: "horizontal_bar",
+      groupBy: "status2",
+      stackBy: "owner2",
+      chartAggregate: { fn: "sum", propertyId: "amount2" },
+      showValues: true,
+    });
+  });
+
   it("maps footer calculations to the copied properties", () => {
     const ids = new Map([["amount", "amount2"]]);
     expect(remapViewConfig({ calculations: { amount: "sum", title: "count_all" } }, ids, () => null)).toEqual({
