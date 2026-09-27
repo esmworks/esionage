@@ -1,0 +1,388 @@
+{
+  "documentTitle": "{title} · Esionage",
+  "header": {
+    "history": "Historique de la page",
+    "more": "Plus",
+    "copyLink": "Copier le lien",
+    "moveToTrash": "Placer dans la corbeille",
+    "edited": "Modifiée {time}",
+    "activity": "Activité",
+    "editedBy": "Modifiée par {name}",
+    "createdBy": "Créée par {name}",
+    "someone": "Quelqu’un",
+    "comments": "Commentaires",
+    "share": "Partager",
+    "addFavorite": "Ajouter aux favoris",
+    "removeFavorite": "Retirer des favoris",
+    "linkCopied": "Lien copié",
+    "duplicate": "Dupliquer",
+    "duplicateSuffix": " (copie)",
+    "duplicateFailed": "Impossible de dupliquer la page.",
+    "moveTo": "Déplacer vers",
+    "lockDatabase": "Verrouiller la base de données",
+    "lockHint": "Tant qu’elle est verrouillée, les propriétés et les vues ne peuvent pas changer ; les lignes restent modifiables.",
+    "locked": "Verrouillée",
+    "unlock": "Déverrouiller",
+    "exportMarkdown": "Exporter en Markdown",
+    "exportCsv": "Exporter en CSV",
+    "exportZip": "Exporter avec les sous-pages",
+    "exportZipDatabase": "Exporter avec les pages des lignes",
+    "exportPdf": "Exporter en PDF",
+    "exportPreparing": "Préparation de l’exportation…",
+    "versionHistory": "Historique des versions",
+    "lastEdited": "Dernière modification par {name}",
+    "actionFailed": "Impossible d’effectuer cette action.",
+    "viewers": "{count, plural, one {# autre personne consulte cette page} other {# autres personnes consultent cette page}}",
+    "viewersTitle": "Personnes sur cette page",
+    "saveAsTemplate": "Enregistrer comme modèle",
+    "saveAsRowTemplate": "Enregistrer comme modèle de ligne",
+    "deleteTemplate": "Supprimer le modèle"
+  },
+  "comments": {
+    "title": "Commentaires",
+    "close": "Fermer les commentaires",
+    "filters": {
+      "open": "Ouverts",
+      "resolved": "Résolus",
+      "all": "Tous"
+    },
+    "empty": {
+      "open": "Aucun commentaire ouvert. Sélectionnez du texte dans la page et choisissez Commenter pour en ajouter un.",
+      "resolved": "Aucun commentaire résolu.",
+      "all": "Aucun commentaire pour l’instant. Sélectionnez du texte dans la page et choisissez Commenter pour en ajouter un."
+    }
+  },
+  "archived": {
+    "banner": "Cette page est dans la corbeille.",
+    "deletePermanently": "Supprimer définitivement",
+    "confirmDelete": "Supprimer définitivement cette page et tout son contenu ? Cette action est irréversible."
+  },
+  "icon": {
+    "add": "Ajouter une icône",
+    "remove": "Supprimer l’icône"
+  },
+  "title": {
+    "label": "Titre de la page"
+  },
+  "connection": {
+    "live": "En direct",
+    "connecting": "Connexion",
+    "offline": "Hors ligne",
+    "reconnecting": "Reconnexion",
+    "noAccess": "Aucun accès",
+    "syncing": "Synchronisation…",
+    "synced": "Synchronisé",
+    "offlinePending": "Hors ligne · modifications conservées ici",
+    "offlineHint": "Vous êtes hors ligne. Continuez à modifier : les changements sont enregistrés dans ce navigateur et seront synchronisés au retour de la connexion."
+  },
+  "errors": {
+    "accessLost": "Vous n’avez plus accès à cette page.",
+    "connectionFailed": "Impossible de se connecter à l’édition en direct. Nouvelle tentative…",
+    "notAvailableOffline": "Cette page n’est pas encore enregistrée sur cet appareil. Ouvrez-la une fois en ligne pour pouvoir l’utiliser hors ligne."
+  },
+  "history": {
+    "title": "Historique de la page",
+    "previewTitle": "Aperçu de la version",
+    "modes": {
+      "version": "Version",
+      "current": "Comparer à la version actuelle",
+      "previous": "Comparer à la précédente"
+    },
+    "reasons": {
+      "auto": "Enregistrement automatique",
+      "beforeRestore": "Avant restauration",
+      "manual": "Version enregistrée",
+      "beforeAiEdit": "Avant modification par l’IA",
+      "beforeAiEditBy": "Avant modification par {client}"
+    },
+    "empty": "Aucune version pour l’instant. Des versions sont enregistrées automatiquement pendant que vous modifiez la page et avant qu’une application d’IA ne la modifie.",
+    "restore": "Restaurer cette version",
+    "restoring": "Restauration…",
+    "restoreHint": "Le contenu actuel est d’abord enregistré comme version.",
+    "diff": {
+      "rangeCurrent": "Modifications entre la version du {from} et la page actuelle",
+      "rangePrevious": "Modifications entre {from} et {to}",
+      "earlier": "la version précédente",
+      "changedBy": "Modifié par {names}",
+      "actorApp": "{client} pour {name}",
+      "none": "Aucune modification.",
+      "oldest": "C’est la plus ancienne version enregistrée ; il n’y a rien d’antérieur à comparer.",
+      "showUnchanged": "{count, plural, one {Afficher # bloc inchangé} other {Afficher # blocs inchangés}}",
+      "formatOnly": "Mise en forme modifiée"
+    },
+    "errors": {
+      "list": "Impossible de charger l’historique de la page. Rechargez la page et réessayez.",
+      "version": "Impossible de charger cette version.",
+      "restore": "Impossible de restaurer cette version.",
+      "diff": "Impossible de comparer ces versions."
+    }
+  },
+  "move": {
+    "title": "Déplacer vers",
+    "search": "Rechercher des pages…",
+    "empty": "Aucune page correspondante.",
+    "failed": "Impossible de déplacer la page à cet endroit.",
+    "teamspaceHint": "En haut de cet espace d’équipe : ses membres y ont accès",
+    "private": "Privé",
+    "privateHint": "En haut de vos pages privées : seules les personnes avec qui elle est partagée y ont accès"
+  },
+  "share": {
+    "tabShare": "Partager",
+    "tabPublish": "Publier",
+    "addPeople": "Ajouter des personnes par nom ou e-mail",
+    "noMatches": "Aucun membre correspondant.",
+    "membersOnly": "Vous pouvez partager avec les membres de l’espace de travail. Cet espace ne permet pas de partager avec des personnes extérieures.",
+    "guestHint": "Saisissez une adresse e-mail complète pour partager avec une personne extérieure à l’espace de travail. Elle le rejoindra en tant qu’invité et ne verra que les pages partagées avec elle.",
+    "shareWith": "Partager avec {email}",
+    "asGuest": "Rejoint en tant qu’invité",
+    "pending": "Invité, pas encore inscrit",
+    "cancelInvite": "Annuler l’invitation",
+    "invitedSent": "Invitation envoyée à {email}.",
+    "invitedNoEmail": "{email} est invité, mais aucun e-mail n’a pu être envoyé. Envoyez-lui le lien d’invitation.",
+    "copyInvite": "Copier le lien d’invitation",
+    "you": "Vous",
+    "inherited": "Hérité de {title}",
+    "viaGeneral": "{level} (via l’accès général)",
+    "overridden": "L’accès général est plus élevé ({level}), ce réglage n’a donc aucun effet.",
+    "remove": "Retirer",
+    "generalAccess": "Accès général",
+    "everyone": "Tout l’espace de travail",
+    "everyoneHint": "Les membres obtiennent au moins ce niveau d’accès, quel que soit celui que vous leur accordez individuellement. Choisissez « Aucun accès » pour n’ouvrir la page qu’aux personnes que vous ajoutez.",
+    "everyoneIn": "Tout le monde dans {name}",
+    "everyoneTeamspace": "Tout l’espace d’équipe",
+    "everyoneTeamspaceHint": "Les membres de l’espace d’équipe obtiennent au moins ce niveau d’accès, quel que soit celui que vous leur accordez individuellement. Choisissez « Aucun accès » pour n’ouvrir la page qu’aux personnes que vous ajoutez.",
+    "readOnly": "Seules les personnes disposant d’un accès complet peuvent modifier le partage.",
+    "copyLink": "Copier le lien",
+    "copied": "Copié",
+    "loading": "Chargement…",
+    "levels": {
+      "full": "Accès complet",
+      "edit": "Peut modifier",
+      "comment": "Peut commenter",
+      "view": "Peut consulter",
+      "none": "Aucun accès"
+    },
+    "errors": {
+      "notMember": "Cette personne n’est pas membre de l’espace de travail.",
+      "lastFullAccess": "Quelqu’un doit conserver un accès complet à la page. Accordez d’abord un accès complet à une autre personne.",
+      "accessDenied": "Vous ne pouvez pas modifier le partage de cette page.",
+      "invalidEmail": "Saisissez une adresse e-mail valide.",
+      "invitesRestricted": "Cet espace de travail ne permet pas de partager des pages avec des personnes extérieures. Adressez-vous à un propriétaire.",
+      "generic": "Impossible de mettre à jour le partage."
+    }
+  },
+  "embed": {
+    "label": "Base de données",
+    "linkedLabel": "Vue liée d’une base de données",
+    "unavailable": "Cette base de données n’est pas disponible. Elle a peut-être été supprimée, ou vous n’y avez pas accès.",
+    "inTrash": "Cette base de données est dans la corbeille.",
+    "creating": "Création de la base de données…",
+    "createFailed": "Impossible de créer la base de données : {error}",
+    "open": "Ouvrir en tant que page",
+    "linked": "Vue liée",
+    "layout": "Disposition",
+    "viewOnly": "Seules les personnes pouvant modifier cette page peuvent modifier cette vue.",
+    "picker": {
+      "title": "Choisir une base de données",
+      "search": "Rechercher des bases de données",
+      "empty": "Aucune base de données trouvée.",
+      "failed": "Impossible de charger les bases de données."
+    },
+    "slash": {
+      "database": {
+        "title": "Base de données",
+        "subtext": "Une nouvelle base de données dans cette page",
+        "aliases": "database db inline table base de données bdd tableau intégrée"
+      },
+      "linkedView": {
+        "title": "Vue liée d’une base de données",
+        "subtext": "Afficher une base de données existante avec sa propre vue",
+        "aliases": "linked view database db vue liée base de données bdd"
+      }
+    }
+  },
+  "find": {
+    "label": "Rechercher dans la page",
+    "placeholder": "Rechercher",
+    "replacePlaceholder": "Remplacer par",
+    "noResults": "Aucun résultat",
+    "matchCase": "Respecter la casse",
+    "previous": "Résultat précédent (Maj+Entrée)",
+    "next": "Résultat suivant (Entrée)",
+    "showReplace": "Afficher le remplacement",
+    "hideReplace": "Masquer le remplacement",
+    "replace": "Remplacer",
+    "replaceAll": "Tout remplacer",
+    "close": "Fermer (Échap)"
+  },
+  "template": {
+    "workspace": "Ceci est un modèle. Les nouvelles pages créées à partir de lui reprennent son contenu et ses sous-pages.",
+    "row": "Ceci est un modèle de ligne. Les nouvelles lignes créées à partir de lui reprennent ses propriétés et son contenu.",
+    "inside": "Cette page fait partie d’un modèle.",
+    "use": "Utiliser le modèle",
+    "confirmDelete": "Supprimer définitivement ce modèle ? Les pages déjà créées à partir de lui restent inchangées."
+  },
+  "blocks": {
+    "callout": {
+      "title": "Encadré",
+      "subtext": "Du texte avec une icône sur un fond coloré",
+      "aliases": "callout note tip warning alert box encadré astuce avertissement alerte bloc",
+      "icon": "Changer l’icône"
+    },
+    "math": {
+      "title": "Équation",
+      "subtext": "Une équation centrée écrite en TeX",
+      "aliases": "math equation latex tex katex formula maths mathématiques équation formule",
+      "placeholder": "Ajouter une équation TeX",
+      "sourcePlaceholder": "E = mc^2",
+      "error": "L’équation contient une erreur"
+    },
+    "inlineMath": {
+      "title": "Équation en ligne",
+      "subtext": "Une équation dans le texte",
+      "aliases": "inline math equation latex tex katex formula en ligne maths mathématiques équation formule",
+      "placeholder": "Nouvelle équation",
+      "sourcePlaceholder": "x^2",
+      "error": "Erreur d’équation"
+    },
+    "mermaid": {
+      "title": "Diagramme Mermaid",
+      "subtext": "Organigrammes, diagrammes de séquence et plus encore, dessinés à partir de texte",
+      "aliases": "mermaid diagram flowchart chart graph sequence gantt diagramme organigramme graphique séquence",
+      "placeholder": "Ajouter un diagramme Mermaid",
+      "sourcePlaceholder": "graph TD\n  A --> B",
+      "loading": "Dessin du diagramme…",
+      "error": "Le diagramme contient une erreur",
+      "label": "Diagramme"
+    },
+    "toc": {
+      "title": "Table des matières",
+      "subtext": "Des liens vers les titres de cette page",
+      "aliases": "toc table contents headings outline table des matières sommaire titres plan",
+      "label": "Table des matières",
+      "empty": "Ajoutez des titres à cette page et ils apparaîtront ici."
+    },
+    "breadcrumb": {
+      "title": "Fil d’Ariane",
+      "subtext": "Les pages au-dessus de celle-ci, sous forme de liens",
+      "aliases": "breadcrumb path parents location fil ariane chemin parents emplacement",
+      "label": "Fil d’Ariane"
+    },
+    "columns": {
+      "two": {
+        "title": "2 colonnes",
+        "subtext": "Deux colonnes de blocs côte à côte",
+        "aliases": "columns column layout side 2 two colonnes colonne disposition côte deux"
+      },
+      "three": {
+        "title": "3 colonnes",
+        "subtext": "Trois colonnes de blocs côte à côte",
+        "aliases": "columns column layout side 3 three colonnes colonne disposition côte trois"
+      },
+      "add": {
+        "title": "Ajouter une colonne",
+        "subtext": "Une nouvelle colonne à droite de celle-ci (5 au maximum)",
+        "aliases": "column columns add new layout colonne colonnes ajouter nouvelle disposition"
+      }
+    },
+    "pageLink": {
+      "title": "Lien vers une page",
+      "subtext": "Un lien vers une autre page, avec son titre à jour",
+      "aliases": "link page mention reference lien page mention référence"
+    }
+  },
+  "web": {
+    "bookmark": {
+      "title": "Signet web",
+      "subtext": "Un lien affiché sous forme de carte avec son titre et son image",
+      "aliases": "bookmark link url web card preview signet lien carte aperçu",
+      "placeholder": "Collez un lien à ajouter en signet",
+      "submit": "Créer le signet",
+      "loading": "Récupération de la page…",
+      "refresh": "Actualiser l’aperçu",
+      "label": "Signet"
+    },
+    "embed": {
+      "title": "Intégration",
+      "subtext": "YouTube, Figma, Google Docs, Maps et plus encore",
+      "aliases": "embed iframe youtube vimeo loom figma google docs sheets slides codepen spotify maps video intégrer intégration vidéo carte",
+      "placeholder": "Collez un lien à intégrer",
+      "submit": "Intégrer",
+      "providers": "YouTube, Vimeo, Loom, Figma, Google Docs, Sheets et Slides publiés, CodePen, Spotify et Google Maps. Les autres liens deviennent un signet.",
+      "frameTitle": "Contenu intégré depuis {host}",
+      "label": "Intégration"
+    },
+    "paste": {
+      "label": "Coller comme",
+      "bookmark": "Signet",
+      "embed": "Intégration",
+      "keep": "Garder le lien"
+    },
+    "invalidUrl": "Saisissez une adresse web, comme https://example.com",
+    "errors": {
+      "accessDenied": "Vous ne pouvez pas modifier cette page.",
+      "rateLimited": "Trop d’aperçus de liens à la fois. Réessayez dans une minute.",
+      "invalidUrl": "Ce n’est pas une adresse web.",
+      "blocked": "Cette adresse ne peut pas être prévisualisée.",
+      "unreachable": "Impossible d’atteindre la page.",
+      "timeout": "La page a mis trop de temps à répondre.",
+      "tooManyRedirects": "La page effectue trop de redirections.",
+      "httpError": "La page a renvoyé une erreur."
+    }
+  },
+  "upload": {
+    "tooLarge": "{name} est trop volumineux. Les fichiers ne peuvent pas dépasser {limit}.",
+    "quotaExceeded": "{name} n’a pas été envoyé : cet espace de travail a atteint sa limite de stockage de {limit}.",
+    "failed": "Impossible d’envoyer {name}."
+  },
+  "mention": {
+    "people": "Personnes",
+    "pages": "Pages",
+    "dates": "Dates",
+    "today": "Aujourd’hui",
+    "tomorrow": "Demain",
+    "yesterday": "Hier",
+    "nextWeek": "La semaine prochaine",
+    "noAccess": "Aucun accès",
+    "deleted": "Page supprimée",
+    "loading": "Chargement…",
+    "personLeft": "{name} (ne fait plus partie de l’espace de travail)",
+    "date": "Date",
+    "reminder": "Rappel",
+    "remindNone": "Aucun rappel",
+    "remindSameDay": "Le jour même, 9 h 00",
+    "remindDayBefore": "La veille, 9 h 00",
+    "remindWeekBefore": "Une semaine avant, 9 h 00",
+    "reminderSet": "Rappel : {when}",
+    "reminderHint": "Vous le recevrez dans votre boîte de réception et par e-mail.",
+    "reminderPast": "Cette heure est passée ; choisissez une date ou un rappel plus tardif.",
+    "done": "Terminé"
+  },
+  "pageLinkPicker": {
+    "title": "Lien vers une page",
+    "search": "Rechercher des pages…",
+    "empty": "Aucune page trouvée",
+    "failed": "Impossible de charger les pages."
+  },
+  "backlinks": {
+    "title": "Liée depuis",
+    "count": "{count, plural, one {# page renvoie ici} other {# pages renvoient ici}}"
+  },
+  "pdf": {
+    "untitled": "PDF",
+    "openInNewTab": "Ouvrir dans un nouvel onglet",
+    "frameTitle": "PDF : {name}",
+    "noPreview": "Ce navigateur ne peut pas afficher de PDF ici. Ouvrez le fichier pour le lire."
+  },
+  "print": {
+    "print": "Imprimer ou enregistrer en PDF",
+    "back": "Retour à la page",
+    "includeSubpages": "Inclure les sous-pages",
+    "preparing": "Chargement des images et des diagrammes…",
+    "hint": "Dans la boîte de dialogue d’impression, choisissez « Enregistrer au format PDF » comme destination.",
+    "truncated": "Seules les {count} premières pages sont incluses.",
+    "lastUpdated": "Dernière mise à jour le {date}",
+    "subpages": "Pages",
+    "embedUnavailable": "Cette base de données ne vous est pas accessible."
+  }
+}

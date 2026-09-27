@@ -1,0 +1,13 @@
+{
+  "metaTitle": "Einladung",
+  "title": "„{workspace}“ beitreten",
+  "invalidTitle": "Einladung nicht gefunden",
+  "invalidBody": "Dieser Einladungslink ist ungültig, abgelaufen oder wurde zurückgezogen. Bitte die Person, die dich eingeladen hat, um einen neuen.",
+  "home": "Zu Esionage",
+  "wrongAccount": "Diese Einladung gilt für {email}, du bist aber als {current} angemeldet. Melde dich ab und öffne den Link erneut.",
+  "acceptBody": "Du wurdest eingeladen, als {role} beizutreten.",
+  "signInBody": "Es gibt bereits ein Konto mit {email}. Melde dich an, um die Einladung anzunehmen.",
+  "signIn": "Anmelden",
+  "join": "Workspace beitreten",
+  "joining": "Beitritt läuft…"
+}

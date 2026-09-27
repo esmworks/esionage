@@ -1,0 +1,337 @@
+{
+  "metaTitle": "Einstellungen",
+  "title": "Einstellungen",
+  "nav": {
+    "account": "Konto",
+    "workspace": "Workspace",
+    "general": "Allgemein",
+    "members": "Mitglieder",
+    "teamspaces": "Teamspaces",
+    "security": "Sicherheit",
+    "site": "Website",
+    "myAccount": "Mein Konto"
+  },
+  "workspace": {
+    "heading": "Workspace",
+    "nameLabel": "Name des Workspace",
+    "ownersOnly": "Nur Inhaber können den Workspace umbenennen.",
+    "description": "Der Name und die grundlegenden Einstellungen dieses Workspace.",
+    "nameDescription": "Wird in der Seitenleiste, in Einladungen und in E-Mails angezeigt."
+  },
+  "export": {
+    "heading": "Export",
+    "title": "Workspace exportieren",
+    "description": "Lade alle Seiten, die du sehen kannst, als ZIP herunter: Seiten als Markdown, Datenbanken als CSV und die darin angezeigten Dateien. Seiten im Papierkorb werden ausgelassen; Vorlagen landen in einem Ordner „Templates“.",
+    "button": "Exportieren",
+    "preparing": "Wird vorbereitet…"
+  },
+  "members": {
+    "heading": "Mitglieder",
+    "description": "Mitglieder können jede Seite sehen und bearbeiten, sofern ihre Freigabe nicht eingeschränkt ist; Gäste sehen nur Seiten, die mit ihnen geteilt wurden. Inhaber können außerdem Mitglieder verwalten.",
+    "tabs": {
+      "members": "Mitglieder",
+      "invitations": "Offene Einladungen"
+    },
+    "search": "Suchen",
+    "exportCsv": "Mitglieder als CSV herunterladen",
+    "addButton": "Mitglieder hinzufügen",
+    "noMatches": "Niemand entspricht deiner Suche.",
+    "noInvitations": "Keine offenen Einladungen.",
+    "joinLink": {
+      "heading": "Mitglieder per Link hinzufügen",
+      "descriptionOn": "Wer diesen Link öffnet und sich anmeldet, tritt als Mitglied bei oder mit der Rolle einer offenen Einladung für die eigene E-Mail-Adresse. Nur Inhaber können ihn sehen.",
+      "descriptionOff": "Aktiviere einen Link, über den alle diesem Workspace als Mitglied beitreten können.",
+      "regenerate": "Neuen Link erstellen",
+      "copy": "Link kopieren",
+      "toggle": "Beitrittslink",
+      "regenerateTitle": "Neuen Link erstellen?",
+      "regenerateBody": "Der aktuelle Link funktioniert sofort nicht mehr. Wer bereits beigetreten ist, behält den Zugriff.",
+      "regenerateConfirm": "Neuen Link erstellen"
+    },
+    "columns": {
+      "user": "Person",
+      "role": "Rolle",
+      "teamspaces": "Teamspaces",
+      "joined": "Beigetreten",
+      "lastEdited": "Letzte Bearbeitung",
+      "actions": "Aktionen",
+      "email": "E-Mail",
+      "status": "Status"
+    },
+    "you": "(du)",
+    "roleOf": "Rolle von {name}",
+    "roleLabel": "Rolle",
+    "roles": {
+      "owner": "Inhaber",
+      "member": "Mitglied",
+      "guest": "Gast"
+    },
+    "teamspaceCount": "{count, plural, one {# Teamspace} other {# Teamspaces}}",
+    "teamspacesOf": "Teamspaces von {name}",
+    "neverEdited": "Noch keine Bearbeitungen",
+    "actionsFor": "Aktionen für {name}",
+    "transfer": "Zum Inhaber machen und zurücktreten",
+    "transferTitle": "{name} zum Inhaber machen?",
+    "transferBody": "{name} wird Inhaber, und du wirst Mitglied. Nur ein Inhaber kann dich wieder zum Inhaber machen.",
+    "transferConfirm": "Übergeben",
+    "leave": "Verlassen",
+    "leaveTitle": "Diesen Workspace verlassen?",
+    "leaveBody": "Du verlierst den Zugriff auf seine Seiten. Seiten, die nur du verwalten konntest, gehen an einen Inhaber über. Ein Inhaber kann dich wieder hinzufügen.",
+    "removeTitle": "{name} entfernen?",
+    "removeBody": "{name} verliert sofort den Zugriff auf diesen Workspace, auch in geöffneten Seiten und verbundenen Apps. Seiten, die nur diese Person verwalten konnte, gehen an dich über.",
+    "expires": "Link läuft am {date} ab",
+    "expired": "Link abgelaufen. Lade erneut ein, um einen neuen zu erhalten.",
+    "copyLink": "Link kopieren",
+    "cancelInvitation": "Einladung zurückziehen",
+    "inviteLink": "Einladungslink",
+    "add": {
+      "title": "Mitglieder hinzufügen",
+      "description": "Personen mit Konto werden sofort hinzugefügt. Alle anderen erhalten einen Einladungslink.",
+      "emailsLabel": "E-Mail-Adressen",
+      "emailsPlaceholder": "name@example.com, andere@example.com",
+      "count": "{count, plural, =0 {Trenne Adressen durch Kommas, Leerzeichen oder Zeilenumbrüche. Bis zu 50 auf einmal.} one {# Adresse} other {# Adressen}}",
+      "submit": "Hinzufügen",
+      "submitting": "Wird hinzugefügt…",
+      "resultsTitle": "Ergebnisse",
+      "added": "Hinzugefügt",
+      "emailed": "Einladung per E-Mail gesendet",
+      "emailFailed": "E-Mail fehlgeschlagen, teile den Link",
+      "linkOnly": "Teile diesen Einladungslink",
+      "linkValidity": "Einladungslinks sind 7 Tage gültig und nur für die eingeladene E-Mail-Adresse.",
+      "addMore": "Weitere hinzufügen"
+    }
+  },
+  "teamspaces": {
+    "heading": "Teamspaces",
+    "description": "Teamspaces bündeln Seiten und die Personen, die daran arbeiten. Alle sehen die Teamspaces, in denen sie sind, in ihrer Seitenleiste. Gäste sind nie in Teamspaces; sie sehen nur Seiten, die mit ihnen geteilt wurden.",
+    "newButton": "Neuer Teamspace",
+    "search": "Teamspaces suchen",
+    "status": {
+      "active": "Aktiv",
+      "archived": "Archiviert"
+    },
+    "ownerFilter": "Inhaber",
+    "anyOwner": "Alle Inhaber",
+    "accessFilter": "Zugriff",
+    "anyAccess": "Jeder Zugriff",
+    "columns": {
+      "teamspace": "Teamspace",
+      "members": "Mitglieder",
+      "owners": "Inhaber",
+      "access": "Zugriff",
+      "updated": "Aktualisiert",
+      "actions": "Aktionen"
+    },
+    "joined": "Beigetreten",
+    "noOwners": "Kein Inhaber",
+    "empty": "Noch keine Teamspaces.",
+    "emptyArchived": "Keine archivierten Teamspaces.",
+    "noMatches": "Kein Teamspace entspricht deinen Filtern.",
+    "actionsFor": "Aktionen für {name}",
+    "edit": "Bearbeiten",
+    "manageMembers": "Mitglieder verwalten",
+    "viewMembers": "Mitglieder anzeigen",
+    "join": "Beitreten",
+    "leave": "Verlassen",
+    "archive": "Archivieren",
+    "restore": "Wiederherstellen",
+    "leaveTitle": "{name} verlassen?",
+    "leaveBody": "Seine Seiten verschwinden aus deiner Seitenleiste. Einem offenen Teamspace kannst du selbst wieder beitreten; sonst muss dich einer seiner Inhaber hinzufügen.",
+    "archiveTitle": "{name} archivieren?",
+    "archiveBody": "Er verschwindet aus der Seitenleiste aller Personen und nimmt keine neuen Seiten mehr auf. Du kannst ihn über die archivierten Teamspaces wiederherstellen.",
+    "defaults": {
+      "heading": "Standard-Teamspaces",
+      "description": "Alle im Workspace sind in diesen Teamspaces und können sie nicht verlassen, auch Personen, die später beitreten. Wenn jemand beitritt, musst du nichts anpassen. Neue Seiten auf oberster Ebene landen im ältesten davon.",
+      "add": "Standard-Teamspace hinzufügen",
+      "addPlaceholder": "Teamspace auswählen…",
+      "empty": "Keine Standard-Teamspaces. Neue Seiten auf oberster Ebene landen bei den privaten Seiten der jeweiligen Person.",
+      "remove": "Entfernen",
+      "removeFor": "{name} nicht mehr als Standard-Teamspace verwenden",
+      "makeTitle": "{name} zum Standard-Teamspace machen?",
+      "makeBody": "Alle im Workspace, jetzt und künftig, sind darin und können ihn nicht verlassen. Seine Seiten erscheinen in der Seitenleiste aller Personen.",
+      "makeConfirm": "Zum Standard machen",
+      "removeTitle": "{name} zu einem offenen Teamspace machen?",
+      "removeBody": "Alle bleiben vorerst darin, können ihn aber verlassen, und Personen, die dem Workspace später beitreten, werden nicht hinzugefügt.",
+      "removeConfirm": "Öffnen"
+    },
+    "policyHeading": "Berechtigungen",
+    "creation": {
+      "title": "Nur Workspace-Inhaber können Teamspaces erstellen",
+      "description": "Aus: Inhaber und Mitglieder können Teamspaces erstellen. Gäste können das nie.",
+      "ownersOnly": "Nur Workspace-Inhaber können das ändern."
+    }
+  },
+  "preferences": {
+    "description": "Die Präferenzen deines Kontos: wie Esionage in diesem Browser aussieht und welche E-Mails du erhältst."
+  },
+  "language": {
+    "heading": "Sprache",
+    "label": "Sprache der Oberfläche",
+    "followBrowser": "Wie im Browser",
+    "note": "Diese Einstellung gilt nur für diesen Browser."
+  },
+  "leaveWorkspace": {
+    "title": "Workspace verlassen",
+    "description": "Du bist hier Gast und siehst nur die Seiten, die mit dir geteilt wurden. Wenn du den Workspace verlässt, verlierst du diesen Zugriff.",
+    "button": "Verlassen"
+  },
+  "copyManually": "Kopieren ist hier nicht verfügbar. Markiere den Text und drücke Strg+C (⌘C auf dem Mac).",
+  "connectedApps": {
+    "empty": "Noch keine Apps verbunden.",
+    "connected": "Verbunden am {date}",
+    "connectedAndUpdated": "Verbunden am {connected}, aktualisiert am {updated}",
+    "revoke": "Zugriff widerrufen",
+    "revoking": "Wird widerrufen…",
+    "disconnect": "{name} trennen",
+    "revokeError": "Der Zugriff konnte nicht widerrufen werden. Versuch es noch einmal.",
+    "listHeading": "Apps, denen du Zugriff gewährt hast"
+  },
+  "mcp": {
+    "heading": "KI-Assistenten verbinden",
+    "description": "Esionage hat einen integrierten MCP-Server. Assistenten, die Remote-MCP-Server unterstützen, können deine Seiten und Datenbanken durchsuchen, lesen und bearbeiten, nachdem du dich angemeldet und den Zugriff genehmigt hast. Jede Änderung eines Assistenten wird vorher im Seitenverlauf gespeichert, sodass du sie rückgängig machen kannst.",
+    "serverUrl": "Server-URL",
+    "claude": {
+      "title": "Claude",
+      "body": "Öffne die Einstellungen, dann Connectors, wähle „Add custom connector“ und füge die Server-URL ein. Claude öffnet Esionage in deinem Browser, damit du dich anmelden und den Zugriff erlauben kannst."
+    },
+    "claudeCode": {
+      "title": "Claude Code",
+      "body": "Führe dies in einem Terminal aus und verwende dann /mcp in Claude Code, um dich anzumelden."
+    },
+    "other": {
+      "title": "Andere MCP-Clients",
+      "body": "Füge einen Remote-Server mit dem Transport „Streamable HTTP“ und der obigen URL hinzu. Der Client ermittelt die Anmeldung über standardmäßige OAuth-2.1-Metadaten; er kann sich automatisch registrieren oder ein Client-ID-Metadatendokument verwenden. Wähle auf der Genehmigungsseite Lesezugriff, wenn der Client nichts bearbeiten soll."
+    }
+  },
+  "errors": {
+    "invalidSetting": "Diese Einstellung ist nicht verfügbar.",
+    "nameRequired": "Gib dem Workspace einen Namen.",
+    "alreadyMember": "Diese Person ist bereits Mitglied.",
+    "notMember": "Diese Person ist kein Mitglied.",
+    "lastOwner": "Ein Workspace braucht mindestens einen Inhaber.",
+    "lastOwnerRemove": "Ein Workspace braucht mindestens einen Inhaber. Mach zuerst jemand anderen zum Inhaber.",
+    "ownersOnly": "Nur Workspace-Inhaber können das tun.",
+    "unknownRole": "Unbekannte Rolle.",
+    "invitationInvalid": "Diese Einladung ist ungültig oder abgelaufen.",
+    "invitationEmailMismatch": "Diese Einladung gilt für eine andere E-Mail-Adresse.",
+    "emailRequired": "Gib mindestens eine E-Mail-Adresse ein.",
+    "invalidEmail": "Keine gültige E-Mail-Adresse.",
+    "tooManyEmails": "Füge höchstens 50 Personen auf einmal hinzu.",
+    "joinLinkInvalid": "Dieser Beitrittslink ist ungültig oder wurde deaktiviert.",
+    "transferToSelf": "Wähle eine andere Person, die Inhaber werden soll.",
+    "transferToGuest": "Mach die Person zuerst zum Mitglied, bevor du sie zum Inhaber machst.",
+    "twoFactorFirst": "Aktiviere zuerst die Bestätigung in zwei Schritten für dein eigenes Konto oder melde dich mit einem Passkey an."
+  },
+  "security": {
+    "description": "Lege fest, wie sich Personen anmelden, wer andere in diesen Workspace holen darf, was Gäste tun können und wer Seiten im Web veröffentlichen darf. Nur Inhaber können diese Einstellungen ändern.",
+    "authenticationHeading": "Authentifizierung",
+    "requireTwoFactor": {
+      "title": "Bestätigung in zwei Schritten verlangen",
+      "description": "Alle müssen eine Authenticator-App verwenden oder sich mit einem Passkey anmelden, um diesen Workspace zu öffnen. Wer keins von beiden hat, wird zuerst aufgefordert, es einzurichten. Über MCP verbundene Apps und REST-API-Token sind nicht betroffen.",
+      "setUpFirst": "Aktiviere zuerst die Bestätigung in zwei Schritten für dein eigenes Konto.",
+      "withoutCount": "{count, plural, one {# Person hier hat sie noch nicht eingerichtet.} other {# Personen hier haben sie noch nicht eingerichtet.}}"
+    },
+    "guestsHeading": "Gäste",
+    "guestInvites": {
+      "title": "Wer Gäste einladen darf",
+      "description": "Personen außerhalb des Workspace treten als Gäste bei, wenn jemand eine Seite per E-Mail mit ihnen teilt. Gäste sehen nur die Seiten, die mit ihnen geteilt wurden.",
+      "owners": "Nur Inhaber",
+      "members": "Inhaber und Mitglieder"
+    },
+    "guestPrivatePages": {
+      "title": "Gäste können private Seiten erstellen",
+      "description": "Gäste können oben in der Seitenleiste Seiten hinzufügen, die nur sie sehen, und diese wie jede andere Seite teilen. Aus: Dann arbeiten sie nur in Seiten, die mit ihnen geteilt wurden."
+    },
+    "publishingHeading": "Veröffentlichen",
+    "publishing": {
+      "title": "Wer im Web veröffentlichen darf",
+      "description": "Veröffentlichte Seiten können von allen mit dem Link gelesen und öffentliche Formulare ausgefüllt werden. Gäste können nie veröffentlichen. Seiten und Formulare, die bereits im Web sind, bleiben dort, bis jemand sie deaktiviert.",
+      "owners": "Nur Inhaber",
+      "members": "Inhaber und Mitglieder"
+    },
+    "publications": {
+      "title": "Veröffentlichte Seiten",
+      "description": "Alle Seiten dieses Workspace, die im Web sind. Inhaber können jede davon offline nehmen.",
+      "empty": "Keine Seiten veröffentlicht.",
+      "privatePage": "Eine Seite, auf die du keinen Zugriff hast",
+      "inTrash": "Im Papierkorb",
+      "publishedBy": "Veröffentlicht von {name} · {date}",
+      "publishedOn": "Veröffentlicht am {date}",
+      "open": "Website öffnen",
+      "unpublish": "Veröffentlichung aufheben",
+      "confirm": "Veröffentlichung dieser Seite aufheben? Der Link funktioniert dann für niemanden mehr.",
+      "indexable": "Suchmaschinen erlaubt"
+    },
+    "forms": {
+      "title": "Öffentliche Formulare",
+      "description": "Alle Formulare dieses Workspace, die Antworten aus dem Web annehmen. Inhaber können jedes davon deaktivieren.",
+      "empty": "Keine Formulare nehmen Antworten aus dem Web an.",
+      "privateForm": "Ein Formular, auf das du keinen Zugriff hast",
+      "name": "{view} in {database}",
+      "inTrash": "Im Papierkorb",
+      "anonymous": "Anonyme Antworten",
+      "publishedBy": "Aktiviert von {name} · {date}",
+      "publishedOn": "Aktiviert am {date}",
+      "open": "Formular öffnen",
+      "turnOff": "Deaktivieren",
+      "confirm": "Öffentlichen Link dieses Formulars deaktivieren? Er funktioniert dann für niemanden mehr.",
+      "stale": "Nimmt keine Antworten an: Die Person, die es aktiviert hat, hat keinen Zugriff mehr"
+    },
+    "ownersOnly": "Nur Inhaber können das ändern."
+  },
+  "notifications": {
+    "heading": "Benachrichtigungen",
+    "description": "Wähle aus, was in deinem Posteingang erscheint und was zusätzlich per E-Mail kommt.",
+    "inbox": "Posteingang",
+    "email": "E-Mail",
+    "assignmentTitle": "Zuweisungen",
+    "assignmentDescription": "Jemand weist dich in einer Datenbankzeile einer Personen-Eigenschaft zu.",
+    "assignmentChannel": "Zuweisungen: {channel}",
+    "shareTitle": "Mit dir geteilte Seiten",
+    "shareDescription": "Jemand gibt dir Zugriff auf eine Seite.",
+    "shareChannel": "Mit dir geteilte Seiten: {channel}",
+    "commentTitle": "Kommentare",
+    "commentDescription": "Jemand kommentiert auf einer Seite, auf der du eine Diskussion begonnen oder darin geantwortet hast.",
+    "commentChannel": "Kommentare: {channel}",
+    "mentionTitle": "Erwähnungen",
+    "mentionDescription": "Jemand erwähnt dich auf einer Seite mit @.",
+    "mentionChannel": "Erwähnungen: {channel}",
+    "reminderTitle": "Erinnerungen",
+    "reminderDescription": "Eine Erinnerung, die du für ein Datum auf einer Seite eingerichtet hast, ist fällig.",
+    "reminderChannel": "Erinnerungen: {channel}",
+    "mailOff": "Dieser Server kann gerade keine E-Mails senden, daher werden keine verschickt."
+  },
+  "site": {
+    "description": "Gib den veröffentlichten Seiten dieses Workspace eine gemeinsame, gut lesbare Adresse, eine Startseite und eine Navigation zwischen ihnen.",
+    "heading": "Website",
+    "notSetUp": "Dieser Workspace hat noch keine Website. Seine veröffentlichten Seiten sind nur über ihre eigenen Links erreichbar.",
+    "slugLabel": "Adresse",
+    "slugHint": "Kleinbuchstaben, Ziffern und Bindestriche, 3 bis 40 Zeichen.",
+    "titleLabel": "Titel",
+    "titleHint": "Wird oben auf jeder Seite der Website angezeigt.",
+    "homeLabel": "Startseite",
+    "homeHint": "Die Seite, die unter der Adresse der Website geöffnet wird. Nur veröffentlichte Seiten können ausgewählt werden.",
+    "homeNone": "Die erste aufgeführte Seite",
+    "create": "Website erstellen",
+    "save": "Speichern",
+    "open": "Website öffnen",
+    "remove": "Offline nehmen",
+    "confirmRemove": "Website offline nehmen? Die Adresse funktioniert dann nicht mehr; jede veröffentlichte Seite behält ihren eigenen Link.",
+    "membersOnly": "Nur Inhaber können die Website ändern.",
+    "pagesHeading": "Seiten der Website",
+    "pagesDescription": "Veröffentlichte Seiten, die die Website aufführt, jeweils mit ihren Unterseiten. Nicht aufgeführte Seiten funktionieren weiterhin über ihre eigenen Links, sind aber von der Website aus nicht erreichbar.",
+    "pagesEmpty": "Noch keine Seiten veröffentlicht. Veröffentliche zuerst eine Seite über ihr Menü „Teilen“.",
+    "listed": "Auf der Website aufgeführt",
+    "privatePage": "Eine Seite, auf die du keinen Zugriff hast",
+    "home": "Startseite",
+    "errors": {
+      "tooShort": "Die Adresse braucht mindestens 3 Zeichen.",
+      "tooLong": "Die Adresse darf höchstens 40 Zeichen haben.",
+      "invalid": "Verwende Kleinbuchstaben, Ziffern und einzelne Bindestriche; beginne und ende mit einem Buchstaben oder einer Ziffer.",
+      "reserved": "Diese Adresse ist reserviert. Wähle eine andere.",
+      "slugTaken": "Ein anderer Workspace verwendet diese Adresse.",
+      "homeNotPublished": "Wähle eine veröffentlichte Seite dieses Workspace, die du sehen kannst.",
+      "ownersOnly": "Nur Workspace-Inhaber können das tun."
+    }
+  }
+}

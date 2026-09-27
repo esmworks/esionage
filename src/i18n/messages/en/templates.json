@@ -1,0 +1,44 @@
+{
+  "meeting-notes": {
+    "title": "Meeting notes",
+    "description": "Agenda, notes, decisions and action items.",
+    "markdown": "**Date:** \n\n**Attendees:** \n\n## Agenda\n\n1. \n\n## Notes\n\n\n\n## Decisions\n\n- \n\n## Action items\n\n- [ ] "
+  },
+  "weekly-plan": {
+    "title": "Weekly plan",
+    "description": "Goals for the week and a checklist per day.",
+    "markdown": "## Goals this week\n\n- [ ] \n\n### Monday\n\n- [ ] \n\n### Tuesday\n\n- [ ] \n\n### Wednesday\n\n- [ ] \n\n### Thursday\n\n- [ ] \n\n### Friday\n\n- [ ] \n\n## Notes for next week\n"
+  },
+  "project-tracker": {
+    "title": "Project tracker",
+    "description": "Tasks with status, priority, owner and due date, on a table and a board.",
+    "seedNames": {
+      "status": "Status",
+      "notStarted": "Not started",
+      "inProgress": "In progress",
+      "done": "Done",
+      "tags": "Tags",
+      "table": "All tasks"
+    },
+    "properties": {
+      "priority": "Priority",
+      "owner": "Owner",
+      "due": "Due"
+    },
+    "options": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "board": "Board",
+    "rowTemplate": {
+      "title": "New task",
+      "markdown": "## Goal\n\n\n\n## Steps\n\n- [ ] \n\n## Notes\n\n"
+    },
+    "rows": {
+      "brief": "Write the project brief",
+      "milestone": "Plan the first milestone",
+      "team": "Invite the team"
+    }
+  }
+}

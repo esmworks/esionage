@@ -1,0 +1,62 @@
+{
+  "access": {
+    "default": "Standard",
+    "open": "Offen",
+    "closed": "Geschlossen",
+    "private": "Privat"
+  },
+  "accessHint": {
+    "default": "Alle im Workspace sind darin und können ihn nicht verlassen.",
+    "open": "Alle im Workspace können ihn sehen und beitreten. Bis sie beitreten, können sie seine Seiten lesen und kommentieren.",
+    "closed": "Alle im Workspace können sehen, dass er existiert. Nur seine Mitglieder können seine Seiten öffnen; seine Inhaber fügen sie hinzu.",
+    "private": "Nur seine Mitglieder können ihn sehen."
+  },
+  "roles": {
+    "owner": "Inhaber",
+    "member": "Mitglied"
+  },
+  "errors": {
+    "nameRequired": "Gib dem Teamspace einen Namen.",
+    "creationRestricted": "Hier können nur Workspace-Inhaber Teamspaces erstellen.",
+    "ownersOnly": "Nur Workspace-Inhaber können ändern, in welchen Teamspaces alle Mitglieder sind.",
+    "cannotLeaveDefault": "Alle sind in diesem Teamspace; er kann nicht verlassen werden.",
+    "lastOwner": "Mach zuerst jemand anderen zum Inhaber des Teamspace.",
+    "notJoinable": "Bitte einen Inhaber dieses Teamspace, dich hinzuzufügen.",
+    "archived": "Dieser Teamspace ist archiviert.",
+    "notMember": "Nur Inhaber und Mitglieder des Workspace können in seinen Teamspaces sein.",
+    "invalidAccess": "Wähle aus, wer den Teamspace sehen kann.",
+    "accessDenied": "Das kannst du in diesem Teamspace nicht tun."
+  },
+  "dialog": {
+    "createTitle": "Neuer Teamspace",
+    "editTitle": "Teamspace bearbeiten",
+    "name": "Name",
+    "namePlaceholder": "Marketing, Entwicklung…",
+    "icon": "Symbol auswählen",
+    "description": "Beschreibung",
+    "descriptionPlaceholder": "Wofür ist dieser Teamspace?",
+    "access": "Wer ihn sehen kann",
+    "defaultLocked": "Nur Workspace-Inhaber können den Zugriff eines Standard-Teamspace ändern.",
+    "becomesDefault": "Alle im Workspace treten ihm bei und können ihn nicht verlassen.",
+    "leavesDefault": "Alle bleiben vorerst darin, können ihn aber verlassen, und neue Workspace-Mitglieder werden nicht hinzugefügt.",
+    "create": "Teamspace erstellen",
+    "creating": "Wird erstellt…"
+  },
+  "members": {
+    "title": "Mitglieder von {name}",
+    "everyone": "Alle im Workspace sind in diesem Teamspace. Seine Inhaber können ihn bearbeiten und verwalten.",
+    "readOnly": "Nur die Inhaber dieses Teamspace können ändern, wer darin ist.",
+    "add": "Personen hinzufügen",
+    "search": "Personen suchen",
+    "addSelected": "{count, plural, =0 {Personen hinzufügen} other {# hinzufügen}}",
+    "addAs": "Hinzufügen als",
+    "noOneToAdd": "Alle im Workspace sind bereits in diesem Teamspace.",
+    "noMatches": "Niemand entspricht deiner Suche.",
+    "empty": "Niemand ist in diesem Teamspace.",
+    "list": "Personen in diesem Teamspace",
+    "roleOf": "Rolle von {name}",
+    "remove": "{name} entfernen",
+    "you": "(du)",
+    "select": "{name} auswählen"
+  }
+}

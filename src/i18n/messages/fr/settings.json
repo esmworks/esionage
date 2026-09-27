@@ -1,0 +1,337 @@
+{
+  "metaTitle": "Paramètres",
+  "title": "Paramètres",
+  "nav": {
+    "account": "Compte",
+    "workspace": "Espace de travail",
+    "general": "Général",
+    "members": "Membres",
+    "teamspaces": "Espaces d’équipe",
+    "security": "Sécurité",
+    "site": "Site",
+    "myAccount": "Mon compte"
+  },
+  "workspace": {
+    "heading": "Espace de travail",
+    "nameLabel": "Nom de l’espace de travail",
+    "ownersOnly": "Seuls les propriétaires peuvent renommer l’espace de travail.",
+    "description": "Le nom et les paramètres de base de cet espace de travail.",
+    "nameDescription": "Affiché dans la barre latérale, dans les invitations et dans les e-mails."
+  },
+  "export": {
+    "heading": "Exporter",
+    "title": "Exporter l’espace de travail",
+    "description": "Téléchargez toutes les pages que vous pouvez voir dans un fichier ZIP : les pages en Markdown, les bases de données en CSV et les fichiers qu’elles affichent. Les pages de la corbeille sont exclues ; les modèles sont placés dans un dossier Modèles.",
+    "button": "Exporter",
+    "preparing": "Préparation…"
+  },
+  "members": {
+    "heading": "Membres",
+    "description": "Les membres peuvent voir et modifier toutes les pages, sauf si leur partage est restreint ; les invités ne voient que les pages partagées avec eux. Les propriétaires peuvent en plus gérer les membres.",
+    "tabs": {
+      "members": "Membres",
+      "invitations": "Invitations en attente"
+    },
+    "search": "Rechercher",
+    "exportCsv": "Télécharger les membres en CSV",
+    "addButton": "Ajouter des membres",
+    "noMatches": "Personne ne correspond à votre recherche.",
+    "noInvitations": "Aucune invitation en attente.",
+    "joinLink": {
+      "heading": "Ajouter des membres avec un lien",
+      "descriptionOn": "Toute personne qui ouvre ce lien et se connecte rejoint l’espace en tant que membre, ou avec le rôle d’une invitation en attente pour son adresse e-mail. Seuls les propriétaires peuvent le voir.",
+      "descriptionOff": "Activez un lien que n’importe qui peut utiliser pour rejoindre cet espace de travail en tant que membre.",
+      "regenerate": "Créer un nouveau lien",
+      "copy": "Copier le lien",
+      "toggle": "Lien d’accès",
+      "regenerateTitle": "Créer un nouveau lien ?",
+      "regenerateBody": "Le lien actuel cesse immédiatement de fonctionner. Les personnes qui l’ont déjà utilisé conservent leur accès.",
+      "regenerateConfirm": "Créer un nouveau lien"
+    },
+    "columns": {
+      "user": "Utilisateur",
+      "role": "Rôle",
+      "teamspaces": "Espaces d’équipe",
+      "joined": "Arrivée",
+      "lastEdited": "Dernière modification",
+      "actions": "Actions",
+      "email": "E-mail",
+      "status": "Statut"
+    },
+    "you": "(vous)",
+    "roleOf": "Rôle de {name}",
+    "roleLabel": "Rôle",
+    "roles": {
+      "owner": "Propriétaire",
+      "member": "Membre",
+      "guest": "Invité"
+    },
+    "teamspaceCount": "{count, plural, one {# espace d’équipe} other {# espaces d’équipe}}",
+    "teamspacesOf": "Espaces d’équipe de {name}",
+    "neverEdited": "Aucune modification",
+    "actionsFor": "Actions pour {name}",
+    "transfer": "Transférer la propriété",
+    "transferTitle": "Nommer {name} propriétaire ?",
+    "transferBody": "{name} devient propriétaire et vous devenez membre. Seul un propriétaire pourra vous nommer à nouveau propriétaire.",
+    "transferConfirm": "Transférer",
+    "leave": "Quitter",
+    "leaveTitle": "Quitter cet espace de travail ?",
+    "leaveBody": "Vous perdrez l’accès à ses pages. Les pages que vous étiez seul à pouvoir gérer seront transférées à un propriétaire. Un propriétaire pourra vous ajouter à nouveau.",
+    "removeTitle": "Retirer {name} ?",
+    "removeBody": "{name} perd immédiatement l’accès à cet espace de travail, y compris dans les pages ouvertes et les applications connectées. Les pages que cette personne était seule à pouvoir gérer vous seront transférées.",
+    "expires": "Le lien expire le {date}",
+    "expired": "Lien expiré. Invitez à nouveau pour en obtenir un nouveau.",
+    "copyLink": "Copier le lien",
+    "cancelInvitation": "Annuler l’invitation",
+    "inviteLink": "Lien d’invitation",
+    "add": {
+      "title": "Ajouter des membres",
+      "description": "Les personnes qui ont déjà un compte sont ajoutées immédiatement. Les autres reçoivent un lien d’invitation.",
+      "emailsLabel": "Adresses e-mail",
+      "emailsPlaceholder": "nom@example.com, autre@example.com",
+      "count": "{count, plural, =0 {Séparez les adresses par des virgules, des espaces ou des retours à la ligne. 50 au maximum à la fois.} one {# adresse} other {# adresses}}",
+      "submit": "Ajouter",
+      "submitting": "Ajout…",
+      "resultsTitle": "Résultats",
+      "added": "Ajouté",
+      "emailed": "Invitation envoyée par e-mail",
+      "emailFailed": "Échec de l’envoi de l’e-mail, partagez le lien",
+      "linkOnly": "Partagez ce lien d’invitation",
+      "linkValidity": "Les liens d’invitation sont valables 7 jours et uniquement pour l’adresse e-mail invitée.",
+      "addMore": "Ajouter d’autres personnes"
+    }
+  },
+  "teamspaces": {
+    "heading": "Espaces d’équipe",
+    "description": "Les espaces d’équipe regroupent des pages et les personnes qui y travaillent. Chacun voit dans sa barre latérale les espaces d’équipe dont il fait partie. Les invités ne font jamais partie d’un espace d’équipe ; ils ne voient que les pages partagées avec eux.",
+    "newButton": "Nouvel espace d’équipe",
+    "search": "Rechercher des espaces d’équipe",
+    "status": {
+      "active": "Actifs",
+      "archived": "Archivés"
+    },
+    "ownerFilter": "Propriétaire",
+    "anyOwner": "Tous les propriétaires",
+    "accessFilter": "Accès",
+    "anyAccess": "Tous les accès",
+    "columns": {
+      "teamspace": "Espace d’équipe",
+      "members": "Membres",
+      "owners": "Propriétaires",
+      "access": "Accès",
+      "updated": "Mis à jour",
+      "actions": "Actions"
+    },
+    "joined": "Membre",
+    "noOwners": "Aucun propriétaire",
+    "empty": "Aucun espace d’équipe pour l’instant.",
+    "emptyArchived": "Aucun espace d’équipe archivé.",
+    "noMatches": "Aucun espace d’équipe ne correspond à vos filtres.",
+    "actionsFor": "Actions pour {name}",
+    "edit": "Modifier",
+    "manageMembers": "Gérer les membres",
+    "viewMembers": "Voir les membres",
+    "join": "Rejoindre",
+    "leave": "Quitter",
+    "archive": "Archiver",
+    "restore": "Restaurer",
+    "leaveTitle": "Quitter {name} ?",
+    "leaveBody": "Ses pages disparaissent de votre barre latérale. Vous pouvez rejoindre à nouveau un espace d’équipe ouvert par vous-même ; sinon, l’un de ses propriétaires devra vous ajouter.",
+    "archiveTitle": "Archiver {name} ?",
+    "archiveBody": "Il disparaît de la barre latérale de tout le monde et n’accepte plus de nouvelles pages. Vous pourrez le restaurer depuis les espaces d’équipe archivés.",
+    "defaults": {
+      "heading": "Espaces d’équipe par défaut",
+      "description": "Tous les membres de l’espace de travail font partie de ces espaces d’équipe et ne peuvent pas les quitter, y compris les personnes qui arrivent plus tard. Il n’y a rien à faire lorsque quelqu’un arrive. Les nouvelles pages de premier niveau vont dans le plus ancien.",
+      "add": "Ajouter un espace d’équipe par défaut",
+      "addPlaceholder": "Choisissez un espace d’équipe…",
+      "empty": "Aucun espace d’équipe par défaut. Les nouvelles pages de premier niveau vont dans les pages privées de chacun.",
+      "remove": "Retirer",
+      "removeFor": "Ne plus faire de {name} un espace d’équipe par défaut",
+      "makeTitle": "Faire de {name} un espace d’équipe par défaut ?",
+      "makeBody": "Tous les membres de l’espace de travail, actuels et futurs, en font partie et ne peuvent pas le quitter. Ses pages apparaissent dans la barre latérale de tout le monde.",
+      "makeConfirm": "Définir par défaut",
+      "removeTitle": "Faire de {name} un espace d’équipe ouvert ?",
+      "removeBody": "Tout le monde en fait partie pour l’instant mais peut le quitter, et les personnes qui rejoindront l’espace de travail plus tard n’y seront pas ajoutées.",
+      "removeConfirm": "Rendre ouvert"
+    },
+    "policyHeading": "Autorisations",
+    "creation": {
+      "title": "Seuls les propriétaires de l’espace de travail peuvent créer des espaces d’équipe",
+      "description": "Désactivé : les propriétaires et les membres peuvent créer des espaces d’équipe. Les invités ne le peuvent jamais.",
+      "ownersOnly": "Seuls les propriétaires de l’espace de travail peuvent modifier ce paramètre."
+    }
+  },
+  "preferences": {
+    "description": "Les préférences de votre compte : l’apparence d’Esionage dans ce navigateur et les e-mails que vous recevez."
+  },
+  "language": {
+    "heading": "Langue",
+    "label": "Langue de l’interface",
+    "followBrowser": "Suivre le navigateur",
+    "note": "Ce paramètre ne s’applique qu’à ce navigateur."
+  },
+  "leaveWorkspace": {
+    "title": "Quitter l’espace de travail",
+    "description": "Vous êtes invité ici et ne voyez que les pages partagées avec vous. En quittant l’espace, vous perdez cet accès.",
+    "button": "Quitter"
+  },
+  "copyManually": "La copie n’est pas disponible ici. Sélectionnez le texte et appuyez sur Ctrl+C (⌘C sur Mac).",
+  "connectedApps": {
+    "empty": "Aucune application n’est encore connectée.",
+    "connected": "Connectée le {date}",
+    "connectedAndUpdated": "Connectée le {connected}, mise à jour le {updated}",
+    "revoke": "Révoquer l’accès",
+    "revoking": "Révocation…",
+    "disconnect": "Déconnecter {name}",
+    "revokeError": "Impossible de révoquer l’accès. Réessayez.",
+    "listHeading": "Applications auxquelles vous avez donné accès"
+  },
+  "mcp": {
+    "heading": "Connecter un assistant IA",
+    "description": "Esionage intègre un serveur MCP. Les assistants compatibles avec les serveurs MCP distants peuvent rechercher, lire et modifier vos pages et bases de données une fois que vous vous êtes connecté et avez autorisé l’accès. Chaque modification d’un assistant est d’abord enregistrée dans l’historique de la page, vous pouvez donc l’annuler.",
+    "serverUrl": "URL du serveur",
+    "claude": {
+      "title": "Claude",
+      "body": "Ouvrez Paramètres, puis Connecteurs, choisissez Ajouter un connecteur personnalisé et collez l’URL du serveur. Claude ouvre Esionage dans votre navigateur pour que vous puissiez vous connecter et autoriser l’accès."
+    },
+    "claudeCode": {
+      "title": "Claude Code",
+      "body": "Exécutez cette commande dans un terminal, puis utilisez /mcp dans Claude Code pour vous connecter."
+    },
+    "other": {
+      "title": "Autres clients MCP",
+      "body": "Ajoutez un serveur distant avec le transport Streamable HTTP et l’URL ci-dessus. Le client découvre la connexion grâce aux métadonnées OAuth 2.1 standard ; il peut s’enregistrer automatiquement ou utiliser un document de métadonnées d’ID client. Choisissez l’accès en lecture seule sur l’écran d’autorisation si le client ne doit rien modifier."
+    }
+  },
+  "errors": {
+    "invalidSetting": "Ce paramètre n’est pas disponible.",
+    "nameRequired": "Donnez un nom à l’espace de travail.",
+    "alreadyMember": "Cette personne est déjà membre.",
+    "notMember": "Cette personne n’est pas membre.",
+    "lastOwner": "Un espace de travail doit avoir au moins un propriétaire.",
+    "lastOwnerRemove": "Un espace de travail doit avoir au moins un propriétaire. Nommez d’abord quelqu’un d’autre propriétaire.",
+    "ownersOnly": "Seuls les propriétaires de l’espace de travail peuvent faire cela.",
+    "unknownRole": "Rôle inconnu.",
+    "invitationInvalid": "Cette invitation n’est pas valide ou a expiré.",
+    "invitationEmailMismatch": "Cette invitation est destinée à une autre adresse e-mail.",
+    "emailRequired": "Saisissez au moins une adresse e-mail.",
+    "invalidEmail": "Adresse e-mail non valide.",
+    "tooManyEmails": "Ajoutez 50 personnes au maximum à la fois.",
+    "joinLinkInvalid": "Ce lien d’accès n’est pas valide ou a été désactivé.",
+    "transferToSelf": "Choisissez une autre personne à nommer propriétaire.",
+    "transferToGuest": "Faites-en d’abord un membre avant de le nommer propriétaire.",
+    "twoFactorFirst": "Activez d’abord la vérification en deux étapes pour votre propre compte, ou connectez-vous avec une clé d’accès."
+  },
+  "security": {
+    "description": "Choisissez comment les personnes se connectent, qui peut faire entrer des personnes dans cet espace de travail, ce que les invités peuvent faire et qui peut publier des pages sur le Web. Seuls les propriétaires peuvent modifier ces paramètres.",
+    "authenticationHeading": "Authentification",
+    "requireTwoFactor": {
+      "title": "Exiger la vérification en deux étapes",
+      "description": "Chacun doit utiliser une application d’authentification ou se connecter avec une clé d’accès pour ouvrir cet espace de travail. Les personnes qui n’ont ni l’une ni l’autre doivent d’abord en configurer une. Les applications connectées via MCP et les jetons de l’API REST ne sont pas concernés.",
+      "setUpFirst": "Activez d’abord la vérification en deux étapes pour votre propre compte.",
+      "withoutCount": "{count, plural, one {# personne ici ne l’a pas encore configurée.} other {# personnes ici ne l’ont pas encore configurée.}}"
+    },
+    "guestsHeading": "Invités",
+    "guestInvites": {
+      "title": "Qui peut ajouter des invités",
+      "description": "Les personnes extérieures à l’espace de travail le rejoignent en tant qu’invités lorsque quelqu’un partage une page avec elles par e-mail. Elles ne voient que les pages partagées avec elles.",
+      "owners": "Propriétaires uniquement",
+      "members": "Propriétaires et membres"
+    },
+    "guestPrivatePages": {
+      "title": "Les invités peuvent créer des pages privées",
+      "description": "Les invités peuvent ajouter en haut de la barre latérale des pages qu’eux seuls voient, et les partager comme n’importe quelle page. Désactivé : ils travaillent uniquement dans les pages partagées avec eux."
+    },
+    "publishingHeading": "Publication",
+    "publishing": {
+      "title": "Qui peut publier sur le Web",
+      "description": "Toute personne disposant du lien peut lire les pages publiées et remplir les formulaires publics. Les invités ne peuvent jamais publier. Les pages et formulaires déjà en ligne y restent jusqu’à ce que quelqu’un les désactive.",
+      "owners": "Propriétaires uniquement",
+      "members": "Propriétaires et membres"
+    },
+    "publications": {
+      "title": "Pages publiées",
+      "description": "Toutes les pages de cet espace de travail publiées sur le Web. Les propriétaires peuvent retirer n’importe laquelle d’entre elles.",
+      "empty": "Aucune page n’est publiée.",
+      "privatePage": "Une page à laquelle vous n’avez pas accès",
+      "inTrash": "Dans la corbeille",
+      "publishedBy": "Publiée par {name} · {date}",
+      "publishedOn": "Publiée le {date}",
+      "open": "Ouvrir le site",
+      "unpublish": "Annuler la publication",
+      "confirm": "Annuler la publication de cette page ? Le lien cessera de fonctionner pour tout le monde.",
+      "indexable": "Moteurs de recherche autorisés"
+    },
+    "forms": {
+      "title": "Formulaires publics",
+      "description": "Tous les formulaires de cet espace de travail qui acceptent des réponses depuis le Web. Les propriétaires peuvent désactiver n’importe lequel d’entre eux.",
+      "empty": "Aucun formulaire n’accepte de réponses depuis le Web.",
+      "privateForm": "Un formulaire auquel vous n’avez pas accès",
+      "name": "{view} dans {database}",
+      "inTrash": "Dans la corbeille",
+      "anonymous": "Réponses anonymes",
+      "publishedBy": "Ouvert par {name} · {date}",
+      "publishedOn": "Ouvert le {date}",
+      "open": "Ouvrir le formulaire",
+      "turnOff": "Désactiver",
+      "confirm": "Désactiver le lien public de ce formulaire ? Il cessera de fonctionner pour tout le monde.",
+      "stale": "N’accepte aucune réponse : la personne qui l’a ouvert a perdu son accès"
+    },
+    "ownersOnly": "Seuls les propriétaires peuvent modifier ce paramètre."
+  },
+  "notifications": {
+    "heading": "Notifications",
+    "description": "Choisissez ce qui s’affiche dans votre boîte de réception et ce que vous recevez aussi par e-mail.",
+    "inbox": "Boîte de réception",
+    "email": "E-mail",
+    "assignmentTitle": "Assignations",
+    "assignmentDescription": "Quelqu’un vous assigne à une propriété de personne dans une ligne de base de données.",
+    "assignmentChannel": "Assignations : {channel}",
+    "shareTitle": "Pages partagées avec vous",
+    "shareDescription": "Quelqu’un vous donne accès à une page.",
+    "shareChannel": "Pages partagées avec vous : {channel}",
+    "commentTitle": "Commentaires",
+    "commentDescription": "Quelqu’un commente une page sur laquelle vous avez lancé un fil de commentaires ou répondu.",
+    "commentChannel": "Commentaires : {channel}",
+    "mentionTitle": "Mentions",
+    "mentionDescription": "Quelqu’un vous mentionne sur une page avec @.",
+    "mentionChannel": "Mentions : {channel}",
+    "reminderTitle": "Rappels",
+    "reminderDescription": "Un rappel que vous avez défini sur une date dans une page arrive à échéance.",
+    "reminderChannel": "Rappels : {channel}",
+    "mailOff": "Ce serveur ne peut pas envoyer d’e-mails pour le moment, aucun n’est donc envoyé."
+  },
+  "site": {
+    "description": "Donnez aux pages publiées de cet espace de travail une adresse lisible, une page d’accueil et une navigation commune.",
+    "heading": "Site",
+    "notSetUp": "Cet espace de travail n’a pas encore de site. Ses pages publiées ne sont accessibles que par leurs propres liens.",
+    "slugLabel": "Adresse",
+    "slugHint": "Lettres minuscules, chiffres et tirets, de 3 à 40 caractères.",
+    "titleLabel": "Titre",
+    "titleHint": "Affiché en haut de chaque page du site.",
+    "homeLabel": "Page d’accueil",
+    "homeHint": "La page qu’ouvre l’adresse du site. Seules les pages publiées peuvent être choisies.",
+    "homeNone": "La première page de la liste",
+    "create": "Créer le site",
+    "save": "Enregistrer",
+    "open": "Ouvrir le site",
+    "remove": "Mettre hors ligne",
+    "confirmRemove": "Mettre le site hors ligne ? Son adresse cessera de fonctionner ; chaque page publiée conserve son propre lien.",
+    "membersOnly": "Seuls les propriétaires peuvent modifier le site.",
+    "pagesHeading": "Pages du site",
+    "pagesDescription": "Les pages publiées que le site liste, chacune avec ses sous-pages. Les pages non listées restent accessibles par leurs propres liens, mais pas depuis le site.",
+    "pagesEmpty": "Aucune page n’est encore publiée. Publiez d’abord une page depuis son menu Partager.",
+    "listed": "Listée dans le site",
+    "privatePage": "Une page à laquelle vous n’avez pas accès",
+    "home": "Page d’accueil",
+    "errors": {
+      "tooShort": "L’adresse doit comporter au moins 3 caractères.",
+      "tooLong": "L’adresse peut comporter au maximum 40 caractères.",
+      "invalid": "Utilisez des lettres minuscules, des chiffres et des tirets simples ; commencez et terminez par une lettre ou un chiffre.",
+      "reserved": "Cette adresse est réservée. Choisissez-en une autre.",
+      "slugTaken": "Un autre espace de travail utilise cette adresse.",
+      "homeNotPublished": "Choisissez une page publiée de cet espace de travail que vous pouvez voir.",
+      "ownersOnly": "Seuls les propriétaires de l’espace de travail peuvent faire cela."
+    }
+  }
+}

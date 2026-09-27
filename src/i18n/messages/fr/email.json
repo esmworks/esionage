@@ -1,0 +1,93 @@
+{
+  "footer": "Cet e-mail a été envoyé par Esionage depuis {appUrl}.",
+  "actionFallback": "Si le bouton ne fonctionne pas, collez ce lien dans votre navigateur :",
+  "test": {
+    "subject": "E-mail de test d’Esionage",
+    "heading": "L’envoi d’e-mails fonctionne",
+    "body": "Ceci est un message de test envoyé par votre serveur Esionage à l’adresse {appUrl}. Si vous pouvez le lire, l’envoi d’e-mails est correctement configuré."
+  },
+  "invitation": {
+    "subject": "{inviter} vous invite à rejoindre « {workspace} » sur Esionage",
+    "heading": "Rejoindre « {workspace} »",
+    "body": "{inviter} vous invite à rejoindre « {workspace} » sur Esionage en tant que {role}.",
+    "expires": "Le lien est valable 7 jours. Inscrivez-vous avec {email} pour accepter.",
+    "action": "Accepter l’invitation",
+    "roles": {
+      "owner": "propriétaire",
+      "member": "membre",
+      "guest": "invité"
+    }
+  },
+  "passwordReset": {
+    "subject": "Réinitialisez votre mot de passe Esionage",
+    "heading": "Réinitialisez votre mot de passe",
+    "body": "Bonjour {name}, une demande de réinitialisation du mot de passe de votre compte Esionage a été effectuée. Si elle vient de vous, choisissez un nouveau mot de passe avec le bouton ci-dessous.",
+    "expires": "Le lien est valable {minutes} minutes et une seule fois. Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail ; votre mot de passe reste inchangé.",
+    "action": "Choisir un nouveau mot de passe"
+  },
+  "assignment": {
+    "subject": "{actor} vous a assigné à « {row} »",
+    "heading": "Vous avez été assigné à « {row} »",
+    "body": "{actor} vous a ajouté à « {property} » dans {database}.",
+    "action": "Ouvrir",
+    "untitled": "Sans titre",
+    "someone": "Quelqu’un",
+    "optOut": "Vous pouvez désactiver ces e-mails dans Mon compte > Préférences."
+  },
+  "share": {
+    "subject": "{actor} a partagé « {page} » avec vous",
+    "heading": "{actor} a partagé une page avec vous",
+    "body": "Vous pouvez désormais {level} « {page} » dans {workspace}.",
+    "levels": {
+      "view": "consulter",
+      "comment": "consulter et commenter",
+      "edit": "modifier",
+      "full": "consulter, modifier et partager"
+    },
+    "action": "Ouvrir la page",
+    "untitled": "Sans titre",
+    "optOut": "Vous pouvez désactiver ces e-mails dans Mon compte > Préférences."
+  },
+  "comment": {
+    "subject": "{actor} a commenté « {page} »",
+    "heading": "{actor} a commenté « {page} »",
+    "quote": "« {text} »",
+    "body": "Le commentaire se trouve sur « {page} » dans {workspace}. Répondez-y ou résolvez-le depuis la page.",
+    "action": "Ouvrir la page",
+    "optOut": "Vous recevez ces e-mails, car vous avez participé à ce fil de commentaires. Vous pouvez les désactiver dans Mon compte > Préférences."
+  },
+  "mention": {
+    "subject": "{actor} vous a mentionné sur « {page} »",
+    "heading": "{actor} vous a mentionné sur « {page} »",
+    "body": "La mention se trouve sur « {page} » dans {workspace}.",
+    "action": "Ouvrir la page",
+    "someone": "Quelqu’un",
+    "optOut": "Vous recevez ces e-mails, car quelqu’un vous a mentionné. Vous pouvez les désactiver dans Mon compte > Préférences."
+  },
+  "reminder": {
+    "subject": "Rappel : {date} sur « {page} »",
+    "heading": "Rappel : {date}",
+    "body": "Vous avez demandé un rappel pour le {date} sur « {page} » dans {workspace}.",
+    "action": "Ouvrir la page",
+    "optOut": "Vous recevez ces e-mails, car vous avez défini un rappel. Vous pouvez les désactiver dans Mon compte > Préférences."
+  },
+  "emailChange": {
+    "subject": "Confirmez votre nouvelle adresse e-mail",
+    "heading": "Confirmez votre nouvelle adresse e-mail",
+    "body": "Bonjour {name}, vous avez demandé à utiliser cette adresse pour votre compte Esionage au lieu de {old}. Confirmez-la avec le bouton ci-dessous.",
+    "expires": "Le lien est valable {hours} heures et une seule fois. Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail ; rien ne changera.",
+    "action": "Confirmer l’adresse e-mail"
+  },
+  "emailChanged": {
+    "subject": "L’adresse e-mail de votre compte Esionage a changé",
+    "heading": "Votre adresse e-mail a changé",
+    "body": "Bonjour {name}, l’adresse e-mail de votre compte Esionage est passée de {old} à {new}. Désormais, connectez-vous avec la nouvelle adresse.",
+    "warning": "Si vous n’êtes pas à l’origine de ce changement, contactez immédiatement un propriétaire de votre espace de travail."
+  },
+  "passwordChanged": {
+    "subject": "Votre mot de passe Esionage a changé",
+    "heading": "Votre mot de passe a changé",
+    "body": "Bonjour {name}, le mot de passe de votre compte Esionage vient d’être modifié.",
+    "warning": "Si vous n’êtes pas à l’origine de ce changement, réinitialisez votre mot de passe depuis la page de connexion et contactez un propriétaire de votre espace de travail."
+  }
+}

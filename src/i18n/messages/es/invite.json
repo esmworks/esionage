@@ -1,0 +1,13 @@
+{
+  "metaTitle": "Invitación",
+  "title": "Únete a “{workspace}”",
+  "invalidTitle": "No se encontró la invitación",
+  "invalidBody": "Este enlace de invitación no es válido, ha caducado o se canceló. Pide uno nuevo a la persona que te invitó.",
+  "home": "Ir a Esionage",
+  "wrongAccount": "Esta invitación es para {email}, pero has iniciado sesión como {current}. Cierra sesión y vuelve a abrir el enlace.",
+  "acceptBody": "Te invitaron a unirte como {role}.",
+  "signInBody": "Ya hay una cuenta que usa {email}. Inicia sesión para aceptar la invitación.",
+  "signIn": "Iniciar sesión",
+  "join": "Unirse al espacio de trabajo",
+  "joining": "Uniéndote…"
+}

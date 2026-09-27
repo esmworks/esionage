@@ -59,6 +59,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      # Missing, extra or mismatched translation keys; the report lists what each language lacks.
+      - name: Translations
+        run: pnpm i18n:check
       - run: pnpm test
       - run: pnpm build
       - run: pnpm db:migrate

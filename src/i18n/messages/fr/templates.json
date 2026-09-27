@@ -1,0 +1,44 @@
+{
+  "meeting-notes": {
+    "title": "Compte rendu de réunion",
+    "description": "Ordre du jour, notes, décisions et actions à mener.",
+    "markdown": "**Date :** \n\n**Participants :** \n\n## Ordre du jour\n\n1. \n\n## Notes\n\n\n\n## Décisions\n\n- \n\n## Actions à mener\n\n- [ ] "
+  },
+  "weekly-plan": {
+    "title": "Planning hebdomadaire",
+    "description": "Les objectifs de la semaine et une liste de tâches par jour.",
+    "markdown": "## Objectifs de la semaine\n\n- [ ] \n\n### Lundi\n\n- [ ] \n\n### Mardi\n\n- [ ] \n\n### Mercredi\n\n- [ ] \n\n### Jeudi\n\n- [ ] \n\n### Vendredi\n\n- [ ] \n\n## Notes pour la semaine prochaine\n"
+  },
+  "project-tracker": {
+    "title": "Suivi de projet",
+    "description": "Des tâches avec statut, priorité, responsable et échéance, dans une table et un tableau.",
+    "seedNames": {
+      "status": "Statut",
+      "notStarted": "Pas commencé",
+      "inProgress": "En cours",
+      "done": "Terminé",
+      "tags": "Étiquettes",
+      "table": "Toutes les tâches"
+    },
+    "properties": {
+      "priority": "Priorité",
+      "owner": "Responsable",
+      "due": "Échéance"
+    },
+    "options": {
+      "high": "Haute",
+      "medium": "Moyenne",
+      "low": "Basse"
+    },
+    "board": "Tableau",
+    "rowTemplate": {
+      "title": "Nouvelle tâche",
+      "markdown": "## Objectif\n\n\n\n## Étapes\n\n- [ ] \n\n## Notes\n\n"
+    },
+    "rows": {
+      "brief": "Rédiger le brief du projet",
+      "milestone": "Planifier le premier jalon",
+      "team": "Inviter l’équipe"
+    }
+  }
+}

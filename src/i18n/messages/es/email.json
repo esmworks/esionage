@@ -1,0 +1,93 @@
+{
+  "footer": "Este correo lo envió Esionage en {appUrl}.",
+  "actionFallback": "Si el botón no funciona, pega este enlace en tu navegador:",
+  "test": {
+    "subject": "Correo de prueba de Esionage",
+    "heading": "El envío de correos funciona",
+    "body": "Este es un mensaje de prueba de tu servidor de Esionage en {appUrl}. Si puedes leerlo, el correo está bien configurado."
+  },
+  "invitation": {
+    "subject": "{inviter} te invitó a “{workspace}” en Esionage",
+    "heading": "Únete a “{workspace}”",
+    "body": "{inviter} te invitó a unirte a “{workspace}” en Esionage como {role}.",
+    "expires": "El enlace es válido durante 7 días. Regístrate con {email} para aceptar.",
+    "action": "Aceptar invitación",
+    "roles": {
+      "owner": "propietario",
+      "member": "miembro",
+      "guest": "invitado"
+    }
+  },
+  "passwordReset": {
+    "subject": "Restablece tu contraseña de Esionage",
+    "heading": "Restablece tu contraseña",
+    "body": "Hola, {name}: alguien ha pedido restablecer la contraseña de tu cuenta de Esionage. Si fuiste tú, elige una nueva contraseña con el botón de abajo.",
+    "expires": "El enlace es válido durante {minutes} minutos y solo una vez. Si no lo pediste, ignora este correo; tu contraseña no cambiará.",
+    "action": "Elegir una nueva contraseña"
+  },
+  "assignment": {
+    "subject": "{actor} te asignó a “{row}”",
+    "heading": "Te asignaron a “{row}”",
+    "body": "{actor} te añadió a “{property}” en {database}.",
+    "action": "Abrir",
+    "untitled": "Sin título",
+    "someone": "Alguien",
+    "optOut": "Puedes desactivar estos correos en Mi cuenta > Preferencias."
+  },
+  "share": {
+    "subject": "{actor} compartió “{page}” contigo",
+    "heading": "{actor} compartió una página contigo",
+    "body": "Ahora puedes {level} “{page}” en {workspace}.",
+    "levels": {
+      "view": "ver",
+      "comment": "ver y comentar",
+      "edit": "editar",
+      "full": "ver, editar y compartir"
+    },
+    "action": "Abrir página",
+    "untitled": "Sin título",
+    "optOut": "Puedes desactivar estos correos en Mi cuenta > Preferencias."
+  },
+  "comment": {
+    "subject": "{actor} comentó en “{page}”",
+    "heading": "{actor} comentó en “{page}”",
+    "quote": "“{text}”",
+    "body": "El comentario está en “{page}”, en {workspace}. Responde o resuélvelo desde la página.",
+    "action": "Abrir página",
+    "optOut": "Recibes estos correos porque participaste en este hilo de comentarios. Puedes desactivarlos en Mi cuenta > Preferencias."
+  },
+  "mention": {
+    "subject": "{actor} te mencionó en “{page}”",
+    "heading": "{actor} te mencionó en “{page}”",
+    "body": "La mención está en “{page}”, en {workspace}.",
+    "action": "Abrir página",
+    "someone": "Alguien",
+    "optOut": "Recibes estos correos porque alguien te mencionó. Puedes desactivarlos en Mi cuenta > Preferencias."
+  },
+  "reminder": {
+    "subject": "Recordatorio: {date} en “{page}”",
+    "heading": "Recordatorio: {date}",
+    "body": "Pediste que te recordáramos {date} en “{page}”, en {workspace}.",
+    "action": "Abrir página",
+    "optOut": "Recibes estos correos porque configuraste un recordatorio. Puedes desactivarlos en Mi cuenta > Preferencias."
+  },
+  "emailChange": {
+    "subject": "Confirma tu nueva dirección de correo",
+    "heading": "Confirma tu nueva dirección de correo",
+    "body": "Hola, {name}: pediste usar esta dirección para tu cuenta de Esionage en lugar de {old}. Confírmala con el botón de abajo.",
+    "expires": "El enlace es válido durante {hours} horas y solo una vez. Si no lo pediste, ignora este correo; no cambiará nada.",
+    "action": "Confirmar dirección de correo"
+  },
+  "emailChanged": {
+    "subject": "La dirección de correo de tu cuenta de Esionage ha cambiado",
+    "heading": "Tu dirección de correo ha cambiado",
+    "body": "Hola, {name}: la dirección de correo de tu cuenta de Esionage cambió de {old} a {new}. A partir de ahora, inicia sesión con la nueva dirección.",
+    "warning": "Si no hiciste este cambio, ponte en contacto de inmediato con un propietario de tu espacio de trabajo."
+  },
+  "passwordChanged": {
+    "subject": "Tu contraseña de Esionage ha cambiado",
+    "heading": "Tu contraseña ha cambiado",
+    "body": "Hola, {name}: la contraseña de tu cuenta de Esionage se acaba de cambiar.",
+    "warning": "Si no hiciste este cambio, restablece tu contraseña desde la página de inicio de sesión y ponte en contacto con un propietario de tu espacio de trabajo."
+  }
+}
