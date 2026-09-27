@@ -34,7 +34,7 @@ function signal(workspaceId: string) {
  * anyone the changes unassign, so a mis-click fixed right away leaves nothing behind. Never throws:
  * the edit itself already went through.
  */
-export async function recordAssignments(actorId: string, workspaceId: string, personProps: { id: string }[], changes: Change[]) {
+export async function recordAssignments(actorId: string | null, workspaceId: string, personProps: { id: string }[], changes: Change[]) {
   try {
     const removed = changes.flatMap((c) =>
       personProps.flatMap((prop) => {

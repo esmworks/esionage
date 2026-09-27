@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import type { WorkspaceRole, WorkspaceSettings } from "@/db/schema";
 import { AccessError } from "@/server/access";
+import { revokeFormPublication } from "@/server/forms";
 import { revokePublication } from "@/server/publication";
 import { getSession, requireUserId } from "@/server/session";
 import {
@@ -116,6 +117,14 @@ export async function revokeInvitationAction(workspaceId: string, invitationId: 
 export async function revokePublicationAction(workspaceId: string, pageId: string) {
   const userId = await requireUserId();
   const result = await run(() => revokePublication(userId, workspaceId, pageId));
+  refresh(workspaceId);
+  return result;
+}
+
+/** Turns off a form's public link. Owners only. */
+export async function revokeFormPublicationAction(workspaceId: string, viewId: string) {
+  const userId = await requireUserId();
+  const result = await run(() => revokeFormPublication(userId, workspaceId, viewId));
   refresh(workspaceId);
   return result;
 }

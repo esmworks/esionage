@@ -27,7 +27,8 @@
     "calendar": "Calendar",
     "gallery": "Gallery",
     "list": "List",
-    "timeline": "Timeline"
+    "timeline": "Timeline",
+    "form": "Form"
   },
   "colors": {
     "gray": "Gray",

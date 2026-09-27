@@ -190,5 +190,9 @@ export function remapViewConfig(
   if (config.calculations) {
     out.calculations = Object.fromEntries(Object.entries(config.calculations).map(([key, fn]) => [map(key), fn]));
   }
+  // A form's questions follow the copied properties, and its default values are row values. Whether
+  // it is open to the web isn't part of the config: a copy starts closed.
+  if (config.form?.questions) out.form!.questions = config.form.questions.map((q) => ({ ...q, propertyId: map(q.propertyId) }));
+  if (config.form?.defaults) out.form!.defaults = remapRowProperties(config.form.defaults, propIds, rowIdsFor);
   return out;
 }

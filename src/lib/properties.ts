@@ -770,7 +770,8 @@ export function newAssignees(
   personProps: { id: string }[],
   before: Record<string, unknown>,
   after: Record<string, unknown>,
-  actorId: string,
+  /** Null when nobody made it (an anonymous form answer): then everyone added counts. */
+  actorId: string | null,
 ) {
   const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
   return personProps.flatMap((prop) => {

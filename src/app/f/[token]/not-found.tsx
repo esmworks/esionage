@@ -1,0 +1,15 @@
+import Link from "next/link";
+import { getTranslations } from "next-intl/server";
+
+export default async function PublicFormNotFound() {
+  const t = await getTranslations("form.public");
+  return (
+    <main className="flex min-h-full flex-col items-center justify-center gap-3 bg-bg px-4 text-center text-fg">
+      <h1 className="text-2xl font-bold">{t("notFound")}</h1>
+      <p className="max-w-sm text-sm text-fg-muted">{t("notFoundBody")}</p>
+      <Link href="/" className="mt-2 text-sm text-fg-muted underline decoration-border underline-offset-4 hover:text-fg">
+        {t("home")}
+      </Link>
+    </main>
+  );
+}

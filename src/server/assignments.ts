@@ -33,7 +33,7 @@ const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is str
  * Queues an email for everyone the changes newly assign and drops the queued email of anyone they
  * unassign, so being removed and re-adding oneself before the delay sends nothing; never throws.
  */
-export async function scheduleAssignmentEmails(actorId: string, personProps: { id: string }[], changes: Change[]) {
+export async function scheduleAssignmentEmails(actorId: string | null, personProps: { id: string }[], changes: Change[]) {
   try {
     const removed = changes.flatMap((c) =>
       personProps.flatMap((prop) => {
@@ -117,9 +117,11 @@ async function send({ actorId, rowId, propertyId, userId, locale: savedLocale }:
       .where(and(eq(databaseProperty.id, propertyId), eq(databaseProperty.databaseId, row.parentId))),
   ]);
   if (!recipient?.email || !prop) return;
-  const untitled = emailTranslator(locale)("assignment.untitled");
+  const t = emailTranslator(locale);
+  const untitled = t("assignment.untitled");
   const content = assignmentEmail(locale, {
-    actorName: actor?.name ?? "",
+    // No actor: an anonymous form answer, or someone whose account is gone.
+    actorName: actor?.name || t("assignment.someone"),
     rowTitle: pageLabel(row.title, untitled),
     databaseTitle: pageLabel(database?.title, untitled),
     propertyName: prop.name,

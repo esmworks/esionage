@@ -13,8 +13,7 @@ import { ViewIcon } from "@/components/database/property-icons";
 import type { DatabaseSnapshot, Property } from "@/components/database/types";
 import { Button, cn, MenuItem, PageIcon, pageLabel } from "@/components/ui";
 import type { ViewConfig, ViewType } from "@/db/schema/app";
-import type { LinkedView } from "@/lib/embed-blocks";
-import { VIEW_TYPES } from "@/lib/views";
+import { LINKED_VIEW_TYPES, type LinkedView } from "@/lib/embed-blocks";
 import type { EmbedInfo } from "@/server/embeds";
 import { hasLevel } from "./page-header-actions";
 
@@ -220,7 +219,7 @@ function LayoutMenu({
       </button>
       <Floating open={menu.open} anchor={menu.el} onClose={menu.close}>
         <div className="px-2 pt-1 pb-1.5 text-xs text-fg-muted">{t("layout")}</div>
-        {VIEW_TYPES.map((type) => (
+        {LINKED_VIEW_TYPES.map((type) => (
           <MenuItem
             key={type}
             icon={<ViewIcon type={type} />}

@@ -20,6 +20,7 @@ import { firstImageInYdoc, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { isApplicable, isRollupFn, ROLLUP_DISPLAYS, type RollupDisplay } from "@/lib/aggregate";
 import { compileFormulas, formulaForStorage, TITLE_FIELD, valueType, withFormulaTypes } from "@/lib/derived";
 import { filterConfigError, filterRules, mapFilterRules } from "@/lib/filters";
+import { defaultFormConfig } from "@/lib/forms";
 import { DEFAULT_VIEW_NAMES, galleryCover, isViewType, layoutConfigError } from "@/lib/views";
 import { holdsOptions, holdsPeople, isComputed, PERSON_ME, type StatusGroup } from "@/lib/property-types";
 import { moveGroupValue } from "@/lib/grouping";
@@ -526,7 +527,8 @@ export async function updateRowsProperties(
  * after a short delay (see server/notifications and server/assignments).
  */
 export async function announceAssignments(
-  actorId: string,
+  /** Null for anonymous form answers: nobody to name, and nobody left out as the one who did it. */
+  actorId: string | null,
   databaseId: string,
   changes: { rowId: string; before: Record<string, unknown>; after: Record<string, unknown> }[],
 ) {
@@ -558,7 +560,20 @@ export async function createRows(userId: string, databaseId: string, rows: NewRo
       throw error;
     }
   }
+  return insertRows(database, userId, rows.map((row, i) => ({ title: row.title, properties: values[i] })));
+}
 
+/**
+ * Writes rows whose values are already checked (see normalizeRowProperties) at the end of a
+ * database, then does what every new row needs: two-way relations, assignment notices and live
+ * updates. `actorId` becomes the rows' creator; null (an anonymous form answer) leaves it empty.
+ */
+export async function insertRows(
+  database: { id: string; workspaceId: string },
+  actorId: string | null,
+  rows: { title: string; properties: Record<string, unknown> }[],
+) {
+  const databaseId = database.id;
   const [{ max }] = await db
     .select({ max: sql<number | null>`max(${page.position})` })
     .from(page)
@@ -570,16 +585,16 @@ export async function createRows(userId: string, databaseId: string, rows: NewRo
     parentId: databaseId,
     kind: "page" as const,
     title: row.title.trim(),
-    properties: values[i],
+    properties: row.properties,
     position: start + i,
-    createdBy: userId,
-    updatedBy: userId,
+    createdBy: actorId,
+    updatedBy: actorId,
   }));
   await db.insert(page).values(created);
 
   for (const row of created) await syncPairedRelations(row.id, databaseId, {}, row.properties);
   await announceAssignments(
-    userId,
+    actorId,
     databaseId,
     created.map((row) => ({ rowId: row.id, before: {}, after: row.properties })),
   );
@@ -963,6 +978,11 @@ export async function deleteProperty(userId: string, propertyId: string) {
             hidden: c.hidden?.filter((h) => h !== propertyId),
             shown: c.shown?.filter((h) => h !== propertyId),
             calculations: c.calculations && Object.fromEntries(Object.entries(c.calculations).filter(([k]) => k !== propertyId)),
+            form: c.form && {
+              ...c.form,
+              questions: c.form.questions?.filter((q) => q.propertyId !== propertyId),
+              defaults: c.form.defaults && Object.fromEntries(Object.entries(c.form.defaults).filter(([k]) => k !== propertyId)),
+            },
           },
         })
         .where(eq(databaseView.id, view.id));
@@ -991,6 +1011,8 @@ export async function addView(userId: string, databaseId: string, input: { name:
   // Timelines start without swimlanes and with a week per column; list rows and timeline bars show
   // only titles until the user picks properties (see hiddenByDefault).
   if (input.type === "timeline") config.dateBy = props.find((p) => p.type === "date")?.id;
+  // Forms start out asking for the name and every property a form can ask for.
+  if (input.type === "form") config.form = defaultFormConfig(props);
   const [{ max }] = await db
     .select({ max: sql<number | null>`max(${databaseView.position})` })
     .from(databaseView)
@@ -1018,6 +1040,7 @@ async function requireView(userId: string, viewId: string) {
   return { ...view, workspaceId: database.workspaceId, lockedAt: database.lockedAt };
 }
 
+/** Returns the view's config as stored (a form's defaults normalized to ids). */
 export async function updateView(userId: string, viewId: string, patch: { name?: string; config?: ViewConfig }) {
   // Configs come from the client and from MCP; a malformed filter tree would break every viewer.
   const filterError = patch.config && filterConfigError(patch.config);
@@ -1027,6 +1050,14 @@ export async function updateView(userId: string, viewId: string, patch: { name?:
   const view = await requireView(userId, viewId);
   // Filters, sorts and layout stay adjustable on a locked database; renaming doesn't.
   if (patch.name !== undefined) assertUnlocked(view);
+  // A form's default values are stored like row values: checked, with option names, "me" and
+  // emails turned into ids, and links the editor can't see kept as they were.
+  const defaults = patch.config?.form?.defaults;
+  if (patch.config?.form && defaults) {
+    const normalized = await normalizeRowProperties(userId, view.databaseId, defaults, view.config.form?.defaults ?? {});
+    const kept = Object.fromEntries(Object.entries(normalized).filter(([, v]) => v !== null && !(Array.isArray(v) && !v.length)));
+    patch = { ...patch, config: { ...patch.config, form: { ...patch.config.form, defaults: kept } } };
+  }
   await db
     .update(databaseView)
     .set({
@@ -1036,6 +1067,7 @@ export async function updateView(userId: string, viewId: string, patch: { name?:
     .where(eq(databaseView.id, viewId));
   notifySchema(view.databaseId);
   if (patch.name !== undefined) notifyTree(view.workspaceId);
+  return { config: patch.config ?? view.config };
 }
 
 export async function deleteView(userId: string, viewId: string) {

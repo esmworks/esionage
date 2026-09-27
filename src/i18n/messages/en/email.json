@@ -31,6 +31,7 @@
     "body": "{actor} added you to “{property}” in {database}.",
     "action": "Open",
     "untitled": "Untitled",
+    "someone": "Someone",
     "optOut": "You can turn these emails off in Settings > Preferences."
   },
   "share": {

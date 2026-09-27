@@ -1,7 +1,8 @@
 import type { CardSize, TimelineZoom, ViewConfig, ViewCover, ViewType } from "@/db/schema/app";
+import { formConfigError } from "./forms";
 
 /** Every kind of database view, in the order the "Add a view" menu lists them. */
-export const VIEW_TYPES = ["table", "board", "calendar", "gallery", "list", "timeline"] as const satisfies readonly ViewType[];
+export const VIEW_TYPES = ["table", "board", "calendar", "gallery", "list", "timeline", "form"] as const satisfies readonly ViewType[];
 export const CARD_SIZES = ["small", "medium", "large"] as const satisfies readonly CardSize[];
 export const COVER_SOURCES = ["first_image", "none"] as const satisfies readonly ViewCover["source"][];
 export const TIMELINE_ZOOMS = ["day", "week", "month"] as const satisfies readonly TimelineZoom[];
@@ -18,6 +19,7 @@ export const DEFAULT_VIEW_NAMES: Record<ViewType, string> = {
   gallery: "Gallery",
   list: "List",
   timeline: "Timeline",
+  form: "Form",
 };
 
 export function galleryCover(config: Pick<ViewConfig, "cover">): ViewCover["source"] {
@@ -47,5 +49,5 @@ export function layoutConfigError(config: ViewConfig): string | null {
       return `Cover must be one of: ${COVER_SOURCES.join(", ")}`;
     }
   }
-  return null;
+  return formConfigError(c.form);
 }

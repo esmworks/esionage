@@ -148,4 +148,9 @@ describe("linked view settings", () => {
     expect(parseLinkedView(JSON.stringify({ type: "gallery", config: { cardSize: "huge" } }))).toEqual({ type: "gallery", config: {} });
     expect(parseLinkedView(linked).type).toBe("board");
   });
+
+  it("never take the form layout: forms belong to the database's own views", () => {
+    const form = { type: "form", config: { form: { questions: [{ propertyId: "title", required: true }] } } };
+    expect(parseLinkedView(JSON.stringify(form))).toEqual({ type: "table", config: {} });
+  });
 });

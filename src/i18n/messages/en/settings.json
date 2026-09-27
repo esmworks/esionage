@@ -168,7 +168,7 @@
     "publishingHeading": "Publishing",
     "publishing": {
       "title": "Who can publish to the web",
-      "description": "Published pages can be read by anyone with the link, without signing in. Guests can never publish. Pages already published stay online until someone unpublishes them.",
+      "description": "Published pages can be read, and public forms filled in, by anyone with the link. Guests can never publish. Pages and forms already on the web stay there until someone turns them off.",
       "owners": "Owners only",
       "members": "Owners and members"
     },
@@ -183,6 +183,20 @@
       "open": "Open site",
       "unpublish": "Unpublish",
       "confirm": "Unpublish this page? The link stops working for everyone."
+    },
+    "forms": {
+      "title": "Public forms",
+      "description": "Every form of this workspace that takes answers from the web. Owners can turn off any of them.",
+      "empty": "No forms take answers from the web.",
+      "privateForm": "A form you don't have access to",
+      "name": "{view} in {database}",
+      "inTrash": "In the trash",
+      "anonymous": "Anonymous answers",
+      "publishedBy": "Opened by {name} · {date}",
+      "publishedOn": "Opened {date}",
+      "open": "Open form",
+      "turnOff": "Turn off",
+      "confirm": "Turn off this form's public link? It stops working for everyone."
     },
     "ownersOnly": "Only owners can change this."
   },
