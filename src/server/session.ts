@@ -3,8 +3,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { isStrongSession } from "@/lib/auth-security";
-import { getMembership } from "@/server/access";
-import { workspaceSettings } from "@/server/workspaces";
+import { twoFactorPolicyApplies } from "@/server/access";
 
 export const getSession = cache(async () => auth.api.getSession({ headers: await headers() }));
 
@@ -35,18 +34,14 @@ type Session = NonNullable<Awaited<ReturnType<typeof getSession>>>;
  * learning the workspace's policy.
  */
 export async function blockedByTwoFactorPolicy(session: Session, workspaceId: string) {
-  if (isStrongSession(session)) return false;
-  const [settings, membership] = await Promise.all([
-    workspaceSettings(workspaceId),
-    getMembership(session.user.id, workspaceId),
-  ]);
-  return settings.requireTwoFactor && membership !== null;
+  return !isStrongSession(session) && (await twoFactorPolicyApplies(session.user.id, workspaceId));
 }
 
 /**
  * For the pages under /w/[workspaceId] (the layout and each page, as Next renders them in
  * parallel): a session the workspace's two-step policy turns away goes to the page where they set
- * it up. Connected apps (MCP) reach data with OAuth tokens and aren't affected.
+ * it up. Server actions and API routes get TwoFactorRequiredError from the access checks instead
+ * (see access.ts). Connected apps (MCP) reach data with OAuth tokens and aren't affected.
  */
 export async function requireWorkspaceSession(workspaceId: string) {
   const session = await requireSession();

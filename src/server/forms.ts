@@ -16,7 +16,7 @@ import {
 import { normalizeValue, PropertyValueError, sortStatusOptions } from "@/lib/properties";
 import { holdsOptions } from "@/lib/property-types";
 import { SlidingWindowLimiter, takeAll } from "@/lib/rate-limit";
-import { AccessError, accessRank, hasLevel, requireMembership, requirePageAccess, resolvePageAccess, type RequiredLevel } from "@/server/access";
+import { AccessError, accessRank, hasLevel, pageAccessOf, requireMembership, requirePageAccess, type RequiredLevel } from "@/server/access";
 import { getProperties, insertRows, normalizeRowProperties, withCode, type DatabaseProperty } from "@/server/databases";
 import { publishBlocker } from "@/server/publication";
 import { storeFile, type StoredFile, type UploadInput } from "@/server/files";
@@ -319,7 +319,8 @@ export async function getFormSharing(userId: string, viewId: string): Promise<Fo
 /** Whether a form's publisher can still add rows to its database, which keeps its link taking answers. */
 async function publisherCanAdd(publishedBy: string | null, databaseId: string) {
   if (!publishedBy) return false;
-  const { level } = await resolvePageAccess(publishedBy, databaseId);
+  // The publisher's standing, whoever is looking (their own session may be held back by a policy).
+  const { level } = await pageAccessOf(publishedBy, databaseId);
   return hasLevel(level, "edit");
 }
 

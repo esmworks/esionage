@@ -1,7 +1,8 @@
 import { getAuthenticatorName } from "@better-auth/passkey";
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { account, passkey, user } from "@/db/schema";
+import { account, passkey, session, user } from "@/db/schema";
+import { isStrongSession } from "@/lib/auth-security";
 
 export type PasskeySummary = {
   id: string;
@@ -48,4 +49,24 @@ export async function getAccountSecurity(userId: string): Promise<AccountSecurit
       name: key.name?.trim() || getAuthenticatorName(aaguid) || null,
     })),
   };
+}
+
+/**
+ * Whether the session a collab token was issued to passes a "require two-step verification" policy
+ * (isStrongSession), checked when the websocket connects. A session that is gone counts by the
+ * user alone: turning two-step verification on replaces the session, and tokens outlive it.
+ */
+export async function sessionPassesTwoFactor(sessionId: string | null, userId: string): Promise<boolean> {
+  const [[account], [current]] = await Promise.all([
+    db.select({ twoFactorEnabled: user.twoFactorEnabled }).from(user).where(eq(user.id, userId)).limit(1),
+    sessionId
+      ? db
+          .select({ authMethod: session.authMethod })
+          .from(session)
+          .where(and(eq(session.id, sessionId), eq(session.userId, userId), gt(session.expiresAt, new Date())))
+          .limit(1)
+      : Promise.resolve([]),
+  ]);
+  if (!account) return false;
+  return isStrongSession({ user: account, session: { authMethod: current?.authMethod ?? null } });
 }

@@ -251,9 +251,11 @@ Owners can turn on **Require two-step verification** in the workspace's **Settin
 A session passes when the person has the authenticator app on, or signed in with a passkey;
 anyone else who opens the workspace is sent to a page where they set one of them up first
 (nobody is locked out, owners included). An owner can only turn the policy on from a session
-that passes it. The policy guards the app's pages and exports. Apps connected over MCP are not
-affected: they use OAuth tokens, not sign-in sessions, and keep working until someone revokes
-them under Connected apps.
+that passes it. The policy covers everything a browser session reaches: the app's pages, exports,
+server actions, API routes (files, import) and the live collaboration connection, which is
+checked when it connects; turning the policy on closes the open connections of sessions that
+don't pass. Apps connected over MCP are not affected: they use OAuth tokens, not sign-in
+sessions, and keep working until someone revokes them under Connected apps.
 
 Someone who lost both their authenticator app and their recovery codes can be reset by whoever
 runs the server; this turns two-step verification off and signs them out (`--passkeys` also
