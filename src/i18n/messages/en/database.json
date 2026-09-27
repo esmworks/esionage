@@ -17,7 +17,9 @@
     "createdBy": "Created by",
     "createdTime": "Created time",
     "lastEditedBy": "Last edited by",
-    "lastEditedTime": "Last edited time"
+    "lastEditedTime": "Last edited time",
+    "formula": "Formula",
+    "rollup": "Rollup"
   },
   "views": {
     "table": "Table",
@@ -310,7 +312,11 @@
     "addOption": "Add option",
     "statusGroup": "Group",
     "addToGroup": "Add an option to {group}",
-    "readOnlyHint": "Filled in automatically"
+    "readOnlyHint": "Filled in automatically",
+    "editFormula": "Edit formula",
+    "formulaHint": "Calculated by a formula",
+    "editRollup": "Edit rollup",
+    "rollupHint": "Calculated from related rows"
   },
   "rowProperties": {
     "noProperties": "No properties",
@@ -437,8 +443,73 @@
     "readOnlyProperty": "“{property}” is filled in automatically and can’t be changed.",
     "invalidFilter": "This filter can’t be saved. Reload the page and try again.",
     "tooManyRows": "You can change at most {max} rows at once.",
+    "invalidFormula": "The formula for “{property}” has an error: {message}",
     "invalidViewConfig": "These view settings can’t be saved. Reload the page and try again.",
-    "unsupportedViewType": "Unsupported view type “{type}”."
+    "unsupportedViewType": "Unsupported view type “{type}”.",
+    "invalidRollup": "The rollup “{property}” can’t be saved: {message}"
+  },
+  "formula": {
+    "title": "Formula",
+    "titleFor": "Formula for {name}",
+    "expression": "Formula expression",
+    "placeholder": "For example: prop(\"Price\") * prop(\"Quantity\")",
+    "result": "Result: {type}",
+    "empty": "Write an expression; an empty formula stays empty.",
+    "save": "Save formula",
+    "create": "Add formula",
+    "back": "Back",
+    "properties": "Properties",
+    "functions": "Functions",
+    "insert": "Insert {name}",
+    "error": "Error",
+    "errorTitle": "This row can’t be calculated: {message}",
+    "or": "or",
+    "groups": {
+      "logic": "Logic",
+      "text": "Text",
+      "number": "Numbers",
+      "date": "Dates",
+      "conversion": "Conversion"
+    },
+    "types": {
+      "number": "number",
+      "text": "text",
+      "checkbox": "checkbox",
+      "date": "date",
+      "list": "list"
+    },
+    "errors": {
+      "syntax": "Unexpected “{token}”.",
+      "unexpectedEnd": "The formula ends too early.",
+      "unterminatedString": "A text in quotes is missing its closing quote.",
+      "unknownFunction": "Unknown function “{name}”.",
+      "unknownProperty": "Unknown property “{name}”.",
+      "propArgument": "prop() takes a property name in quotes, like prop(\"Price\").",
+      "argumentCount": {
+        "exact": "{name}() takes {min, plural, one {# argument} other {# arguments}}, not {actual}.",
+        "range": "{name}() takes {min} to {max} arguments, not {actual}.",
+        "atLeast": "{name}() takes at least {min, plural, one {# argument} other {# arguments}}."
+      },
+      "ifsArguments": "{name}() takes condition and value pairs, then a value for when none matches.",
+      "argumentType": "{name}() expects {expected} as argument {index}, not {actual}.",
+      "operatorType": "“{op}” can’t be used with {left} and {right}.",
+      "unaryType": "“{op}” can’t be used with {type}.",
+      "branchTypes": "{name}() needs every result to be of the same type, not {left} and {right}.",
+      "cycle": "“{name}” refers back to itself.",
+      "referenceError": "“{name}” has an error.",
+      "tooLong": "A formula can be at most {max} characters long.",
+      "tooDeep": "The formula is nested too deeply.",
+      "invalidUnit": "Unknown date unit “{unit}”. Use one of: {units}.",
+      "divisionByZero": "Division by zero.",
+      "notANumber": "“{value}” is not a number.",
+      "invalidDate": "“{value}” is not a date (use YYYY-MM-DD).",
+      "notFinite": "The result is not a finite number.",
+      "resultTooLong": "The text is longer than {max} characters.",
+      "rollupRelation": "The relation this rollup uses no longer exists.",
+      "rollupTarget": "The property this rollup uses no longer exists.",
+      "rollupFunction": "This rollup can’t calculate that for “{property}”.",
+      "rollupDepth": "Rollups of rollups go too deep here."
+    }
   },
   "group": {
     "checked": "Checked",
@@ -461,5 +532,26 @@
     "rowCount": "{count, plural, one {# row} other {# rows}}",
     "actions": "Group actions",
     "addRow": "Add a row to {name}"
+  },
+  "rollup": {
+    "title": "Rollup",
+    "titleFor": "Rollup for {name}",
+    "relation": "Relation",
+    "property": "Property",
+    "function": "Calculate",
+    "display": "Show as",
+    "choose": "Choose…",
+    "noRelations": "Add a relation property first: a rollup calculates over the rows a relation links to.",
+    "hiddenDatabase": "You can’t see the related database, so its properties can’t be listed.",
+    "showOriginal": "Show original",
+    "displays": {
+      "number": "Number",
+      "bar": "Bar",
+      "ring": "Ring"
+    },
+    "save": "Save rollup",
+    "create": "Add rollup",
+    "back": "Back",
+    "summary": "{function} of {property} in {relation}"
   }
 }

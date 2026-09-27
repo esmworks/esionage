@@ -22,11 +22,13 @@ import {
   requiredFilterRules,
   valueDay,
 } from "./filters";
+import { derivedType, isErrorValue, rollupFormat } from "./derived";
 import {
   holdsOptions,
   holdsPeople,
   holdsTimestamp,
-  isComputed,
+  isDerived,
+  isReadOnlyType,
   PERSON_ME,
   STATUS_GROUPS,
   type StatusGroup,
@@ -65,6 +67,8 @@ export const DATABASE_ERROR_CODES = [
   "invalidViewConfig",
   "unsupportedViewType",
   "tooManyRows",
+  "invalidFormula",
+  "invalidRollup",
 ] as const;
 export type DatabaseErrorCode = (typeof DATABASE_ERROR_CODES)[number];
 export type DatabaseErrorParams = Record<string, string>;
@@ -86,7 +90,10 @@ export class PropertyValueError extends Error {
 
 type PropertyDef = { id: string; name: string; type: PropertyType; options: PropertyOptions };
 
-/** Written by Esionage itself (who created or last edited the row, and when), never by users or agents. */
+/**
+ * Written by Esionage itself (who created or last edited the row, and when) or worked out from
+ * other values (formulas), never by users or agents.
+ */
 function readOnlyError(prop: PropertyDef) {
   return new PropertyValueError(`"${prop.name}" is set automatically and can't be changed`, "readOnlyProperty", {
     property: prop.name,
@@ -236,7 +243,7 @@ function findOption(options: SelectOption[] | undefined, input: unknown): Select
  * callers may pass option names (MCP does), which are resolved here. Returns `null` to clear.
  */
 export function normalizeValue(prop: PropertyDef, value: unknown): unknown {
-  if (isComputed(prop.type)) throw readOnlyError(prop);
+  if (isReadOnlyType(prop.type)) throw readOnlyError(prop);
   if (value === null || value === undefined || value === "") return null;
   switch (prop.type) {
     case "text":
@@ -337,6 +344,8 @@ export function normalizeValue(prop: PropertyDef, value: unknown): unknown {
 /** Human-readable value (option names instead of ids), used by MCP output and markdown export. */
 export function displayValue(prop: PropertyDef, value: unknown): unknown {
   if (value === null || value === undefined) return null;
+  // A formula that fails on this row says why, in English (MCP clients read it).
+  if (isErrorValue(value)) return { error: value.error.message };
   if (prop.type === "select" || prop.type === "status") return findOption(prop.options.options, value)?.name ?? null;
   if (prop.type === "checklist") {
     const items = asChecklist(value).map(({ text, checked }) => ({ text, checked }));
@@ -385,10 +394,27 @@ export function localDay(value: unknown): string | null {
 function liveValue(row: RowLike, key: string, prop: PropertyDef | undefined): unknown {
   const v = rawValue(row, key);
   if (prop && holdsTimestamp(prop.type)) return localDay(v);
+  if (prop && isDerived(prop.type)) {
+    const plain = derivedSortValue(v);
+    if (derivedType(prop) === "date") return valueDay(plain);
+    // Rollup percentages are fractions (0.25); filters compare the percent people see (25).
+    const percent = prop.type === "rollup" && rollupFormat(prop.options.rollup?.function) === "percent";
+    return percent && typeof plain === "number" ? plain * 100 : plain;
+  }
   if (!prop || !holdsOptions(prop.type)) return v;
   const known = (id: unknown) => (prop.options.options ?? []).some((o) => o.id === id);
   if (Array.isArray(v)) return v.filter(known);
   return known(v) ? v : null;
+}
+
+/**
+ * A derived value as filters and sorts compare it: errors count as empty, lists (rollups showing
+ * the related values) as their text.
+ */
+function derivedSortValue(v: unknown): unknown {
+  if (isErrorValue(v)) return null;
+  if (Array.isArray(v)) return v.map(String).join(", ");
+  return v;
 }
 
 function matches(row: RowLike, rule: FilterRule, prop: PropertyDef | undefined, now: Date): boolean {
@@ -478,6 +504,7 @@ export function applyView<T extends RowLike>(
   const sortValue = (row: T, key: string) => {
     const prop = byId.get(key);
     const v = rawValue(row, key);
+    if (prop && isDerived(prop.type)) return derivedSortValue(v);
     const index = (id: unknown) => prop?.options.options?.findIndex((o) => o.id === id) ?? -1;
     if (prop?.type === "status") {
       const option = prop.options.options?.find((o) => o.id === v);
@@ -602,6 +629,10 @@ export function filterOperators(type: PropertyType | "title"): { op: FilterOp; l
         { op: "is_not_empty", label: "isChecked" },
         { op: "is_empty", label: "isUnchecked" },
       ];
+    case "formula":
+    case "rollup":
+      // Callers pass a derived property's result type (see lib/derived valueType); text is the fallback.
+      return filterOperators("text");
   }
 }
 

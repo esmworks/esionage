@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ExternalLink, Plus, X } from "lucide-react";
+import { Check, ExternalLink, Plus, TriangleAlert, X } from "lucide-react";
 import Link from "next/link";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -14,8 +14,10 @@ import {
   sortStatusOptions,
   statusGroupOf,
 } from "@/lib/properties";
-import { holdsPeople, isComputed } from "@/lib/property-types";
+import { derivedType, isErrorValue, rollupFormat } from "@/lib/derived";
+import { holdsPeople, isDerived, isReadOnlyType } from "@/lib/property-types";
 import { Floating } from "./floating";
+import { useFormulaErrorMessage } from "./formula-editor";
 import { PersonChips, PersonPicker } from "./person-cell";
 import { RelationChips, RelationPicker } from "./relation-cell";
 import type { ChecklistItem, Property, SelectOption } from "./types";
@@ -103,6 +105,8 @@ export function useFormatNumber() {
 
 export function isEmptyValue(prop: Property, value: unknown) {
   if (value === null || value === undefined || value === "") return true;
+  // A formula's unticked checkbox counts as empty, like a checkbox property's.
+  if (isDerived(prop.type)) return value === false || (Array.isArray(value) && value.length === 0);
   if (prop.type === "relation" || holdsPeople(prop.type)) return !Array.isArray(value) || value.length === 0;
   if (prop.type === "checklist") return asChecklist(value).length === 0;
   if (Array.isArray(value)) return selectedOptions(prop, value).length === 0;
@@ -160,6 +164,9 @@ export function PropertyDisplay({ prop, value, wrap }: { prop: Property; value: 
     case "created_by":
     case "last_edited_by":
       return <PersonChips value={value} wrap={wrap} />;
+    case "formula":
+    case "rollup":
+      return <DerivedDisplay prop={prop} value={value} wrap={wrap} />;
     case "select":
     case "multi_select":
     case "status": {
@@ -174,6 +181,96 @@ export function PropertyDisplay({ prop, value, wrap }: { prop: Property; value: 
       );
     }
   }
+}
+
+/**
+ * A formula's value, shown as its result type; a row the formula fails on shows an error marker
+ * with the reason on hover.
+ */
+function DerivedDisplay({ prop, value, wrap }: { prop: Property; value: unknown; wrap?: boolean }) {
+  const t = useTranslations("database.formula");
+  const errorMessage = useFormulaErrorMessage();
+  const formatDate = useFormatDate();
+  const formatDateTime = useFormatDateTime();
+  const formatNumber = useFormatNumber();
+  if (isErrorValue(value)) {
+    const message = t("errorTitle", { message: errorMessage(value.error) });
+    return (
+      <span className="inline-flex min-w-0 items-center gap-1 text-xs text-danger" title={message} aria-label={message}>
+        <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{t("error")}</span>
+      </span>
+    );
+  }
+  if (Array.isArray(value)) {
+    return <span className={cn(wrap ? "whitespace-pre-wrap break-words" : "truncate")}>{value.map(String).join(", ")}</span>;
+  }
+  if (prop.type === "rollup" && typeof value === "number") return <RollupNumber prop={prop} value={value} />;
+  switch (derivedType(prop)) {
+    case "number":
+      return <span className="tabular-nums">{typeof value === "number" ? formatNumber(value) : String(value)}</span>;
+    case "checkbox":
+      return <CheckboxBox checked={value === true} />;
+    case "date": {
+      const text = String(value);
+      return <span className="truncate">{text.length > 10 ? formatDateTime(text) : formatDate(text)}</span>;
+    }
+    default:
+      return <span className={cn(wrap ? "whitespace-pre-wrap break-words" : "truncate")}>{String(value)}</span>;
+  }
+}
+
+/**
+ * A rollup's number: a count or sum, a length of time in days, or a percentage shown as a
+ * number, a bar or a ring (the rollup's display setting).
+ */
+function RollupNumber({ prop, value }: { prop: Property; value: number }) {
+  const t = useTranslations("database.calculate");
+  const format = useFormatter();
+  const config = prop.options.rollup;
+  const kind = rollupFormat(config?.function);
+  if (kind === "days") return <span className="tabular-nums">{t("days", { count: value })}</span>;
+  if (kind !== "percent") {
+    // Averages and medians rarely end evenly; two decimals are plenty, as in table footers.
+    const rounded = config?.function === "average" || config?.function === "median";
+    return <span className="tabular-nums">{format.number(value, { maximumFractionDigits: rounded ? 2 : 10 })}</span>;
+  }
+  const text = format.number(value, { style: "percent", maximumFractionDigits: 1 });
+  const share = Math.min(1, Math.max(0, value));
+  const label = <span className="text-xs text-fg-muted tabular-nums">{text}</span>;
+  if (config?.display === "bar") {
+    return (
+      <span className="flex min-w-0 items-center gap-2" title={text}>
+        <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-bg-active">
+          <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.round(share * 100)}%` }} />
+        </span>
+        {label}
+      </span>
+    );
+  }
+  if (config?.display === "ring") {
+    const r = 6;
+    const length = 2 * Math.PI * r;
+    return (
+      <span className="flex min-w-0 items-center gap-1.5" title={text}>
+        <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 -rotate-90" aria-hidden>
+          <circle cx="8" cy="8" r={r} fill="none" strokeWidth="2.5" className="stroke-bg-active" />
+          <circle
+            cx="8"
+            cy="8"
+            r={r}
+            fill="none"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            className="stroke-accent"
+            strokeDasharray={`${share * length} ${length}`}
+          />
+        </svg>
+        {label}
+      </span>
+    );
+  }
+  return <span className="tabular-nums">{text}</span>;
 }
 
 /** A checklist's progress as a bar and "2/5"; wrapped (row panels, published pages) with its items. */
@@ -252,8 +349,9 @@ export function PropertyCell({
 }) {
   const t = useTranslations("database.cell");
   const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
-  // Who created or last edited a row, and when, is filled in by Esionage and never edited.
-  const readOnly = readOnlyProp || isComputed(prop.type);
+  // Who created or last edited a row, and when, is filled in by Esionage and never edited; formulas
+  // are worked out from the row.
+  const readOnly = readOnlyProp || isReadOnlyType(prop.type);
   const [editing, setEditing] = useState(Boolean(autoEdit) && !readOnly);
 
   const base = cn(
@@ -281,7 +379,8 @@ export function PropertyCell({
     );
   }
 
-  const empty = isEmptyValue(prop, value);
+  // A checkbox formula shows its box ticked or not, like a checkbox property.
+  const empty = derivedType(prop) === "checkbox" && value === false ? false : isEmptyValue(prop, value);
   return (
     <>
       <div

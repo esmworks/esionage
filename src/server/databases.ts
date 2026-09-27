@@ -6,15 +6,19 @@ import {
   page,
   PROPERTY_TYPES,
   user,
+  type FormulaConfig,
   type PropertyOptions,
   type PropertyType,
   type RelationConfig,
+  type RollupConfig,
   type SelectOption,
   type ViewConfig,
   type ViewType,
 } from "@/db/schema";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { firstImageInYdoc, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
+import { isApplicable, isRollupFn, ROLLUP_DISPLAYS, type RollupDisplay } from "@/lib/aggregate";
+import { compileFormulas, formulaForStorage, TITLE_FIELD, valueType, withFormulaTypes } from "@/lib/derived";
 import { filterConfigError, filterRules, mapFilterRules } from "@/lib/filters";
 import { DEFAULT_VIEW_NAMES, galleryCover, isViewType, layoutConfigError } from "@/lib/views";
 import { holdsOptions, holdsPeople, isComputed, PERSON_ME, type StatusGroup } from "@/lib/property-types";
@@ -44,6 +48,7 @@ import {
   type RequiredLevel,
 } from "@/server/access";
 import { scheduleAssignmentEmails } from "@/server/assignments";
+import { computeDerived, loadProperties } from "@/server/derived";
 import { recordAssignments } from "@/server/notifications";
 import { getCollab } from "@/server/collab/bridge";
 import { workspacePeople, type WorkspacePerson } from "@/server/workspaces";
@@ -75,12 +80,40 @@ function withComputed<T extends StoredRow>(
 }
 
 type StoredRow = {
+  title: string;
   properties: Record<string, unknown>;
   createdBy: string | null;
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
+
+/**
+ * Rows as `userId` reads them: stored values, system values (withComputed) and derived values
+ * (formulas), evaluated once per row. Pass `lookups` when they are loaded anyway, so formulas that
+ * show people or related rows don't load them again.
+ */
+async function withValues<T extends StoredRow>(
+  userId: string,
+  rows: T[],
+  properties: DatabaseProperty[],
+  lookups?: DatabaseLookups,
+) {
+  return computeDerived(withComputed(rows, properties), properties, {
+    viewerId: userId,
+    lookups: (props) => (lookups && props === properties ? Promise.resolve(lookups) : getLookups(userId, props)),
+  });
+}
+
+/** One row's values as `userId` reads them (see withValues), e.g. for MCP output. */
+export async function rowValues(
+  userId: string,
+  row: StoredRow,
+  properties: DatabaseProperty[],
+): Promise<Record<string, unknown>> {
+  const [out] = await withValues(userId, [row], properties);
+  return out.properties;
+}
 
 /** Sorting by a people property orders rows by names, so the view needs to know them. */
 async function peopleForSorts(userId: string, properties: DatabaseProperty[], config: ViewConfig) {
@@ -131,12 +164,14 @@ function notifyTree(workspaceId: string) {
   getCollab().broadcast(`ws:${workspaceId}`, "tree");
 }
 
+/** A database's properties in order, with each formula's result type filled in (see FormulaConfig). */
 export async function getProperties(databaseId: string) {
-  return db
+  const properties = await db
     .select()
     .from(databaseProperty)
     .where(eq(databaseProperty.databaseId, databaseId))
     .orderBy(asc(databaseProperty.position), asc(databaseProperty.createdAt));
+  return withFormulaTypes(properties);
 }
 
 export async function getDatabase(userId: string, databaseId: string) {
@@ -173,7 +208,7 @@ export async function listRows(userId: string, databaseId: string, config: ViewC
     getProperties(databaseId),
   ]);
   const people = await peopleForSorts(userId, properties, config);
-  return applyView<DatabaseRow>(withComputed(rows, properties), config, properties, { viewerId: userId, people });
+  return applyView<DatabaseRow>(await withValues(userId, rows, properties), config, properties, { viewerId: userId, people });
 }
 
 /**
@@ -599,16 +634,104 @@ async function hideInCalendars(exec: Executor, databaseId: string, propertyId: s
     .where(and(eq(databaseView.databaseId, databaseId), eq(databaseView.type, "calendar")));
 }
 
+/**
+ * A formula as stored: names in `prop("…")` replaced by property ids, checked against the
+ * database's properties (`self` is the formula property itself, new or edited). A formula that
+ * can't run (a syntax or type error, an unknown property, a cycle) is refused with the reason.
+ */
+function formulaConfig(expression: string, properties: DatabaseProperty[], self: { id: string; name: string }): FormulaConfig {
+  const others = properties.filter((p) => p.id !== self.id);
+  const stored = formulaForStorage(expression.trim(), [...others, self]);
+  const props = [...others, { ...self, type: "formula" as const, options: { formula: { expression: stored } } }];
+  const error = compileFormulas(props).get(self.id)?.error;
+  if (error) {
+    throw new PropertyValueError(`Invalid formula for "${self.name}": ${error.message}`, "invalidFormula", {
+      property: self.name,
+      message: error.message,
+    });
+  }
+  return { expression: stored };
+}
+
+/** A rollup's settings as given: property ids (or "title" for the related rows' titles). */
+export type RollupInput = {
+  relationPropertyId: string;
+  targetPropertyId: string;
+  function: string;
+  display?: string;
+};
+
+/**
+ * A rollup as stored, checked against the database's properties (`self` is the rollup itself):
+ * the relation must be one of them, the target a property of the related database (which the
+ * user must see) or its titles, and the function one a column of the target offers.
+ */
+async function rollupConfig(
+  userId: string,
+  input: Partial<RollupInput> | undefined,
+  properties: DatabaseProperty[],
+  self: { id: string; name: string },
+): Promise<RollupConfig> {
+  const invalid = (message: string) =>
+    new PropertyValueError(`Invalid rollup for "${self.name}": ${message}`, "invalidRollup", { property: self.name, message });
+  const relation = properties.find((p) => p.id === input?.relationPropertyId && p.type === "relation");
+  const databaseId = relation?.options.relation?.databaseId;
+  if (!input || !databaseId) throw invalid("choose one of the database's relation properties");
+  const visible = await requireDatabase(userId, databaseId, "view").then(
+    (d) => !d.archivedAt,
+    () => false,
+  );
+  if (!visible) throw invalid("the related database can't be read");
+  const targetProps = (await loadProperties([databaseId])).get(databaseId) ?? [];
+  const target =
+    input.targetPropertyId === TITLE_FIELD ? TITLE_FIELD : targetProps.find((p) => p.id === input.targetPropertyId);
+  if (!target) throw invalid("choose a property of the related database");
+  if (target !== TITLE_FIELD && target.id === self.id) throw invalid("a rollup can't roll up itself");
+  const fn = input.function;
+  if (!isRollupFn(fn)) throw invalid(`unknown function "${String(fn)}"`);
+  if (fn !== "show_original" && !isApplicable(fn, target === TITLE_FIELD ? TITLE_FIELD : valueType(target))) {
+    throw invalid(`"${fn}" doesn't apply to ${target === TITLE_FIELD ? "titles" : `"${target.name}"`}`);
+  }
+  if (input.display !== undefined && !ROLLUP_DISPLAYS.includes(input.display as RollupDisplay)) {
+    throw invalid(`unknown display "${input.display}"`);
+  }
+  const display = input.display as RollupDisplay | undefined;
+  return {
+    relationPropertyId: relation!.id,
+    targetPropertyId: target === TITLE_FIELD ? TITLE_FIELD : target.id,
+    function: fn,
+    ...(display && display !== "number" ? { display } : {}),
+  };
+}
+
 export async function addProperty(
   userId: string,
   databaseId: string,
-  input: { name: string; type: PropertyType; options?: OptionInput[]; relation?: RelationInput },
+  input: {
+    name: string;
+    type: PropertyType;
+    options?: OptionInput[];
+    relation?: RelationInput;
+    /** Formulas: the expression, with property names or ids in `prop("…")`. */
+    formula?: { expression: string };
+    /** Rollups: what to calculate over which relation. */
+    rollup?: RollupInput;
+  },
 ) {
   const database = await requireDatabase(userId, databaseId, "edit");
   assertUnlocked(database);
   if (!PROPERTY_TYPES.includes(input.type)) {
     throw new PropertyValueError(`Unsupported type "${input.type}"`, "unsupportedType", { type: String(input.type) });
   }
+  const name = input.name.trim() || "Property";
+  const formula =
+    input.type === "formula"
+      ? formulaConfig(input.formula?.expression ?? "", await getProperties(databaseId), { id: "\u0000new", name })
+      : undefined;
+  const rollup =
+    input.type === "rollup"
+      ? await rollupConfig(userId, input.rollup, await getProperties(databaseId), { id: "\u0000new", name })
+      : undefined;
   let target: typeof database | null = null;
   if (input.type === "relation") {
     const invalidTarget = () =>
@@ -637,13 +760,17 @@ export async function addProperty(
         ? { options: makeStatusOptions(input.options) }
         : target
           ? { relation: { databaseId: target.id } }
-          : {};
+          : formula
+            ? { formula }
+            : rollup
+              ? { rollup }
+              : {};
   const created = await db.transaction(async (tx) => {
     const [created] = await tx
       .insert(databaseProperty)
       .values({
         databaseId,
-        name: input.name.trim() || "Property",
+        name,
         type: input.type,
         options,
         position: await nextPropertyPosition(databaseId, tx),
@@ -711,9 +838,30 @@ async function requireProperty(userId: string, propertyId: string, { cellEdit = 
 export async function updateProperty(
   userId: string,
   propertyId: string,
-  patch: { name?: string; options?: SelectOption[]; position?: number },
+  patch: {
+    name?: string;
+    options?: SelectOption[];
+    position?: number;
+    formula?: { expression: string };
+    /** Rollups: settings to change; the others stay. */
+    rollup?: Partial<RollupInput>;
+  },
 ) {
   const prop = await requireProperty(userId, propertyId);
+  const formula =
+    patch.formula && prop.type === "formula"
+      ? formulaConfig(patch.formula.expression, await getProperties(prop.databaseId), {
+          id: prop.id,
+          name: patch.name?.trim() || prop.name,
+        })
+      : undefined;
+  const rollup =
+    patch.rollup && prop.type === "rollup"
+      ? await rollupConfig(userId, { ...prop.options.rollup, ...patch.rollup }, await getProperties(prop.databaseId), {
+          id: prop.id,
+          name: patch.name?.trim() || prop.name,
+        })
+      : undefined;
   // Status options are kept in group order with a valid group each.
   if (patch.options && prop.type === "status") patch = { ...patch, options: sortStatusOptions(patch.options) };
   // Rows must not keep ids of deleted options: they'd show as empty yet fail validation on the next edit.
@@ -726,6 +874,8 @@ export async function updateProperty(
       .set({
         ...(patch.name !== undefined ? { name: patch.name.trim() || prop.name } : {}),
         ...(patch.options !== undefined ? { options: { ...prop.options, options: patch.options } } : {}),
+        ...(formula ? { options: { ...prop.options, formula } } : {}),
+        ...(rollup ? { options: { ...prop.options, rollup } } : {}),
         ...(patch.position !== undefined ? { position: patch.position } : {}),
       })
       .where(eq(databaseProperty.id, propertyId));
@@ -1021,9 +1171,13 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
       ),
     )
     .orderBy(asc(page.position), asc(page.createdAt));
-  const covers = withCovers ? await rowCovers(stored) : null;
-  const rows: DatabaseRowWithPosition[] = withComputed(stored, properties).map(({ hasImage: _, ...row }) =>
-    covers ? { ...row, cover: covers.get(row.id) ?? null } : row,
+  const [relations, people, covers] = await Promise.all([
+    getRelationTargets(userId, properties),
+    getPeople(userId, properties),
+    withCovers ? rowCovers(stored) : null,
+  ]);
+  const rows: DatabaseRowWithPosition[] = (await withValues(userId, stored, properties, { relations, people })).map(
+    ({ hasImage: _, ...row }) => (covers ? { ...row, cover: covers.get(row.id) ?? null } : row),
   );
   return {
     database: {
@@ -1037,8 +1191,8 @@ export async function getDatabaseSnapshot(userId: string, databaseId: string) {
     properties,
     views,
     rows,
-    relations: await getRelationTargets(userId, properties),
-    people: await getPeople(userId, properties),
+    relations,
+    people,
     viewerId: userId,
   };
 }
@@ -1051,7 +1205,10 @@ export type RelationTarget = {
   pairedName: string | null;
   /** Live rows of the related database, in manual order: link candidates and display titles. */
   rows: RelationTargetRow[];
+  /** Properties of the related database, for choosing what a rollup reads; empty when hidden. */
+  properties: RelationTargetProperty[];
 };
+export type RelationTargetProperty = Pick<DatabaseProperty, "id" | "name" | "type" | "options">;
 
 /**
  * The related database and its rows for every relation property, keyed by property id, limited
@@ -1066,7 +1223,7 @@ export async function getRelationTargets(
   ];
   if (!targetIds.length) return {};
   const pairedIds = properties.flatMap((p) => (p.options.relation?.pairedPropertyId ? [p.options.relation.pairedPropertyId] : []));
-  const [databases, rows, paired] = await Promise.all([
+  const [databases, rows, paired, targetProperties] = await Promise.all([
     db
       .select({ id: page.id, title: page.title, icon: page.icon })
       .from(page)
@@ -1082,6 +1239,7 @@ export async function getRelationTargets(
           .from(databaseProperty)
           .where(inArray(databaseProperty.id, pairedIds))
       : Promise.resolve([]),
+    loadProperties(targetIds),
   ]);
   const out: Record<string, RelationTarget> = {};
   for (const prop of properties) {
@@ -1095,6 +1253,9 @@ export async function getRelationTargets(
       pairedName: (database && pairedId && paired.find((p) => p.id === pairedId)?.name) || null,
       rows: database
         ? rows.filter((r) => r.parentId === targetId).map(({ id, title, icon }) => ({ id, title, icon }))
+        : [],
+      properties: database
+        ? (targetProperties.get(targetId) ?? []).map(({ id, name, type, options }) => ({ id, name, type, options }))
         : [],
     };
   }
@@ -1179,14 +1340,16 @@ export async function getRow(userId: string, rowId: string) {
   if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
   const database = await requireDatabase(userId, row.parentId, "view");
   const properties = await getProperties(row.parentId);
+  const [relations, people] = await Promise.all([getRelationTargets(userId, properties), getPeople(userId, properties)]);
+  const [withDerived] = await withValues(userId, [row], properties, { relations, people });
   return {
     databaseId: row.parentId,
     databaseTitle: database.title,
     databaseLocked: Boolean(database.lockedAt),
-    row: { id: row.id, title: row.title, properties: { ...row.properties, ...computedValues(properties, row) } },
+    row: { id: row.id, title: row.title, properties: withDerived.properties },
     properties,
-    relations: await getRelationTargets(userId, properties),
-    people: await getPeople(userId, properties),
+    relations,
+    people,
     viewerId: userId,
   };
 }

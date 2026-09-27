@@ -1,5 +1,6 @@
 import type { PageKind, PropertyOptions, PropertyType, RowProperties, ViewConfig, ViewType } from "@/db/schema/app";
 import { mapFilterRules } from "./filters";
+import { rewriteReferences } from "./formula";
 
 /**
  * Pure planning for "Duplicate page": given the source subtree, decides every new id and rewrites
@@ -75,6 +76,21 @@ export function planDuplicate(input: DuplicateInput, newId: () => string = () =>
         : // The target stays the original database, one-way: its paired property keeps pairing with
           // the original, and mirroring into it from the copy would corrupt that pairing.
           { databaseId: relation.databaseId, pairedPropertyId: null };
+    }
+    // Formulas name the properties they use by id: point them at the copies.
+    if (prop.type === "formula" && prop.options.formula) {
+      options.formula = { expression: rewriteReferences(prop.options.formula.expression, (key) => propIds.get(key) ?? null) };
+    }
+    // Rollups read through a relation of their own database, which is copied with them; the
+    // property they read is copied only when the related database is.
+    if (prop.type === "rollup" && prop.options.rollup) {
+      const rollup = prop.options.rollup;
+      const inside = relationInside(propsById.get(rollup.relationPropertyId));
+      options.rollup = {
+        ...rollup,
+        relationPropertyId: propIds.get(rollup.relationPropertyId) ?? rollup.relationPropertyId,
+        targetPropertyId: inside ? (propIds.get(rollup.targetPropertyId) ?? rollup.targetPropertyId) : rollup.targetPropertyId,
+      };
     }
     return { ...prop, id: propIds.get(prop.id)!, databaseId: pageIds.get(prop.databaseId)!, options };
   });
