@@ -139,7 +139,7 @@ const requireWrite: ScopeChallengeHandler = ({ authInfo }) => {
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
 
 export function createMcpServer(principal: McpPrincipal) {
-  const server = new McpServer({ name: "esionage", title: "Esionage", version: "0.1.0" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "esionage", title: "Esionage", version: "0.2.0" }, { instructions: INSTRUCTIONS });
   const { userId } = principal;
   const actor: WriteActor = { userId, oauthClientId: principal.clientId };
 
