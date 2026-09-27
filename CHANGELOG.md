@@ -56,6 +56,12 @@
   of an existing database whose layout, filters and sorts are kept in the page. What a block shows
   follows the reader's access to the database. Published pages show them as tables.
 
+- **Publishing options:** pick which views of a database published pages show; visitors switch
+  between them, and boards, lists and galleries look like they do in the app (calendars,
+  timelines and charts show as tables). Boards by people or linked rows show as tables, and only
+  the values a view shows reach the visitor. A publication can let search engines index the page
+  and its subpages; it is off by default, and Settings > Security shows which ones allow it.
+
 ### Changed
 
 - **Published databases** show the columns their first view shows. A board no longer publishes

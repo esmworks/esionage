@@ -182,7 +182,8 @@
       "publishedOn": "Published {date}",
       "open": "Open site",
       "unpublish": "Unpublish",
-      "confirm": "Unpublish this page? The link stops working for everyone."
+      "confirm": "Unpublish this page? The link stops working for everyone.",
+      "indexable": "Search engines allowed"
     },
     "forms": {
       "title": "Public forms",

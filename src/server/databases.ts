@@ -1150,7 +1150,7 @@ const MAX_CACHED_COVERS = 5000;
  * image are read, and from their Yjs state rather than the Markdown, so text that merely looks
  * like image Markdown (in a code block, say) never becomes a cover.
  */
-async function rowCovers(rows: { id: string; updatedAt: Date; hasImage?: boolean }[]) {
+export async function rowCovers(rows: { id: string; updatedAt: Date; hasImage?: boolean }[]) {
   const covers = new Map<string, string | null>();
   const missing: string[] = [];
   for (const row of rows) {

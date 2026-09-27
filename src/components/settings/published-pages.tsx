@@ -46,6 +46,7 @@ function PublishedPageRow({ workspaceId, publication: p }: { workspaceId: string
           <>
             {p.publishedBy ? t("publishedBy", { name: p.publishedBy, date }) : t("publishedOn", { date })}
             {p.inTrash && <> · {t("inTrash")}</>}
+            {p.indexable && <> · {t("indexable")}</>}
           </>
         )
       }

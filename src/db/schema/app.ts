@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   customType,
   doublePrecision,
   index,
@@ -322,6 +323,11 @@ export const databaseView = pgTable(
     type: text("type").$type<ViewType>().notNull().default("table"),
     config: jsonb("config").$type<ViewConfig>().notNull().default({}),
     position: doublePrecision("position").notNull().default(0),
+    /**
+     * Shown where the database is published, with visitors switching between these views. When
+     * no view of the database is marked, published pages show its first view (see publication.ts).
+     */
+    published: boolean("published").notNull().default(false),
     ...timestamps,
   },
   (t) => [index("database_view_db_idx").on(t.databaseId)],

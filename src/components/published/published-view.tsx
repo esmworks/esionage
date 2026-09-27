@@ -4,7 +4,8 @@ import { PropertyDisplay } from "@/components/database/property-cell";
 import { PropertyTypeIcon } from "@/components/database/property-icons";
 import { PageIcon } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
-import type { PublishedDatabase, PublishedPage } from "@/server/publication";
+import type { PublishedPage } from "@/server/publication";
+import { PublishedDatabaseView } from "./published-database";
 import styles from "./published-body.module.css";
 
 // `cn` from components/ui is a client export; server components join classes themselves.
@@ -17,7 +18,8 @@ const cn = (...classes: (string | false | null | undefined)[]) => classes.filter
 export async function PublishedView({ data }: { data: PublishedPage }) {
   const [t, tc, format] = await Promise.all([getTranslations("publish"), getTranslations("common"), getFormatter()]);
   const untitled = tc("untitled");
-  const href = (id: string) => (id === data.rootId ? `/s/${data.token}` : `/s/${data.token}/${id}`);
+  const site = { base: `/s/${data.token}`, rootId: data.rootId };
+  const href = (id: string) => (id === data.rootId ? site.base : `${site.base}/${id}`);
   const wide = data.kind === "database";
   const title = pageLabel(data.title, untitled);
 
@@ -100,7 +102,7 @@ export async function PublishedView({ data }: { data: PublishedPage }) {
                       {pageLabel(block.database.title, untitled)}
                     </Link>
                   </h2>
-                  <PublishedTable table={block.database.table} href={href} className="mt-2 px-4 sm:px-[54px]" />
+                  <PublishedDatabaseView table={block.database.table} site={site} className="mt-2 px-4 sm:px-[54px]" />
                 </section>
               ) : (
                 <p key={i} className="mx-4 my-4 rounded-md border border-border px-3 py-2 text-sm text-fg-faint sm:mx-[54px]">
@@ -111,7 +113,9 @@ export async function PublishedView({ data }: { data: PublishedPage }) {
           </div>
         )}
 
-        {data.database && <PublishedTable table={data.database} href={href} className="page-gutter mt-6" />}
+        {data.database && (
+          <PublishedDatabaseView table={data.database} site={site} viewPath={href(data.id)} className="page-gutter mt-6" />
+        )}
 
         {data.children.length > 0 && (
           <section className="mt-10 px-4 sm:px-[54px]">
@@ -134,63 +138,6 @@ export async function PublishedView({ data }: { data: PublishedPage }) {
           </section>
         )}
       </main>
-    </div>
-  );
-}
-
-async function PublishedTable({
-  table,
-  href,
-  className,
-}: {
-  table: PublishedDatabase;
-  href: (id: string) => string;
-  className?: string;
-}) {
-  const [t, tc] = await Promise.all([getTranslations("publish"), getTranslations("common")]);
-  const { properties, rows } = table;
-  return (
-    <div className={cn("overflow-x-auto pb-3 [color-scheme:light_dark]", className)}>
-      <table className="w-full min-w-max border-collapse text-sm">
-        <thead>
-          <tr>
-            <th className="h-[33px] min-w-60 border-y border-border px-2 text-left font-normal text-fg-muted">
-              <span className="flex items-center gap-1.5">
-                <PropertyTypeIcon type="title" className="h-3.5 w-3.5 shrink-0" />
-                {t("name")}
-              </span>
-            </th>
-            {properties.map((prop) => (
-              <th key={prop.id} className="h-[33px] min-w-40 border-y border-l border-border px-2 text-left font-normal text-fg-muted">
-                <span className="flex items-center gap-1.5">
-                  <PropertyTypeIcon type={prop.type} className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{prop.name}</span>
-                </span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td className="border-b border-border px-2 py-1.5 align-top">
-                <Link href={href(row.id)} className="flex items-center gap-1.5 font-medium hover:underline">
-                  {row.icon && <PageIcon icon={row.icon} className="text-sm" />}
-                  <span className="break-words">{pageLabel(row.title, tc("untitled"))}</span>
-                </Link>
-              </td>
-              {properties.map((prop) => (
-                <td key={prop.id} className="max-w-80 border-b border-l border-border px-2 py-1.5 align-top">
-                  <div className="flex min-h-5 min-w-0 items-center">
-                    <PropertyDisplay prop={prop} value={row.properties[prop.id]} wrap />
-                  </div>
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {rows.length === 0 && <p className="border-b border-border px-2 py-6 text-sm text-fg-faint">{t("noRows")}</p>}
     </div>
   );
 }

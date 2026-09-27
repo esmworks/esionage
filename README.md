@@ -32,8 +32,10 @@ approve them over OAuth.
 - **Sharing and permissions**: give members or everyone full, edit, view or no access to a page.
   Subpages inherit it unless you change them. Share a page with someone outside the workspace by
   email and they join as a guest who sees only the pages shared with them.
-- **Publish to the web**: a read-only public link for a page and its subpages, hidden from search
-  engines. Owners decide whether members may publish and can take any published page offline.
+- **Publish to the web**: a read-only public link for a page and its subpages, kept out of search
+  engines unless you allow them. Published databases show the views you pick (tables, boards,
+  lists, galleries) and visitors switch between them. Owners decide whether members may publish
+  and can take any published page offline.
 - **Workspaces and members**: add people by email (several at once) as owners or members, send
   an invitation link to people who don't have an account yet, or turn on a join link anyone can
   use. Owners can export the member list as CSV, hand ownership to someone else, and decide who
@@ -170,7 +172,7 @@ Useful scripts:
 | `pnpm build` | Production build |
 | `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
-| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
+| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
 

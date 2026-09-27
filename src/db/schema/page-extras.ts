@@ -28,6 +28,8 @@ export const pagePublication = pgTable("page_publication", {
     .references(() => page.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
   publishedBy: text("published_by").references(() => user.id, { onDelete: "set null" }),
+  /** Search engines may index the page and its subpages; off unless the publisher allows it. */
+  indexable: boolean("indexable").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

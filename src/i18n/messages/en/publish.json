@@ -25,5 +25,10 @@
   "noRows": "No rows to show.",
   "readOnly": "Read-only",
   "home": "Go to Esionage",
-  "embedUnavailable": "This database isn't published with this page."
+  "embedUnavailable": "This database isn't published with this page.",
+  "indexable": "Allow search engines",
+  "indexableHint": "Search engines may list this page and its subpages. Off by default: people then find it only through the link.",
+  "views": "Views on the web",
+  "viewsHint": "Visitors can switch between the views you pick, wherever this database is published.",
+  "asTable": "shown as a table"
 }

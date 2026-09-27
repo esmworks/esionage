@@ -182,7 +182,8 @@
       "publishedOn": "{date} tarihinde yayınlandı",
       "open": "Siteyi aç",
       "unpublish": "Yayından kaldır",
-      "confirm": "Bu sayfa yayından kaldırılsın mı? Bağlantı herkes için çalışmayı bırakır."
+      "confirm": "Bu sayfa yayından kaldırılsın mı? Bağlantı herkes için çalışmayı bırakır.",
+      "indexable": "Arama motorlarına açık"
     },
     "forms": {
       "title": "Herkese açık formlar",

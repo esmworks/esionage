@@ -1,13 +1,16 @@
 import { randomBytes } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { databaseProperty, databaseView, page, pagePublication, user, type PageKind, type ViewConfig, type ViewType } from "@/db/schema";
+import { databaseProperty, databaseView, page, pagePublication, user, type CardSize, type PageKind, type ViewConfig, type ViewType } from "@/db/schema";
+import { PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { withFormulaTypes } from "@/lib/derived";
 import type { EmbedBlockType, LinkedView } from "@/lib/embed-blocks";
+import { arrangeGroups, boardGroupProperty, groupRowsBy, isGroupable, type GroupValue } from "@/lib/grouping";
 import { applyView, computedValues, isHiddenInView } from "@/lib/properties";
+import { galleryCover } from "@/lib/views";
 import { holdsPeople } from "@/lib/property-types";
 import { AccessError, accessRank, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
-import type { DatabaseProperty } from "@/server/databases";
+import { rowCovers, type DatabaseProperty } from "@/server/databases";
 import { computeDerived } from "@/server/derived";
 import { canPublish } from "@/server/workspaces";
 
@@ -37,7 +40,7 @@ export class PublishError extends Error {
 export async function getPublication(userId: string, pageId: string) {
   await requirePageAccess(userId, pageId, "view");
   const [row] = await db
-    .select({ token: pagePublication.token, createdAt: pagePublication.createdAt })
+    .select({ token: pagePublication.token, indexable: pagePublication.indexable, createdAt: pagePublication.createdAt })
     .from(pagePublication)
     .where(eq(pagePublication.pageId, pageId))
     .limit(1);
@@ -56,7 +59,7 @@ export async function publishBlocker(userId: string, pageId: string): Promise<"n
   return (await canPublish(userId, p.workspaceId)) ? null : "notAllowed";
 }
 
-export async function publishPage(userId: string, pageId: string): Promise<{ token: string }> {
+export async function publishPage(userId: string, pageId: string): Promise<{ token: string; indexable: boolean }> {
   const p = await requirePageAccess(userId, pageId, "full");
   if (!(await canPublish(userId, p.workspaceId))) {
     throw new PublishError("This workspace lets only owners publish pages", "notAllowed");
@@ -68,7 +71,7 @@ export async function publishPage(userId: string, pageId: string): Promise<{ tok
     .onConflictDoNothing({ target: pagePublication.pageId });
   // Already published (or published concurrently): keep the existing link.
   const [row] = await db
-    .select({ token: pagePublication.token })
+    .select({ token: pagePublication.token, indexable: pagePublication.indexable })
     .from(pagePublication)
     .where(eq(pagePublication.pageId, pageId))
     .limit(1);
@@ -81,6 +84,55 @@ export async function unpublishPage(userId: string, pageId: string): Promise<voi
   await db.delete(pagePublication).where(eq(pagePublication.pageId, pageId));
 }
 
+/** Changing what a publication shows asks for what publishing does. */
+async function requirePublishRights(userId: string, pageId: string) {
+  const p = await requirePageAccess(userId, pageId, "full");
+  if (!(await canPublish(userId, p.workspaceId))) {
+    throw new PublishError("This workspace lets only owners publish pages", "notAllowed");
+  }
+  return p;
+}
+
+/** Lets search engines index a published page and its subpages, or keeps them out (the default). */
+export async function setPublicationIndexable(userId: string, pageId: string, indexable: boolean): Promise<void> {
+  await requirePublishRights(userId, pageId);
+  const updated = await db
+    .update(pagePublication)
+    .set({ indexable })
+    .where(eq(pagePublication.pageId, pageId))
+    .returning({ pageId: pagePublication.pageId });
+  if (!updated.length) throw new PublishError("The page isn't published");
+}
+
+export type WebView = { id: string; name: string; type: ViewType; published: boolean };
+
+/**
+ * The database's views that can be shown on the web (forms show no rows), with the ones published
+ * pages show marked: the views picked for it, else the first one. Null for pages that aren't databases.
+ */
+export async function getWebViews(userId: string, databaseId: string): Promise<WebView[] | null> {
+  const p = await requirePageAccess(userId, databaseId, "view");
+  if (p.kind !== "database") return null;
+  const views = await readableViews(databaseId);
+  const shown = new Set(webViews(views).map((v) => v.id));
+  return views.map((v) => ({ id: v.id, name: v.name, type: v.type, published: shown.has(v.id) }));
+}
+
+/** Picks the views published pages show for this database, wherever it is published. */
+export async function setWebViews(userId: string, databaseId: string, viewIds: string[]): Promise<void> {
+  const p = await requirePublishRights(userId, databaseId);
+  if (p.kind !== "database") throw new PublishError("Only databases have views");
+  const views = await readableViews(databaseId);
+  const known = new Set(views.map((v) => v.id));
+  const picked = [...new Set(viewIds)];
+  if (!picked.length) throw new PublishError("Pick at least one view");
+  if (picked.some((id) => !known.has(id))) throw new PublishError("Pick views of this database");
+  await db
+    .update(databaseView)
+    .set({ published: inArray(databaseView.id, picked) })
+    .where(eq(databaseView.databaseId, databaseId));
+}
+
 export type WorkspacePublication = {
   pageId: string;
   /** Null when the owner can't see the page: they may take it offline, not read it. */
@@ -89,6 +141,8 @@ export type WorkspacePublication = {
   /** Site path, only for pages the owner can see (the link would show the page to them) and that are still served. */
   url: string | null;
   inTrash: boolean;
+  /** Search engines may index it. */
+  indexable: boolean;
   publishedBy: string | null;
   createdAt: Date;
 };
@@ -103,6 +157,7 @@ export async function listWorkspacePublications(userId: string, workspaceId: str
       icon: page.icon,
       archivedAt: page.archivedAt,
       token: pagePublication.token,
+      indexable: pagePublication.indexable,
       publishedBy: user.name,
       createdAt: pagePublication.createdAt,
       visible: sql<boolean>`${accessRank(userId, sql`${page.id}`)} > 0`,
@@ -118,6 +173,7 @@ export async function listWorkspacePublications(userId: string, workspaceId: str
     icon: r.visible ? r.icon : null,
     url: r.visible && !r.archivedAt ? `/s/${r.token}` : null,
     inTrash: r.archivedAt !== null,
+    indexable: r.indexable,
     publishedBy: r.publishedBy,
     createdAt: r.createdAt,
   }));
@@ -142,13 +198,28 @@ export type PublishedRow = {
   properties: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
+  /** Galleries showing covers: the first image in the row's body. */
+  cover?: string | null;
 };
+export type PublishedViewTab = { id: string; name: string; type: ViewType };
+/** How a published view is drawn; calendars, timelines and charts show as tables. */
+export type PublishedLayout = "table" | "board" | "list" | "gallery";
 export type PublishedDatabase = {
-  /** Visible columns of the first view, in property order (relations are never published). */
+  /** Visible properties of the view, in property order (relations and people are never published). */
   properties: DatabaseProperty[];
-  view: { id: string; name: string; type: ViewType } | null;
-  /** Live rows, filtered and sorted by the first view. */
+  view: PublishedViewTab | null;
+  /** The views visitors can switch between (see webViews); only for database pages. */
+  views: PublishedViewTab[];
+  layout: PublishedLayout;
+  /** Live rows, filtered and sorted by the view. */
   rows: PublishedRow[];
+  /**
+   * Board columns, or table sections, when the view groups by a published property: the view's
+   * shown groups in its order, each with the ids of its rows.
+   */
+  groups: { property: DatabaseProperty; list: { key: string; value: GroupValue; rowIds: string[] }[] } | null;
+  /** Galleries. */
+  cardSize: CardSize;
 };
 /** A part of a published page's body: text, or a database block. */
 export type PublishedBlock =
@@ -164,6 +235,8 @@ export type PublishedBlock =
     };
 export type PublishedPage = {
   token: string;
+  /** Search engines may index it (the publication allows it). */
+  indexable: boolean;
   rootId: string;
   id: string;
   title: string;
@@ -187,10 +260,10 @@ export type PublishedPage = {
  * the published page. Null when the token is unknown, the published page is in the trash, or
  * `pageId` is outside the published subtree.
  */
-export async function getPublishedPage(token: string, pageId?: string): Promise<PublishedPage | null> {
+export async function getPublishedPage(token: string, pageId?: string, viewId?: string): Promise<PublishedPage | null> {
   if (!token || token.length > 128) return null;
   const [root] = await db
-    .select({ id: page.id, publishedBy: pagePublication.publishedBy })
+    .select({ id: page.id, publishedBy: pagePublication.publishedBy, indexable: pagePublication.indexable })
     .from(pagePublication)
     .innerJoin(page, eq(page.id, pagePublication.pageId))
     .where(and(eq(pagePublication.token, token), isNull(page.archivedAt)))
@@ -232,7 +305,7 @@ export async function getPublishedPage(token: string, pageId?: string): Promise<
   const [body, children, database, rowProperties] = await Promise.all([
     target.kind === "page" ? publishedBody(publisher, root.id, target.ydoc) : Promise.resolve([]),
     target.kind === "database" ? Promise.resolve([]) : liveChildren(publisher, target.id),
-    target.kind === "database" ? publishedDatabase(publisher, target.id) : Promise.resolve(null),
+    target.kind === "database" ? publishedDatabase(publisher, target.id, { viewId }) : Promise.resolve(null),
     parent?.kind === "database" && target.parentId ? databaseProperties(target.parentId) : Promise.resolve(null),
   ]);
   // Public properties hold no people, so only the created and last edited times are filled in.
@@ -242,6 +315,7 @@ export async function getPublishedPage(token: string, pageId?: string): Promise<
 
   return {
     token,
+    indexable: root.indexable,
     rootId: root.id,
     id: target.id,
     title: target.title,
@@ -313,7 +387,7 @@ async function publishedEmbed(publisher: string, rootId: string, databaseId: str
     .limit(1);
   if (target?.kind !== "database") return null;
   if (!(await chainTo(publisher, target.id, rootId))) return null;
-  return { id: target.id, title: target.title, icon: target.icon, table: await publishedDatabase(publisher, target.id, view) };
+  return { id: target.id, title: target.title, icon: target.icon, table: await publishedDatabase(publisher, target.id, { linked: view }) };
 }
 
 async function liveChildren(publisher: string, parentId: string): Promise<PublishedChild[]> {
@@ -363,63 +437,129 @@ async function sortNames(rows: { properties: Record<string, unknown> }[], props:
   return ids.length ? db.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, ids as string[])) : [];
 }
 
+type StoredView = typeof databaseView.$inferSelect;
+
+/** A database's views that show rows, in their order. */
+function readableViews(databaseId: string): Promise<StoredView[]> {
+  return db
+    .select()
+    .from(databaseView)
+    .where(and(eq(databaseView.databaseId, databaseId), ne(databaseView.type, "form")))
+    .orderBy(asc(databaseView.position), asc(databaseView.createdAt));
+}
+
+/** The views published pages show: the ones picked for the web, else the first. */
+export function webViews<V extends { published: boolean }>(views: V[]): V[] {
+  const picked = views.filter((v) => v.published);
+  return picked.length ? picked : views.slice(0, 1);
+}
+
+const LAYOUTS: Partial<Record<ViewType, PublishedLayout>> = { board: "board", list: "list", gallery: "gallery" };
+
 /**
- * A published database's rows as its first view shows them, or as `linked` (a linked view's own
- * settings) does.
+ * A published database's rows as one of its web views shows them (`viewId`, else the first), or as
+ * `linked` (a linked view's own settings) does.
  */
-async function publishedDatabase(publisher: string, databaseId: string, linked: LinkedView | null = null): Promise<PublishedDatabase> {
-  const [allProperties, [firstView], stored] = await Promise.all([
+async function publishedDatabase(
+  publisher: string,
+  databaseId: string,
+  { viewId, linked = null }: { viewId?: string; linked?: LinkedView | null } = {},
+): Promise<PublishedDatabase> {
+  const [allProperties, shownViews] = await Promise.all([
     databaseProperties(databaseId),
-    linked
-      ? Promise.resolve([])
-      : // A form shows no rows, so the page shows the first view that does.
-        db
-          .select()
-          .from(databaseView)
-          .where(and(eq(databaseView.databaseId, databaseId), ne(databaseView.type, "form")))
-          .orderBy(asc(databaseView.position), asc(databaseView.createdAt))
-          .limit(1),
-    db
-      .select({
-        id: page.id,
-        title: page.title,
-        icon: page.icon,
-        properties: page.properties,
-        createdBy: page.createdBy,
-        updatedBy: page.updatedBy,
-        createdAt: page.createdAt,
-        updatedAt: page.updatedAt,
-      })
-      .from(page)
-      .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt), pageVisibleTo(publisher)))
-      .orderBy(asc(page.position), asc(page.createdAt)),
+    linked ? Promise.resolve([]) : readableViews(databaseId).then(webViews),
   ]);
+  const chosen = linked ? { id: "", name: "", ...linked } : (shownViews.find((v) => v.id === viewId) ?? shownViews[0]);
+  const withCovers = chosen?.type === "gallery" && galleryCover(chosen.config) === "first_image";
+  const stored = await db
+    .select({
+      id: page.id,
+      title: page.title,
+      icon: page.icon,
+      properties: page.properties,
+      createdBy: page.createdBy,
+      updatedBy: page.updatedBy,
+      createdAt: page.createdAt,
+      updatedAt: page.updatedAt,
+      hasImage: withCovers ? sql<boolean>`${page.contentMarkdown} ~ ${PG_MARKDOWN_IMAGE_PATTERN}` : sql<boolean>`false`,
+    })
+    .from(page)
+    .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt), pageVisibleTo(publisher)))
+    .orderBy(asc(page.position), asc(page.createdAt));
   const properties = publicProperties(allProperties);
-  const view = linked ? { id: "", name: "", ...linked } : firstView;
-  if (!view) {
+  const tabs = shownViews.map((v) => ({ id: v.id, name: v.name, type: v.type }));
+  if (!chosen) {
     const rows = await publicValues(
-      stored.map(({ createdBy: _, updatedBy: __, ...row }) => ({
+      stored.map(({ createdBy: _, updatedBy: __, hasImage: ___, ...row }) => ({
         ...row,
         properties: { ...row.properties, ...computedValues(allProperties, { createdBy: null, ...row }) },
       })),
       allProperties,
     );
-    return { properties, view: null, rows };
+    return {
+      properties,
+      view: null,
+      views: tabs,
+      layout: "table",
+      rows: rows.map((row) => onlyValuesOf(row, properties)),
+      groups: null,
+      cardSize: "medium",
+    };
   }
   // Filters and sorts may use relation and people properties; applyView needs every property for that.
-  // Grouping is left out: published pages show every view as one flat table (boards too), since
-  // groups by people or linked rows would name what the page doesn't publish. The columns are the
-  // ones the view itself shows, so a list or timeline never publishes what it keeps hidden.
+  // The columns are the ones the view itself shows, so a list or timeline never publishes what it
+  // keeps hidden.
   const rows = await publicValues(
-    stored.map(({ createdBy, updatedBy, ...row }) => ({
+    stored.map(({ createdBy, updatedBy, hasImage: _, ...row }) => ({
       ...row,
       properties: { ...row.properties, ...computedValues(allProperties, { createdBy, updatedBy, ...row }) },
     })),
     allProperties,
   );
+  const viewed = applyView(rows, chosen.config, allProperties, { people: await sortNames(rows, allProperties, chosen.config) });
+  const covers = withCovers ? await rowCovers(stored) : null;
+  const groups = publishedGroups(chosen, allProperties, viewed);
+  // A board whose columns would name people or linked rows shows as a table.
+  const layout = chosen.type === "board" && !groups ? "table" : (LAYOUTS[chosen.type] ?? "table");
+  const shown = properties.filter((prop) => !isHiddenInView(chosen, prop) && !(layout === "board" && prop.id === groups?.property.id));
   return {
-    properties: properties.filter((prop) => !isHiddenInView(view, prop)),
-    view: { id: view.id, name: view.name, type: view.type },
-    rows: applyView(rows, view.config, allProperties, { people: await sortNames(rows, allProperties, view.config) }),
+    properties: shown,
+    view: { id: chosen.id, name: chosen.name, type: chosen.type },
+    views: tabs,
+    layout,
+    rows: viewed.map((row) => ({ ...onlyValuesOf(row, shown), ...(covers ? { cover: covers.get(row.id) ?? null } : {}) })),
+    groups: layout === "board" || layout === "table" ? groups : null,
+    cardSize: chosen.config.cardSize ?? "medium",
   };
+}
+
+/**
+ * The row with only the values the page shows. Rows reach the visitor's browser as data, so values
+ * of hidden, people and relation properties must not ride along.
+ */
+function onlyValuesOf<R extends PublishedRow>(row: R, shown: DatabaseProperty[]): PublishedRow {
+  const { id, title, icon, createdAt, updatedAt } = row;
+  return { id, title, icon, createdAt, updatedAt, properties: Object.fromEntries(shown.map((p) => [p.id, row.properties[p.id]])) };
+}
+
+/**
+ * Board columns and table sections, in the view's order without the groups it hides. Only for
+ * properties the page publishes: groups by people or linked rows would name what it doesn't.
+ * Created and edited times count by their UTC day, as the visitor's time zone isn't known here.
+ */
+function publishedGroups(
+  view: { type: ViewType; config: ViewConfig },
+  properties: DatabaseProperty[],
+  rows: PublishedRow[],
+): PublishedDatabase["groups"] {
+  const property =
+    view.type === "board"
+      ? boardGroupProperty(properties, view.config.groupBy)
+      : view.type === "table"
+        ? properties.find((p) => p.id === view.config.groupBy && isGroupable(p.type))
+        : undefined;
+  if (!property || PRIVATE_TYPES.has(property.type)) return null;
+  const dayOf = (value: unknown) => (typeof value === "string" ? value.slice(0, 10) : null);
+  const { shown } = arrangeGroups(groupRowsBy(rows, property, view.config, { dayOf }), view.config);
+  return { property, list: shown.map((g) => ({ key: g.key, value: g.value, rowIds: g.rows.map((r) => r.id) })) };
 }

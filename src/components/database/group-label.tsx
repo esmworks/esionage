@@ -106,7 +106,13 @@ export function GroupLabel({ prop, group, className }: { prop: Property; group: 
         </span>
       );
     case "date":
-      return <span className={cn("min-w-0 truncate text-sm", className)}>{name}</span>;
+      // Published pages render this on the server, whose date formatting may space ranges
+      // differently from the browser's.
+      return (
+        <span suppressHydrationWarning className={cn("min-w-0 truncate text-sm", className)}>
+          {name}
+        </span>
+      );
   }
 }
 
