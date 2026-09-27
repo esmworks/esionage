@@ -21,17 +21,24 @@ const STRETCH = "before:absolute before:inset-0 before:content-['']";
 
 type Props = {
   table: PublishedDatabase;
-  /** Where the page links to (the publication's link or its site): rows link to their pages there. */
-  links: PublishedLinks;
+  /**
+   * Where the page links to (the publication's link or its site): rows link to their pages there.
+   * Null in the print view, where rows are named, not linked.
+   */
+  links: PublishedLinks | null;
   /** The page showing the database, to switch views on; without it, no view tabs (database blocks in a body). */
   viewPath?: string;
   className?: string;
+  /** For print: boards wrap their columns and tables fit the page instead of scrolling sideways. */
+  print?: boolean;
 };
 
+type Href = ((id: string) => string) | null;
+
 /** A published database drawn like its view: a table, board, list or gallery, read-only. */
-export function PublishedDatabaseView({ table, links, viewPath, className }: Props) {
+export function PublishedDatabaseView({ table, links, viewPath, className, print = false }: Props) {
   const titles = new Map(table.rows.map((r) => [r.id, r.title]));
-  const href = (id: string) => publishedHref(links, id, titles.get(id) ?? "");
+  const href: Href = links ? (id: string) => publishedHref(links, id, titles.get(id) ?? "") : null;
   const viewHref = (viewId: string) => `${viewPath}?view=${encodeURIComponent(viewId)}`;
   const tabs = viewPath && table.views.length > 1 ? table.views : [];
   return (
@@ -58,12 +65,12 @@ export function PublishedDatabaseView({ table, links, viewPath, className }: Pro
           })}
         </nav>
       )}
-      <Layout table={table} href={href} />
+      <Layout table={table} href={href} print={print} />
     </div>
   );
 }
 
-function Layout({ table, href }: { table: PublishedDatabase; href: (id: string) => string }) {
+function Layout({ table, href, print }: { table: PublishedDatabase; href: Href; print: boolean }) {
   const t = useTranslations("publish");
   if (!table.rows.length) return <p className="border-y border-border px-2 py-6 text-sm text-fg-faint">{t("noRows")}</p>;
   const byId = new Map(table.rows.map((r) => [r.id, r]));
@@ -71,7 +78,7 @@ function Layout({ table, href }: { table: PublishedDatabase; href: (id: string) 
   switch (table.layout) {
     case "board":
       return (
-        <div className="flex gap-3 overflow-x-auto pb-3">
+        <div className={cn("flex gap-3 pb-3", print ? "flex-wrap" : "overflow-x-auto")}>
           {table.groups?.list.map((g) => (
             <section key={g.key} className="flex w-64 shrink-0 flex-col gap-2">
               <h3 className="flex h-7 items-center gap-2 px-1">
@@ -105,7 +112,7 @@ function Layout({ table, href }: { table: PublishedDatabase; href: (id: string) 
         </div>
       );
     case "table":
-      if (!table.groups) return <Table rows={table.rows} table={table} href={href} />;
+      if (!table.groups) return <Table rows={table.rows} table={table} href={href} print={print} />;
       return (
         <div className="flex flex-col gap-6">
           {table.groups.list.map((g) => (
@@ -114,7 +121,7 @@ function Layout({ table, href }: { table: PublishedDatabase; href: (id: string) 
                 <GroupLabel prop={table.groups!.property} group={g} />
                 <span className="text-xs text-fg-faint">{g.rowIds.length}</span>
               </h3>
-              <Table rows={rowsOf(g.rowIds)} table={table} href={href} />
+              <Table rows={rowsOf(g.rowIds)} table={table} href={href} print={print} />
             </section>
           ))}
         </div>
@@ -127,7 +134,18 @@ function Title({ row, className }: { row: PublishedRow; className?: string }) {
   return <span className={cn("min-w-0 break-words", !row.title && "text-fg-faint", className)}>{pageLabel(row.title, tc("untitled"))}</span>;
 }
 
-function Card({ row, table, href, cover }: { row: PublishedRow; table: PublishedDatabase; href: (id: string) => string; cover?: boolean }) {
+/** A row's title, linked to its page when the database is on a published site. */
+function RowLink({ row, href, className, children }: { row: PublishedRow; href: Href; className?: string; children: React.ReactNode }) {
+  return href ? (
+    <Link href={href(row.id)} className={className}>
+      {children}
+    </Link>
+  ) : (
+    <span className={className}>{children}</span>
+  );
+}
+
+function Card({ row, table, href, cover }: { row: PublishedRow; table: PublishedDatabase; href: Href; cover?: boolean }) {
   const shown = table.properties.filter((p) => !isEmptyValue(p, row.properties[p.id]));
   // A cover that fails to load leaves the plain cover area instead of a broken image.
   const [failed, setFailed] = useState(false);
@@ -158,10 +176,10 @@ function Card({ row, table, href, cover }: { row: PublishedRow; table: Published
         </div>
       )}
       <div className="min-w-0 px-3 py-2.5">
-        <Link href={href(row.id)} className={cn("flex min-w-0 gap-1.5 text-sm leading-5 font-medium", STRETCH)}>
+        <RowLink row={row} href={href} className={cn("flex min-w-0 gap-1.5 text-sm leading-5 font-medium", href && STRETCH)}>
           {row.icon && (!cover || image) && <span className="shrink-0">{row.icon}</span>}
           <Title row={row} />
-        </Link>
+        </RowLink>
         {shown.length > 0 && (
           <div className="relative mt-2 flex flex-col items-start gap-1.5 text-xs">
             {shown.map((p) => (
@@ -176,14 +194,14 @@ function Card({ row, table, href, cover }: { row: PublishedRow; table: Published
   );
 }
 
-function ListRow({ row, table, href }: { row: PublishedRow; table: PublishedDatabase; href: (id: string) => string }) {
+function ListRow({ row, table, href }: { row: PublishedRow; table: PublishedDatabase; href: Href }) {
   const shown = table.properties.filter((p) => !isEmptyValue(p, row.properties[p.id]));
   return (
     <div role="listitem" className="relative flex min-h-9 min-w-0 items-center gap-2 border-b border-border px-2 hover:bg-bg-hover">
-      <Link href={href(row.id)} className={cn("flex min-w-0 items-center gap-2", STRETCH)}>
+      <RowLink row={row} href={href} className={cn("flex min-w-0 items-center gap-2", href && STRETCH)}>
         <PageIcon icon={row.icon} className="shrink-0" />
         <Title row={row} className="truncate text-sm font-medium" />
-      </Link>
+      </RowLink>
       {shown.length > 0 && (
         <span className="relative ml-auto flex max-w-[60%] min-w-0 shrink items-center justify-end gap-3 overflow-hidden text-xs text-fg-muted">
             {shown.map((p) => (
@@ -197,25 +215,29 @@ function ListRow({ row, table, href }: { row: PublishedRow; table: PublishedData
   );
 }
 
-function Table({ rows, table, href }: { rows: PublishedRow[]; table: PublishedDatabase; href: (id: string) => string }) {
+function Table({ rows, table, href, print }: { rows: PublishedRow[]; table: PublishedDatabase; href: Href; print: boolean }) {
   const t = useTranslations("publish");
   const { properties } = table;
   return (
-    <div className="overflow-x-auto pb-3 [color-scheme:light_dark]">
-      <table className="w-full min-w-max border-collapse text-sm">
+    // In print the table fits the page: columns share its width and long values wrap.
+    <div className={cn("pb-3", !print && "overflow-x-auto [color-scheme:light_dark]")}>
+      <table className={cn("w-full border-collapse text-sm", !print && "min-w-max")}>
         <thead>
           <tr>
-            <th className="h-[33px] min-w-60 border-y border-border px-2 text-left font-normal text-fg-muted">
+            <th className={cn("h-[33px] border-y border-border px-2 text-left font-normal text-fg-muted", !print && "min-w-60")}>
               <span className="flex items-center gap-1.5">
                 <PropertyTypeIcon type="title" className="h-3.5 w-3.5 shrink-0" />
                 {t("name")}
               </span>
             </th>
             {properties.map((prop) => (
-              <th key={prop.id} className="h-[33px] min-w-40 border-y border-l border-border px-2 text-left font-normal text-fg-muted">
+              <th
+                key={prop.id}
+                className={cn("h-[33px] border-y border-l border-border px-2 text-left font-normal text-fg-muted", !print && "min-w-40")}
+              >
                 <span className="flex items-center gap-1.5">
                   <PropertyTypeIcon type={prop.type} className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{prop.name}</span>
+                  <span className={print ? "min-w-0" : "truncate"}>{prop.name}</span>
                 </span>
               </th>
             ))}
@@ -225,13 +247,13 @@ function Table({ rows, table, href }: { rows: PublishedRow[]; table: PublishedDa
           {rows.map((row) => (
             <tr key={row.id}>
               <td className="border-b border-border px-2 py-1.5 align-top">
-                <Link href={href(row.id)} className="flex items-center gap-1.5 font-medium hover:underline">
+                <RowLink row={row} href={href} className={cn("flex items-center gap-1.5 font-medium", href && "hover:underline")}>
                   {row.icon && <PageIcon icon={row.icon} className="text-sm" />}
                   <Title row={row} />
-                </Link>
+                </RowLink>
               </td>
               {properties.map((prop) => (
-                <td key={prop.id} className="max-w-80 border-b border-l border-border px-2 py-1.5 align-top">
+                <td key={prop.id} className={cn("border-b border-l border-border px-2 py-1.5 align-top", !print && "max-w-80")}>
                   <div className="flex min-h-5 min-w-0 items-center">
                     <PropertyDisplay prop={prop} value={row.properties[prop.id]} wrap />
                   </div>

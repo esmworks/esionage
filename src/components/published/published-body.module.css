@@ -304,6 +304,136 @@
   overflow-y: hidden;
 }
 
+/*
+ * Print view (app/print, the page menu's "Export as PDF"). `.print` sits beside `.body`: code
+ * wraps and tables fit the width instead of scrolling, as paper can't scroll. The break rules
+ * only matter when printing: headings stay with what follows them, and figures, callouts,
+ * equations and table rows aren't split across pages.
+ */
+.body.print pre {
+  overflow: visible;
+}
+
+.body.print pre,
+.body.print pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.body.print table {
+  display: table;
+  width: 100%;
+  overflow: visible;
+  font-size: 0.8125rem;
+}
+
+/* Column widths set in the editor would push a wide table off the paper. */
+.body.print col {
+  width: auto !important;
+}
+
+/* Cells may break long words so the table never runs off the paper; small type makes that rare. */
+.body.print td,
+.body.print th {
+  min-width: 0;
+  padding: 0.3em 0.45em;
+  overflow-wrap: anywhere;
+}
+
+.body.print th {
+  overflow-wrap: break-word;
+}
+
+.body.print [data-esionage-math="block"] {
+  overflow: visible;
+}
+
+.body.print h1,
+.body.print h2,
+.body.print h3,
+.body.print h4,
+.body.print h5,
+.body.print h6,
+.heading {
+  break-after: avoid;
+  break-inside: avoid;
+}
+
+/*
+ * A heading asks for a few lines of room below it, so near the bottom of a page it moves to the
+ * next one with its text instead of ending the page (for engines that ignore break-after).
+ */
+.body.print h1::after,
+.body.print h2::after,
+.body.print h3::after,
+.body.print h4::after,
+.body.print h5::after,
+.body.print h6::after {
+  content: "";
+  display: block;
+  height: 4.5em;
+  margin-bottom: -4.5em;
+}
+
+.body.print tr,
+.body.print img,
+.body.print video,
+.body.print figure,
+.body.print blockquote,
+.body.print [data-esionage-callout],
+.body.print [data-esionage-math="block"],
+.keep {
+  break-inside: avoid;
+}
+
+.body.print p,
+.body.print li {
+  orphans: 3;
+  widows: 3;
+}
+
+.body.print thead {
+  display: table-header-group;
+}
+
+/* Every page after the first starts on a new sheet. */
+.newPage {
+  break-before: page;
+}
+
+@media screen {
+  .newPage {
+    margin-top: 4rem;
+    padding-top: 3rem;
+    border-top: 1px solid var(--border);
+  }
+}
+
+.printView figure,
+.printView img,
+.printView tr {
+  break-inside: avoid;
+}
+
+/*
+ * Database tables and row properties in print: values that the app cuts off with an ellipsis
+ * (links, long text) wrap instead, as paper can't show the rest; long values break anywhere, so
+ * the table fits the page, while column names keep their words whole.
+ */
+.printView :is(td, dd) :global(.truncate) {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+.printView td {
+  overflow-wrap: anywhere;
+}
+
+.printView th {
+  overflow-wrap: break-word;
+}
+
 /* Columns side by side (see lib/columns): each takes its share of the row, stacked on phones. */
 .columns {
   display: flex;

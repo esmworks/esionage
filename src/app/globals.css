@@ -27,8 +27,9 @@
   --removed-bar: #e05050;
 }
 
+/* The print view (app/print) stays light in dark mode: see the end of this file. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(:has([data-print-view])) {
     --bg: #18191b;
     --bg-subtle: #202124;
     --bg-hover: #2a2b2f;
@@ -171,15 +172,15 @@
 .opt-red, .tint-red { --opt-bg: #ffe2dd; --opt-fg: #5d1715; --opt-tint: #fcf2f1; --opt-card: #ffffff; }
 
 @media (prefers-color-scheme: dark) {
-  .opt-gray, .tint-gray { --opt-bg: #45474c; --opt-fg: #ececee; --opt-tint: #202124; --opt-card: #2a2b2f; }
-  .opt-brown, .tint-brown { --opt-bg: #5c4136; --opt-fg: #f1e6e1; --opt-tint: #241f1d; --opt-card: #312925; }
-  .opt-orange, .tint-orange { --opt-bg: #7a4a22; --opt-fg: #fbe9da; --opt-tint: #27211c; --opt-card: #352a21; }
-  .opt-yellow, .tint-yellow { --opt-bg: #7a6128; --opt-fg: #fbf1d8; --opt-tint: #26241b; --opt-card: #333022; }
-  .opt-green, .tint-green { --opt-bg: #2d5a41; --opt-fg: #dff1e5; --opt-tint: #1c2521; --opt-card: #24322b; }
-  .opt-blue, .tint-blue { --opt-bg: #2a4a72; --opt-fg: #e0ecf9; --opt-tint: #1c232d; --opt-card: #243145; }
-  .opt-purple, .tint-purple { --opt-bg: #4d3469; --opt-fg: #efe4f8; --opt-tint: #221e2a; --opt-card: #2f283a; }
-  .opt-pink, .tint-pink { --opt-bg: #6a3250; --opt-fg: #f8e2ed; --opt-tint: #271e24; --opt-card: #362730; }
-  .opt-red, .tint-red { --opt-bg: #713731; --opt-fg: #fbe3df; --opt-tint: #291e1d; --opt-card: #382826; }
+  :root:not(:has([data-print-view])) .opt-gray, :root:not(:has([data-print-view])) .tint-gray { --opt-bg: #45474c; --opt-fg: #ececee; --opt-tint: #202124; --opt-card: #2a2b2f; }
+  :root:not(:has([data-print-view])) .opt-brown, :root:not(:has([data-print-view])) .tint-brown { --opt-bg: #5c4136; --opt-fg: #f1e6e1; --opt-tint: #241f1d; --opt-card: #312925; }
+  :root:not(:has([data-print-view])) .opt-orange, :root:not(:has([data-print-view])) .tint-orange { --opt-bg: #7a4a22; --opt-fg: #fbe9da; --opt-tint: #27211c; --opt-card: #352a21; }
+  :root:not(:has([data-print-view])) .opt-yellow, :root:not(:has([data-print-view])) .tint-yellow { --opt-bg: #7a6128; --opt-fg: #fbf1d8; --opt-tint: #26241b; --opt-card: #333022; }
+  :root:not(:has([data-print-view])) .opt-green, :root:not(:has([data-print-view])) .tint-green { --opt-bg: #2d5a41; --opt-fg: #dff1e5; --opt-tint: #1c2521; --opt-card: #24322b; }
+  :root:not(:has([data-print-view])) .opt-blue, :root:not(:has([data-print-view])) .tint-blue { --opt-bg: #2a4a72; --opt-fg: #e0ecf9; --opt-tint: #1c232d; --opt-card: #243145; }
+  :root:not(:has([data-print-view])) .opt-purple, :root:not(:has([data-print-view])) .tint-purple { --opt-bg: #4d3469; --opt-fg: #efe4f8; --opt-tint: #221e2a; --opt-card: #2f283a; }
+  :root:not(:has([data-print-view])) .opt-pink, :root:not(:has([data-print-view])) .tint-pink { --opt-bg: #6a3250; --opt-fg: #f8e2ed; --opt-tint: #271e24; --opt-card: #362730; }
+  :root:not(:has([data-print-view])) .opt-red, :root:not(:has([data-print-view])) .tint-red { --opt-bg: #713731; --opt-fg: #fbe3df; --opt-tint: #291e1d; --opt-card: #382826; }
 }
 
 .opt-gray, .opt-brown, .opt-orange, .opt-yellow, .opt-green, .opt-blue, .opt-purple, .opt-pink, .opt-red {
@@ -217,7 +218,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(:has([data-print-view])) {
     --chart-1: #3987e5;
     --chart-2: #d95926;
     --chart-3: #199e70;
@@ -311,7 +312,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .board-card {
+  :root:not(:has([data-print-view])) .board-card {
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 }
@@ -514,4 +515,17 @@
 .esionage-mention-muted .esionage-mention-label {
   text-decoration: none;
   font-weight: 400;
+}
+
+/*
+ * The print view (app/print): light whatever the system theme, so a PDF saved in dark mode reads
+ * like paper (the dark rules above leave it out), and code blocks, callouts, highlights and option
+ * colors keep their backgrounds on paper.
+ */
+:root:has([data-print-view]) {
+  color-scheme: light;
+}
+[data-print-view] {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }

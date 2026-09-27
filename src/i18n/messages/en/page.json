@@ -27,6 +27,7 @@
     "exportCsv": "Export as CSV",
     "exportZip": "Export with subpages",
     "exportZipDatabase": "Export with row pages",
+    "exportPdf": "Export as PDF",
     "exportPreparing": "Preparing export…",
     "versionHistory": "Version history",
     "lastEdited": "Last edited by {name}",
@@ -363,5 +364,16 @@
     "openInNewTab": "Open in a new tab",
     "frameTitle": "PDF: {name}",
     "noPreview": "This browser can't show PDFs here. Open the file to read it."
+  },
+  "print": {
+    "print": "Print or save as PDF",
+    "back": "Back to page",
+    "includeSubpages": "Include subpages",
+    "preparing": "Loading images and diagrams…",
+    "hint": "In the print dialog, choose “Save as PDF” as the destination.",
+    "truncated": "Only the first {count} pages are included.",
+    "lastUpdated": "Last updated {date}",
+    "subpages": "Pages",
+    "embedUnavailable": "This database isn't available to you."
   }
 }

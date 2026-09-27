@@ -7,9 +7,9 @@ approve them over OAuth.
 ## Features
 
 - **Pages**: nested pages, a block editor (BlockNote) with slash menu and markdown shortcuts,
-  icons, favorites, duplicate, move, trash with restore, export as Markdown (or, with subpages, as
-  a ZIP; owners can export the whole workspace, see [Export](#export)), and full-text search over
-  titles and content.
+  icons, favorites, duplicate, move, trash with restore, export as Markdown or PDF (or, with
+  subpages, as a ZIP; owners can export the whole workspace, see [Export](#export)), and full-text
+  search over titles and content.
 - **Rich blocks**: callouts, LaTeX equations (block and inline, KaTeX), Mermaid diagrams with a
   live preview, a table of contents and a breadcrumb, and columns (2 to 5, resizable, blocks
   dragged in and out with the side menu, stacked on phones), also on published pages and in
@@ -195,6 +195,22 @@ refused up front with a message:
 | --- | --- |
 | `EXPORT_MAX_PAGES` | Most pages (rows and templates included) one export may hold. Default `10000`. |
 | `EXPORT_MAX_FILES_MB` | Most MB of uploaded files one export may hold. Default `2048` (at most about 3.5 GB). |
+
+### PDF
+
+"Export as PDF" in the page menu opens the page's print view (`/print/<page id>`) in a new tab
+and, once its images and diagrams have loaded, the browser's print dialog: choose "Save as PDF"
+as the destination. The print view draws the page the way published pages do (headings, tables,
+code, images, callouts, equations, Mermaid diagrams, database blocks) and is always light, also in
+dark mode. Code and tables wrap to the page width, headings stay with the text after them, and
+each page starts with its title. Links to other pages print as their titles. "Include subpages"
+in the view's bar adds the pages under it (up to 100), each starting on a new sheet; database
+rows print in their database's table. It shows what the person printing can see, like the page
+itself, and follows the workspace's two-step policy.
+
+The browser makes the PDF, so the server needs nothing extra (no headless browser in the image).
+Its own header and footer (date, address, page numbers) can be turned off under "More settings"
+in the print dialog.
 
 ## Email
 

@@ -27,6 +27,7 @@
     "exportCsv": "CSV olarak dışa aktar",
     "exportZip": "Alt sayfalarla dışa aktar",
     "exportZipDatabase": "Satırlarla dışa aktar",
+    "exportPdf": "PDF olarak dışa aktar",
     "exportPreparing": "Dışa aktarma hazırlanıyor…",
     "versionHistory": "Sürüm geçmişi",
     "lastEdited": "Son düzenleyen: {name}",
@@ -363,5 +364,16 @@
     "openInNewTab": "Yeni sekmede aç",
     "frameTitle": "PDF: {name}",
     "noPreview": "Bu tarayıcı PDF'leri burada gösteremiyor. Okumak için dosyayı açın."
+  },
+  "print": {
+    "print": "Yazdır veya PDF olarak kaydet",
+    "back": "Sayfaya dön",
+    "includeSubpages": "Alt sayfaları ekle",
+    "preparing": "Görseller ve diyagramlar yükleniyor…",
+    "hint": "Yazdırma penceresinde hedef olarak “PDF olarak kaydet”i seçin.",
+    "truncated": "Yalnızca ilk {count} sayfa eklendi.",
+    "lastUpdated": "Son güncelleme: {date}",
+    "subpages": "Sayfalar",
+    "embedUnavailable": "Bu veritabanına erişiminiz yok."
   }
 }
