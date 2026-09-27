@@ -84,6 +84,8 @@
     "membersOnly": "Sayfalar yalnızca çalışma alanı üyeleriyle paylaşılabilir. Yeni kişileri Ayarlar > Üyeler bölümünden davet edin.",
     "you": "Siz",
     "inherited": "{title} sayfasından",
+    "viaGeneral": "{level} (genel erişimden)",
+    "overridden": "Genel erişim daha yüksek ({level}); bu seviye etkisiz.",
     "remove": "Kaldır",
     "generalAccess": "Genel erişim",
     "everyone": "Çalışma alanındaki herkes",

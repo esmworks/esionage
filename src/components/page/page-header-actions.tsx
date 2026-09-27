@@ -245,7 +245,8 @@ function PageMenu({
                 {t("duplicate")}
               </MenuItem>
             )}
-            {!page.archived && canEdit && (
+            {/* Moving to another parent needs full access on the page. */}
+            {!page.archived && canManage && (
               <MenuItem
                 icon={<CornerUpLeft className="h-4 w-4" />}
                 onClick={() => {

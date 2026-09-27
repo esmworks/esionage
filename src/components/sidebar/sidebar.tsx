@@ -74,6 +74,7 @@ export function Sidebar({
   const [trashOpen, setTrashOpen] = useState(false);
   const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false);
   const [, startTransition] = useTransition();
+  const [moveError, setMoveError] = useState(false);
   const workspace = workspaces.find((w) => w.id === workspaceId);
 
   useEffect(() => setExpanded(loadExpanded()), []);
@@ -149,14 +150,23 @@ export function Sidebar({
   function move(id: string, parentId: string | null, position: number) {
     setTree((t) => t.map((n) => (n.id === id ? { ...n, parentId, position } : n)));
     if (parentId) toggle(parentId, true);
+    setMoveError(false);
     startTransition(async () => {
       try {
         await movePageAction(id, parentId, position);
+      } catch {
+        // Usually access: a new parent needs full access on the page. The refresh puts it back.
+        setMoveError(true);
       } finally {
         refresh();
       }
     });
   }
+  useEffect(() => {
+    if (!moveError) return;
+    const timer = setTimeout(() => setMoveError(false), 5000);
+    return () => clearTimeout(timer);
+  }, [moveError]);
 
   async function signOut() {
     await authClient.signOut();
@@ -347,6 +357,11 @@ export function Sidebar({
           </Popover>
         </div>
 
+        {moveError && (
+          <p role="alert" className="mx-4 mb-1 text-xs text-danger">
+            {t("pages.moveFailed")}
+          </p>
+        )}
         <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label={t("pages.heading")}>
           {roots.length === 0 && (
             <button

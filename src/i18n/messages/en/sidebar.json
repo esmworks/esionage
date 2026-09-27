@@ -28,7 +28,8 @@
     "moveToTrash": "Move to trash",
     "addInside": "Add a page inside",
     "noChildren": "No pages inside",
-    "favorites": "Favorites"
+    "favorites": "Favorites",
+    "moveFailed": "The page couldn't be moved here. Moving it under another page needs full access to it."
   },
   "search": {
     "placeholder": "Search pages and content…",

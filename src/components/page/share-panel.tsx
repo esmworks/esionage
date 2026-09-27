@@ -17,6 +17,7 @@ type Sharing = Awaited<ReturnType<typeof getSharingAction>>;
 type CurrentUser = { id: string; name: string; email?: string };
 
 const LEVELS: PageLevel[] = ["full", "edit", "view", "none"];
+const RANK: Record<PageLevel, number> = { none: 0, view: 1, edit: 2, full: 3 };
 
 /** The Share popover: who can open the page (Share) and the public web link (Publish). */
 export function SharePanel({ pageId, currentUser }: { pageId: string; currentUser: CurrentUser }) {
@@ -76,6 +77,16 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
   };
 
   const canManage = data?.level === "full";
+  // Members get at least the "everyone" level, so a lower entry of their own has no effect.
+  // Guests are never covered by "everyone".
+  const floorFor = (userId: string | null): PageLevel => {
+    const role = data?.members.find((m) => m.userId === userId)?.role;
+    return data && (role === "owner" || role === "member") ? data.everyone : "none";
+  };
+  const addLevel = (userId: string): PageLevel => {
+    const floor = floorFor(userId);
+    return RANK[floor] > RANK.edit ? floor : "edit";
+  };
   const listed = useMemo(() => new Set(data?.entries.map((e) => e.userId)), [data]);
   const candidates = useMemo(() => {
     const q = query.trim().toLocaleLowerCase();
@@ -100,6 +111,19 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
   const mine = data.entries.find((e) => e.userId === currentUserId);
   const myName = self?.name || currentUser.name;
   const others = data.entries.filter((e) => e.userId !== currentUserId);
+  const everyoneLabel = t(`levels.${data.everyone}`);
+  const overridden = (userId: string | null, level: PageLevel) =>
+    RANK[level] < RANK[floorFor(userId)] ? t("overridden", { level: everyoneLabel }) : undefined;
+
+  // Restricting everyone needs someone with full access left; keep it yourself unless someone has it.
+  const setEveryone = (level: PageLevel) =>
+    void run(async () => {
+      if (level !== "full" && !data.entries.some((e) => e.level === "full")) {
+        const kept = await setPagePermissionAction(pageId, currentUserId, "full");
+        if (!kept.ok) return kept;
+      }
+      return setPagePermissionAction(pageId, null, level);
+    });
 
   return (
     <div className={cn("p-3", busy && "pointer-events-none opacity-70")}>
@@ -123,7 +147,7 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
                   type="button"
                   onClick={() => {
                     setQuery("");
-                    void run(() => setPagePermissionAction(pageId, m.userId, "edit"));
+                    void run(() => setPagePermissionAction(pageId, m.userId, addLevel(m.userId)));
                   }}
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-bg-hover"
                 >
@@ -149,12 +173,20 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
       <ul className="mt-3 space-y-0.5">
         <Row
           avatar={<Avatar name={myName} />}
-          label={<PersonLabel name={`${myName} (${t("you")})`} detail={self?.email ?? currentUser.email} />}
+          label={
+            <PersonLabel
+              name={`${myName} (${t("you")})`}
+              detail={(mine && overridden(currentUserId, mine.level)) ?? self?.email ?? currentUser.email}
+            />
+          }
           control={
-            // Your own entry is how you keep full access while making the page private.
+            // Your own entry is how you keep full access while making the page private. Without one,
+            // the select shows the level you get from elsewhere, so picking it still adds the entry.
             canManage ? (
               <LevelSelect
-                value={mine?.level ?? data.level}
+                value={mine?.level ?? null}
+                placeholder={t("viaGeneral", { level: t(`levels.${data.level}`) })}
+                floor={floorFor(currentUserId)}
                 onChange={(level) => void run(() => setPagePermissionAction(pageId, currentUserId, level))}
                 onRemove={
                   mine && !mine.inherited
@@ -174,13 +206,17 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
             label={
               <PersonLabel
                 name={entry.name ?? entry.email ?? "?"}
-                detail={entry.inherited ? t("inherited", { title: entry.sourceTitle || "…" }) : (entry.email ?? undefined)}
+                detail={
+                  overridden(entry.userId, entry.level) ??
+                  (entry.inherited ? t("inherited", { title: entry.sourceTitle || "…" }) : (entry.email ?? undefined))
+                }
               />
             }
             control={
               canManage ? (
                 <LevelSelect
                   value={entry.level}
+                  floor={floorFor(entry.userId)}
                   onChange={(level) => void run(() => setPagePermissionAction(pageId, entry.userId, level))}
                   onRemove={
                     entry.inherited ? undefined : () => void run(() => removePagePermissionAction(pageId, entry.userId))
@@ -207,7 +243,7 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
             canManage ? (
               <LevelSelect
                 value={data.everyone}
-                onChange={(level) => void run(() => setPagePermissionAction(pageId, null, level))}
+                onChange={setEveryone}
               />
             ) : (
               <LevelText level={data.everyone} />
@@ -245,7 +281,11 @@ function PersonLabel({ name, detail }: { name: string; detail?: string | null })
   return (
     <div className="min-w-0">
       <div className="truncate text-sm">{name}</div>
-      {detail && <div className="truncate text-xs text-fg-muted">{detail}</div>}
+      {detail && (
+        <div className="truncate text-xs text-fg-muted" title={detail}>
+          {detail}
+        </div>
+      )}
     </div>
   );
 }
@@ -263,12 +303,17 @@ function LevelText({ level }: { level: PageLevel }) {
   return <span className="px-2 text-sm text-fg-muted">{t(level)}</span>;
 }
 
+/** `floor`: levels below it have no effect for this person, so they can't be picked. */
 function LevelSelect({
   value,
+  placeholder,
+  floor = "none",
   onChange,
   onRemove,
 }: {
-  value: PageLevel;
+  value: PageLevel | null;
+  placeholder?: string;
+  floor?: PageLevel;
   onChange: (level: PageLevel) => void;
   onRemove?: () => void;
 }) {
@@ -276,12 +321,17 @@ function LevelSelect({
   return (
     <div className="flex items-center gap-0.5">
       <select
-        value={value}
-        onChange={(e) => onChange(e.target.value as PageLevel)}
-        className="h-7 rounded-md bg-transparent px-1.5 text-sm text-fg-muted hover:bg-bg-hover focus:outline-none"
+        value={value ?? ""}
+        onChange={(e) => e.target.value && onChange(e.target.value as PageLevel)}
+        className="h-7 max-w-44 rounded-md bg-transparent px-1.5 text-sm text-fg-muted hover:bg-bg-hover focus:outline-none"
       >
+        {value === null && (
+          <option value="" disabled>
+            {placeholder}
+          </option>
+        )}
         {LEVELS.map((level) => (
-          <option key={level} value={level}>
+          <option key={level} value={level} disabled={RANK[level] < RANK[floor] && level !== value}>
             {t(`levels.${level}`)}
           </option>
         ))}

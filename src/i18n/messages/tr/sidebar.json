@@ -28,7 +28,8 @@
     "moveToTrash": "Çöp kutusuna taşı",
     "addInside": "İçine sayfa ekle",
     "noChildren": "İçinde sayfa yok",
-    "favorites": "Favoriler"
+    "favorites": "Favoriler",
+    "moveFailed": "Sayfa buraya taşınamadı. Başka bir sayfanın altına taşımak için sayfada tam erişiminiz olmalı."
   },
   "search": {
     "placeholder": "Sayfalarda ve içerikte ara…",

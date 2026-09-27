@@ -84,6 +84,8 @@
     "membersOnly": "Pages can only be shared with workspace members. Invite new people from Settings > Members.",
     "you": "You",
     "inherited": "From {title}",
+    "viaGeneral": "{level} (from general access)",
+    "overridden": "General access is higher ({level}), so this has no effect.",
     "remove": "Remove",
     "generalAccess": "General access",
     "everyone": "Everyone in the workspace",
