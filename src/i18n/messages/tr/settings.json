@@ -65,9 +65,9 @@
     "transferConfirm": "Devret",
     "leave": "Ayrıl",
     "leaveTitle": "Bu çalışma alanından ayrılınsın mı?",
-    "leaveBody": "Sayfalarına erişiminizi kaybedersiniz. Bir sahip sizi yeniden ekleyebilir.",
+    "leaveBody": "Sayfalarına erişiminizi kaybedersiniz. Yalnızca sizin yönetebildiğiniz sayfalar bir sahibe geçer. Bir sahip sizi yeniden ekleyebilir.",
     "removeTitle": "{name} çıkarılsın mı?",
-    "removeBody": "{name}, açık sayfalar ve bağlı uygulamalar dahil bu çalışma alanına erişimini hemen kaybeder.",
+    "removeBody": "{name}, açık sayfalar ve bağlı uygulamalar dahil bu çalışma alanına erişimini hemen kaybeder. Yalnızca onun yönetebildiği sayfalar size geçer.",
     "expires": "Bağlantı {date} tarihinde geçersiz olur",
     "expired": "Bağlantının süresi doldu. Yenisi için tekrar davet edin.",
     "copyLink": "Bağlantıyı kopyala",
@@ -149,7 +149,8 @@
     "invalidEmail": "Geçerli bir e-posta adresi değil.",
     "tooManyEmails": "Tek seferde en fazla 50 kişi ekleyin.",
     "joinLinkInvalid": "Bu katılma bağlantısı geçersiz veya kapatılmış.",
-    "transferToSelf": "Sahip yapmak için başka birini seçin."
+    "transferToSelf": "Sahip yapmak için başka birini seçin.",
+    "transferToGuest": "Sahip yapmadan önce üye yapın."
   },
   "security": {
     "description": "Bu çalışma alanına kimlerin kişi getirebileceğini ve misafirlerin neler yapabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",

@@ -58,6 +58,7 @@ export type WorkspaceErrorCode =
   | "tooManyEmails"
   | "joinLinkInvalid"
   | "transferToSelf"
+  | "transferToGuest"
   | "invalidSetting";
 
 /**
@@ -517,6 +518,8 @@ export async function setMemberRole(actorId: string, workspaceId: string, target
       .update(workspaceMember)
       .set({ role })
       .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)));
+    // Becoming a guest strands no page: what they had as a member through the defaults or
+    // "everyone", owners have too, and their own entries keep applying.
     return current.role;
   });
   // Open editors keep the access checked when they connected. Owners and members see pages alike,
@@ -535,6 +538,8 @@ export async function transferOwnership(actorId: string, workspaceId: string, ta
       .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)))
       .for("update");
     if (!target) throw new WorkspaceError("notMember", "This person is not a member.");
+    // Handing the workspace to someone from outside it is too easy to get wrong; make them a member first.
+    if (isGuest(target.role)) throw new WorkspaceError("transferToGuest", "Make them a member before making them owner.");
     // The actor stays an owner until the target is one, so the workspace is never ownerless.
     await tx
       .update(workspaceMember)
@@ -573,8 +578,48 @@ export async function removeMember(actorId: string, workspaceId: string, targetI
     await tx
       .delete(workspaceMember)
       .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)));
+    // An owner removing someone takes over what only they managed; someone leaving hands it to an owner.
+    const heir = actorId !== targetId ? actorId : await oldestOwner(tx, workspaceId);
+    if (heir) await handOverOrphanedPages(tx, workspaceId, heir);
   });
   await getCollab().disconnectUser(targetId, workspaceId);
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function oldestOwner(tx: Tx, workspaceId: string) {
+  const [owner] = await tx
+    .select({ userId: workspaceMember.userId })
+    .from(workspaceMember)
+    .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.role, "owner")))
+    .orderBy(asc(workspaceMember.createdAt))
+    .limit(1);
+  return owner?.userId ?? null;
+}
+
+/**
+ * After someone leaves the workspace, gives `heirId` full access to every page nobody in the
+ * workspace can manage any more, so no page is stranded where nobody can share or delete it.
+ * Only pages with entries of their own can be stranded: the others inherit from a parent, or are
+ * open to every member. Private pages stay private from everyone else.
+ */
+async function handOverOrphanedPages(tx: Tx, workspaceId: string, heirId: string) {
+  // Same lock as sharing changes, so one can't strand a page this has just checked.
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`page_permission:${workspaceId}`}))`);
+  const handed = await tx.execute<{ page_id: string }>(sql`
+    insert into ${pagePermission} (id, page_id, workspace_id, user_id, level, created_by)
+    select gen_random_uuid()::text, p.id, p.workspace_id, ${heirId}, 'full', ${heirId}
+    from ${page} p
+    where p.workspace_id = ${workspaceId}
+      and exists (select 1 from ${pagePermission} pp where pp.page_id = p.id)
+      and not exists (
+        select 1 from ${workspaceMember} wm
+        where wm.workspace_id = ${workspaceId} and page_access_level(wm.user_id, p.id) = 3
+      )
+    on conflict (page_id, user_id) do update set level = 'full', created_by = excluded.created_by, created_at = now()
+    returning page_id
+  `);
+  return handed.length;
 }
 
 /** The workspace's policies, defaults filled in. For server code that enforces them. */

@@ -29,9 +29,16 @@ const { AccessError, getMembership, requirePageAccess, resolvePageAccess } = awa
 const { createPage, getBreadcrumbs, getTree, listChildren, movePage, recentPages, searchPages } = await import(
   "@/server/pages"
 );
-const { acceptInvitation, canInviteGuests, listMembers, updateWorkspaceSettings, WorkspaceError } = await import(
-  "@/server/workspaces"
-);
+const {
+  acceptInvitation,
+  canInviteGuests,
+  listMembers,
+  removeMember,
+  setMemberRole,
+  transferOwnership,
+  updateWorkspaceSettings,
+  WorkspaceError,
+} = await import("@/server/workspaces");
 const {
   listPagePermissions,
   PermissionError,
@@ -44,7 +51,7 @@ const {
 const RUN = `access-e2e-${Date.now().toString(36)}`;
 
 // Writes notify open editors through the collab service, which only runs inside the app server.
-registerCollab({ broadcast() {}, async setTitle() {} } as unknown as Parameters<typeof registerCollab>[0]);
+registerCollab({ broadcast() {}, async setTitle() {}, async disconnectUser() {} } as unknown as Parameters<typeof registerCollab>[0]);
 
 let passed = 0;
 function check(condition: unknown, label: string, detail?: unknown): asserts condition {
@@ -358,9 +365,32 @@ try {
   await removePagePermission(owner, G, null);
   check((await levels(G, bob))[0] === "view", "removing an entry restores the inherited level");
 
-  // Leaving the workspace ends user grants
-  await db.delete(workspaceMember).where(inArray(workspaceMember.userId, [alice]));
+  // Ownership goes to members only
+  await rejects(
+    () => transferOwnership(owner, workspaceId, guest),
+    (error) => error instanceof WorkspaceError && error.code === "transferToGuest",
+    "ownership can't be handed to a guest",
+  );
+
+  // Nobody leaving strands a page: what only they managed passes to an owner
+  await removeMember(owner, workspaceId, guest);
+  check(
+    (await levels(own.id, owner, bob, alice)).join() === "full,view,none",
+    "removing a guest hands their private pages to the owner who removed them, and to nobody else",
+  );
+  check((await levels(ownDb.id, owner, alice)).join() === "full,none", "…their databases too");
+  const solo = await createPage({ userId: alice }, { workspaceId, title: "alice's" });
+  await setPagePermission(alice, solo.id, alice, "full");
+  await setPagePermission(alice, solo.id, null, "none");
+  check((await levels(solo.id, alice, owner, bob)).join() === "full,none,none", "a member can keep a page to themselves");
+  await removeMember(alice, workspaceId, alice);
   check((await levels(Pg, alice))[0] === "none", "grants stop applying once the member leaves");
+  check((await levels(solo.id, owner, bob)).join() === "full,none", "a member who leaves hands it to the oldest owner");
+  const bobs = await createPage({ userId: bob }, { workspaceId, title: "bob's" });
+  await setPagePermission(bob, bobs.id, bob, "full");
+  await setPagePermission(bob, bobs.id, null, "none");
+  await setMemberRole(owner, workspaceId, bob, "guest");
+  check((await levels(bobs.id, bob, owner)).join() === "full,none", "a member made guest keeps their own pages");
 
   console.log(`\n${passed} checks passed`);
 } finally {

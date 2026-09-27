@@ -378,7 +378,8 @@ function MemberRow({
   const menu = useFloating<HTMLButtonElement>();
   const { pending, error, run } = useAction();
   const canRemove = isOwner || isSelf;
-  const canTransfer = isOwner && !isSelf && member.role !== "owner";
+  // Ownership goes to members only; a guest has to be made a member first.
+  const canTransfer = isOwner && !isSelf && member.role === "member";
 
   return (
     <tr className="align-middle">

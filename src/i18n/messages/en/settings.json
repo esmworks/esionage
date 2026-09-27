@@ -65,9 +65,9 @@
     "transferConfirm": "Hand over",
     "leave": "Leave",
     "leaveTitle": "Leave this workspace?",
-    "leaveBody": "You lose access to its pages. An owner can add you again.",
+    "leaveBody": "You lose access to its pages. Pages only you could manage pass to an owner. An owner can add you again.",
     "removeTitle": "Remove {name}?",
-    "removeBody": "{name} loses access to this workspace right away, including in open pages and connected apps.",
+    "removeBody": "{name} loses access to this workspace right away, including in open pages and connected apps. Pages only they could manage pass to you.",
     "expires": "Link expires {date}",
     "expired": "Link expired. Invite again for a new one.",
     "copyLink": "Copy link",
@@ -149,7 +149,8 @@
     "invalidEmail": "Not a valid email address.",
     "tooManyEmails": "Add at most 50 people at a time.",
     "joinLinkInvalid": "This join link is invalid or was turned off.",
-    "transferToSelf": "Choose someone else to make owner."
+    "transferToSelf": "Choose someone else to make owner.",
+    "transferToGuest": "Make them a member before making them owner."
   },
   "security": {
     "description": "Decide who can bring people into this workspace and what guests can do. Only owners can change these settings.",
