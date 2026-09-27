@@ -1,0 +1,11 @@
+{
+  "welcome": "Bon retour, {name}",
+  "recent": "Modifiées récemment",
+  "empty": "Rien pour l’instant. Créez votre première page pour commencer.",
+  "emptyGuest": "Rien n’a encore été partagé avec vous ici. Les pages apparaissent dès que quelqu’un les partage avec vous.",
+  "newPage": "Nouvelle page",
+  "newDatabase": "Nouvelle base de données",
+  "personalWorkspace": "Espace de travail de {name}",
+  "generalTeamspace": "Général",
+  "fromTemplate": "À partir d’un modèle"
+}

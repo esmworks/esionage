@@ -180,8 +180,8 @@ try {
   check((await body(notes.id)).includes(pagePath(workspaceId, project.id)), "a link back up a folder works too");
   const warned = result.warnings.map((w) => `${w.code}:${"path" in w ? w.path : ""}:${"reason" in w ? w.reason : ""}`);
   check(
-    warned.includes("missingFile:img/gone.png:") && warned.includes("fileNotStored:big.bin:tooLarge") && warned.includes(`skipped:Tasks ${NOTION}.csv:duplicate`),
-    "the result warns about the missing image, the file over the limit and Notion's duplicate CSV",
+    warned.includes("missingFile:img/gone.png:") && warned.includes("fileNotStored:big.bin:tooLarge") && !warned.some((w) => w.endsWith(":duplicate")),
+    "the result warns about the missing image and the file over the limit, not about Notion's duplicate CSV",
     result.warnings,
   );
 

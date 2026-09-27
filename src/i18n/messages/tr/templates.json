@@ -1,0 +1,44 @@
+{
+  "meeting-notes": {
+    "title": "Toplantı notları",
+    "description": "Gündem, notlar, kararlar ve yapılacaklar.",
+    "markdown": "**Tarih:** \n\n**Katılımcılar:** \n\n## Gündem\n\n1. \n\n## Notlar\n\n\n\n## Kararlar\n\n- \n\n## Yapılacaklar\n\n- [ ] "
+  },
+  "weekly-plan": {
+    "title": "Haftalık plan",
+    "description": "Haftanın hedefleri ve her gün için bir yapılacaklar listesi.",
+    "markdown": "## Bu haftanın hedefleri\n\n- [ ] \n\n### Pazartesi\n\n- [ ] \n\n### Salı\n\n- [ ] \n\n### Çarşamba\n\n- [ ] \n\n### Perşembe\n\n- [ ] \n\n### Cuma\n\n- [ ] \n\n## Gelecek hafta için notlar\n"
+  },
+  "project-tracker": {
+    "title": "Proje takibi",
+    "description": "Durumu, önceliği, sorumlusu ve bitiş tarihi olan görevler; tablo ve pano görünümüyle.",
+    "seedNames": {
+      "status": "Durum",
+      "notStarted": "Başlamadı",
+      "inProgress": "Devam ediyor",
+      "done": "Tamamlandı",
+      "tags": "Etiketler",
+      "table": "Tüm görevler"
+    },
+    "properties": {
+      "priority": "Öncelik",
+      "owner": "Sorumlu",
+      "due": "Bitiş"
+    },
+    "options": {
+      "high": "Yüksek",
+      "medium": "Orta",
+      "low": "Düşük"
+    },
+    "board": "Pano",
+    "rowTemplate": {
+      "title": "Yeni görev",
+      "markdown": "## Amaç\n\n\n\n## Adımlar\n\n- [ ] \n\n## Notlar\n\n"
+    },
+    "rows": {
+      "brief": "Proje özetini yaz",
+      "milestone": "İlk kilometre taşını planla",
+      "team": "Ekibi davet et"
+    }
+  }
+}

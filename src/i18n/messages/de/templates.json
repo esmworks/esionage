@@ -1,0 +1,44 @@
+{
+  "meeting-notes": {
+    "title": "Besprechungsnotizen",
+    "description": "Tagesordnung, Notizen, Entscheidungen und Aufgaben.",
+    "markdown": "**Datum:** \n\n**Teilnehmende:** \n\n## Tagesordnung\n\n1. \n\n## Notizen\n\n\n\n## Entscheidungen\n\n- \n\n## Aufgaben\n\n- [ ] "
+  },
+  "weekly-plan": {
+    "title": "Wochenplan",
+    "description": "Ziele für die Woche und eine Checkliste pro Tag.",
+    "markdown": "## Ziele für diese Woche\n\n- [ ] \n\n### Montag\n\n- [ ] \n\n### Dienstag\n\n- [ ] \n\n### Mittwoch\n\n- [ ] \n\n### Donnerstag\n\n- [ ] \n\n### Freitag\n\n- [ ] \n\n## Notizen für nächste Woche\n"
+  },
+  "project-tracker": {
+    "title": "Projekt-Tracker",
+    "description": "Aufgaben mit Status, Priorität, Verantwortlichen und Fälligkeitsdatum, als Tabelle und als Board.",
+    "seedNames": {
+      "status": "Status",
+      "notStarted": "Nicht begonnen",
+      "inProgress": "In Bearbeitung",
+      "done": "Erledigt",
+      "tags": "Tags",
+      "table": "Alle Aufgaben"
+    },
+    "properties": {
+      "priority": "Priorität",
+      "owner": "Verantwortlich",
+      "due": "Fällig am"
+    },
+    "options": {
+      "high": "Hoch",
+      "medium": "Mittel",
+      "low": "Niedrig"
+    },
+    "board": "Board",
+    "rowTemplate": {
+      "title": "Neue Aufgabe",
+      "markdown": "## Ziel\n\n\n\n## Schritte\n\n- [ ] \n\n## Notizen\n\n"
+    },
+    "rows": {
+      "brief": "Projekt-Briefing schreiben",
+      "milestone": "Ersten Meilenstein planen",
+      "team": "Team einladen"
+    }
+  }
+}

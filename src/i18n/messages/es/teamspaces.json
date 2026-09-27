@@ -1,0 +1,62 @@
+{
+  "access": {
+    "default": "Predeterminado",
+    "open": "Abierto",
+    "closed": "Cerrado",
+    "private": "Privado"
+  },
+  "accessHint": {
+    "default": "Todos los miembros del espacio de trabajo están en él y no pueden salir.",
+    "open": "Cualquier persona del espacio de trabajo puede verlo y unirse. Hasta que se une, puede leer y comentar sus páginas.",
+    "closed": "Cualquier persona del espacio de trabajo puede ver que existe. Solo sus miembros abren sus páginas; sus propietarios los añaden.",
+    "private": "Solo sus miembros pueden verlo."
+  },
+  "roles": {
+    "owner": "Propietario",
+    "member": "Miembro"
+  },
+  "errors": {
+    "nameRequired": "Ponle un nombre al espacio de equipo.",
+    "creationRestricted": "Aquí solo los propietarios del espacio de trabajo pueden crear espacios de equipo.",
+    "ownersOnly": "Solo los propietarios del espacio de trabajo pueden cambiar en qué espacios de equipo están todos.",
+    "cannotLeaveDefault": "Todos están en este espacio de equipo; no se puede salir de él.",
+    "lastOwner": "Primero haz propietario del espacio de equipo a otra persona.",
+    "notJoinable": "Pide a un propietario de este espacio de equipo que te añada.",
+    "archived": "Este espacio de equipo está archivado.",
+    "notMember": "Solo los propietarios y los miembros del espacio de trabajo pueden estar en sus espacios de equipo.",
+    "invalidAccess": "Elige quién puede ver el espacio de equipo.",
+    "accessDenied": "No puedes hacer eso en este espacio de equipo."
+  },
+  "dialog": {
+    "createTitle": "Nuevo espacio de equipo",
+    "editTitle": "Editar espacio de equipo",
+    "name": "Nombre",
+    "namePlaceholder": "Marketing, Ingeniería…",
+    "icon": "Elige un icono",
+    "description": "Descripción",
+    "descriptionPlaceholder": "¿Para qué sirve este espacio de equipo?",
+    "access": "Quién puede verlo",
+    "defaultLocked": "Solo los propietarios del espacio de trabajo pueden cambiar el acceso de un espacio de equipo predeterminado.",
+    "becomesDefault": "Todos los miembros del espacio de trabajo se unen a él y no pueden salir.",
+    "leavesDefault": "Por ahora todos siguen en él, pero pueden salir, y los nuevos miembros del espacio de trabajo no se añaden.",
+    "create": "Crear espacio de equipo",
+    "creating": "Creando…"
+  },
+  "members": {
+    "title": "Miembros de {name}",
+    "everyone": "Todos los miembros del espacio de trabajo están en este espacio de equipo. Sus propietarios pueden editarlo y gestionarlo.",
+    "readOnly": "Solo los propietarios de este espacio de equipo pueden cambiar quién está en él.",
+    "add": "Añadir personas",
+    "search": "Buscar personas",
+    "addSelected": "{count, plural, =0 {Añadir personas} other {Añadir #}}",
+    "addAs": "Añadir como",
+    "noOneToAdd": "Todos los miembros del espacio de trabajo ya están en este espacio de equipo.",
+    "noMatches": "Nadie coincide con tu búsqueda.",
+    "empty": "No hay nadie en este espacio de equipo.",
+    "list": "Personas en este espacio de equipo",
+    "roleOf": "Rol de {name}",
+    "remove": "Quitar a {name}",
+    "you": "(tú)",
+    "select": "Seleccionar a {name}"
+  }
+}

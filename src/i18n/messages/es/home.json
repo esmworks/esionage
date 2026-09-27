@@ -1,0 +1,11 @@
+{
+  "welcome": "Hola de nuevo, {name}",
+  "recent": "Editado recientemente",
+  "empty": "Todavía no hay nada aquí. Crea tu primera página para empezar.",
+  "emptyGuest": "Todavía no se ha compartido nada contigo aquí. Las páginas aparecerán cuando alguien las comparta contigo.",
+  "newPage": "Nueva página",
+  "newDatabase": "Nueva base de datos",
+  "personalWorkspace": "Espacio de trabajo de {name}",
+  "generalTeamspace": "General",
+  "fromTemplate": "Desde una plantilla"
+}

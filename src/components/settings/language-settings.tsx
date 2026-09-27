@@ -9,6 +9,9 @@ import { cn } from "@/components/ui";
 import { SettingsRow } from "./section";
 import { selectClass } from "./workspace-settings";
 
+// Each language by its own name, in alphabetical order.
+const SORTED_LOCALES = [...LOCALES].sort((a, b) => LOCALE_NAMES[a].localeCompare(LOCALE_NAMES[b], "en"));
+
 /** Interface language for this browser, stored in a cookie; empty means "follow the browser". */
 export function LanguageSettings({ current }: { current: Locale | null }) {
   const t = useTranslations("settings.language");
@@ -47,7 +50,7 @@ export function LanguageSettings({ current }: { current: Locale | null }) {
           }}
         >
           <option value="">{t("followBrowser")}</option>
-          {LOCALES.map((locale) => (
+          {SORTED_LOCALES.map((locale) => (
             <option key={locale} value={locale} lang={locale}>
               {LOCALE_NAMES[locale]}
             </option>

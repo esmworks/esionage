@@ -34,7 +34,7 @@ export type TemplatePickerData = {
 /** The workspace's templates and the built-in gallery (in the user's language), for the picker. */
 export async function listTemplatesAction(workspaceId: string) {
   return run("list templates", async (userId): Promise<TemplatePickerData> => {
-    const [list, locale] = await Promise.all([templates.listTemplates(userId, workspaceId), getLocale()]);
+    const [list, builtins] = await Promise.all([templates.listTemplates(userId, workspaceId), getLocale().then(builtinTemplates)]);
     return {
       templates: list.map((t) => ({
         id: t.id,
@@ -44,7 +44,7 @@ export async function listTemplatesAction(workspaceId: string) {
         canEdit: hasLevel(t.level, "edit"),
         canDelete: hasLevel(t.level, "full"),
       })),
-      builtins: builtinTemplates(locale).map(({ key, title, description, icon, kind }) => ({ key, title, description, icon, kind })),
+      builtins: builtins.map(({ key, title, description, icon, kind }) => ({ key, title, description, icon, kind })),
     };
   });
 }

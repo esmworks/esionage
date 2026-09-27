@@ -87,11 +87,24 @@ approve them over OAuth.
   stored on disk or in S3-compatible storage, only people who can see a page showing them can open
   them, and published pages show theirs (see [File uploads](#file-uploads)). Uploaded PDFs show
   in place.
-- **Import**: bring in Markdown files, a folder or a ZIP (Notion exports included) as pages that
-  keep their folder structure, with links between the files turned into page links and the images
-  they show uploaded. An Esionage export comes back as it went, templates included. Import a CSV file as a new database with its column types guessed (and
+- **Import**: bring in Markdown files, a folder or a ZIP as pages that keep their folder
+  structure, with links between the files turned into page links and the images they show
+  uploaded, into the page or teamspace you start it from. An Esionage export comes back as it went,
+  templates included. Import a CSV file as a new database with its column types guessed (and
   changeable before importing), or add its rows to an existing database by matching columns to
   properties.
+- **Import from Notion**: in Notion, export a page or the workspace as *Markdown & CSV* with
+  subpages, and choose the downloaded ZIP in Import (a large export split into parts, an
+  `Export-….zip` holding `…-Part-1.zip` and so on, works as it is). Pages keep their tree, without
+  Notion's ids in their titles; databases come from the full `_all.csv` with their column types
+  guessed, and each row page's property list is taken off its body. Relation columns whose links
+  lead to rows of another database in the same export become relations; others stay text.
+  Callouts, toggles, to-dos, tables, equations, links between pages (notion.so links to pages of
+  the export included) and subpage links come along; images and attachments are uploaded. Files no
+  page uses, and entries whose path leads out of the ZIP, are listed in the result. Not carried
+  over: page icons and covers, comments, database views, formulas and rollups (their values come in
+  as text or numbers), and people (as select or text). Tested against archives built from
+  Notion's documented format, not yet a real export.
 - **Workspaces and members**: add people by email (several at once) as owners or members, send
   an invitation link to people who don't have an account yet, or turn on a join link anyone can
   use. Owners can export the member list as CSV, hand ownership to someone else, and decide who
@@ -109,7 +122,8 @@ approve them over OAuth.
   page, as a suggestion you accept or discard; database text properties that AI fills in (a
   summary, a translation or your own prompt over the row's values). Anthropic, OpenAI, Google,
   any OpenAI-compatible server, or a local model with Ollama or LM Studio (see [AI features](#ai-features)).
-- **English and Turkish** interface.
+- **Five interface languages**: English, Turkish, German, Spanish and French, chosen in My account
+  or taken from the browser (see [Languages](#languages)).
 - **MCP server with OAuth 2.1**: remote MCP endpoint at `/mcp`.
   - Supports Client ID Metadata Documents and Dynamic Client Registration, with PKCE and a
     consent screen.
@@ -586,15 +600,32 @@ Useful scripts:
 | --- | --- |
 | `pnpm typecheck` | TypeScript check |
 | `pnpm test` | Unit tests (Vitest) |
+| `pnpm i18n:check [locale…]` | Compares every translation with English: missing or extra files and keys, and placeholders or plural/select syntax that differ (see [Languages](#languages)) |
 | `pnpm build` | Production build |
 | `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
-| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (teamspaces, databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, sites and duplicating published pages, presence, offline editing, uploads, import, export, and `roundtrip-e2e.ts` for an export imported again); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
+| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (teamspaces, databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, sites and duplicating published pages, presence, offline editing, uploads, import, Notion import, export, and `roundtrip-e2e.ts` for an export imported again); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
 | `pnpm tsx scripts/sw-e2e.ts` | Checks the service worker (`public/sw.js`) in headless Chrome against a stand-in server: offline pages, per-user copies, the offline page (set `CHROME_PATH` outside macOS) |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/api-e2e.ts` | End-to-end REST API check (tokens, every endpoint, access, rate limits, OpenAPI) against a running server |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
 | `pnpm tsx scripts/two-factor-e2e.ts` | End-to-end two-step verification check (sign-in challenge, recovery codes, workspace policy) against a running server |
+
+## Languages
+
+The interface is available in English, Turkish (Türkçe), German (Deutsch), Spanish (Español) and
+French (Français). Each person picks a language in My account → Language, stored per browser;
+without a choice the app follows the browser's `Accept-Language` and falls back to English. Dates
+and numbers are formatted for the language, and emails go out in the language of whoever caused
+them. The editor's own menus use [BlockNote](https://www.blocknotejs.org)'s dictionaries (Turkish is
+ours, in `src/i18n/blocknote/tr.ts`).
+
+Texts live in `src/i18n/messages/<locale>/*.json` (app, `email.json`, `templates.json` for the
+built-in templates), in ICU MessageFormat. English is the source: `pnpm i18n:check` (also part of
+`pnpm test` and CI) reports what each language lacks or gets wrong, and anything missing shows in
+English. Adding a language is a new folder of JSON files plus one line each in
+`src/i18n/config.ts` and `src/i18n/blocknote/index.ts`. Translations are welcome as pull
+requests; see [CONTRIBUTING.md](CONTRIBUTING.md#translations) for the workflow.
 
 ## Architecture
 

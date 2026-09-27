@@ -1,0 +1,93 @@
+{
+  "footer": "Diese E-Mail wurde von Esionage unter {appUrl} gesendet.",
+  "actionFallback": "Falls die Schaltfläche nicht funktioniert, füge diesen Link in deinen Browser ein:",
+  "test": {
+    "subject": "Test-E-Mail von Esionage",
+    "heading": "Der E-Mail-Versand funktioniert",
+    "body": "Dies ist eine Testnachricht von deinem Esionage-Server unter {appUrl}. Wenn du sie lesen kannst, ist der E-Mail-Versand richtig eingerichtet."
+  },
+  "invitation": {
+    "subject": "{inviter} hat dich zu „{workspace}“ auf Esionage eingeladen",
+    "heading": "„{workspace}“ beitreten",
+    "body": "{inviter} hat dich eingeladen, „{workspace}“ auf Esionage als {role} beizutreten.",
+    "expires": "Der Link ist 7 Tage gültig. Registriere dich mit {email}, um die Einladung anzunehmen.",
+    "action": "Einladung annehmen",
+    "roles": {
+      "owner": "Inhaber",
+      "member": "Mitglied",
+      "guest": "Gast"
+    }
+  },
+  "passwordReset": {
+    "subject": "Setze dein Esionage-Passwort zurück",
+    "heading": "Passwort zurücksetzen",
+    "body": "Hallo {name}, jemand hat angefordert, das Passwort deines Esionage-Kontos zurückzusetzen. Wenn du das warst, wähle über die Schaltfläche unten ein neues Passwort.",
+    "expires": "Der Link ist {minutes} Minuten gültig und funktioniert nur einmal. Wenn du das nicht angefordert hast, ignoriere diese E-Mail; dein Passwort bleibt unverändert.",
+    "action": "Neues Passwort wählen"
+  },
+  "assignment": {
+    "subject": "{actor} hat dir „{row}“ zugewiesen",
+    "heading": "Dir wurde „{row}“ zugewiesen",
+    "body": "{actor} hat dich zu „{property}“ in {database} hinzugefügt.",
+    "action": "Öffnen",
+    "untitled": "Ohne Titel",
+    "someone": "Jemand",
+    "optOut": "Du kannst diese E-Mails unter Mein Konto > Präferenzen abschalten."
+  },
+  "share": {
+    "subject": "{actor} hat „{page}“ mit dir geteilt",
+    "heading": "{actor} hat eine Seite mit dir geteilt",
+    "body": "Du kannst „{page}“ in {workspace} jetzt {level}.",
+    "levels": {
+      "view": "ansehen",
+      "comment": "ansehen und kommentieren",
+      "edit": "bearbeiten",
+      "full": "ansehen, bearbeiten und teilen"
+    },
+    "action": "Seite öffnen",
+    "untitled": "Ohne Titel",
+    "optOut": "Du kannst diese E-Mails unter Mein Konto > Präferenzen abschalten."
+  },
+  "comment": {
+    "subject": "{actor} hat „{page}“ kommentiert",
+    "heading": "{actor} hat „{page}“ kommentiert",
+    "quote": "„{text}“",
+    "body": "Der Kommentar befindet sich auf „{page}“ in {workspace}. Antworte darauf oder schließe ihn direkt auf der Seite ab.",
+    "action": "Seite öffnen",
+    "optOut": "Du erhältst diese E-Mails, weil du an dieser Diskussion beteiligt bist. Du kannst sie unter Mein Konto > Präferenzen abschalten."
+  },
+  "mention": {
+    "subject": "{actor} hat dich auf „{page}“ erwähnt",
+    "heading": "{actor} hat dich auf „{page}“ erwähnt",
+    "body": "Die Erwähnung befindet sich auf „{page}“ in {workspace}.",
+    "action": "Seite öffnen",
+    "someone": "Jemand",
+    "optOut": "Du erhältst diese E-Mails, weil dich jemand erwähnt hat. Du kannst sie unter Mein Konto > Präferenzen abschalten."
+  },
+  "reminder": {
+    "subject": "Erinnerung: {date} auf „{page}“",
+    "heading": "Erinnerung: {date}",
+    "body": "Du wolltest an {date} auf „{page}“ in {workspace} erinnert werden.",
+    "action": "Seite öffnen",
+    "optOut": "Du erhältst diese E-Mails, weil du eine Erinnerung eingerichtet hast. Du kannst sie unter Mein Konto > Präferenzen abschalten."
+  },
+  "emailChange": {
+    "subject": "Bestätige deine neue E-Mail-Adresse",
+    "heading": "Bestätige deine neue E-Mail-Adresse",
+    "body": "Hallo {name}, du möchtest für dein Esionage-Konto diese Adresse statt {old} verwenden. Bestätige sie über die Schaltfläche unten.",
+    "expires": "Der Link ist {hours} Stunden gültig und funktioniert nur einmal. Wenn du das nicht angefordert hast, ignoriere diese E-Mail; es ändert sich nichts.",
+    "action": "E-Mail-Adresse bestätigen"
+  },
+  "emailChanged": {
+    "subject": "Die E-Mail-Adresse deines Esionage-Kontos wurde geändert",
+    "heading": "Deine E-Mail-Adresse wurde geändert",
+    "body": "Hallo {name}, die E-Mail-Adresse deines Esionage-Kontos wurde von {old} zu {new} geändert. Melde dich ab jetzt mit der neuen Adresse an.",
+    "warning": "Wenn du diese Änderung nicht vorgenommen hast, wende dich sofort an einen Inhaber deines Workspace."
+  },
+  "passwordChanged": {
+    "subject": "Dein Esionage-Passwort wurde geändert",
+    "heading": "Dein Passwort wurde geändert",
+    "body": "Hallo {name}, das Passwort deines Esionage-Kontos wurde gerade geändert.",
+    "warning": "Wenn du diese Änderung nicht vorgenommen hast, setze dein Passwort über die Anmeldeseite zurück und wende dich an einen Inhaber deines Workspace."
+  }
+}

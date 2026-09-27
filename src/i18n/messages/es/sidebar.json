@@ -1,0 +1,106 @@
+{
+  "workspaceMenu": {
+    "myAccount": "Mi cuenta",
+    "newWorkspace": "Nuevo espacio de trabajo",
+    "settingsAndMembers": "Configuración y miembros",
+    "signOut": "Cerrar sesión"
+  },
+  "nav": {
+    "search": "Buscar",
+    "home": "Inicio",
+    "inbox": "Bandeja de entrada",
+    "settings": "Configuración",
+    "trash": "Papelera",
+    "templates": "Plantillas",
+    "import": "Importar"
+  },
+  "toggle": {
+    "open": "Abrir barra lateral",
+    "close": "Ocultar barra lateral",
+    "resize": "Arrastra para cambiar el tamaño",
+    "pin": "Mantener la barra lateral abierta"
+  },
+  "pages": {
+    "heading": "Páginas",
+    "new": "Nuevo",
+    "newPage": "Nueva página",
+    "newDatabase": "Nueva base de datos",
+    "createFirst": "Crea tu primera página",
+    "nothingShared": "Todavía no se ha compartido ninguna página contigo",
+    "collapse": "Contraer",
+    "expand": "Expandir",
+    "actions": "Acciones de página",
+    "moveToTrash": "Mover a la papelera",
+    "addInside": "Añadir una página dentro",
+    "noChildren": "No hay páginas dentro",
+    "favorites": "Favoritos",
+    "moveFailed": "No se pudo mover la página aquí. Para moverla a otro lugar necesitas acceso completo a ella.",
+    "fromTemplate": "Desde una plantilla",
+    "import": "Importar…",
+    "confirmMoveSpace": "¿Mover esta página a {place}? Quién puede verla cambiará en consecuencia."
+  },
+  "search": {
+    "placeholder": "Buscar páginas y contenido…",
+    "label": "Buscar",
+    "noResults": "Sin resultados"
+  },
+  "trash": {
+    "title": "Papelera",
+    "empty": "La papelera está vacía",
+    "deletePermanently": "Eliminar definitivamente",
+    "confirmDelete": "¿Eliminar definitivamente? No se puede deshacer."
+  },
+  "newWorkspace": {
+    "title": "Nuevo espacio de trabajo",
+    "description": "Un espacio independiente con sus propias páginas y miembros.",
+    "namePlaceholder": "Nombre del espacio de trabajo",
+    "create": "Crear",
+    "creating": "Creando…"
+  },
+  "inbox": {
+    "title": "Bandeja de entrada",
+    "empty": "Todavía no hay notificaciones",
+    "markAllRead": "Marcar todo como leído",
+    "assignment": "{actor} te asignó a “{property}”",
+    "pageShared": "{actor} compartió esta página contigo",
+    "comment": "{actor} comentó en un hilo en el que participas",
+    "mention": "{actor} te mencionó",
+    "reminder": "Recordatorio: {date}",
+    "someone": "Alguien",
+    "unread": "No leída",
+    "unreadCount": "{count, plural, one {# notificación sin leer} other {# notificaciones sin leer}}"
+  },
+  "templates": {
+    "title": "Plantillas",
+    "description": "Elige una para crear una página nueva a partir de ella.",
+    "workspace": "En este espacio de trabajo",
+    "builtIn": "Integradas",
+    "empty": "Todavía no hay plantillas. Para añadir una, abre el menú ⋯ de una página y elige “Guardar como plantilla”.",
+    "use": "Crear una página a partir de esta plantilla",
+    "database": "Base de datos",
+    "edit": "Editar plantilla",
+    "open": "Abrir plantilla",
+    "delete": "Eliminar plantilla",
+    "confirmDelete": "¿Eliminar esta plantilla para siempre? Las páginas ya creadas a partir de ella se quedan como están."
+  },
+  "teamspaces": {
+    "heading": "Espacios de equipo",
+    "options": "Opciones de espacios de equipo",
+    "new": "Nuevo espacio de equipo",
+    "browse": "Explorar espacios de equipo",
+    "none": "Todavía no estás en ningún espacio de equipo. Explorar espacios de equipo",
+    "actions": "Acciones para {name}",
+    "addPage": "Añadir una página a {name}",
+    "edit": "Editar espacio de equipo",
+    "members": "Miembros y configuración",
+    "leave": "Salir del espacio de equipo",
+    "confirmLeave": "¿Salir de {name}? Sus páginas desaparecerán de tu barra lateral. Si el espacio de equipo no es abierto, también perderás el acceso a ellas.",
+    "empty": "Todavía no hay páginas. Añade una",
+    "another": "otro espacio de equipo"
+  },
+  "sections": {
+    "shared": "Compartido",
+    "private": "Privado",
+    "newPrivate": "Nueva página privada"
+  }
+}

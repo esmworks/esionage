@@ -1,0 +1,72 @@
+{
+  "heading": "Jetons d’accès personnels",
+  "description": "Les jetons permettent à des scripts et à d’autres programmes d’utiliser l’API REST d’Esionage en votre nom, avec vos droits d’accès aux pages. Gardez-les secrets, comme un mot de passe.",
+  "docs": "Documentation de l’API",
+  "empty": "Vous n’avez pas encore de jeton.",
+  "create": "Nouveau jeton",
+  "form": {
+    "title": "Nouveau jeton d’accès personnel",
+    "name": "Nom",
+    "namePlaceholder": "p. ex. Script du rapport hebdomadaire",
+    "access": "Accès",
+    "read": "Lecture seule",
+    "readHint": "Lire les pages, les bases de données, les lignes et les commentaires.",
+    "write": "Lecture et écriture",
+    "writeHint": "Aussi créer et modifier des pages, des lignes et des commentaires, et placer des pages dans la corbeille.",
+    "workspace": "Espace de travail",
+    "allWorkspaces": "Tous mes espaces de travail",
+    "expiry": "Expire après",
+    "days": "{count, plural, one {# jour} other {# jours}}",
+    "never": "Jamais",
+    "submit": "Créer le jeton",
+    "creating": "Création…"
+  },
+  "created": {
+    "title": "Copiez votre nouveau jeton",
+    "body": "Le jeton n’est affiché qu’une seule fois. Conservez-le en lieu sûr ; si vous le perdez, révoquez-le et créez-en un autre.",
+    "done": "Terminé"
+  },
+  "row": {
+    "readOnly": "Lecture seule",
+    "readWrite": "Lecture et écriture",
+    "allWorkspaces": "Tous les espaces de travail",
+    "createdAt": "Créé le {date}",
+    "lastUsed": "dernière utilisation le {date}",
+    "neverUsed": "jamais utilisé",
+    "expires": "expire le {date}",
+    "expired": "a expiré le {date}",
+    "noExpiry": "n’expire pas"
+  },
+  "revoke": "Révoquer",
+  "revoking": "Révocation…",
+  "confirmRevoke": "Révoquer {name}",
+  "revokeError": "Impossible de révoquer le jeton. Réessayez.",
+  "errors": {
+    "name": "Donnez au jeton un nom de 100 caractères au maximum.",
+    "scopes": "Choisissez ce que le jeton peut faire.",
+    "workspace": "Vous n’êtes pas membre de cet espace de travail.",
+    "expiry": "Choisissez quand le jeton expire.",
+    "limit": "Vous avez atteint le nombre maximal de jetons. Révoquez-en un d’abord.",
+    "generic": "Impossible de créer le jeton. Réessayez."
+  },
+  "docsPage": {
+    "metaTitle": "API REST",
+    "openapi": "Document OpenAPI (JSON)",
+    "tokensWhere": "Créez un jeton dans Mon compte → Applications connectées.",
+    "quickStart": "Démarrage rapide",
+    "baseUrl": "URL de base",
+    "errors": "Erreurs",
+    "code": "Code",
+    "status": "Statut",
+    "endpoints": "Points de terminaison",
+    "parameters": "Paramètres",
+    "inPath": "chemin",
+    "inQuery": "requête",
+    "body": "Corps de la requête (JSON)",
+    "response": "Réponse {status}",
+    "name": "Nom",
+    "type": "Type",
+    "description": "Description",
+    "required": "obligatoire"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "meeting-notes": {
+    "title": "Notas de reunión",
+    "description": "Orden del día, notas, decisiones y tareas pendientes.",
+    "markdown": "**Fecha:** \n\n**Asistentes:** \n\n## Orden del día\n\n1. \n\n## Notas\n\n\n\n## Decisiones\n\n- \n\n## Tareas pendientes\n\n- [ ] "
+  },
+  "weekly-plan": {
+    "title": "Plan semanal",
+    "description": "Objetivos de la semana y una lista de verificación para cada día.",
+    "markdown": "## Objetivos de esta semana\n\n- [ ] \n\n### Lunes\n\n- [ ] \n\n### Martes\n\n- [ ] \n\n### Miércoles\n\n- [ ] \n\n### Jueves\n\n- [ ] \n\n### Viernes\n\n- [ ] \n\n## Notas para la próxima semana\n"
+  },
+  "project-tracker": {
+    "title": "Seguimiento de proyectos",
+    "description": "Tareas con estado, prioridad, responsable y fecha límite, en una tabla y un tablero.",
+    "seedNames": {
+      "status": "Estado",
+      "notStarted": "Sin empezar",
+      "inProgress": "En curso",
+      "done": "Listo",
+      "tags": "Etiquetas",
+      "table": "Todas las tareas"
+    },
+    "properties": {
+      "priority": "Prioridad",
+      "owner": "Responsable",
+      "due": "Fecha límite"
+    },
+    "options": {
+      "high": "Alta",
+      "medium": "Media",
+      "low": "Baja"
+    },
+    "board": "Tablero",
+    "rowTemplate": {
+      "title": "Nueva tarea",
+      "markdown": "## Objetivo\n\n\n\n## Pasos\n\n- [ ] \n\n## Notas\n\n"
+    },
+    "rows": {
+      "brief": "Redactar el resumen del proyecto",
+      "milestone": "Planificar el primer hito",
+      "team": "Invitar al equipo"
+    }
+  }
+}

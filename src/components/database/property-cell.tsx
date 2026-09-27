@@ -503,9 +503,9 @@ function CellEditor({
 }
 
 /**
- * Parses a typed number in either "1234.5" or "1234,5" style, so it works for English and Turkish
- * input alike. A single separator kind is a decimal point unless it repeats ("1.234.567"); with
- * both kinds, the last one is the decimal point and the other groups thousands ("1.234,5",
+ * Parses a typed number in either "1234.5" or "1234,5" style, so it works for input in every UI
+ * language. A single separator kind is a decimal point unless it repeats ("1.234.567"); with both
+ * kinds, the last one is the decimal point and the other groups thousands ("1.234,5",
  * "1,234.5").
  */
 export function parseNumber(raw: string, locale?: string): number | undefined {
@@ -519,7 +519,7 @@ export function parseNumber(raw: string, locale?: string): number | undefined {
     s = s.split(group).join("").replace(decimal, ".");
   } else {
     const sep = lastComma !== -1 ? "," : lastDot !== -1 ? "." : null;
-    // "1,000" in English or "1.000" in Turkish: the locale's group separator before exactly three
+    // "1,000" in English or "1.000" in Turkish or German: the locale's group separator before exactly three
     // digits groups thousands rather than marking decimals.
     const grouping = sep !== null && locale !== undefined && sep !== decimalSeparator(locale) && /^-?\d{1,3}[.,]\d{3}$/.test(s);
     if (sep) s = s.split(sep).length > 2 || grouping ? s.split(sep).join("") : s.replace(sep, ".");
