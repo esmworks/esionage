@@ -9,7 +9,7 @@ import {
   startExport,
 } from "@/server/export";
 import { exportLabels } from "@/server/export-labels";
-import { getSession } from "@/server/session";
+import { blockedByTwoFactorPolicy, getSession } from "@/server/session";
 
 /**
  * The whole workspace as a ZIP of Markdown, CSV and uploaded files (see server/export), for owners;
@@ -21,6 +21,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ work
   if (!session) return new Response("Unauthorized", { status: 401 });
   const userId = session.user.id;
   const { workspaceId } = await params;
+  if (await blockedByTwoFactorPolicy(session, workspaceId)) return new Response("Two-step verification required", { status: 403 });
   try {
     const labels = await exportLabels();
     if (new URL(request.url).searchParams.get("check") === "1") {

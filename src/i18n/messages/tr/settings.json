@@ -7,6 +7,7 @@
     "general": "Genel",
     "members": "Üyeler",
     "preferences": "Tercihler",
+    "accountSecurity": "Hesap güvenliği",
     "apps": "Bağlı uygulamalar",
     "security": "Güvenlik"
   },
@@ -157,10 +158,18 @@
     "tooManyEmails": "Tek seferde en fazla 50 kişi ekleyin.",
     "joinLinkInvalid": "Bu katılma bağlantısı geçersiz veya kapatılmış.",
     "transferToSelf": "Sahip yapmak için başka birini seçin.",
-    "transferToGuest": "Sahip yapmadan önce üye yapın."
+    "transferToGuest": "Sahip yapmadan önce üye yapın.",
+    "twoFactorFirst": "Önce kendi hesabınız için iki adımlı doğrulamayı açın veya passkey ile giriş yapın."
   },
   "security": {
-    "description": "Bu çalışma alanına kimlerin kişi getirebileceğini, misafirlerin neler yapabileceğini ve kimlerin sayfaları web'de yayınlayabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
+    "description": "İnsanların nasıl giriş yapacağını, bu çalışma alanına kimlerin kişi getirebileceğini, misafirlerin neler yapabileceğini ve kimlerin sayfaları web'de yayınlayabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
+    "authenticationHeading": "Kimlik doğrulama",
+    "requireTwoFactor": {
+      "title": "İki adımlı doğrulamayı zorunlu kıl",
+      "description": "Bu çalışma alanını açmak için herkesin bir doğrulama uygulaması kullanması veya passkey ile giriş yapması gerekir. İkisi de olmayanlardan önce birini kurmaları istenir. MCP ile bağlı uygulamalar etkilenmez.",
+      "setUpFirst": "Önce kendi hesabınız için iki adımlı doğrulamayı açın.",
+      "withoutCount": "{count, plural, other {Burada # kişi henüz kurmadı.}}"
+    },
     "guestsHeading": "Misafirler",
     "guestInvites": {
       "title": "Kimler misafir davet edebilir",

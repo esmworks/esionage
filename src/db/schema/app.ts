@@ -44,12 +44,18 @@ export type WorkspaceSettings = {
   guestPrivatePages: boolean;
   /** Who may publish pages to the web. Guests never can. */
   publishing: "owners" | "members";
+  /**
+   * Everyone must use two-step verification (an authenticator app, or a passkey sign-in) to open
+   * the workspace in the app. Doesn't apply to connected apps (MCP), which use their own tokens.
+   */
+  requireTwoFactor: boolean;
 };
 
 export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   guestInvites: "owners",
   guestPrivatePages: false,
   publishing: "members",
+  requireTwoFactor: false,
 };
 
 export const workspace = pgTable("workspace", {

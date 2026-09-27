@@ -38,6 +38,21 @@
     left out is reported in the dialog: cells that didn't fit their property (left empty),
     missing or too large images, skipped files. Needs edit access to the destination page or
     database (top-level imports follow the usual rules for guests).
+- **Two-step verification and passkeys** (Settings → Account security): an authenticator app
+  (TOTP, QR code or typed key) with ten one-time recovery codes shown once to copy or download,
+  new codes on demand, and "don't ask again on this device" for 30 days. Signing in with a
+  password or with GitHub/Google then asks for a code or a recovery code. Turning it off asks for
+  the password, or a code on accounts without one. Passkeys can be added, renamed and removed,
+  and "Sign in with a passkey" is on the sign-in page. Built on Better Auth's `twoFactor` plugin
+  and `@better-auth/passkey`; migration `0018_two_factor_passkeys` adds the `two_factor` and
+  `passkey` tables, `user.two_factor_enabled` and `session.auth_method` (how a session signed
+  in). `pnpm auth:reset-2fa <email>` resets an account that lost both its app and its codes.
+- **Require two-step verification** (workspace Settings → Security, owners): people whose session
+  has neither the authenticator app nor a passkey sign-in are sent to a page where they set one
+  up before they can open the workspace. An owner can turn it on only from a session that
+  passes, and the settings show how many people haven't set anything up yet. Apps connected over
+  MCP are not affected.
+
 - **Files & media property:** a database property that holds uploaded files. Images show as small
   thumbnails in tables, boards, lists, galleries and row pages, other files by name; the cell
   editor uploads (pick or drop, several at once) and removes them. Galleries can take their cover

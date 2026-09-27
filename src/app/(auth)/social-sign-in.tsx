@@ -42,7 +42,8 @@ export function socialErrorKey(code: string) {
 }
 
 /**
- * "Continue with …" buttons for the providers the server has configured. An invitation or join
+ * "Continue with …" buttons for the providers the server has configured (the form draws the "or"
+ * divider above them). An invitation or join
  * link token goes along as a query parameter; the server carries it through the provider redirect.
  */
 export function SocialSignIn({
@@ -85,14 +86,8 @@ export function SocialSignIn({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 text-xs text-fg-muted">
-        <span className="h-px flex-1 bg-border" />
-        {t("social.or")}
-        <span className="h-px flex-1 bg-border" />
-      </div>
-      <div className="space-y-2">
-        {providers.map((provider) => {
+    <>
+      {providers.map((provider) => {
           const Mark = MARKS[provider];
           return (
             <Button key={provider} className="w-full gap-2" disabled={pending !== null} onClick={() => start(provider)}>
@@ -101,7 +96,6 @@ export function SocialSignIn({
             </Button>
           );
         })}
-      </div>
-    </div>
+    </>
   );
 }

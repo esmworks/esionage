@@ -8,7 +8,7 @@ import { pageLabel } from "@/lib/labels";
 import { AccessError } from "@/server/access";
 import { getPageHeaderInfo } from "@/server/page-meta";
 import { getBreadcrumbs, getPage } from "@/server/pages";
-import { requireUser } from "@/server/session";
+import { requireUser, requireWorkspaceSession } from "@/server/session";
 
 type Params = { params: Promise<{ workspaceId: string; pageId: string }> };
 
@@ -25,6 +25,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const user = await requireUser();
   const { pageId } = await params;
   const [p, t] = await Promise.all([load(user.id, pageId), getTranslations("common")]);
+  await requireWorkspaceSession(p.workspaceId);
   return { title: pageLabel(p.title, t("untitled")) };
 }
 
@@ -32,6 +33,7 @@ export default async function PageRoute({ params }: Params) {
   const user = await requireUser();
   const { workspaceId, pageId } = await params;
   const p = await load(user.id, pageId);
+  await requireWorkspaceSession(p.workspaceId);
   if (p.workspaceId !== workspaceId) redirect(`/w/${p.workspaceId}/p/${p.id}`);
 
   const [crumbs, info] = await Promise.all([getBreadcrumbs(user.id, pageId), getPageHeaderInfo(user.id, pageId)]);

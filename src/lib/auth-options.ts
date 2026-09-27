@@ -4,6 +4,12 @@ import { jwt } from "better-auth/plugins";
 import { mcp } from "@better-auth/mcp";
 import { cimd } from "@better-auth/cimd";
 import { fetchClientMetadataResource } from "@better-auth/cimd/node";
+import {
+  passkeyPlugin,
+  requireCodeToDisable,
+  socialTwoFactorRedirect,
+  twoFactorPlugin,
+} from "@/lib/auth-security";
 import { env, mcpResource } from "@/lib/env";
 import type { SocialCredentials, SocialProvider } from "@/lib/social-providers";
 
@@ -121,6 +127,7 @@ export function socialAuthOptions(providers: Partial<Record<SocialProvider, Soci
 
 export function baseAuthOptions({ invitationAllowsSignUp }: { invitationAllowsSignUp?: InvitationCheck } = {}) {
   const before = createAuthMiddleware(async (ctx) => {
+    if (ctx.path === "/two-factor/disable") await requireCodeToDisable(ctx);
     if (ctx.path === "/sign-up/email" && env.signUpDisabled) {
       const email = (ctx.body as { email?: unknown } | undefined)?.email;
       if (!(await closedSignUpAdmits(inviteTokenOf(ctx), email, invitationAllowsSignUp))) {
@@ -155,8 +162,19 @@ export function baseAuthOptions({ invitationAllowsSignUp }: { invitationAllowsSi
       enabled: true,
       minPasswordLength: 8,
     },
+    session: {
+      additionalFields: {
+        // How the session was signed in (see authMethodOf); a passkey session counts as two-step.
+        authMethod: { type: "string", required: false, input: false },
+      },
+    },
     hooks: { before },
     plugins: [
+      // Before mcp(): its after-hook continues an OAuth authorization as soon as a sign-in sets a
+      // session cookie, so the code challenge has to take that session away first.
+      twoFactorPlugin(),
+      socialTwoFactorRedirect(env.appUrl),
+      passkeyPlugin(env.appUrl),
       jwt(),
       mcp({
         loginPage: "/sign-in",

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import type { WorkspaceRole, WorkspaceSettings } from "@/db/schema";
+import { isStrongSession } from "@/lib/auth-security";
 import { AccessError } from "@/server/access";
 import { revokeFormPublication } from "@/server/forms";
 import { revokePublication } from "@/server/publication";
@@ -51,8 +52,10 @@ export async function createWorkspaceAction(name: string) {
 }
 
 export async function updateWorkspaceSettingsAction(workspaceId: string, patch: Partial<WorkspaceSettings>) {
-  const userId = await requireUserId();
-  const result = await run(() => updateWorkspaceSettings(userId, workspaceId, patch));
+  const session = await getSession();
+  if (!session) throw new Error("Unauthorized");
+  const strongSession = isStrongSession(session);
+  const result = await run(() => updateWorkspaceSettings(session.user.id, workspaceId, patch, { strongSession }));
   refresh(workspaceId);
   return result;
 }

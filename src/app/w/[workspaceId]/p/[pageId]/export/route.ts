@@ -16,7 +16,7 @@ import {
 } from "@/server/export";
 import { exportLabels } from "@/server/export-labels";
 import { getPage } from "@/server/pages";
-import { getSession } from "@/server/session";
+import { blockedByTwoFactorPolicy, getSession } from "@/server/session";
 
 function download(body: string, type: string, disposition: string) {
   return new Response(body, {
@@ -52,6 +52,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
   const { pageId } = await params;
   const query = new URL(request.url).searchParams;
   try {
+    const target = await getPage(userId, pageId);
+    if (await blockedByTwoFactorPolicy(session, target.workspaceId)) {
+      return new Response("Two-step verification required", { status: 403 });
+    }
     const labels = await exportLabels();
     if (request.method === "GET" && query.get("subpages") === "1") {
       if (query.get("check") === "1") {
@@ -67,7 +71,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
       }
     }
 
-    const target = await getPage(userId, pageId);
     if (target.kind === "database") {
       const { title, csv } = await databaseCsv(userId, pageId, await requestedRows(request));
       return download(csv, "text/csv", attachment(title, "csv"));

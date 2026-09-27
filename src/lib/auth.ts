@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { db, schema } from "@/db";
+import { recordAuthMethod } from "@/lib/auth-security";
 import { requestLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
 import {
@@ -80,6 +81,10 @@ export const auth = betterAuth({
     },
     account: {
       create: { after: claimOnEmailLink(revokeAllConnectedApps) },
+    },
+    session: {
+      // How the session was signed in: a passkey sign-in passes "require two-step verification".
+      create: { before: recordAuthMethod },
     },
   },
   plugins: [...base.plugins, nextCookies()],
