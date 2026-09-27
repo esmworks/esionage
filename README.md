@@ -15,9 +15,9 @@ approve them over OAuth.
   - Properties: text, number, select, multi-select, status, date, checkbox, checklist, URL,
     email, phone, person, one- or two-way relations to other databases, and the read-only
     "created by", "created time", "last edited time" and "last edited by".
-  - Views: table, board and calendar, each with its own filters, sorting and grouping. Filters
-    combine with "and"/"or" in groups and take relative dates such as "this week". A "Me" filter
-    shows each viewer their own rows.
+  - Views: table, board, calendar, gallery, list and timeline, each with its own filters, sorting
+    and grouping. Filters combine with "and"/"or" in groups and take relative dates such as
+    "this week". A "Me" filter shows each viewer their own rows.
   - Table views calculate column totals, averages, counts and more over the filtered rows.
   - Select rows to edit a property, duplicate, export or trash them at once.
   - Lock a database to freeze its properties and views, and export its rows as CSV.
@@ -133,7 +133,8 @@ The client opens a browser window where you sign in and approve access. The tool
 - **Databases:** `get_database`, `query_database`, `create_database`, `create_database_row`,
   `create_database_rows`, `update_database_row`, `update_database_rows`, `add_database_property`
   (including one- or two-way relations), `update_database_property`, `delete_database_property`,
-  `create_database_view` and `update_database_view` (table, board or calendar).
+  `create_database_view` and `update_database_view` (table, board, calendar, gallery, list or
+  timeline).
 
 An app only ever sees the pages its user can see. Read-only apps can't call the tools that
 change anything.
