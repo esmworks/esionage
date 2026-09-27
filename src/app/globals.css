@@ -281,6 +281,19 @@
   .bn-container .bn-side-menu {
     display: none;
   }
+  /*
+   * The formatting toolbar is wider than a phone; it scrolls sideways instead of widening the
+   * page (which made the whole page zoom out). Menus stay inside the screen too.
+   */
+  .bn-container .bn-formatting-toolbar,
+  .bn-container .bn-suggestion-menu,
+  .bn-container .bn-link-toolbar {
+    max-width: calc(100vw - 2rem);
+  }
+  .bn-container .bn-formatting-toolbar {
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
 }
 
 /*

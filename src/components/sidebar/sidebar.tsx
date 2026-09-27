@@ -5,6 +5,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  CloudOff,
   Database,
   FileText,
   House,
@@ -32,6 +33,10 @@ import { markNewPage } from "@/components/page/new-page-focus";
 import { cn, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, Popover } from "@/components/ui";
 import type { PageKind } from "@/db/schema/app";
 import { authClient } from "@/lib/auth-client";
+import { closeOfflineDocs } from "@/components/collab/socket";
+import { useIsOffline } from "@/components/offline/offline-context";
+import { loadSnapshot, readOfflineState, saveSnapshot, treeSnapshotKey, wipeAllOfflineData } from "@/components/offline/offline-store";
+import { InstallAppMenuItem } from "@/components/offline/install-app";
 import { FAVORITES_EVENT } from "@/lib/favorites-event";
 import { INBOX_PREFERENCES_EVENT } from "@/lib/inbox-event";
 import type { TreeNode } from "@/server/pages";
@@ -102,6 +107,11 @@ export function Sidebar({
   // Guests only see pages shared with them (and their own private pages) and can't move pages to the top.
   const guest = workspace?.role === "guest";
 
+  const offline = useIsOffline();
+  const tOffline = useTranslations("offline");
+  /** Tooltip for a control that needs the server while it can't be reached. */
+  const needsServer = (label: string) => (offline ? tOffline("needsConnection", { action: label }) : undefined);
+
   useEffect(() => setExpanded(loadExpanded()), []);
   useEffect(() => setTree(initialTree), [initialTree]);
   useEffect(() => setFavorites(initialFavorites), [initialFavorites]);
@@ -117,6 +127,32 @@ export function Sidebar({
   const refreshInbox = useCallback(() => {
     unreadCountAction(workspaceId).then(setUnread).catch(() => {});
   }, [workspaceId]);
+  // The tree as last loaded is kept in this browser; offline, it replaces the one the page came
+  // with (a cached page may be older than the last tree seen).
+  useEffect(() => {
+    if (!offline) void saveSnapshot(user.id, treeSnapshotKey(workspaceId), tree);
+  }, [offline, tree, user.id, workspaceId]);
+  useEffect(() => {
+    if (!offline) return;
+    let current = true;
+    void loadSnapshot<TreeNode[]>(user.id, treeSnapshotKey(workspaceId)).then((kept) => {
+      if (current && kept) setTree(kept.data);
+    });
+    return () => {
+      current = false;
+    };
+  }, [offline, user.id, workspaceId]);
+  // Back online: signals sent while the connection was down were missed.
+  const wasOffline = useRef(false);
+  useEffect(() => {
+    if (offline) wasOffline.current = true;
+    else if (wasOffline.current) {
+      wasOffline.current = false;
+      refresh();
+      refreshInbox();
+    }
+  }, [offline, refresh, refreshInbox]);
+
   useChannel(`ws:${workspaceId}`, (event) => {
     if (event === "inbox") {
       refreshInbox();
@@ -245,7 +281,12 @@ export function Sidebar({
   }, [actionError]);
 
   async function signOut() {
+    // Edits made offline that never reached the server are lost with the offline copies.
+    if (readOfflineState(user.id).dirty.length && !confirm(tOffline("signOutUnsynced"))) return;
     await authClient.signOut();
+    // Nothing of this account stays in the browser: offline pages, rows and cached HTML.
+    await closeOfflineDocs();
+    await wipeAllOfflineData();
     router.push("/sign-in");
     router.refresh();
   }
@@ -309,6 +350,8 @@ export function Sidebar({
                   ))}
                   <MenuItem
                     icon={<Plus className="h-4 w-4" />}
+                    disabled={offline}
+                    title={needsServer(t("workspaceMenu.newWorkspace"))}
                     onClick={() => {
                       close();
                       setNewWorkspaceOpen(true);
@@ -326,7 +369,8 @@ export function Sidebar({
                   >
                     {t("workspaceMenu.settingsAndMembers")}
                   </MenuItem>
-                  <MenuItem icon={<LogOut className="h-4 w-4" />} onClick={signOut}>
+                  <InstallAppMenuItem onDone={close} />
+                  <MenuItem icon={<LogOut className="h-4 w-4" />} onClick={signOut} disabled={offline} title={needsServer(t("workspaceMenu.signOut"))}>
                     {t("workspaceMenu.signOut")}
                   </MenuItem>
                 </>
@@ -360,7 +404,19 @@ export function Sidebar({
           </div>
 
           <div className="mt-1 space-y-px">
-            <SidebarButton icon={<Search className="h-4 w-4" />} onClick={() => setSearchOpen(true)} hint="⌘K">
+            {offline && (
+              <p role="status" className="flex items-center gap-2 px-2 py-1 text-xs text-fg-muted" title={tOffline("hint")}>
+                <CloudOff className="h-3.5 w-3.5 shrink-0" />
+                {tOffline("banner")}
+              </p>
+            )}
+            <SidebarButton
+              icon={<Search className="h-4 w-4" />}
+              onClick={() => setSearchOpen(true)}
+              hint="⌘K"
+              disabled={offline}
+              title={needsServer(t("nav.search"))}
+            >
               {t("nav.search")}
             </SidebarButton>
             <SidebarButton icon={<House className="h-4 w-4" />} href={`/w/${workspaceId}`} active={pathname === `/w/${workspaceId}`}>
@@ -370,6 +426,8 @@ export function Sidebar({
               icon={<Inbox className="h-4 w-4" />}
               onClick={() => setInboxOpen(true)}
               badge={unread > 0 ? { count: unread, label: t("inbox.unreadCount", { count: unread }) } : undefined}
+              disabled={offline}
+              title={needsServer(t("nav.inbox"))}
             >
               {t("nav.inbox")}
             </SidebarButton>
@@ -411,7 +469,13 @@ export function Sidebar({
             <Popover
               align="end"
               trigger={({ toggle }) => (
-                <IconButton label={t("pages.new")} onClick={toggle}>
+                <IconButton
+                  label={t("pages.new")}
+                  title={needsServer(t("pages.new")) ?? t("pages.new")}
+                  onClick={toggle}
+                  disabled={offline}
+                  className="disabled:opacity-40 disabled:hover:bg-transparent"
+                >
                   <Plus className="h-4 w-4" />
                 </IconButton>
               )}
@@ -477,7 +541,9 @@ export function Sidebar({
             <button
               type="button"
               onClick={() => create(null)}
-              className="w-full rounded-md px-2 py-1.5 text-left text-fg-muted hover:bg-bg-hover"
+              disabled={offline}
+              title={needsServer(t("pages.createFirst"))}
+              className="w-full rounded-md px-2 py-1.5 text-left text-fg-muted hover:bg-bg-hover disabled:opacity-50 disabled:hover:bg-transparent"
             >
               {t("pages.createFirst")}
             </button>
@@ -497,20 +563,36 @@ export function Sidebar({
             dragging={dragging}
             onDragging={setDragging}
             canDrop={canDrop}
+            offline={offline}
           />
         </nav>
 
         <div className="space-y-px border-t border-border p-2">
           {/* Templates live here rather than in the page tree; making pages from them needs the top level. */}
           {topLevel && (
-            <SidebarButton icon={<LayoutTemplate className="h-4 w-4" />} onClick={() => setTemplatesOpen(true)}>
+            <SidebarButton
+              icon={<LayoutTemplate className="h-4 w-4" />}
+              onClick={() => setTemplatesOpen(true)}
+              disabled={offline}
+              title={needsServer(t("nav.templates"))}
+            >
               {t("nav.templates")}
             </SidebarButton>
           )}
-          <SidebarButton icon={<Upload className="h-4 w-4" />} onClick={() => setImportOpen(true)}>
+          <SidebarButton
+            icon={<Upload className="h-4 w-4" />}
+            onClick={() => setImportOpen(true)}
+            disabled={offline}
+            title={needsServer(t("nav.import"))}
+          >
             {t("nav.import")}
           </SidebarButton>
-          <SidebarButton icon={<Trash2 className="h-4 w-4" />} onClick={() => setTrashOpen(true)}>
+          <SidebarButton
+            icon={<Trash2 className="h-4 w-4" />}
+            onClick={() => setTrashOpen(true)}
+            disabled={offline}
+            title={needsServer(t("nav.trash"))}
+          >
             {t("nav.trash")}
           </SidebarButton>
         </div>
@@ -587,6 +669,8 @@ function SidebarButton({
   hint,
   active,
   badge,
+  disabled,
+  title,
 }: {
   icon: React.ReactNode;
   children: React.ReactNode;
@@ -594,11 +678,15 @@ function SidebarButton({
   href?: string;
   hint?: string;
   active?: boolean;
+  /** Needs the server, which can't be reached: `title` says so. */
+  disabled?: boolean;
+  title?: string;
   /** A count shown at the end (e.g. unread notifications), with its spoken label. */
   badge?: { count: number; label: string };
 }) {
   const className = cn(
     "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-fg-muted hover:bg-bg-hover hover:text-fg",
+    "disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-fg-muted",
     active && "bg-bg-active font-medium text-fg hover:bg-bg-active",
   );
   const content = (
@@ -622,7 +710,7 @@ function SidebarButton({
       {content}
     </Link>
   ) : (
-    <button type="button" onClick={onClick} className={className}>
+    <button type="button" onClick={onClick} className={className} disabled={disabled} title={title}>
       {content}
     </button>
   );
@@ -645,6 +733,8 @@ type TreeProps = {
   dragging: string | null;
   onDragging: (id: string | null) => void;
   canDrop: (draggedId: string, parentId: string | null) => boolean;
+  /** No server: no creating, trashing or moving pages. */
+  offline: boolean;
 };
 
 function TreeLevel({ nodes, ...props }: TreeProps & { nodes: TreeNode[] }) {
@@ -674,8 +764,8 @@ function TreeItem({
   const [drop, setDrop] = useState<DropTarget>(null);
   // Database rows are not shown in the tree; dropping into a database would turn a page into a row.
   const canNest = node.kind === "page";
-  // Trashing, adding subpages and moving all need edit access on the server.
-  const editable = canEdit(node);
+  // Trashing, adding subpages and moving all need edit access on the server (and the server).
+  const editable = canEdit(node) && !props.offline;
   // Databases expand to their views instead of child pages.
   const views = node.kind === "database" ? (node.views ?? []) : [];
   const expandable = canNest || views.length > 0;

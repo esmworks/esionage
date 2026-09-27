@@ -69,11 +69,16 @@
     "connecting": "Bağlanıyor",
     "offline": "Çevrimdışı",
     "reconnecting": "Yeniden bağlanıyor",
-    "noAccess": "Erişim yok"
+    "noAccess": "Erişim yok",
+    "syncing": "Eşitleniyor…",
+    "synced": "Eşitlendi",
+    "offlinePending": "Çevrimdışı · değişiklikler burada",
+    "offlineHint": "Çevrimdışısınız. Düzenlemeye devam edebilirsiniz: değişiklikler bu tarayıcıda saklanır, bağlantı gelince eşitlenir."
   },
   "errors": {
     "accessLost": "Artık bu sayfaya erişiminiz yok.",
-    "connectionFailed": "Canlı düzenlemeye bağlanılamadı. Yeniden deneniyor…"
+    "connectionFailed": "Canlı düzenlemeye bağlanılamadı. Yeniden deneniyor…",
+    "notAvailableOffline": "Bu sayfa henüz bu cihazda kayıtlı değil. Çevrimdışı kullanmak için bir kez çevrimiçiyken açın."
   },
   "history": {
     "title": "Sayfa geçmişi",

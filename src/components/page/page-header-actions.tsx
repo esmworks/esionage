@@ -68,6 +68,7 @@ export function PageHeaderActions({
   onComments,
   commentsOpen = false,
   onMoveToTrash,
+  offline = false,
 }: {
   workspaceId: string;
   page: { id: string; kind: PageKind; parentId: string | null; archived: boolean; hasBody: boolean; isRow?: boolean };
@@ -82,9 +83,13 @@ export function PageHeaderActions({
   onComments?: () => void;
   commentsOpen?: boolean;
   onMoveToTrash: () => void;
+  /** The server can't be reached: sharing, comments, favorites and the page menu need it. */
+  offline?: boolean;
 }) {
   const t = useTranslations("page.header");
+  const tOffline = useTranslations("offline");
   const [info, setInfo] = useState(initialInfo);
+  const offlineTitle = (label: string) => (offline ? tOffline("needsConnection", { action: label }) : label);
   useEffect(() => setInfo(initialInfo), [initialInfo]);
   const refresh = useCallback(() => {
     getPageHeaderAction(page.id).then(setInfo).catch(() => {});
@@ -138,7 +143,9 @@ export function PageHeaderActions({
             <button
               type="button"
               onClick={toggle}
-              className="inline-flex h-7 items-center rounded-md px-2 text-sm text-fg hover:bg-bg-hover"
+              disabled={offline}
+              title={offline ? offlineTitle(t("share")) : undefined}
+              className="inline-flex h-7 items-center rounded-md px-2 text-sm text-fg hover:bg-bg-hover disabled:cursor-default disabled:text-fg-faint disabled:hover:bg-transparent"
             >
               {t("share")}
             </button>
@@ -150,9 +157,10 @@ export function PageHeaderActions({
       {onComments && (
         <IconButton
           label={t("comments")}
-          title={t("comments")}
-          aria-pressed={commentsOpen}
-          className={cn("h-7 w-7", commentsOpen && "bg-bg-hover")}
+          title={offlineTitle(t("comments"))}
+          aria-pressed={commentsOpen && !offline}
+          disabled={offline}
+          className={cn("h-7 w-7 disabled:opacity-40 disabled:hover:bg-transparent", commentsOpen && !offline && "bg-bg-hover")}
           onClick={onComments}
         >
           <MessageSquare className="h-4 w-4" />
@@ -162,9 +170,10 @@ export function PageHeaderActions({
       {!page.archived && !info.template && (
         <IconButton
           label={info.favorite ? t("removeFavorite") : t("addFavorite")}
-          title={info.favorite ? t("removeFavorite") : t("addFavorite")}
+          title={offlineTitle(info.favorite ? t("removeFavorite") : t("addFavorite"))}
           aria-pressed={info.favorite}
-          className="h-7 w-7"
+          disabled={offline}
+          className="h-7 w-7 disabled:opacity-40 disabled:hover:bg-transparent"
           onClick={() => void toggleFavorite()}
         >
           <Star className={cn("h-4 w-4", info.favorite && "fill-amber-400 text-amber-400")} />
@@ -177,6 +186,7 @@ export function PageHeaderActions({
         onInfo={setInfo}
         onHistory={onHistory}
         onMoveToTrash={onMoveToTrash}
+        offline={offline}
       />
     </>
   );
@@ -234,6 +244,7 @@ function PageMenu({
   onInfo,
   onHistory,
   onMoveToTrash,
+  offline,
 }: {
   workspaceId: string;
   page: { id: string; kind: PageKind; parentId: string | null; archived: boolean; hasBody: boolean; isRow?: boolean };
@@ -241,8 +252,10 @@ function PageMenu({
   onInfo: (info: PageHeaderInfo) => void;
   onHistory: () => void;
   onMoveToTrash: () => void;
+  offline: boolean;
 }) {
   const t = useTranslations("page.header");
+  const tOffline = useTranslations("offline");
   const tTemplate = useTranslations("page.template");
   const locale = useLocale();
   const router = useRouter();
@@ -319,7 +332,13 @@ function PageMenu({
         align="end"
         className="w-64"
         trigger={({ toggle }) => (
-          <IconButton label={t("more")} className="h-7 w-7" onClick={toggle}>
+          <IconButton
+            label={t("more")}
+            title={offline ? tOffline("needsConnection", { action: t("more") }) : t("more")}
+            disabled={offline}
+            className="h-7 w-7 disabled:opacity-40 disabled:hover:bg-transparent"
+            onClick={toggle}
+          >
             <MoreHorizontal className="h-4 w-4" />
           </IconButton>
         )}

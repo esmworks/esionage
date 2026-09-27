@@ -4,6 +4,38 @@
 
 ### Added
 
+- **Offline editing** (#10): each page opened in the browser is kept in IndexedDB (its Yjs
+  document, via y-indexeddb 9.0.12, MIT), loaded before the page connects. Without a connection the
+  page stays editable, and the edits merge with the server's state when it returns (the sync
+  handshake sends only what the server lacks, which also keeps the comment-thread guard happy).
+  Pages edited offline and closed before reconnecting are sent in the background the next time
+  the app is open. The page header shows Offline / "Offline · edits kept here" / Syncing… /
+  Synced. The sidebar tree and the last 30 databases and rows opened are kept for reading offline
+  (read-only, with a note saying from when); actions that need the server (share, comments,
+  favorites, page menu, search, inbox, new pages, templates, import, trash, sign-out, the icon
+  picker) are turned off offline with a tooltip saying so. Copies are stored per user and wiped
+  on sign-out (with a warning when edits haven't synced), when another user signs in on the
+  browser, and per page when the collab server refuses it: its refusals now carry a reason
+  (`forbidden`, `two-step`, `unauthorized`) and only `forbidden` drops the copy. Collab tokens
+  stay in memory only. New checks: `scripts/offline-e2e.ts` (17), `scripts/sw-e2e.ts` (12, headless
+  Chrome), `src/lib/offline.test.ts`.
+- **Installable app** (#44): web app manifest (`/manifest.webmanifest`, standalone, start URL
+  `/`), icons (192, 512, maskable 512, SVG, favicon, Apple touch icon, from the "e" mark), light
+  and dark theme colours, iOS home-screen meta tags, and a hand-written service worker
+  (`public/sw.js`, production only; `pnpm dev` unregisters a leftover one). It caches the app's
+  hashed scripts, the icons and an offline page, and keeps the HTML of the last 50 signed-in pages
+  per user (read from `<meta name="esionage-user">`) for use only when the network fails; a
+  different user's page drops the previous user's copies, a 404 drops that page, and API
+  responses, uploads, server actions and the websocket are never touched. Offline, pages never
+  opened go to `/offline`, which lists the pages kept on the device, and the start URL goes to the
+  last page opened. The browser's install prompt is kept for an "Install app" item in the
+  workspace menu instead of a banner. README: install and offline use, and a short Tauri /
+  Electron / installed web app comparison for a desktop shell (not built). The Docker image now
+  copies `public/`. No migration.
+- **Phones:** the editor's formatting toolbar scrolls sideways within the screen instead of
+  widening the page (which zoomed the whole page out), and the slash and link menus stay inside
+  the screen.
+
 - **Export as PDF** (#47): "Export as PDF" in the page menu opens the page's print view
   (`/print/<page id>`) in a new tab and the browser's print dialog once its images, fonts and
   Mermaid diagrams have loaded ("Save as PDF"). The view draws the page like its published version
