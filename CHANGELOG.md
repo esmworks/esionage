@@ -4,6 +4,8 @@
 
 ### Added
 
+- **"Can comment" access:** share a page so people can read and comment on it without editing it.
+  Their comments mark the selected text on the server, so the page itself stays read-only for them.
 - **Comments on pages:** select text and choose Comment to start a thread; reply, react with emoji,
   edit or delete your own comments, and resolve or reopen threads. Threads update live for everyone
   on the page and are listed in a Comments panel from the page header. People who can edit a page

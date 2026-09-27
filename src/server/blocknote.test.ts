@@ -122,7 +122,7 @@ describe("comment marks", () => {
   it("keep the text they mark readable, and out of published HTML", async () => {
     const doc = docFrom([paragraph("Ship the comments feature.")]);
     const fragment = doc.getXmlFragment(COLLAB_FRAGMENT);
-    expect(anchorThread(fragment, "t1", "comments feature")).toBe(true);
+    expect(anchorThread(fragment, "t1", { quote: "comments feature" })).toBe(true);
     expect(blocksToPlainText(read(doc))).toBe("Ship the comments feature.");
     const [segment] = await bodySegmentsFromYdoc(Y.encodeStateAsUpdate(doc));
     expect("html" in segment && segment.html).not.toMatch(/thread|comment--/);
@@ -130,15 +130,26 @@ describe("comment marks", () => {
 
   it("anchor quotes within one paragraph only", () => {
     const fragment = docFrom([paragraph("First part."), paragraph("Second part.")]).getXmlFragment(COLLAB_FRAGMENT);
-    expect(anchorThread(fragment, "t1", "part.Second")).toBe(false);
-    expect(anchorThread(fragment, "t1", "Second")).toBe(true);
+    expect(anchorThread(fragment, "t1", { quote: "part.Second" })).toBe(false);
+    expect(anchorThread(fragment, "t1", { quote: "Second" })).toBe(true);
     expect(Object.fromEntries(threadQuotes(fragment))).toEqual({ t1: "Second" });
+  });
+
+  it("anchor a browser's selection where it is, not where the text first appears", () => {
+    const doc = docFrom([paragraph("go go go"), { ...paragraph("go again"), id: "b2" }]);
+    const fragment = doc.getXmlFragment(COLLAB_FRAGMENT);
+    expect(anchorThread(fragment, "t1", { quote: "go", blockId: "b2", offset: 0 })).toBe(true);
+    expect(anchorThread(fragment, "t2", { quote: "go", blockId: read(doc)[0].id, offset: 3 })).toBe(true);
+    const json = JSON.stringify(doc.getXmlFragment(COLLAB_FRAGMENT).toJSON());
+    expect(threadQuotes(fragment)).toEqual(new Map([["t2", "go"], ["t1", "go"]]));
+    // t2 marks the second "go" of the first paragraph: its text splits there.
+    expect(json).toMatch(/go <comment--[^>]*>go<\/comment--[^>]*> go/);
   });
 
   it("come back after a rewrite keeps their text", () => {
     const doc = docFrom([paragraph("Keep this sentence.")]);
     const fragment = doc.getXmlFragment(COLLAB_FRAGMENT);
-    anchorThread(fragment, "t1", "this sentence");
+    anchorThread(fragment, "t1", { quote: "this sentence" });
     const quotes = threadQuotes(fragment);
     serverEditor.blocksToYXmlFragment([paragraph("New intro."), paragraph("Keep this sentence!")] as never, fragment);
     reanchor(fragment, quotes, new Set(["t1"]));

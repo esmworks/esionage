@@ -2,7 +2,7 @@ import { DefaultThreadStoreAuth, ThreadStoreAuth, type CommentData, type ThreadD
 import { YjsThreadStoreBase } from "@blocknote/core/yjs";
 import type * as Y from "yjs";
 import { changeCommentsAction } from "@/app/actions/comments";
-import type { CommentOp, PlainComment, PlainThread } from "@/lib/comments";
+import type { CommentAnchor, CommentOp, PlainComment, PlainThread } from "@/lib/comments";
 
 /**
  * Comments in the editor: read live from the page's document like BlockNote's Yjs store, written
@@ -24,7 +24,7 @@ class ReadOnlyThreadStoreAuth extends ThreadStoreAuth {
 }
 
 /** What the viewer may do with comments: full access is BlockNote's "editor", edit access its "comment". */
-function authFor(userId: string, level: "view" | "edit" | "full"): ThreadStoreAuth {
+function authFor(userId: string, level: "view" | "comment" | "edit" | "full"): ThreadStoreAuth {
   if (level === "view") return new ReadOnlyThreadStoreAuth();
   return new DefaultThreadStoreAuth(userId, level === "full" ? "editor" : "comment");
 }
@@ -36,7 +36,7 @@ function authFor(userId: string, level: "view" | "edit" | "full"): ThreadStoreAu
 export class CommentAuth extends ThreadStoreAuth {
   private current: ThreadStoreAuth = new ReadOnlyThreadStoreAuth();
 
-  set(userId: string, level: "view" | "edit" | "full") {
+  set(userId: string, level: "view" | "comment" | "edit" | "full") {
     this.current = authFor(userId, level);
   }
 
@@ -97,17 +97,21 @@ export class ServerThreadStore extends YjsThreadStoreBase {
     super(threads, auth);
   }
 
+  /** The text a new thread is about: the editor's selection (set once the editor exists). */
+  public anchor: () => CommentAnchor | undefined = () => undefined;
+
   private async change(op: CommentOp) {
     const result = await changeCommentsAction(this.pageId, op);
     if (!result.ok) throw new CommentChangeError(result.code);
     return result;
   }
 
-  // The editor marks the selection itself once the thread exists.
-  public addThreadToDocument = undefined;
+  // The server marks the thread's text with the thread (see createThread), so people who may only
+  // comment, whose editors can't write the page, comment the same way.
+  public addThreadToDocument = async () => {};
 
   public createThread = async (options: { initialComment: { body: unknown } }) => {
-    const { thread } = await this.change({ type: "createThread", body: options.initialComment.body });
+    const { thread } = await this.change({ type: "createThread", body: options.initialComment.body, anchor: this.anchor() });
     if (!thread) throw new CommentChangeError("notFound");
     return toThread(thread);
   };

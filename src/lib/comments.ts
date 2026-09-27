@@ -12,8 +12,15 @@ export const THREADS_MAP = "threads";
 export const MAX_COMMENT_LENGTH = 10_000;
 const MAX_PARAGRAPHS = 100;
 
+/**
+ * The text a new thread is about: `quote`, at `offset` in the text of block `blockId` when given
+ * (a browser's selection), else where the page first has it. Non-text inline content (mentions)
+ * counts as one U+FFFC character.
+ */
+export type CommentAnchor = { quote: string; blockId?: string; offset?: number };
+
 export type CommentOp =
-  | { type: "createThread"; body: unknown }
+  | { type: "createThread"; body: unknown; anchor?: CommentAnchor }
   | { type: "addComment"; threadId: string; body: unknown }
   | { type: "updateComment"; threadId: string; commentId: string; body: unknown }
   | { type: "deleteComment"; threadId: string; commentId: string }

@@ -140,6 +140,7 @@
     "levels": {
       "full": "Tam erişim",
       "edit": "Düzenleyebilir",
+      "comment": "Yorum yapabilir",
       "view": "Görüntüleyebilir",
       "none": "Erişim yok"
     },

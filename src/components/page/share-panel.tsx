@@ -19,8 +19,8 @@ import { PublishTab } from "./publish-tab";
 type Sharing = Awaited<ReturnType<typeof getSharingAction>>;
 type CurrentUser = { id: string; name: string; email?: string };
 
-const LEVELS: PageLevel[] = ["full", "edit", "view", "none"];
-const RANK: Record<PageLevel, number> = { none: 0, view: 1, edit: 2, full: 3 };
+const LEVELS: PageLevel[] = ["full", "edit", "comment", "view", "none"];
+const RANK: Record<PageLevel, number> = { none: 0, view: 1, comment: 2, edit: 3, full: 4 };
 
 /** The Share popover: who can open the page (Share) and the public web link (Publish). */
 export function SharePanel({ pageId, currentUser }: { pageId: string; currentUser: CurrentUser }) {

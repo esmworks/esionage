@@ -135,7 +135,7 @@ export function assignmentEmail(
 
 export function shareEmail(
   locale: Locale,
-  share: { actorName: string; pageTitle: string; workspaceName: string; level: "view" | "edit" | "full"; link: string },
+  share: { actorName: string; pageTitle: string; workspaceName: string; level: "view" | "comment" | "edit" | "full"; link: string },
 ): RenderedEmail {
   const t = emailTranslator(locale);
   const names = { actor: share.actorName, page: share.pageTitle, workspace: share.workspaceName };

@@ -1896,7 +1896,7 @@ export function createMcpServer(principal: McpPrincipal) {
         const page = await pages.getPage(userId, page_id);
         const result = thread_id
           ? await comments.changeComments(userId, page_id, { type: "addComment", threadId: thread_id, body: text })
-          : await comments.changeComments(userId, page_id, { type: "createThread", body: text }, quote).catch((error) => {
+          : await comments.changeComments(userId, page_id, { type: "createThread", body: text, anchor: { quote: quote! } }).catch((error) => {
               if (error instanceof Error && error.message.includes("quoted text")) {
                 throw new ToolInputError(
                   "The page doesn't have that exact text within one paragraph. Copy a short passage from get_page's markdown, without formatting characters.",

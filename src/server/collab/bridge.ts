@@ -12,7 +12,7 @@ export type CommentOpResult = {
   thread?: PlainThread;
   /** A comment the change added. */
   comment?: PlainComment;
-  /** New threads with a quote: whether the quoted text was found and marked. */
+  /** New threads with an anchor: whether its text was found and marked. */
   anchored?: boolean;
 };
 
@@ -39,10 +39,11 @@ export interface CollabService {
   readThreads(pageId: string): Promise<PlainThread[]>;
   /**
    * Applies a comment change to the page's live document (see server/comments.ts, which checks
-   * access first). `quote` on a new thread anchors it to the first place the page has that text.
-   * Throws CommentError when the thread or comment is missing or the actor may not do it.
+   * access first). A new thread with an anchor is marked on that text, or not created when the page
+   * doesn't have it. Throws CommentError when the thread or comment is missing or the actor may not
+   * do it.
    */
-  commentOp(pageId: string, actor: CommentActor, op: CommentOp, quote?: string): Promise<CommentOpResult>;
+  commentOp(pageId: string, actor: CommentActor, op: CommentOp): Promise<CommentOpResult>;
   /** Tells subscribed clients to refetch (sidebar tree, database rows). */
   broadcast(channel: Channel, event: string): void;
   /** Drops a user's live connections to the workspace's documents (after removal from it). */

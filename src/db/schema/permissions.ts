@@ -3,8 +3,11 @@ import { check, index, pgTable, text, timestamp, unique } from "drizzle-orm/pg-c
 import { page, workspace } from "./app";
 import { user } from "./auth";
 
-/** Stored access levels, weakest first. `none` on a page takes away what an ancestor gave. */
-export const PAGE_LEVELS = ["none", "view", "edit", "full"] as const;
+/**
+ * Stored access levels, weakest first. `none` on a page takes away what an ancestor gave;
+ * `comment` reads the page and comments on it without editing it.
+ */
+export const PAGE_LEVELS = ["none", "view", "comment", "edit", "full"] as const;
 export type PageLevel = (typeof PAGE_LEVELS)[number];
 
 /**
@@ -34,7 +37,7 @@ export const pagePermission = pgTable(
     unique("page_permission_principal_key").on(t.pageId, t.userId).nullsNotDistinct(),
     index("page_permission_workspace_idx").on(t.workspaceId),
     index("page_permission_user_idx").on(t.userId),
-    check("page_permission_level_check", sql`${t.level} in ('none', 'view', 'edit', 'full')`),
+    check("page_permission_level_check", sql`${t.level} in ('none', 'view', 'comment', 'edit', 'full')`),
   ],
 );
 
@@ -61,6 +64,6 @@ export const pageInvitation = pgTable(
   (t) => [
     unique("page_invitation_email_key").on(t.pageId, t.email),
     index("page_invitation_workspace_email_idx").on(t.workspaceId, t.email),
-    check("page_invitation_level_check", sql`${t.level} in ('view', 'edit', 'full')`),
+    check("page_invitation_level_check", sql`${t.level} in ('view', 'comment', 'edit', 'full')`),
   ],
 );

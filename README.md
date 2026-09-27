@@ -26,14 +26,14 @@ approve them over OAuth.
   - Put a database inside any page, or show a view of an existing one there.
   - Lock a database to freeze its properties and views, and export its rows as CSV.
 - **Comments**: select text and comment on it; reply, react, resolve and reopen threads, live for
-  everyone on the page. People who can edit a page comment on it and viewers read along; full
-  access also deletes other people's comments.
+  everyone on the page. People who can comment on a page (or edit it) write comments and viewers
+  read along; full access also deletes other people's comments.
 - **Inbox**: a notification when someone assigns you to a row, shares a page with you or replies in
   a comment thread you're in, with an email a little later. Choose per kind whether it shows in the inbox and whether it comes by email.
 - **Page history**: versions are saved automatically while you edit and before every AI edit.
   You can preview and restore any version, and see what changed since it or since the version
   before, and who (or which AI app) changed it.
-- **Sharing and permissions**: give members or everyone full, edit, view or no access to a page.
+- **Sharing and permissions**: give members or everyone full, edit, comment, view or no access to a page.
   Subpages inherit it unless you change them. Share a page with someone outside the workspace by
   email and they join as a guest who sees only the pages shared with them.
 - **Publish to the web**: a read-only public link for a page and its subpages, kept out of search

@@ -1,7 +1,7 @@
 import { inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { user } from "@/db/schema";
-import { cleanCommentBody, CommentError, threadParticipants, type CommentOp, type PlainThread } from "@/lib/comments";
+import { cleanCommentBody, CommentError, threadParticipants, type CommentAnchor, type CommentOp, type PlainThread } from "@/lib/comments";
 import { AccessError, getMembership, hasLevel, isGuest, requirePageAccess, resolvePageAccess } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 import type { CommentOpResult } from "@/server/collab/bridge";
@@ -9,8 +9,8 @@ import { recordComment, withdrawComments } from "@/server/notifications";
 import { workspacePeople } from "@/server/workspaces";
 
 /**
- * Comments on pages. Anyone who can view a page reads its comments; anyone who can edit it writes
- * them. People with full access may also delete other people's comments and whole threads, like
+ * Comments on pages. Anyone who can view a page reads its comments; anyone who can comment on it
+ * (the "comment" level, or edit and full access) writes them. People with full access may also delete other people's comments and whole threads, like
  * BlockNote's "editor" role; everyone else edits and deletes only their own.
  *
  * Every change goes through the server, which writes it into the page's live document, so browsers
@@ -34,11 +34,28 @@ const id = (value: unknown) => {
   return value;
 };
 
+const MAX_QUOTE = 1000;
+
+function cleanAnchor(anchor: unknown): CommentAnchor | undefined {
+  if (anchor === undefined || anchor === null) return undefined;
+  const a = anchor as Partial<CommentAnchor>;
+  if (typeof a.quote !== "string" || !a.quote.trim() || a.quote.length > MAX_QUOTE) {
+    throw new CommentError(`Quote up to ${MAX_QUOTE} characters of the page`, "invalidBody");
+  }
+  return {
+    quote: a.quote,
+    ...(typeof a.blockId === "string" && a.blockId.length <= 100 ? { blockId: a.blockId } : {}),
+    ...(Number.isInteger(a.offset) && a.offset! >= 0 ? { offset: a.offset } : {}),
+  };
+}
+
 /** The change as the page stores it: known fields only, bodies cleaned, ids and emoji checked. */
 function cleanOp(op: CommentOp): CommentOp {
   switch (op?.type) {
-    case "createThread":
-      return { type: "createThread", body: cleanCommentBody(op.body) };
+    case "createThread": {
+      const anchor = cleanAnchor(op.anchor);
+      return { type: "createThread", body: cleanCommentBody(op.body), ...(anchor ? { anchor } : {}) };
+    }
     case "addComment":
       return { type: "addComment", threadId: id(op.threadId), body: cleanCommentBody(op.body) };
     case "updateComment":
@@ -64,20 +81,17 @@ export async function listComments(userId: string, pageId: string): Promise<Plai
 }
 
 /**
- * Applies one comment change for `userId`. `quote` anchors a new thread to the first place the page
- * has that text (MCP; browsers mark the selection themselves). Throws AccessError without edit
- * access and CommentError for changes that can't be made.
+ * Applies one comment change for `userId`. A new thread's anchor marks the text it is about (see
+ * CommentAnchor); the server marks it, so people who may only comment never write the page.
+ * Throws AccessError without comment access and CommentError for changes that can't be made.
  */
-export async function changeComments(userId: string, pageId: string, op: CommentOp, quote?: string): Promise<CommentOpResult> {
+export async function changeComments(userId: string, pageId: string, op: CommentOp): Promise<CommentOpResult> {
   const { page: target, level } = await resolvePageAccess(userId, pageId);
-  if (!target || !hasLevel(level, "edit")) throw new AccessError();
+  if (!target || !hasLevel(level, "comment")) throw new AccessError();
   if (target.archivedAt) throw new CommentError("Pages in the trash can't be commented on", "notAllowed");
-  if (quote !== undefined && (typeof quote !== "string" || !quote.trim() || quote.length > 1000)) {
-    throw new CommentError("Quote up to 1000 characters of the page", "invalidBody");
-  }
   const clean = cleanOp(op);
   const role = hasLevel(level, "full") ? "editor" : "comment";
-  const result = await getCollab().commentOp(pageId, { userId, role }, clean, quote);
+  const result = await getCollab().commentOp(pageId, { userId, role }, clean);
 
   if ((clean.type === "createThread" || clean.type === "addComment") && result.thread && result.comment) {
     // Everyone who wrote in the thread before hears about a reply; a new thread tells the page's author.

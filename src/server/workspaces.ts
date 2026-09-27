@@ -18,7 +18,7 @@ import { isLocale, type Locale } from "@/i18n/config";
 import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
 import { env } from "@/lib/env";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
-import { AccessError, getMembership, isGuest, requireMember, requireMembership } from "@/server/access";
+import { AccessError, FULL_RANK, getMembership, isGuest, requireMember, requireMembership } from "@/server/access";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
 
@@ -628,7 +628,7 @@ async function handOverOrphanedPages(tx: Tx, workspaceId: string, heirId: string
       and exists (select 1 from ${pagePermission} pp where pp.page_id = p.id)
       and not exists (
         select 1 from ${workspaceMember} wm
-        where wm.workspace_id = ${workspaceId} and page_access_level(wm.user_id, p.id) = 3
+        where wm.workspace_id = ${workspaceId} and page_access_level(wm.user_id, p.id) = ${FULL_RANK}
       )
     on conflict (page_id, user_id) do update set level = 'full', created_by = excluded.created_by, created_at = now()
     returning page_id

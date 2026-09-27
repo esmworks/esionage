@@ -8,18 +8,23 @@ vi.mock("@/db", () => ({ db: {} }));
 
 describe("levelFromRank", () => {
   it("maps the SQL function's result to a level, and anything unexpected to none", () => {
-    expect([0, 1, 2, 3].map(levelFromRank)).toEqual(["none", "view", "edit", "full"]);
-    expect(levelFromRank("2")).toBe("edit");
+    expect([0, 1, 2, 3, 4].map(levelFromRank)).toEqual(["none", "view", "comment", "edit", "full"]);
+    expect(levelFromRank("3")).toBe("edit");
     expect(levelFromRank(null)).toBe("none");
     expect(levelFromRank(7)).toBe("none");
   });
 });
 
 describe("hasLevel", () => {
-  const cases: [AccessLevel, "view" | "edit" | "full", boolean][] = [
+  const cases: [AccessLevel, "view" | "comment" | "edit" | "full", boolean][] = [
     ["none", "view", false],
     ["view", "view", true],
+    ["view", "comment", false],
     ["view", "edit", false],
+    ["comment", "view", true],
+    ["comment", "comment", true],
+    ["comment", "edit", false],
+    ["edit", "comment", true],
     ["edit", "edit", true],
     ["edit", "full", false],
     ["full", "view", true],

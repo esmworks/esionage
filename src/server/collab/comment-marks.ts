@@ -1,5 +1,6 @@
 import { prosemirrorToYXmlFragment, yXmlFragmentToProseMirrorRootNode } from "y-prosemirror";
 import type * as Y from "yjs";
+import type { CommentAnchor } from "@/lib/comments";
 import { serverEditor } from "@/server/blocknote";
 
 /**
@@ -13,7 +14,7 @@ type NodeJson = { type: string; text?: string; marks?: MarkJson[]; content?: Nod
 
 const COMMENT_MARK = "comment";
 /** Stands in for inline nodes that aren't text (mentions), so quotes never run across them. */
-const OBJECT = "￼";
+const OBJECT = "\uFFFC";
 
 const schema = () => serverEditor.editor.pmSchema;
 
@@ -48,45 +49,61 @@ function quotesOf(node: NodeJson, found = new Map<string, string>()): Map<string
   return found;
 }
 
-/** Marks the first place `quote` appears within one paragraph (or heading, list item…). */
-function markQuote(node: NodeJson, quote: string, threadId: string): boolean {
+/** Marks `quote` in a paragraph's (or heading's…) own text: at `offset` when it's there, else where it first is. */
+function markText(node: NodeJson, quote: string, threadId: string, offset?: number): boolean {
   const content = node.content;
-  if (!content?.length) return false;
-  if (content.some((c) => c.type === "text")) {
-    const text = content.map((c) => (c.type === "text" ? (c.text ?? "") : OBJECT)).join("");
-    const at = text.indexOf(quote);
-    if (at >= 0) {
-      const end = at + quote.length;
-      const mark: MarkJson = { type: COMMENT_MARK, attrs: { orphan: false, threadId } };
-      const next: NodeJson[] = [];
-      let pos = 0;
-      for (const c of content) {
-        const length = c.type === "text" ? (c.text ?? "").length : 1;
-        const start = pos;
-        pos += length;
-        if (c.type !== "text" || pos <= at || start >= end) {
-          next.push(c);
-          continue;
-        }
-        const t = c.text ?? "";
-        const from = Math.max(at, start) - start;
-        const to = Math.min(end, pos) - start;
-        if (from > 0) next.push({ ...c, text: t.slice(0, from) });
-        next.push({ ...c, text: t.slice(from, to), marks: [...(c.marks ?? []), mark] });
-        if (to < length) next.push({ ...c, text: t.slice(to) });
-      }
-      node.content = next;
-      return true;
+  if (!content?.some((c) => c.type === "text")) return false;
+  const text = content.map((c) => (c.type === "text" ? (c.text ?? "") : OBJECT)).join("");
+  const at = offset !== undefined && text.startsWith(quote, offset) ? offset : text.indexOf(quote);
+  if (at < 0) return false;
+  const end = at + quote.length;
+  const mark: MarkJson = { type: COMMENT_MARK, attrs: { orphan: false, threadId } };
+  const next: NodeJson[] = [];
+  let pos = 0;
+  for (const c of content) {
+    const length = c.type === "text" ? (c.text ?? "").length : 1;
+    const start = pos;
+    pos += length;
+    if (c.type !== "text" || pos <= at || start >= end) {
+      next.push(c);
+      continue;
     }
+    const t = c.text ?? "";
+    const from = Math.max(at, start) - start;
+    const to = Math.min(end, pos) - start;
+    if (from > 0) next.push({ ...c, text: t.slice(0, from) });
+    next.push({ ...c, text: t.slice(from, to), marks: [...(c.marks ?? []), mark] });
+    if (to < length) next.push({ ...c, text: t.slice(to) });
   }
-  return content.some((child) => markQuote(child, quote, threadId));
+  node.content = next;
+  return true;
 }
 
-/** Anchors a thread to the first place the page has `quote`; false when the page doesn't have it. */
-export function anchorThread(fragment: Y.XmlFragment, threadId: string, quote: string): boolean {
-  if (!quote || quote.includes(OBJECT)) return false;
+/** Marks the first place `quote` appears within one paragraph (or heading, list item…). */
+function markQuote(node: NodeJson, quote: string, threadId: string): boolean {
+  return markText(node, quote, threadId) || (node.content ?? []).some((child) => markQuote(child, quote, threadId));
+}
+
+function findBlock(node: NodeJson, blockId: string): NodeJson | null {
+  if (node.type === "blockContainer" && node.attrs?.id === blockId) return node;
+  for (const child of node.content ?? []) {
+    const found = findBlock(child, blockId);
+    if (found) return found;
+  }
+  return null;
+}
+
+/**
+ * Anchors a thread to its text (see CommentAnchor): in the given block when it has the quote, else
+ * where the page first has it. False when the page doesn't have it.
+ */
+export function anchorThread(fragment: Y.XmlFragment, threadId: string, anchor: CommentAnchor): boolean {
+  const { quote, blockId, offset } = anchor;
+  if (!quote) return false;
   const json = readJson(fragment);
-  if (!markQuote(json, quote, threadId)) return false;
+  // A block holds its own content first, then its nested blocks.
+  const own = blockId ? findBlock(json, blockId)?.content?.[0] : undefined;
+  if (!(own && markText(own, quote, threadId, offset)) && !markQuote(json, quote, threadId)) return false;
   writeJson(fragment, json);
   return true;
 }

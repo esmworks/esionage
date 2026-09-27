@@ -140,6 +140,7 @@
     "levels": {
       "full": "Full access",
       "edit": "Can edit",
+      "comment": "Can comment",
       "view": "Can view",
       "none": "No access"
     },

@@ -344,7 +344,7 @@ export function createCollab() {
       }
     },
 
-    async commentOp(pageId, actor, op, quote) {
+    async commentOp(pageId, actor, op) {
       return transactPage(pageId, { userId: actor.userId }, async (doc) => {
         const threads = threadsOf(doc);
         const store = new YjsThreadStore(actor.userId, threads, new DefaultThreadStoreAuth(actor.userId, actor.role));
@@ -357,10 +357,10 @@ export function createCollab() {
         doc.transact(() => {
           const before = new Set(threads.keys());
           pending = runOp(store, threads, op);
-          if (op.type !== "createThread" || quote === undefined) return;
+          if (op.type !== "createThread" || !op.anchor) return;
           const created = [...threads.keys()].find((id) => !before.has(id));
           if (!created) return;
-          anchored = anchorThread(doc.getXmlFragment(COLLAB_FRAGMENT), created, quote);
+          anchored = anchorThread(doc.getXmlFragment(COLLAB_FRAGMENT), created, op.anchor);
           if (!anchored) threads.delete(created);
         }, origin);
         let done: unknown;

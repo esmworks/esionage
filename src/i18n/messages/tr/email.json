@@ -40,6 +40,7 @@
     "body": "{workspace} içindeki “{page}” sayfasını artık {level}.",
     "levels": {
       "view": "görüntüleyebilirsiniz",
+      "comment": "görüntüleyip yorum yapabilirsiniz",
       "edit": "düzenleyebilirsiniz",
       "full": "görüntüleyebilir, düzenleyebilir ve paylaşabilirsiniz"
     },

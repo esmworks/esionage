@@ -40,6 +40,7 @@
     "body": "You can now {level} “{page}” in {workspace}.",
     "levels": {
       "view": "view",
+      "comment": "view and comment on",
       "edit": "edit",
       "full": "view, edit and share"
     },

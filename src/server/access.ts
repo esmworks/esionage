@@ -20,6 +20,7 @@ export class AccessError extends Error {
 
 /**
  * - `view`: read the page, its history and, for databases, its rows and schema.
+ * - `comment`: also comment on it (see server/comments.ts).
  * - `edit`: change content, title, icon, properties, rows, views; move or trash it.
  * - `full`: also delete it for good (and, later, change who it is shared with).
  */
@@ -30,10 +31,13 @@ const rank = (level: AccessLevel) => PAGE_LEVELS.indexOf(level);
 
 export const hasLevel = (level: AccessLevel, needed: RequiredLevel) => rank(level) >= rank(needed);
 
-/** The level `page_access_level` returns (0–3) as a name; anything unexpected is `none`. */
+/** The rank `page_access_level` returns for full access, for SQL that looks for it. */
+export const FULL_RANK = rank("full");
+
+/** The level `page_access_level` returns (0–4) as a name; anything unexpected is `none`. */
 export const levelFromRank = (value: unknown): AccessLevel => PAGE_LEVELS[Number(value)] ?? "none";
 
-/** SQL: the user's access rank (0–3) on a page id expression. */
+/** SQL: the user's access rank (0–4) on a page id expression. */
 export const accessRank = (userId: string, pageId: SQL) => sql<number>`page_access_level(${userId}, ${pageId})`;
 
 export async function getMembership(userId: string, workspaceId: string) {

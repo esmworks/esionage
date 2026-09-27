@@ -29,7 +29,8 @@ const { archivePage, createPage } = await import("@/server/pages");
 const { setPagePermission } = await import("@/server/permissions");
 const { flushShareEmails, setShareMailer } = await import("@/server/share-emails");
 const { setNotificationPreference } = await import("@/server/notification-preferences");
-const { AccessError } = await import("@/server/access");
+const { AccessError, requirePageAccess } = await import("@/server/access");
+const { authorizeCollab } = await import("@/server/collab/authorize");
 const { InMemoryTransport } = await import("@modelcontextprotocol/server");
 const { createServer } = await import("node:http");
 const crossws = (await import("crossws/adapters/node")).default;
@@ -118,7 +119,13 @@ const unread = (userId: string, threadId: string) =>
     .from(notification)
     .where(and(eq(notification.userId, userId), eq(notification.kind, "comment"), eq(notification.threadId, threadId)));
 
-const ids = { owner: `${RUN}-owner`, editor: `${RUN}-editor`, viewer: `${RUN}-viewer`, outsider: `${RUN}-outsider` };
+const ids = {
+  owner: `${RUN}-owner`,
+  editor: `${RUN}-editor`,
+  commenter: `${RUN}-commenter`,
+  viewer: `${RUN}-viewer`,
+  outsider: `${RUN}-outsider`,
+};
 const userIds = Object.values(ids);
 const workspaceId = `${RUN}-ws`;
 const otherWorkspace = `${RUN}-ws2`;
@@ -135,6 +142,7 @@ try {
     { workspaceId, userId: ids.owner, role: "owner" },
     { workspaceId, userId: ids.editor, role: "member" },
     { workspaceId, userId: ids.viewer, role: "member" },
+    { workspaceId, userId: ids.commenter, role: "member" },
     { workspaceId: otherWorkspace, userId: ids.outsider, role: "owner" },
   ]);
   const doc = await createPage({ userId: ids.owner }, { workspaceId, title: "Plan" });
@@ -143,6 +151,7 @@ try {
   await setPagePermission(ids.owner, doc.id, ids.owner, "full");
   await setPagePermission(ids.owner, doc.id, null, "view");
   await setPagePermission(ids.owner, doc.id, ids.editor, "edit");
+  await setPagePermission(ids.owner, doc.id, ids.commenter, "comment");
 
   const [before] = await db.select({ updatedAt: page.updatedAt, updatedBy: page.updatedBy }).from(page).where(eq(page.id, doc.id));
 
@@ -150,13 +159,13 @@ try {
   check((await listComments(ids.viewer, doc.id)).length === 0, "people who can view a page read its comments");
   check((await failure(() => listComments(ids.outsider, doc.id))) === "access", "people outside the workspace can't read them");
   check(
-    (await failure(() => changeComments(ids.viewer, doc.id, { type: "createThread", body: "hi" }, "comments"))) === "access",
+    (await failure(() => changeComments(ids.viewer, doc.id, { type: "createThread", body: "hi", anchor: { quote: "comments" } }))) === "access",
     "viewing a page isn't enough to comment on it",
   );
 
   // Anchoring to quoted text
   check(
-    (await failure(() => changeComments(ids.editor, doc.id, { type: "createThread", body: "hi" }, "not on the page"))) === "notFound",
+    (await failure(() => changeComments(ids.editor, doc.id, { type: "createThread", body: "hi", anchor: { quote: "not on the page" } }))) === "notFound",
     "a quote the page doesn't have is refused",
   );
   check((await threadCount(doc.id)) === 0, "…and leaves no thread behind");
@@ -166,8 +175,8 @@ try {
     {
       type: "createThread",
       body: [{ type: "paragraph", content: [{ type: "link", href: "javascript:alert(1)", content: "Is this" }, " realistic?"] }],
+      anchor: { quote: "comments feature" },
     },
-    "comments feature",
   );
   const thread = created.thread!;
   check(created.anchored === true && thread.comments.length === 1 && thread.comments[0].userId === ids.editor, "an editor starts a thread on quoted text", created);
@@ -235,8 +244,29 @@ try {
   await changeComments(ids.editor, doc.id, { type: "addReaction", threadId: thread.id, commentId: ownerComment, emoji: "👍" });
   threads = await listComments(ids.viewer, doc.id);
   check(threads[0].comments[1].reactions[0]?.userIds.join() === ids.editor, "people react to comments", threads[0].comments[1]);
-  check((await failure(() => changeComments(ids.editor, doc.id, { type: "createThread", body: "x".repeat(10_001) }, "Second"))) === "tooLong", "overlong comments are refused");
+  check((await failure(() => changeComments(ids.editor, doc.id, { type: "createThread", body: "x".repeat(10_001), anchor: { quote: "Second" } }))) === "tooLong", "overlong comments are refused");
   check((await failure(() => changeComments(ids.editor, doc.id, { type: "addComment", threadId: "nope", body: "hi" }))) === "notFound", "replies need a thread");
+
+  // People who may only comment
+  check((await authorizeCollab(ids.commenter, { kind: "page", id: doc.id })).readOnly, "people who can comment open the page read-only");
+  check((await failure(() => requirePageAccess(ids.commenter, doc.id, "edit"))) === "access", "…and can't edit it");
+  const [firstBlock] = (await getCollab().readBlocks(doc.id)).blocks;
+  const byCommenter = await changeComments(ids.commenter, doc.id, {
+    type: "createThread",
+    body: "Which week?",
+    anchor: { quote: "this week", blockId: (firstBlock as { id: string }).id, offset: 26 },
+  });
+  check(
+    byCommenter.anchored && (await quotes(doc.id)).get(byCommenter.thread!.id) === "this week",
+    "…but comment on a selection, which the server marks",
+    Object.fromEntries(await quotes(doc.id)),
+  );
+  check(
+    (await failure(() => changeComments(ids.commenter, doc.id, { type: "deleteThread", threadId: thread.id }))) === "notAllowed",
+    "…and can't delete other people's threads",
+  );
+  await changeComments(ids.commenter, doc.id, { type: "deleteComment", threadId: byCommenter.thread!.id, commentId: byCommenter.comment!.id });
+  check(!(await listComments(ids.commenter, doc.id)).some((t) => t.id === byCommenter.thread!.id), "…but delete their own");
 
   // Server writes keep anchors
   await getCollab().replaceContent(doc.id, "New intro.\n\nShip the comments feature this week.\n\nSecond paragraph stays.", { userId: ids.owner });
@@ -326,7 +356,7 @@ try {
   check(!(await listComments(ids.owner, doc.id)).some((t) => t.id === thread.id), "full access deletes whole threads");
   check((await unread(ids.editor, thread.id)).filter((n) => !n.readAt).length === 0, "…taking back their unread notifications");
   await archivePage(ids.owner, doc.id);
-  check((await failure(() => changeComments(ids.owner, doc.id, { type: "createThread", body: "hi" }, "Second"))) === "notAllowed", "pages in the trash take no comments");
+  check((await failure(() => changeComments(ids.owner, doc.id, { type: "createThread", body: "hi", anchor: { quote: "Second" } }))) === "notAllowed", "pages in the trash take no comments");
 
   console.log(`\n${passed} checks passed`);
 } finally {

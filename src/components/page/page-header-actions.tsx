@@ -34,9 +34,9 @@ import type { PageHeaderInfo } from "@/server/page-meta";
 import type { TreeNode } from "@/server/pages";
 import { SharePanel } from "./share-panel";
 
-const RANK = { none: 0, view: 1, edit: 2, full: 3 } as const;
+const RANK = { none: 0, view: 1, comment: 2, edit: 3, full: 4 } as const;
 /** Client-side mirror of the server's level check, for hiding what the server would refuse. */
-export const hasLevel = (level: PageHeaderInfo["level"], needed: "view" | "edit" | "full") => RANK[level] >= RANK[needed];
+export const hasLevel = (level: PageHeaderInfo["level"], needed: Exclude<PageHeaderInfo["level"], "none">) => RANK[level] >= RANK[needed];
 
 /**
  * The collab server stores a changed doc 2 s after the last edit, and at least every 10 s while

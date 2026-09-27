@@ -235,7 +235,7 @@ export function PageView({
                 pageDoc={pageDoc}
                 user={user}
                 editable={editable}
-                level={info.level === "none" ? "view" : info.level}
+                level={page.archived || info.level === "none" ? "view" : info.level}
                 workspaceId={workspaceId}
                 pageId={page.id}
                 commentsOpen={commentsOpen}

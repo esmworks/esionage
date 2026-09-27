@@ -2,7 +2,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { PAGE_LEVELS, pageInvitation, pagePermission, type PageLevel, user, workspaceInvitation, workspaceMember } from "@/db/schema";
 import { isEmail, normalizeEmail } from "@/lib/emails";
-import { AccessError, getMembership, hasLevel, requirePageAccess, resolvePageAccess } from "@/server/access";
+import { AccessError, FULL_RANK, getMembership, hasLevel, requirePageAccess, resolvePageAccess } from "@/server/access";
 import { recordShare, withdrawShare } from "@/server/notifications";
 import { addGuest, canInviteGuests, type InvitationDelivery, inviteGuest } from "@/server/workspaces";
 
@@ -249,7 +249,7 @@ async function changePermissions(workspaceId: string, pageId: string, change: (t
       where (s.id = ${pageId} or exists (select 1 from ${pagePermission} pp where pp.page_id = s.id))
         and not exists (
           select 1 from ${workspaceMember} wm
-          where wm.workspace_id = ${workspaceId} and page_access_level(wm.user_id, s.id) = 3
+          where wm.workspace_id = ${workspaceId} and page_access_level(wm.user_id, s.id) = ${FULL_RANK}
         )
       limit 1
     `);
