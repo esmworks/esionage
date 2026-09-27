@@ -3,13 +3,13 @@
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
 import { cn, PageIcon } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
 import { isHiddenInView } from "@/lib/properties";
 import { CardTitleInput } from "./board-view";
 import { RowMenu } from "./gallery-view";
 import { isEmptyValue, PropertyDisplay } from "./property-cell";
+import { useNewRow } from "./use-new-row";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
 
@@ -30,12 +30,11 @@ export function ListView({
   readOnly?: boolean;
 }) {
   const t = useTranslations("database");
-  const [editTitleOf, setEditTitleOf] = useState<string | null>(null);
+  const { editTitleOf, typed, create: createNew, stopEditing } = useNewRow((id, title) => void api.setCell(id, TITLE, title));
   const shownProps = properties.filter((p) => !isHiddenInView(view, p));
 
   const add = async () => {
-    const id = await api.createRow();
-    if (id) setEditTitleOf(id);
+    await createNew(() => api.createRow());
   };
 
   return (
@@ -49,8 +48,9 @@ export function ListView({
             props={shownProps}
             readOnly={readOnly}
             editTitle={editTitleOf === row.id}
+            typed={typed}
             onTitle={(title) => {
-              setEditTitleOf(null);
+              stopEditing();
               if (title !== row.title) void api.setCell(row.id, TITLE, title);
             }}
             onDelete={() => api.deleteRow(row.id)}
@@ -78,6 +78,7 @@ function ListRow({
   props,
   readOnly,
   editTitle,
+  typed,
   onTitle,
   onDelete,
 }: {
@@ -86,6 +87,8 @@ function ListRow({
   props: Property[];
   readOnly?: boolean;
   editTitle: boolean;
+  /** Typed before the title editor opened. */
+  typed?: string;
   onTitle: (title: string) => void;
   onDelete: () => void;
 }) {
@@ -109,7 +112,7 @@ function ListRow({
       >
         <PageIcon icon={row.icon} className="shrink-0" />
         {editTitle ? (
-          <CardTitleInput initial={row.title} onDone={onTitle} />
+          <CardTitleInput initial={typed || row.title} onDone={onTitle} />
         ) : (
           <span className={cn("min-w-0 truncate text-sm font-medium", !row.title && "text-fg-faint")}>
             {pageLabel(row.title, tc("untitled"))}

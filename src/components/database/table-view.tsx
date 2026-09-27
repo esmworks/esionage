@@ -19,6 +19,7 @@ import { OpenLink, PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
 import { AddPropertyPanel, PropertyMenu } from "./property-menu";
 import { CalculationRow } from "./table-calculations";
+import { useNewRow } from "./use-new-row";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
 
@@ -69,7 +70,7 @@ export function TableView({
 }) {
   const t = useTranslations("database");
   const tc = useTranslations("common");
-  const [editTitleOf, setEditTitleOf] = useState<string | null>(null);
+  const { editTitleOf, typed, create: createNew, stopEditing } = useNewRow((id, title) => void api.setCell(id, TITLE, title));
   const { viewerId } = usePeople();
   // Grouped only when the view asks for it (unlike boards, which always group).
   const groupBy = properties.find((p) => p.id === view.config.groupBy && isGroupable(p.type));
@@ -112,8 +113,7 @@ export function TableView({
 
   const addRow = async (group?: Group<Row>) => {
     const defaults = group && groupBy ? groupDefaults(groupBy, group) : {};
-    const id = await api.createRow(Object.keys(defaults).length ? { properties: defaults } : {});
-    if (id) setEditTitleOf(id);
+    await createNew(() => api.createRow(Object.keys(defaults).length ? { properties: defaults } : {}));
   };
   const today = localDay(new Date());
   const canAddTo = (group: Group<Row>) => !readOnly && !!groupBy && canAddToGroup(groupBy, group, { viewerId, today });
@@ -150,8 +150,9 @@ export function TableView({
             readOnly={readOnly}
             placeholder={tc("untitled")}
             autoEdit={editTitleOf === row.id}
+            draft={editTitleOf === row.id ? typed : undefined}
             onChange={(v) => {
-              setEditTitleOf(null);
+              stopEditing();
               void api.setCell(row.id, TITLE, v ?? "");
             }}
             onCreateOption={createOption}

@@ -8,6 +8,7 @@ import { Button, cn, PageIcon } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
 import { CardTitleInput } from "./board-view";
 import { isEmptyValue, PropertyDisplay } from "./property-cell";
+import { useNewRow } from "./use-new-row";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
 
@@ -79,7 +80,7 @@ export function CalendarView({
   const [cursor, setCursor] = useState(() => ({ year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) - 1 }));
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropDay, setDropDay] = useState<string | null>(null);
-  const [editTitleOf, setEditTitleOf] = useState<string | null>(null);
+  const { editTitleOf, typed, create: createNew, stopEditing } = useNewRow((id, title) => void api.setCell(id, TITLE, title));
   const [showUndated, setShowUndated] = useState(false);
 
   const dateProps = properties.filter((p) => p.type === "date");
@@ -126,8 +127,7 @@ export function CalendarView({
     });
 
   const addOn = async (day: string) => {
-    const id = await api.createRow({ properties: { [dateBy.id]: day } });
-    if (id) setEditTitleOf(id);
+    await createNew(() => api.createRow({ properties: { [dateBy.id]: day } }));
   };
 
   const onDrop = (e: DragEvent<HTMLElement>, day: string | null) => {
@@ -149,8 +149,9 @@ export function CalendarView({
       readOnly={readOnly}
       dragging={dragId === row.id}
       editTitle={editTitleOf === row.id}
+      typed={typed}
       onTitle={(title) => {
-        setEditTitleOf(null);
+        stopEditing();
         if (title !== row.title) void api.setCell(row.id, TITLE, title);
       }}
       onDragStart={(e) => {
@@ -304,6 +305,7 @@ function CalendarEntry({
   readOnly,
   dragging,
   editTitle,
+  typed,
   onTitle,
   onDragStart,
   onDragEnd,
@@ -314,6 +316,8 @@ function CalendarEntry({
   readOnly?: boolean;
   dragging: boolean;
   editTitle: boolean;
+  /** Typed before the title editor opened. */
+  typed?: string;
   onTitle: (title: string) => void;
   onDragStart: (e: DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
@@ -339,7 +343,7 @@ function CalendarEntry({
       )}
     >
       {editTitle ? (
-        <CardTitleInput initial={row.title} onDone={onTitle} />
+        <CardTitleInput initial={typed || row.title} onDone={onTitle} />
       ) : (
         <div className="flex min-w-0 items-center gap-1">
           {row.icon && <PageIcon icon={row.icon} className="shrink-0 text-xs" />}

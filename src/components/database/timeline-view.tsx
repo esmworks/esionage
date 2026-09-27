@@ -40,6 +40,7 @@ import { CardTitleInput } from "./board-view";
 import { usePeople } from "./person-cell";
 import { GroupLabel, useGroupContext, useGroupName } from "./group-label";
 import { isEmptyValue, PropertyDisplay } from "./property-cell";
+import { useNewRow } from "./use-new-row";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
 import { timelineDates, timelineGroupProperty } from "./view-settings";
@@ -99,7 +100,7 @@ export function TimelineView({
   const [drag, setDrag] = useState<Drag | null>(null);
   const [dropDay, setDropDay] = useState<number | null>(null);
   const [dragUndated, setDragUndated] = useState<string | null>(null);
-  const [editTitleOf, setEditTitleOf] = useState<string | null>(null);
+  const { editTitleOf, typed, create: createNew, stopEditing } = useNewRow((id, title) => void api.setCell(id, TITLE, title));
   const [showUndated, setShowUndated] = useState(true);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   // The day to bring into view after the next layout, and where (a share of the visible width).
@@ -270,8 +271,7 @@ export function TimelineView({
     const values: Record<string, unknown> = groupBy && lane ? groupDefaults(groupBy, lane) : {};
     // New rows start today, unless the lane is a date bucket of the start property itself.
     if (!isComputed(startProp.type) && !(startProp.id in values)) values[startProp.id] = dayValue(today);
-    const id = await api.createRow({ properties: values });
-    if (id) setEditTitleOf(id);
+    await createNew(() => api.createRow({ properties: values }));
   };
 
   const toggleLane = (key: string) =>
@@ -363,9 +363,9 @@ export function TimelineView({
         <PageIcon icon={row.icon} className="shrink-0" />
         {editTitleOf === row.id ? (
           <CardTitleInput
-            initial={row.title}
+            initial={typed || row.title}
             onDone={(title) => {
-              setEditTitleOf(null);
+              stopEditing();
               if (title !== row.title) void api.setCell(row.id, TITLE, title);
             }}
           />

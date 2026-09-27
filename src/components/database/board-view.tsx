@@ -23,6 +23,7 @@ import { Floating, useFloating } from "./floating";
 import { GroupLabel, HiddenGroups, useGroupContext, useGroupName } from "./group-label";
 import { usePeople } from "./person-cell";
 import { isEmptyValue, PropertyDisplay } from "./property-cell";
+import { useNewRow } from "./use-new-row";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
 
@@ -56,7 +57,7 @@ export function BoardView({
   // each of their columns, and moving it replaces only that column's value.
   const [dragFrom, setDragFrom] = useState<string | null>(null);
   const [drop, setDrop] = useState<{ group: string; index: number } | null>(null);
-  const [editTitleOf, setEditTitleOf] = useState<string | null>(null);
+  const { editTitleOf, typed, create: createNew, stopEditing } = useNewRow((id, title) => void api.setCell(id, TITLE, title));
   // Column drag: the dragged column's key and the insertion index among the shown columns.
   const [dragCol, setDragCol] = useState<string | null>(null);
   const [colDrop, setColDrop] = useState<number | null>(null);
@@ -205,8 +206,7 @@ export function BoardView({
 
   const addCard = async (group: Group<Row>) => {
     const defaults = groupDefaults(groupBy, group);
-    const id = await api.createRow(Object.keys(defaults).length ? { properties: defaults } : {});
-    if (id) setEditTitleOf(id);
+    await createNew(() => api.createRow(Object.keys(defaults).length ? { properties: defaults } : {}));
   };
 
   // Cards can't be given who created them or when: on such boards a new card lands in the
@@ -333,8 +333,9 @@ export function BoardView({
                         readOnly={readOnly}
                         dragging={dragId === row.id}
                         editTitle={editTitleOf === row.id}
+                        typed={typed}
                         onTitle={(title) => {
-                          setEditTitleOf(null);
+                          stopEditing();
                           if (title !== row.title) void api.setCell(row.id, TITLE, title);
                         }}
                         onDelete={() => api.deleteRow(row.id)}
@@ -572,6 +573,7 @@ function Card({
   readOnly,
   dragging,
   editTitle,
+  typed,
   onTitle,
   onDelete,
   onDragStart,
@@ -583,6 +585,8 @@ function Card({
   readOnly?: boolean;
   dragging: boolean;
   editTitle: boolean;
+  /** Typed before the title editor opened. */
+  typed?: string;
   onTitle: (title: string) => void;
   onDelete: () => void;
   onDragStart: (e: DragEvent<HTMLDivElement>) => void;
@@ -608,7 +612,7 @@ function Card({
       )}
     >
       {editTitle ? (
-        <CardTitleInput initial={row.title} onDone={onTitle} />
+        <CardTitleInput initial={typed || row.title} onDone={onTitle} />
       ) : (
         <div className="flex gap-1.5 pr-6 text-sm leading-5 font-medium">
           {row.icon && <span className="shrink-0">{row.icon}</span>}

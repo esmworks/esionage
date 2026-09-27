@@ -334,6 +334,7 @@ export function PropertyCell({
   variant = "table",
   wrap,
   autoEdit,
+  draft,
   placeholder,
 }: {
   prop: Property;
@@ -345,6 +346,8 @@ export function PropertyCell({
   wrap?: boolean;
   /** Start in edit mode (e.g. the title of a freshly created row). */
   autoEdit?: boolean;
+  /** Text typed before the editor opened; a text editor starts with it instead of the value. */
+  draft?: string;
   placeholder?: string;
 }) {
   const t = useTranslations("database.cell");
@@ -412,6 +415,7 @@ export function PropertyCell({
           onChange={onChange}
           onCreateOption={onCreateOption}
           onClose={() => setEditing(false)}
+          draft={draft}
         />
       )}
     </>
@@ -425,6 +429,7 @@ function CellEditor({
   onChange,
   onCreateOption,
   onClose,
+  draft,
 }: {
   prop: Property;
   value: unknown;
@@ -432,6 +437,7 @@ function CellEditor({
   onChange: (value: unknown) => void;
   onCreateOption: CreateOption;
   onClose: () => void;
+  draft?: string;
 }) {
   switch (prop.type) {
     case "text":
@@ -439,7 +445,7 @@ function CellEditor({
     case "url":
     case "email":
     case "phone":
-      return <TextEditor prop={prop} value={value} anchor={anchor} onChange={onChange} onClose={onClose} />;
+      return <TextEditor prop={prop} value={value} anchor={anchor} onChange={onChange} onClose={onClose} startWith={draft} />;
     case "checklist":
       return (
         <Floating open anchor={anchor} onClose={onClose} className="w-80 p-0">
@@ -564,17 +570,19 @@ function TextEditor({
   anchor,
   onChange,
   onClose,
+  startWith,
 }: {
   prop: Property;
   value: unknown;
   anchor: HTMLElement | null;
   onChange: (value: unknown) => void;
   onClose: () => void;
+  startWith?: string;
 }) {
   const t = useTranslations("database.cell");
   const locale = useLocale();
   const initial = editText(value, locale);
-  const [draft, setDraft] = useState(initial);
+  const [draft, setDraft] = useState(startWith || initial);
   const [invalid, setInvalid] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
 

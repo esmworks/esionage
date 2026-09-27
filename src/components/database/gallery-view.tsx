@@ -12,6 +12,7 @@ import { galleryCover } from "@/lib/views";
 import { CardTitleInput } from "./board-view";
 import { Floating, useFloating } from "./floating";
 import { isEmptyValue, PropertyDisplay } from "./property-cell";
+import { useNewRow } from "./use-new-row";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
 
@@ -35,14 +36,13 @@ export function GalleryView({
   readOnly?: boolean;
 }) {
   const t = useTranslations("database");
-  const [editTitleOf, setEditTitleOf] = useState<string | null>(null);
+  const { editTitleOf, typed, create: createNew, stopEditing } = useNewRow((id, title) => void api.setCell(id, TITLE, title));
   const size = view.config.cardSize ?? "medium";
   const withCover = galleryCover(view.config) === "first_image";
   const cardProps = properties.filter((p) => !isHiddenInView(view, p));
 
   const add = async () => {
-    const id = await api.createRow();
-    if (id) setEditTitleOf(id);
+    await createNew(() => api.createRow());
   };
 
   return (
@@ -60,8 +60,9 @@ export function GalleryView({
             coverClass={withCover ? COVER_HEIGHT[size] : null}
             readOnly={readOnly}
             editTitle={editTitleOf === row.id}
+            typed={typed}
             onTitle={(title) => {
-              setEditTitleOf(null);
+              stopEditing();
               if (title !== row.title) void api.setCell(row.id, TITLE, title);
             }}
             onDelete={() => api.deleteRow(row.id)}
@@ -93,6 +94,7 @@ function GalleryCard({
   coverClass,
   readOnly,
   editTitle,
+  typed,
   onTitle,
   onDelete,
 }: {
@@ -103,6 +105,8 @@ function GalleryCard({
   coverClass: string | null;
   readOnly?: boolean;
   editTitle: boolean;
+  /** Typed before the title editor opened. */
+  typed?: string;
   onTitle: (title: string) => void;
   onDelete: () => void;
 }) {
@@ -148,7 +152,7 @@ function GalleryCard({
       )}
       <div className="min-w-0 px-3 py-2.5">
         {editTitle ? (
-          <CardTitleInput initial={row.title} onDone={onTitle} />
+          <CardTitleInput initial={typed || row.title} onDone={onTitle} />
         ) : (
           <div className="flex min-w-0 gap-1.5 pr-6 text-sm leading-5 font-medium">
             {row.icon && (!coverClass || cover) && <span className="shrink-0">{row.icon}</span>}

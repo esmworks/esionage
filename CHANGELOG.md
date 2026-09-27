@@ -60,6 +60,8 @@
 ### Fixed
 
 - Empty lines on published pages no longer show as a box.
+- Typing right after pressing New in a database keeps the first letters, and Enter no longer adds a
+  second empty row.
 - A formula dividing by an empty property is empty instead of a "division by zero" error.
 
 ## 0.2.0 — 2026-09-27
