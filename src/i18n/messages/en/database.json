@@ -24,7 +24,8 @@
     "board": "Board",
     "calendar": "Calendar",
     "gallery": "Gallery",
-    "list": "List"
+    "list": "List",
+    "timeline": "Timeline"
   },
   "colors": {
     "gray": "Gray",
@@ -371,7 +372,15 @@
     "covers": {
       "first_image": "First image in the page",
       "none": "None"
-    }
+    },
+    "start": "Start date",
+    "end": "End date",
+    "noEnd": "None (one-day bars)",
+    "needsDate": "Timelines place rows by a date property.",
+    "newDateProperty": "New date property",
+    "groupBy": "Group by",
+    "noGrouping": "None",
+    "showTable": "Show table"
   },
   "gallery": {
     "new": "New",
@@ -381,6 +390,24 @@
   "list": {
     "new": "New",
     "empty": "No rows to show."
+  },
+  "timeline": {
+    "needsDateTitle": "Timelines place rows by a date property",
+    "needsDateBody": "This database has no date property yet.",
+    "zoom": "Zoom",
+    "zooms": {
+      "day": "Day",
+      "week": "Week",
+      "month": "Month"
+    },
+    "showTable": "Show table",
+    "hideTable": "Hide table",
+    "new": "New",
+    "barLabel": "{title}, {dates}",
+    "resizeStart": "Drag to change the start",
+    "resizeEnd": "Drag to change the end",
+    "empty": "No rows with a {property} yet.",
+    "dragHint": "Drag a row onto the timeline to give it a date."
   },
   "errors": {
     "invalidUrl": "“{property}” must be an http(s) or mailto URL.",

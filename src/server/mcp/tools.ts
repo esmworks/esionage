@@ -6,6 +6,7 @@ import {
   type FilterCombinator,
   type SelectOption,
   type StatusGroup,
+  type TimelineZoom,
   type ViewConfig,
   type ViewCover,
   type ViewType,
@@ -13,8 +14,8 @@ import {
 import { FILTER_COMBINATORS, MAX_FILTER_DEPTH, MAX_RELATIVE_DAYS, RELATIVE_DATE_RANGES } from "@/lib/filters";
 import { pageLabel } from "@/lib/labels";
 import { computedValues, isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
-import { holdsOptions, STATUS_GROUPS } from "@/lib/property-types";
-import { CARD_SIZES, COVER_SOURCES, VIEW_TYPES } from "@/lib/views";
+import { holdsOptions, holdsTimestamp, STATUS_GROUPS } from "@/lib/property-types";
+import { CARD_SIZES, COVER_SOURCES, TIMELINE_ZOOMS, VIEW_TYPES } from "@/lib/views";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import * as databases from "@/server/databases";
 import * as notifications from "@/server/notifications";
@@ -168,8 +169,15 @@ function editOptions(
   return prop.type === "status" ? sortStatusOptions(options) : options;
 }
 
-/** Layout settings of gallery views, shared by create_database_view and update_database_view. */
+/** Layout settings of gallery and timeline views, shared by create_database_view and update_database_view. */
 const viewLayoutInputs = {
+  end_date_by: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Timeline only: the date property where bars end (null for none). Without it every bar is one day long."),
+  zoom: z.enum(TIMELINE_ZOOMS).optional().describe('Timeline only: a column per day, week or month ("week" by default).'),
+  show_table: z.boolean().optional().describe("Timeline only: show row titles in a table left of the bars (true by default)."),
   card_size: z.enum(CARD_SIZES).optional().describe('Gallery only: card size ("medium" by default).'),
   cover: z
     .enum(COVER_SOURCES)
@@ -178,8 +186,11 @@ const viewLayoutInputs = {
 };
 
 type ViewInput = {
-  group_by?: string;
+  group_by?: string | null;
   date_by?: string;
+  end_date_by?: string | null;
+  zoom?: TimelineZoom;
+  show_table?: boolean;
   card_size?: CardSize;
   cover?: ViewCover["source"];
   filters?: FilterEntryInput[];
@@ -194,20 +205,49 @@ function viewConfigPatch(props: PropertyDef[], type: ViewType, input: ViewInput,
     if (!types.includes(type)) throw new ToolInputError(`${setting} only applies to ${types.join(" and ")} views.`);
   };
   if (input.group_by !== undefined) {
-    only("group_by", "board");
-    const prop = requireProperty(props, input.group_by);
-    if (!isGroupable(prop.type)) {
-      throw new ToolInputError(
-        `Boards group by a select, status, person, created_by or last_edited_by property; "${prop.name}" is ${prop.type}.`,
-      );
+    only("group_by", "board", "timeline");
+    if (input.group_by === null) {
+      if (type === "board") throw new ToolInputError("Boards always group by a property.");
+      patch.groupBy = undefined;
+    } else {
+      const prop = requireProperty(props, input.group_by);
+      if (!isGroupable(prop.type)) {
+        throw new ToolInputError(
+          `Views group by a select, status, person, created_by or last_edited_by property; "${prop.name}" is ${prop.type}.`,
+        );
+      }
+      patch.groupBy = prop.id;
     }
-    patch.groupBy = prop.id;
   }
   if (input.date_by !== undefined) {
-    only("date_by", "calendar");
+    only("date_by", "calendar", "timeline");
     const prop = requireProperty(props, input.date_by);
-    if (prop.type !== "date") throw new ToolInputError(`Calendars place rows by a date property; "${prop.name}" is ${prop.type}.`);
+    if (type === "calendar" && prop.type !== "date") {
+      throw new ToolInputError(`Calendars place rows by a date property; "${prop.name}" is ${prop.type}.`);
+    }
+    if (type === "timeline" && prop.type !== "date" && !holdsTimestamp(prop.type)) {
+      throw new ToolInputError(
+        `Timelines start bars at a date, created_time or last_edited_time property; "${prop.name}" is ${prop.type}.`,
+      );
+    }
     patch.dateBy = prop.id;
+  }
+  if (input.end_date_by !== undefined) {
+    only("end_date_by", "timeline");
+    if (input.end_date_by === null) patch.endDateBy = undefined;
+    else {
+      const prop = requireProperty(props, input.end_date_by);
+      if (prop.type !== "date") throw new ToolInputError(`Timeline bars end at a date property; "${prop.name}" is ${prop.type}.`);
+      patch.endDateBy = prop.id;
+    }
+  }
+  if (input.zoom !== undefined) {
+    only("zoom", "timeline");
+    patch.zoom = input.zoom;
+  }
+  if (input.show_table !== undefined) {
+    only("show_table", "timeline");
+    patch.showTable = input.show_table;
   }
   if (input.card_size !== undefined) {
     only("card_size", "gallery");
@@ -611,7 +651,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Get a database schema",
       description:
-        "Get a database's schema: its properties (name, type, option names for select / multi_select / status with the status groups, and the people a person property can hold), its views with their type, settings (grouping, dates, gallery cards), filters and sorts, and the row count. Call this before querying or writing rows.",
+        "Get a database's schema: its properties (name, type, option names for select / multi_select / status with the status groups, and the people a person property can hold), its views with their type, settings (grouping, dates, timeline zoom, gallery cards), filters and sorts, and the row count. Call this before querying or writing rows.",
       inputSchema: z.object({ database_id: id("database") }),
       annotations: READ,
     },
@@ -997,7 +1037,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Create a database view",
       description:
-        'Add a saved view to a database: a "table", a "board" (cards grouped by a select, status or person property; a card assigned to several people shows under each), a "calendar" (rows placed on the days of a date property), a "gallery" (cards with a cover: the first image in each row\'s body) or a "list" (one compact line per row). Filters (with groups and filter_combinator) and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows, and is_within date filters count from the day the view is opened.',
+        'Add a saved view to a database: a "table", a "board" (cards grouped by a select, status or person property; a card assigned to several people shows under each), a "calendar" (rows placed on the days of a date property), a "gallery" (cards with a cover: the first image in each row\'s body), a "list" (one compact line per row) or a "timeline" (bars from a start date to an optional end date, optionally in swimlanes). Filters (with groups and filter_combinator) and sorts use the same form as query_database; a person filter on "me" shows everyone who opens the view their own rows, and is_within date filters count from the day the view is opened.',
       inputSchema: z.object({
         database_id: id("database"),
         name: z.string().min(1).max(100).describe("View name."),
@@ -1005,8 +1045,15 @@ export function createMcpServer(principal: McpPrincipal) {
         group_by: z
           .string()
           .optional()
-          .describe("Board only: the select, status or people property to group cards by. Defaults to the first select or status property."),
-        date_by: z.string().optional().describe("Calendar only: the date property that places rows on days. Defaults to the first date property."),
+          .describe(
+            "Board: the select, status or people property to group cards by (defaults to the first select or status property). Timeline: a property of the same kinds to split bars into swimlanes (none by default).",
+          ),
+        date_by: z
+          .string()
+          .optional()
+          .describe(
+            "Calendar: the date property that places rows on days. Timeline: the date (or created_time / last_edited_time) property where bars start. Defaults to the first date property.",
+          ),
         ...viewLayoutInputs,
         filters: filtersInput.optional(),
         filter_combinator: filterCombinatorInput,
@@ -1035,13 +1082,20 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Update a database view",
       description:
-        "Rename a saved view or change its filters, sorts, board grouping, calendar date property or gallery cards (view ids from get_database). filters and sorts replace the view's current ones (filters with filter_combinator, \"and\" unless given); pass an empty array to clear them. filter_combinator alone switches how the current filters combine. Settings you leave out keep their values.",
+        "Rename a saved view or change its filters, sorts, board or timeline grouping, calendar or timeline dates, timeline zoom and table, or gallery cards (view ids from get_database). filters and sorts replace the view's current ones (filters with filter_combinator, \"and\" unless given); pass an empty array to clear them. filter_combinator alone switches how the current filters combine. Settings you leave out keep their values.",
       inputSchema: z.object({
         database_id: id("database"),
         view_id: id("view"),
         name: z.string().min(1).max(100).optional().describe("New view name."),
-        group_by: z.string().optional().describe("Board only: the select, status or people property to group cards by."),
-        date_by: z.string().optional().describe("Calendar only: the date property that places rows on days."),
+        group_by: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("Board: the select, status or people property to group cards by. Timeline: the swimlane property, or null for none."),
+        date_by: z
+          .string()
+          .optional()
+          .describe("Calendar: the date property that places rows on days. Timeline: the property where bars start."),
         ...viewLayoutInputs,
         filters: filtersInput.optional(),
         filter_combinator: filterCombinatorInput,

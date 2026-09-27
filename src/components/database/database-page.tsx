@@ -14,10 +14,11 @@ import { ListView } from "./list-view";
 import { PeopleProvider, type PeopleContextValue } from "./person-cell";
 import { RelationProvider, type RelationContextValue } from "./relation-context";
 import { TableView } from "./table-view";
+import { TimelineView } from "./timeline-view";
 import type { View } from "./types";
 import { useDatabase } from "./use-database";
 import { ActiveRulesBar, ViewTabs, ViewToolbar } from "./view-bar";
-import { ViewLayoutMenu } from "./view-settings";
+import { timelineDates, ViewLayoutMenu } from "./view-settings";
 
 export function DatabasePage({
   workspaceId,
@@ -151,6 +152,11 @@ export function DatabasePage({
     for (let i = 2; names.has(lower(name)); i++) name = `${base} ${i}`;
     const created = await api.addProperty(name, "date");
     if (created && view?.type === "calendar") await setConfig(view, { ...view.config, dateBy: created.id });
+    // A timeline takes a new date property as its start, or as its end once it has a start.
+    if (created && view?.type === "timeline") {
+      const { start } = timelineDates(view, snapshot.properties);
+      await setConfig(view, { ...view.config, ...(start ? { endDateBy: created.id } : { dateBy: created.id }) });
+    }
   };
 
   const newRow = async () => {
@@ -191,7 +197,14 @@ export function DatabasePage({
                     onCreateGroupProperty={createGroupProperty}
                     onCreateDateProperty={createDateProperty}
                   />
-                  <ViewLayoutMenu view={view} readOnly={readOnly} onConfig={(config) => setConfig(view, config)} />
+                  <ViewLayoutMenu
+                    view={view}
+                    properties={snapshot.properties}
+                    readOnly={readOnly}
+                    locked={locked}
+                    onConfig={(config) => setConfig(view, config)}
+                    onCreateDateProperty={createDateProperty}
+                  />
                   {!readOnly && (
                     <Button size="sm" variant="primary" onClick={newRow} className="ml-1">
                       <Plus className="h-3.5 w-3.5" />
@@ -271,6 +284,18 @@ export function DatabasePage({
                 rows={visibleRows}
                 api={viewApi}
                 readOnly={readOnly}
+              />
+            ) : view.type === "timeline" ? (
+              <TimelineView
+                key={view.id}
+                workspaceId={workspaceId}
+                view={view}
+                properties={snapshot.properties}
+                rows={visibleRows}
+                api={viewApi}
+                readOnly={readOnly}
+                locked={locked}
+                onCreateDateProperty={createDateProperty}
               />
             ) : view.type === "calendar" ? (
               <div className="page-gutter">

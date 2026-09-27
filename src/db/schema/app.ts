@@ -172,7 +172,7 @@ export const databaseProperty = pgTable(
   (t) => [index("database_property_db_idx").on(t.databaseId)],
 );
 
-export type ViewType = "table" | "board" | "calendar" | "gallery" | "list";
+export type ViewType = "table" | "board" | "calendar" | "gallery" | "list" | "timeline";
 export type SortRule = { propertyId: string; direction: "asc" | "desc" };
 export type FilterOp = "contains" | "equals" | "not_equals" | "is_empty" | "is_not_empty" | "gt" | "lt" | "is_within";
 /** Values of an `is_within` rule: date ranges relative to the day the view is looked at. */
@@ -190,10 +190,19 @@ export type CardSize = "small" | "medium" | "large";
  * Files properties will add `{ source: "property"; propertyId }`.
  */
 export type ViewCover = { source: "first_image" } | { source: "none" };
+/** Timeline scale: a column per day, per week or per month. */
+export type TimelineZoom = "day" | "week" | "month";
 export type ViewConfig = {
+  /** Boards: the column property. Timelines: optional swimlanes (none when missing). */
   groupBy?: string;
-  /** Calendar views: the date property that places rows on days. */
+  /** Calendar views: the date property that places rows on days. Timelines: where bars start. */
   dateBy?: string;
+  /** Timelines: the date property where bars end; without it bars are one day long. */
+  endDateBy?: string;
+  /** Timelines: "week" when missing. */
+  zoom?: TimelineZoom;
+  /** Timelines: whether the table of row titles shows left of the bars; shown when missing. */
+  showTable?: boolean;
   /** Galleries: "medium" when missing. */
   cardSize?: CardSize;
   /** Galleries: the first image of each row when missing. */

@@ -806,6 +806,7 @@ export async function deleteProperty(userId: string, propertyId: string) {
             ...c,
             groupBy: c.groupBy === propertyId ? undefined : c.groupBy,
             dateBy: c.dateBy === propertyId ? undefined : c.dateBy,
+            endDateBy: c.endDateBy === propertyId ? undefined : c.endDateBy,
             sorts: c.sorts?.filter((s) => s.propertyId !== propertyId),
             filters: c.filters && mapFilterRules(c.filters, (f) => (f.propertyId === propertyId ? null : f)),
             hidden: c.hidden?.filter((h) => h !== propertyId),
@@ -836,8 +837,9 @@ export async function addView(userId: string, databaseId: string, input: { name:
     // Calendar entries are small: show only titles until the user picks properties to show.
     config.hidden = props.map((p) => p.id);
   }
-  // Galleries and lists start with the defaults (see lib/views); list rows show only titles until
-  // the user picks properties (see hiddenByDefault).
+  // Timelines start without swimlanes and with a week per column; list rows and timeline bars show
+  // only titles until the user picks properties (see hiddenByDefault).
+  if (input.type === "timeline") config.dateBy = props.find((p) => p.type === "date")?.id;
   const [{ max }] = await db
     .select({ max: sql<number | null>`max(${databaseView.position})` })
     .from(databaseView)

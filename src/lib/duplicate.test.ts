@@ -224,6 +224,17 @@ describe("remapViewConfig", () => {
     });
   });
 
+  it("maps timeline start, end and swimlane properties and keeps layout settings", () => {
+    const ids = new Map([
+      ["start", "start2"],
+      ["end", "end2"],
+      ["status", "status2"],
+    ]);
+    expect(
+      remapViewConfig({ dateBy: "start", endDateBy: "end", groupBy: "status", zoom: "month", showTable: false }, ids, () => null),
+    ).toEqual({ dateBy: "start2", endDateBy: "end2", groupBy: "status2", zoom: "month", showTable: false });
+  });
+
   it("maps footer calculations to the copied properties", () => {
     const ids = new Map([["amount", "amount2"]]);
     expect(remapViewConfig({ calculations: { amount: "sum", title: "count_all" } }, ids, () => null)).toEqual({

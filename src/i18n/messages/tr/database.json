@@ -24,7 +24,8 @@
     "board": "Pano",
     "calendar": "Takvim",
     "gallery": "Galeri",
-    "list": "Liste"
+    "list": "Liste",
+    "timeline": "Zaman çizelgesi"
   },
   "colors": {
     "gray": "Gri",
@@ -371,7 +372,15 @@
     "covers": {
       "first_image": "Sayfadaki ilk görsel",
       "none": "Yok"
-    }
+    },
+    "start": "Başlangıç tarihi",
+    "end": "Bitiş tarihi",
+    "noEnd": "Yok (bir günlük çubuklar)",
+    "needsDate": "Zaman çizelgeleri satırları bir tarih özelliğine göre yerleştirir.",
+    "newDateProperty": "Yeni tarih özelliği",
+    "groupBy": "Grupla",
+    "noGrouping": "Yok",
+    "showTable": "Tabloyu göster"
   },
   "gallery": {
     "new": "Yeni",
@@ -381,6 +390,24 @@
   "list": {
     "new": "Yeni",
     "empty": "Gösterilecek satır yok."
+  },
+  "timeline": {
+    "needsDateTitle": "Zaman çizelgeleri satırları bir tarih özelliğine göre yerleştirir",
+    "needsDateBody": "Bu veritabanında henüz tarih özelliği yok.",
+    "zoom": "Yakınlaştırma",
+    "zooms": {
+      "day": "Gün",
+      "week": "Hafta",
+      "month": "Ay"
+    },
+    "showTable": "Tabloyu göster",
+    "hideTable": "Tabloyu gizle",
+    "new": "Yeni",
+    "barLabel": "{title}, {dates}",
+    "resizeStart": "Başlangıcı değiştirmek için sürükleyin",
+    "resizeEnd": "Bitişi değiştirmek için sürükleyin",
+    "empty": "Henüz {property} değeri olan satır yok.",
+    "dragHint": "Tarih vermek için bir satırı zaman çizelgesine sürükleyin."
   },
   "errors": {
     "invalidUrl": "“{property}” bir http(s) veya mailto URL’si olmalıdır.",

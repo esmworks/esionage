@@ -85,7 +85,7 @@ jobs:
       - name: Status, checklist and system properties end-to-end
         run: pnpm tsx scripts/property-types-e2e.ts
 
-      - name: Gallery and list views end-to-end
+      - name: Gallery, list and timeline views end-to-end
         run: pnpm tsx scripts/views-e2e.ts
 
       - name: Start the server

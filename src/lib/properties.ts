@@ -774,11 +774,11 @@ export function groupRows<T extends { properties: Record<string, unknown> }>(
 
 /**
  * Board and gallery cards stay short: long text and numbers start hidden there until the user
- * shows them. List rows are one line, so every property starts hidden there.
+ * shows them. List rows and timeline bars are one line, so every property starts hidden there.
  * Other views show every property unless hidden.
  */
 export function hiddenByDefault(viewType: ViewType, propType: PropertyType): boolean {
-  if (viewType === "list") return true;
+  if (viewType === "list" || viewType === "timeline") return true;
   return (viewType === "board" || viewType === "gallery") && (propType === "text" || propType === "number");
 }
 

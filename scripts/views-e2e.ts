@@ -1,8 +1,8 @@
 /**
- * End-to-end check of gallery and list views against the database: the settings new views start
- * with, config validation, gallery covers in the database snapshot (read from row bodies, only
- * while a gallery shows them, and only for rows the viewer can see), and creating and updating
- * these views over MCP.
+ * End-to-end check of gallery, list and timeline views against the database: the settings new
+ * views start with, config validation, gallery covers in the database snapshot (read from row
+ * bodies, only while a gallery shows them, and only for rows the viewer can see), timeline edits
+ * writing start and end together, and creating and updating these views over MCP.
  * Creates its own users and workspace and deletes them afterwards.
  *
  *   pnpm tsx scripts/views-e2e.ts
@@ -25,7 +25,9 @@ const { registerCollab } = await import("@/server/collab/bridge");
 const { createCollab } = await import("@/server/collab/service");
 const { createMcpServer } = await import("@/server/mcp/tools");
 const { READ_SCOPE, WRITE_SCOPE } = await import("@/server/mcp/principal");
-const { addView, getDatabaseSnapshot, updateView } = await import("@/server/databases");
+const { addProperty, addView, deleteProperty, getDatabaseSnapshot, getProperties, updateRowProperties, updateView } =
+  await import("@/server/databases");
+const { duplicatePage } = await import("@/server/duplicate");
 const { createPage } = await import("@/server/pages");
 const { setPagePermission } = await import("@/server/permissions");
 const { AccessError } = await import("@/server/access");
@@ -102,6 +104,7 @@ try {
   ]);
   const actor = { userId: ids.owner };
   const tasks = await createPage(actor, { workspaceId, kind: "database", title: "Tasks" });
+  const status = (await getProperties(tasks.id)).find((p) => p.type === "select" || p.type === "status")!;
 
   // New views: names and starting settings
   const gallery = await addView(ids.owner, tasks.id, { name: " ", type: "gallery" });
@@ -109,6 +112,16 @@ try {
   check(Object.keys(gallery.config).length === 0, "a gallery starts with medium cards and first-image covers (the defaults)", gallery.config);
   const list = await addView(ids.owner, tasks.id, { name: "", type: "list" });
   check(list.name === "List" && Object.keys(list.config).length === 0, "a list view starts with default settings", list);
+  const noDates = await addView(ids.owner, tasks.id, { name: "", type: "timeline" });
+  check(noDates.name === "Timeline" && !noDates.config.dateBy, "a timeline without date properties has no start yet", noDates);
+  const due = await addProperty(ids.owner, tasks.id, { name: "Due", type: "date" });
+  const ends = await addProperty(ids.owner, tasks.id, { name: "Ends", type: "date" });
+  const timeline = await addView(ids.owner, tasks.id, { name: "Plan", type: "timeline" });
+  check(
+    timeline.config.dateBy === due.id && !timeline.config.endDateBy && !timeline.config.groupBy,
+    "a timeline starts at the first date property, one-day bars, no swimlanes",
+    timeline.config,
+  );
   check(
     await rejects(() => addView(ids.owner, tasks.id, { name: "X", type: "chart" as never }), "unsupportedViewType"),
     "an unknown view type is refused",
@@ -116,25 +129,39 @@ try {
 
   // Config validation
   const bad: [string, object][] = [
+    ["zoom", { zoom: "year" }],
     ["card size", { cardSize: "huge" }],
     ["cover", { cover: { source: "files" } }],
     ["cover shape", { cover: "first_image" }],
-    ["date property", { dateBy: 42 }],
+    ["show table", { showTable: "yes" }],
+    ["end date", { endDateBy: 42 }],
   ];
   for (const [label, config] of bad) {
     check(
-      await rejects(() => updateView(ids.owner, gallery.id, { config: config as never }), "invalidViewConfig"),
+      await rejects(() => updateView(ids.owner, timeline.id, { config: config as never }), "invalidViewConfig"),
       `a malformed ${label} setting is refused`,
     );
   }
+  await updateView(ids.owner, timeline.id, {
+    config: { ...timeline.config, endDateBy: ends.id, zoom: "month", showTable: false, groupBy: status.id },
+  });
   await updateView(ids.owner, gallery.id, { config: { cardSize: "large", cover: { source: "first_image" } } });
   const views = (await getDatabaseSnapshot(ids.owner, tasks.id)).views;
+  const saved = views.find((v) => v.id === timeline.id)!.config;
+  check(
+    saved.endDateBy === ends.id && saved.zoom === "month" && saved.showTable === false && saved.groupBy === status.id,
+    "valid timeline settings are saved",
+    saved,
+  );
   check(views.find((v) => v.id === gallery.id)!.config.cardSize === "large", "valid gallery settings are saved");
 
+  // Timeline drags write start and end in one row update
   const r1 = await createPage(actor, { workspaceId, parentId: tasks.id, title: "With image" });
   const r2 = await createPage(actor, { workspaceId, parentId: tasks.id, title: "Code only" });
   const r3 = await createPage(actor, { workspaceId, parentId: tasks.id, title: "Restricted" });
   const r4 = await createPage(actor, { workspaceId, parentId: tasks.id, title: "Plain" });
+  const written = await updateRowProperties(ids.owner, r1.id, { [due.id]: "2026-10-05", [ends.id]: "2026-10-09" });
+  check(written[due.id] === "2026-10-05" && written[ends.id] === "2026-10-09", "a bar's start and end are written together", written);
 
   // Gallery covers: the first image of the body, from the stored document
   await service.replaceContent(r1.id, "Intro\n\n![first](https://example.test/first.png)\n\n![second](https://example.test/second.png)", actor);
@@ -192,7 +219,39 @@ try {
   check(noCovers.every((r) => !("cover" in r)), "without a gallery showing covers, rows carry no cover field", noCovers[0]);
   await updateView(ids.owner, gallery.id, { config: {} });
 
-  // MCP: create and update the new views
+  // Duplicating keeps the timeline pointing at the copied properties
+  const copy = await duplicatePage(actor, tasks.id, " (copy)");
+  const copied = await getDatabaseSnapshot(ids.owner, copy.id);
+  const copiedTimeline = copied.views.find((v) => v.type === "timeline" && v.name === "Plan")!;
+  const copiedEnds = copied.properties.find((p) => p.name === "Ends")!;
+  check(
+    copiedTimeline.config.endDateBy === copiedEnds.id && copiedEnds.id !== ends.id,
+    "a duplicated timeline ends at the copied end property",
+    copiedTimeline.config,
+  );
+
+  // Deleting the end property turns bars back into one-day bars
+  await deleteProperty(ids.owner, ends.id);
+  const afterDelete = (await getDatabaseSnapshot(ids.owner, tasks.id)).views.find((v) => v.id === timeline.id)!.config;
+  check(!afterDelete.endDateBy && afterDelete.dateBy === due.id, "deleting the end property clears it from timelines", afterDelete);
+
+  // MCP: create and update the new views by property names
+  const created = await callTool(ids.owner, "create_database_view", {
+    database_id: tasks.id,
+    name: "Roadmap",
+    type: "timeline",
+    date_by: "Due",
+    group_by: status.name,
+    zoom: "day",
+    show_table: false,
+  });
+  check(
+    !created.isError && created.data.type === "timeline" && created.data.date_by === "Due" && created.data.zoom === "day",
+    "MCP creates a timeline with its settings",
+    created.text,
+  );
+  const wrong = await callTool(ids.owner, "create_database_view", { database_id: tasks.id, name: "G", type: "gallery", zoom: "week" });
+  check(wrong.isError && /only applies to timeline/.test(wrong.text), "MCP refuses timeline settings on a gallery", wrong.text);
   const cards = await callTool(ids.owner, "create_database_view", {
     database_id: tasks.id,
     name: "Cards",
@@ -201,15 +260,18 @@ try {
     cover: "none",
   });
   check(!cards.isError && cards.data.card_size === "small" && cards.data.cover === "none", "MCP creates a gallery with its settings", cards.text);
+  const ungrouped = await callTool(ids.owner, "update_database_view", {
+    database_id: tasks.id,
+    view_id: created.data.id,
+    group_by: null,
+    zoom: "week",
+  });
+  check(!ungrouped.isError && !("group_by" in ungrouped.data) && ungrouped.data.zoom === "week", "MCP removes timeline swimlanes", ungrouped.text);
   const listed = await callTool(ids.owner, "create_database_view", { database_id: tasks.id, name: "Compact", type: "list" });
   check(!listed.isError && listed.data.type === "list", "MCP creates a list view", listed.text);
-  const wrong = await callTool(ids.owner, "update_database_view", { database_id: tasks.id, view_id: listed.data.id, cover: "none" });
-  check(wrong.isError && /only applies to gallery/.test(wrong.text), "MCP refuses gallery settings on a list", wrong.text);
-  const resized = await callTool(ids.owner, "update_database_view", { database_id: tasks.id, view_id: cards.data.id, card_size: "large" });
-  check(!resized.isError && resized.data.card_size === "large" && resized.data.cover === "none", "MCP changes one gallery setting", resized.text);
   const described = await callTool(ids.owner, "get_database", { database_id: tasks.id });
-  const describedCards = described.data.views.find((v: { id: string }) => v.id === cards.data.id);
-  check(describedCards?.type === "gallery" && describedCards.card_size === "large", "get_database describes gallery settings", describedCards);
+  const roadmap = described.data.views.find((v: { id: string }) => v.id === created.data.id);
+  check(roadmap?.type === "timeline" && roadmap.show_table === false, "get_database describes timeline settings", roadmap);
 
   console.log(`\n${passed} checks passed`);
 } finally {

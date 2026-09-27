@@ -150,6 +150,7 @@ export function remapViewConfig(
   const out: ViewConfig = structuredClone(config);
   if (config.groupBy !== undefined) out.groupBy = map(config.groupBy);
   if (config.dateBy !== undefined) out.dateBy = map(config.dateBy);
+  if (config.endDateBy !== undefined) out.endDateBy = map(config.endDateBy);
   if (config.sorts) out.sorts = config.sorts.map((s) => ({ ...s, propertyId: map(s.propertyId) }));
   if (config.filters) {
     out.filters = mapFilterRules(config.filters, (f) => {
