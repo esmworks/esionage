@@ -81,6 +81,9 @@ approve them over OAuth.
   may invite guests.
 - **Email**: invitations, password reset, assignment and share notifications over SMTP (see [Email](#email)).
 - **Sign in with GitHub or Google**, optional (see [Social login](#social-login)).
+- **My account**: name and picture, password, email address, signed-in devices, connected apps,
+  language and notification settings in one place, and deleting the account (see
+  [My account](#my-account)).
 - **Two-step verification and passkeys**: an authenticator app with one-time recovery codes,
   passkeys, and a workspace policy that requires one of them (see
   [Two-step verification and passkeys](#two-step-verification-and-passkeys)).
@@ -89,7 +92,7 @@ approve them over OAuth.
   - Supports Client ID Metadata Documents and Dynamic Client Registration, with PKCE and a
     consent screen.
   - Tokens are audience-bound. Apps can be read-only or read-write, and you can revoke them in
-    Settings.
+    My account → Connected apps.
 - **REST API** under `/api/v1` with personal access tokens (read or read-write, optionally one
   workspace, optional expiry) and an OpenAPI 3.1 document (see [REST API](#rest-api)).
 
@@ -254,9 +257,44 @@ For example, with `APP_URL=https://notes.example.com` the GitHub callback URL is
 - **Closed sign-up:** with `DISABLE_SIGNUP=true`, a provider signs in only people who already
   have an account, or who were invited with that email. It never creates other accounts.
 
+## My account
+
+"My account" in the workspace menu (or the name and picture at its top) opens `/account`. It
+belongs to the person, not to a workspace, so it also works for someone who isn't in any
+workspace and isn't held back by a workspace's two-step policy. The old addresses
+(`/w/<id>/settings?tab=preferences`, `accountSecurity`, `apps`) redirect to it.
+
+- **Profile:** name (up to 80 characters) and picture. The browser crops the picture to a
+  256×256 WebP (PNG where WebP isn't available) before uploading it. PNG, JPEG, WebP and GIF up
+  to 2 MB are accepted, checked by their content (SVG never is); pictures are stored with the
+  other uploads and shown only to signed-in people. Pictures from GitHub or Google stay until
+  someone uploads their own.
+- **Email:** the new address gets a link, valid for 24 hours, that makes the change when opened
+  and confirmed there (no sign-in needed, and it signs nobody in); the old address is told about
+  it. An address another account uses gets no link, and nobody is told so. In production without SMTP
+  the option is off and says why (development prints the email to the server log).
+- **Password:** change it with the current one, optionally signing out every other device. People
+  who only sign in with GitHub or Google can set one instead. Both send a notice by email.
+- **Sessions:** every signed-in device with its browser, system, IP address and last activity
+  (refreshed about once a day), with "Sign out" per device and "Sign out all other devices",
+  which also closes their live collaboration connections.
+- **Security, connected apps, language and notifications:** as before, moved here from the
+  workspace settings.
+- **Delete account:** type the account's email to confirm. It is refused while the person is the
+  only owner of a workspace others are in (they hand ownership over, or remove the others,
+  first). Otherwise workspaces nobody else is in are deleted with their pages and files, and the
+  others are left the way leaving works: an owner takes over the pages only this person could
+  manage. Sessions, passkeys, connected apps, notifications and the picture go with the account;
+  pages and comments the person wrote in the remaining workspaces stay.
+
+Changing the email or password and deleting the account ask for the password again, or for a
+two-step code (or recovery code) on accounts without one. An account with neither needs a
+sign-in from the last 10 minutes. These checks are rate-limited per person (10 tries per 15
+minutes), as are email changes (5 an hour), picture uploads (20 an hour) and signing out devices.
+
 ## Two-step verification and passkeys
 
-Everyone manages these in **Settings → Account security**:
+Everyone manages these in **My account → Security**:
 
 - **Authenticator app (TOTP):** scan a QR code (or type the key) into an app such as 1Password
   or Google Authenticator and confirm with a code. Ten recovery codes are shown once, to copy or
@@ -305,7 +343,7 @@ handles database backups on its own. No compose file is involved.
 
 ## Connect an AI assistant
 
-The server URL is `<APP_URL>/mcp`. Settings → *Connect an AI assistant* shows ready-to-copy
+The server URL is `<APP_URL>/mcp`. My account → *Connected apps* shows ready-to-copy
 instructions. For example, with Claude Code:
 
 ```bash
@@ -343,7 +381,7 @@ Scripts and other programs can use the REST API under `<APP_URL>/api/v1` with a 
 token. The reference is at `<APP_URL>/docs/api`, generated from the OpenAPI 3.1 document at
 `<APP_URL>/api/v1/openapi.json` (import it into Postman, Insomnia or a client generator).
 
-Create a token in Settings → *Connected apps* → *Personal access tokens*: give it a name, choose
+Create a token in My account → *Connected apps* → *Personal access tokens*: give it a name, choose
 **Read only** (`pages:read`) or **Read and write** (`pages:write` too), optionally limit it to one
 workspace, and pick when it expires (7, 30, 90 days, a year, or never). The token is shown once;
 Esionage keeps only its SHA-256 hash. Tokens look like `esi_` and 40 letters and digits, so secret

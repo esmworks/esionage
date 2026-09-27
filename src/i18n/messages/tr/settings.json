@@ -6,11 +6,9 @@
     "workspace": "Çalışma alanı",
     "general": "Genel",
     "members": "Üyeler",
-    "preferences": "Tercihler",
-    "accountSecurity": "Hesap güvenliği",
-    "apps": "Bağlı uygulamalar",
     "security": "Güvenlik",
-    "site": "Site"
+    "site": "Site",
+    "myAccount": "Hesabım"
   },
   "workspace": {
     "heading": "Çalışma alanı",
@@ -115,8 +113,6 @@
   },
   "copyManually": "Burada kopyalama kullanılamıyor. Metni seçip Ctrl+C'ye (Mac'te ⌘C) basın.",
   "connectedApps": {
-    "heading": "Bağlı uygulamalar",
-    "description": "Esionage'ı sizin adınıza kullanmasına izin verdiğiniz uygulamalar; örneğin MCP üzerinden bağlanan yapay zekâ asistanları.",
     "empty": "Henüz bağlı uygulama yok.",
     "connected": "Bağlandı: {date}",
     "connectedAndUpdated": "Bağlandı: {connected} · Güncellendi: {updated}",

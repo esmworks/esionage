@@ -32,7 +32,7 @@
     "action": "Open",
     "untitled": "Untitled",
     "someone": "Someone",
-    "optOut": "You can turn these emails off in Settings > Preferences."
+    "optOut": "You can turn these emails off in My account > Preferences."
   },
   "share": {
     "subject": "{actor} shared “{page}” with you",
@@ -46,7 +46,7 @@
     },
     "action": "Open page",
     "untitled": "Untitled",
-    "optOut": "You can turn these emails off in Settings > Preferences."
+    "optOut": "You can turn these emails off in My account > Preferences."
   },
   "comment": {
     "subject": "{actor} commented on “{page}”",
@@ -54,7 +54,7 @@
     "quote": "“{text}”",
     "body": "The comment is on “{page}” in {workspace}. Reply or resolve it from the page.",
     "action": "Open page",
-    "optOut": "You get these because you took part in this comment thread. You can turn them off in Settings > Preferences."
+    "optOut": "You get these because you took part in this comment thread. You can turn them off in My account > Preferences."
   },
   "mention": {
     "subject": "{actor} mentioned you on “{page}”",
@@ -62,13 +62,32 @@
     "body": "The mention is on “{page}” in {workspace}.",
     "action": "Open page",
     "someone": "Someone",
-    "optOut": "You get these because someone mentioned you. You can turn them off in Settings > Preferences."
+    "optOut": "You get these because someone mentioned you. You can turn them off in My account > Preferences."
   },
   "reminder": {
     "subject": "Reminder: {date} on “{page}”",
     "heading": "Reminder: {date}",
     "body": "You asked to be reminded of {date} on “{page}” in {workspace}.",
     "action": "Open page",
-    "optOut": "You get these because you set a reminder. You can turn them off in Settings > Preferences."
+    "optOut": "You get these because you set a reminder. You can turn them off in My account > Preferences."
+  },
+  "emailChange": {
+    "subject": "Confirm your new email address",
+    "heading": "Confirm your new email address",
+    "body": "Hi {name}, you asked to use this address for your Esionage account instead of {old}. Confirm it with the button below.",
+    "expires": "The link works for {hours} hours and only once. If you didn’t ask for this, ignore this email; nothing changes.",
+    "action": "Confirm email address"
+  },
+  "emailChanged": {
+    "subject": "The email address of your Esionage account changed",
+    "heading": "Your email address changed",
+    "body": "Hi {name}, the email address of your Esionage account changed from {old} to {new}. From now on, sign in with the new address.",
+    "warning": "If you didn’t make this change, contact an owner of your workspace right away."
+  },
+  "passwordChanged": {
+    "subject": "Your Esionage password changed",
+    "heading": "Your password changed",
+    "body": "Hi {name}, the password of your Esionage account was just changed.",
+    "warning": "If you didn’t make this change, reset your password from the sign-in page and contact an owner of your workspace."
   }
 }

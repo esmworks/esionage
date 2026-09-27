@@ -10,6 +10,7 @@ import {
   socialTwoFactorRedirect,
   twoFactorPlugin,
 } from "@/lib/auth-security";
+import { cleanName } from "@/lib/account";
 import { env, mcpResource } from "@/lib/env";
 import type { SocialCredentials, SocialProvider } from "@/lib/social-providers";
 
@@ -105,6 +106,21 @@ export function claimOnEmailLink(revokeAppGrants?: (userId: string) => Promise<v
   };
 }
 
+/**
+ * `/update-user` would take any name and any picture URL. The account page changes both through
+ * its own actions (pictures are uploaded, see lib/avatar.ts); here only a valid name, or removing
+ * the picture, gets through, so nobody can point their avatar at a tracking pixel.
+ */
+export function guardUpdateUser(body: unknown) {
+  const { name, image, ...rest } = (body ?? {}) as Record<string, unknown>;
+  if (Object.keys(rest).length || (image !== undefined && image !== null)) {
+    throw APIError.from("BAD_REQUEST", { message: "Only the name can be changed here", code: "FIELD_NOT_ALLOWED" });
+  }
+  if (name !== undefined && !cleanName(name).ok) {
+    throw APIError.from("BAD_REQUEST", { message: "Enter a name of at most 80 characters", code: "INVALID_NAME" });
+  }
+}
+
 /** Sign-in with the providers configured in the environment, and linking them to existing accounts. */
 export function socialAuthOptions(providers: Partial<Record<SocialProvider, SocialCredentials>>) {
   return {
@@ -128,6 +144,7 @@ export function socialAuthOptions(providers: Partial<Record<SocialProvider, Soci
 export function baseAuthOptions({ invitationAllowsSignUp }: { invitationAllowsSignUp?: InvitationCheck } = {}) {
   const before = createAuthMiddleware(async (ctx) => {
     if (ctx.path === "/two-factor/disable") await requireCodeToDisable(ctx);
+    if (ctx.path === "/update-user") guardUpdateUser(ctx.body);
     if (ctx.path === "/sign-up/email" && env.signUpDisabled) {
       const email = (ctx.body as { email?: unknown } | undefined)?.email;
       if (!(await closedSignUpAdmits(inviteTokenOf(ctx), email, invitationAllowsSignUp))) {

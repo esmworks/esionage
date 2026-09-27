@@ -11,6 +11,9 @@ const config: NextConfig = {
     // (visible but dead). Without it the debug data is inlined in the RSC payload.
     reactDebugChannel: false,
   },
+  // Dev only: Next prints every server action call with its arguments, and account actions take
+  // passwords and two-step codes. Dev logs end up pasted into issues.
+  logging: { serverFunctions: false },
   async rewrites() {
     // OAuth / MCP discovery documents must live at the origin root.
     return [{ source: "/.well-known/:path*", destination: "/api/well-known/:path*" }];

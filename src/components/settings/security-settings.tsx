@@ -160,7 +160,7 @@ export function RequireTwoFactorSetting({
             {canEdit && blocked && (
               <>
                 {" "}
-                <Link href={`/w/${workspaceId}/settings?tab=accountSecurity`} className="text-accent hover:underline">
+                <Link href={`/account?tab=security&from=${encodeURIComponent(workspaceId)}`} className="text-accent hover:underline">
                   {t("setUpFirst")}
                 </Link>
               </>

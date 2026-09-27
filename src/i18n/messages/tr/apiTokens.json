@@ -52,7 +52,7 @@
   "docsPage": {
     "metaTitle": "REST API",
     "openapi": "OpenAPI belgesi (JSON)",
-    "tokensWhere": "Anahtarı Ayarlar → Bağlı uygulamalar bölümünde oluşturun.",
+    "tokensWhere": "Anahtarı Hesabım → Bağlı uygulamalar bölümünde oluşturun.",
     "quickStart": "Hızlı başlangıç",
     "baseUrl": "Temel URL",
     "errors": "Hatalar",

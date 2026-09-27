@@ -13,7 +13,8 @@ import form from "./en/form.json";
 import imports from "./en/import.json";
 import security from "./en/security.json";
 import apiTokens from "./en/apiTokens.json";
+import account from "./en/account.json";
 
-const messages = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish, form, import: imports, security, apiTokens };
+const messages = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish, form, import: imports, security, apiTokens, account };
 
 export default messages;

@@ -52,7 +52,7 @@
   "docsPage": {
     "metaTitle": "REST API",
     "openapi": "OpenAPI document (JSON)",
-    "tokensWhere": "Create a token under Settings → Connected apps.",
+    "tokensWhere": "Create a token under My account → Connected apps.",
     "quickStart": "Quick start",
     "baseUrl": "Base URL",
     "errors": "Errors",

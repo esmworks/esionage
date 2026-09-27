@@ -28,6 +28,10 @@ import { verifyCollabToken } from "./token";
 type Context = {
   userId?: string;
   userName?: string;
+  /** The picture presence shows for them (`user.image`, see lib/avatar). */
+  userImage?: string | null;
+  /** The browser session the connection's token was issued to. */
+  sessionId?: string | null;
   oauthClientId?: string | null;
   locale?: string;
   /** The session passes a "require two-step verification" policy (see authorizeCollab). */
@@ -230,7 +234,14 @@ export function createCollab() {
         // People who may only read get the live document but their edits are dropped.
         const { readOnly } = await authorizeCollab(user.userId, target, { strong });
         if (readOnly) connectionConfig.readOnly = true;
-        return { userId: user.userId, userName: user.userName, locale: requestLocale(requestHeaders), strong } satisfies Context;
+        return {
+          userId: user.userId,
+          userName: user.userName,
+          userImage: user.userImage,
+          sessionId: user.sessionId,
+          locale: requestLocale(requestHeaders),
+          strong,
+        } satisfies Context;
       } catch (error) {
         if (error instanceof AccessError) throw new Error("forbidden");
         throw error;
@@ -475,6 +486,17 @@ export function createCollab() {
     async disconnectHeldBack(workspaceId) {
       // Browser connections only (they carry a user); the server's own have no session.
       await closeConnections(workspaceId, (context) => context.userId !== undefined && context.strong !== true);
+    },
+
+    async disconnectSessions(userId, keep) {
+      const kept = new Set(keep);
+      const ended = (context: Context) =>
+        context.userId === userId && (keep.length === 0 || (!!context.sessionId && !kept.has(context.sessionId)));
+      for (const doc of hocuspocus.documents.values()) {
+        for (const connection of doc.getConnections()) {
+          if (ended(connection.context as Context)) connection.close({ code: 4403, reason: "Forbidden" });
+        }
+      }
     },
   };
 

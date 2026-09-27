@@ -1,6 +1,8 @@
 export const SOCIAL_PROVIDERS = ["github", "google"] as const;
 export type SocialProvider = (typeof SOCIAL_PROVIDERS)[number];
 
+export const SOCIAL_PROVIDER_NAMES: Record<SocialProvider, string> = { github: "GitHub", google: "Google" };
+
 export type SocialCredentials = { clientId: string; clientSecret: string };
 
 /**

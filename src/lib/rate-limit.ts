@@ -64,3 +64,20 @@ export function takeAll(entries: [SlidingWindowLimiter, string][], now = Date.no
   for (const [limiter, key] of entries) limiter.hit(key, now);
   return 0;
 }
+
+const SHARED = "__esionageLimiters";
+
+/**
+ * A limiter kept on `globalThis` under `name`, so every bundle that imports this module (Next
+ * builds route handlers and server actions separately) counts against the same hits.
+ */
+export function sharedLimiter(name: string, limit: number, windowMs: number): SlidingWindowLimiter {
+  const holder = globalThis as Record<string, unknown>;
+  const all = (holder[SHARED] ??= new Map<string, SlidingWindowLimiter>()) as Map<string, SlidingWindowLimiter>;
+  let limiter = all.get(name);
+  if (!limiter || limiter.limit !== limit || limiter.windowMs !== windowMs) {
+    limiter = new SlidingWindowLimiter(limit, windowMs);
+    all.set(name, limiter);
+  }
+  return limiter;
+}

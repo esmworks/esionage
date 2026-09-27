@@ -209,3 +209,42 @@ export function passwordResetEmail(locale: Locale, reset: { name: string; url: s
     action: { label: t("passwordReset.action"), url: reset.url },
   });
 }
+
+/** Sent to the new address: the link that makes it the account's email (see server/account.ts). */
+export function emailChangeEmail(
+  locale: Locale,
+  change: { name: string; oldEmail: string; url: string; hours: number },
+): RenderedEmail {
+  const t = emailTranslator(locale);
+  return renderEmail(locale, {
+    subject: t("emailChange.subject"),
+    heading: t("emailChange.heading"),
+    paragraphs: [
+      t("emailChange.body", { name: change.name, old: change.oldEmail }),
+      t("emailChange.expires", { hours: change.hours }),
+    ],
+    action: { label: t("emailChange.action"), url: change.url },
+  });
+}
+
+/** Sent to the old address once the change went through, so a takeover doesn't go unnoticed. */
+export function emailChangedEmail(locale: Locale, change: { name: string; oldEmail: string; newEmail: string }): RenderedEmail {
+  const t = emailTranslator(locale);
+  return renderEmail(locale, {
+    subject: t("emailChanged.subject"),
+    heading: t("emailChanged.heading"),
+    paragraphs: [
+      t("emailChanged.body", { name: change.name, old: change.oldEmail, new: change.newEmail }),
+      t("emailChanged.warning"),
+    ],
+  });
+}
+
+export function passwordChangedEmail(locale: Locale, change: { name: string }): RenderedEmail {
+  const t = emailTranslator(locale);
+  return renderEmail(locale, {
+    subject: t("passwordChanged.subject"),
+    heading: t("passwordChanged.heading"),
+    paragraphs: [t("passwordChanged.body", { name: change.name }), t("passwordChanged.warning")],
+  });
+}

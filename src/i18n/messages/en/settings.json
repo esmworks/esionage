@@ -6,11 +6,9 @@
     "workspace": "Workspace",
     "general": "General",
     "members": "Members",
-    "preferences": "Preferences",
-    "accountSecurity": "Account security",
-    "apps": "Connected apps",
     "security": "Security",
-    "site": "Site"
+    "site": "Site",
+    "myAccount": "My account"
   },
   "workspace": {
     "heading": "Workspace",
@@ -115,8 +113,6 @@
   },
   "copyManually": "Copying isn't available here. Select the text and press Ctrl+C (⌘C on a Mac).",
   "connectedApps": {
-    "heading": "Connected apps",
-    "description": "Apps you have allowed to use Esionage on your behalf, for example AI assistants connected over MCP.",
     "empty": "No apps are connected yet.",
     "connected": "Connected {date}",
     "connectedAndUpdated": "Connected {connected}, updated {updated}",

@@ -30,13 +30,19 @@ export function authMethodOf(path: string | undefined): AuthMethod | null {
   return (path && Object.hasOwn(AUTH_METHOD_BY_PATH, path) && AUTH_METHOD_BY_PATH[path]) || null;
 }
 
+type SessionHookContext = { path?: string; context?: object } | null | undefined;
+
 /**
  * `databaseHooks.session.create.before`: records how the session was signed in. A session
- * recreated from another (turning two-step verification on or off swaps it) keeps the original.
+ * recreated from another keeps the original: turning two-step verification on or off copies the
+ * old session, and changing the password with "sign out other sessions" replaces the current one
+ * from within that request (its session is on the context), so a passkey sign-in stays one.
  */
-export async function recordAuthMethod<S extends Record<string, unknown>>(session: S, ctx: { path?: string } | null | undefined) {
+export async function recordAuthMethod<S extends Record<string, unknown>>(session: S, ctx: SessionHookContext) {
   const existing = (session as { authMethod?: string | null }).authMethod;
-  return { data: { ...session, authMethod: existing ?? authMethodOf(ctx?.path) } };
+  const context = ctx?.context as { session?: { session?: { authMethod?: string | null } | null } | null } | undefined;
+  const current = context?.session?.session?.authMethod ?? null;
+  return { data: { ...session, authMethod: existing ?? authMethodOf(ctx?.path) ?? current } };
 }
 
 /**

@@ -1,20 +1,12 @@
-import { Globe, KeyRound, Plug, Settings, Shield, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
+import { Globe, Settings, Shield, UserRound, Users, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { ApiTokens } from "@/components/settings/api-tokens";
-import { ConnectedApps } from "@/components/settings/connected-apps";
-import { LanguageSettings } from "@/components/settings/language-settings";
 import { LeaveWorkspaceRow } from "@/components/settings/leave-workspace";
-import { McpInstructions } from "@/components/settings/mcp-instructions";
 import { MembersPanel } from "@/components/settings/members-panel";
-import { NotificationSettings } from "@/components/settings/notification-settings";
 import { PublicForms } from "@/components/settings/public-forms";
 import { PublishedPages } from "@/components/settings/published-pages";
-import { PasskeySettings } from "@/components/security/passkeys";
-import { TwoFactorSettings } from "@/components/security/two-factor";
 import {
   GuestInviteSetting,
   GuestPrivatePagesSetting,
@@ -25,13 +17,9 @@ import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
 import { SitePages, SiteSettings } from "@/components/settings/site-settings";
 import { WorkspaceExport } from "@/components/settings/workspace-export";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
-import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
 import { isStrongSession } from "@/lib/auth-security";
-import { getAccountSecurity } from "@/server/account-security";
 import { AccessError, isGuest } from "@/server/access";
 import { listWorkspaceFormPublications } from "@/server/forms";
-import { mailStatus } from "@/server/mail";
-import { getNotificationPreferences } from "@/server/notification-preferences";
 import { listWorkspacePublications } from "@/server/publication";
 import { getSession, requireWorkspaceSession } from "@/server/session";
 import { getSite } from "@/server/site";
@@ -50,16 +38,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("metaTitle") };
 }
 
-const TABS = ["general", "members", "security", "site", "preferences", "accountSecurity", "apps"] as const;
+const TABS = ["general", "members", "security", "site"] as const;
 type Tab = (typeof TABS)[number];
-const NAV: { group: "account" | "workspace"; tabs: Tab[] }[] = [
-  { group: "account", tabs: ["preferences", "accountSecurity", "apps"] },
-  { group: "workspace", tabs: ["general", "members", "security", "site"] },
-];
+/** Tabs that were here before the account page existed, and where they are now. */
+const ACCOUNT_TABS: Record<string, string> = { preferences: "preferences", accountSecurity: "security", apps: "apps" };
 const ICONS: Record<Tab, LucideIcon> = {
-  preferences: SlidersHorizontal,
-  accountSecurity: KeyRound,
-  apps: Plug,
   general: Settings,
   members: Users,
   security: Shield,
@@ -74,6 +57,9 @@ export default async function SettingsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ workspaceId }, query] = await Promise.all([params, searchParams]);
+  // The person's own settings moved to the account page (outside any workspace); old links land there.
+  const moved = typeof query.tab === "string" && Object.hasOwn(ACCOUNT_TABS, query.tab) ? ACCOUNT_TABS[query.tab] : null;
+  if (moved) redirect(`/account?tab=${moved}&from=${encodeURIComponent(workspaceId)}`);
   const { user } = await requireWorkspaceSession(workspaceId);
   const workspace = await getWorkspace(user.id, workspaceId).catch((error) => {
     if (error instanceof AccessError) return null;
@@ -81,11 +67,15 @@ export default async function SettingsPage({
   });
   if (!workspace) notFound();
   const isOwner = workspace.role === "owner";
-  // Guests only get their own account settings, not the workspace's.
-  const nav = isGuest(workspace.role) ? NAV.filter(({ group }) => group === "account") : NAV;
-  const allowed = nav.flatMap(({ tabs }) => tabs);
-  const tab: Tab = allowed.find((name) => name === query.tab) ?? (allowed.includes("general") ? "general" : allowed[0]);
+  const guest = isGuest(workspace.role);
+  // Guests don't see the workspace's members or policies: only its name, and leaving it.
+  const tabs: Tab[] = guest ? ["general"] : [...TABS];
+  const tab: Tab = tabs.find((name) => name === query.tab) ?? "general";
   const t = await getTranslations("settings");
+  const navLink = (active: boolean) =>
+    `flex h-7 items-center gap-2 rounded-md px-2 whitespace-nowrap ${
+      active ? "bg-bg-active font-medium text-fg" : "text-fg-muted hover:bg-bg-hover hover:text-fg"
+    }`;
 
   return (
     <div className="flex min-h-full flex-col md:flex-row">
@@ -95,32 +85,33 @@ export default async function SettingsPage({
         className="shrink-0 border-b border-border p-2 text-sm max-md:pl-11 md:sticky md:top-0 md:h-dvh md:w-60 md:overflow-y-auto md:border-r md:border-b-0 md:bg-bg-subtle"
       >
         <div className="flex gap-4 overflow-x-auto [scrollbar-width:none] md:flex-col md:gap-3">
-          {nav.map(({ group, tabs }) => (
-            <div key={group} className="shrink-0">
-              <div className="px-2 pt-1 pb-1 text-xs font-medium text-fg-muted">
-                {t(`nav.${group}`)}
-              </div>
-              <ul className="flex gap-1 md:flex-col md:gap-px">
-                {tabs.map((name) => {
-                  const Icon = ICONS[name];
-                  return (
-                    <li key={name}>
-                      <Link
-                        href={`/w/${workspaceId}/settings?tab=${name}`}
-                        aria-current={tab === name ? "page" : undefined}
-                        className={`flex h-7 items-center gap-2 rounded-md px-2 whitespace-nowrap ${
-                          tab === name ? "bg-bg-active font-medium text-fg" : "text-fg-muted hover:bg-bg-hover hover:text-fg"
-                        }`}
-                      >
-                        <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                        {t(`nav.${name}`)}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+          <div className="shrink-0">
+            <div className="px-2 pt-1 pb-1 text-xs font-medium text-fg-muted">{t("nav.workspace")}</div>
+            <ul className="flex gap-1 md:flex-col md:gap-px">
+              {tabs.map((name) => {
+                const Icon = ICONS[name];
+                return (
+                  <li key={name}>
+                    <Link
+                      href={`/w/${workspaceId}/settings?tab=${name}`}
+                      aria-current={tab === name ? "page" : undefined}
+                      className={navLink(tab === name)}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                      {t(`nav.${name}`)}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+          <div className="shrink-0">
+            <div className="px-2 pt-1 pb-1 text-xs font-medium text-fg-muted">{t("nav.account")}</div>
+            <Link href={`/account?from=${encodeURIComponent(workspaceId)}`} className={navLink(false)}>
+              <UserRound className="h-4 w-4 shrink-0" aria-hidden />
+              {t("nav.myAccount")}
+            </Link>
+          </div>
         </div>
       </nav>
 
@@ -131,6 +122,8 @@ export default async function SettingsPage({
               <SettingsHeader title={t("nav.general")} description={t("workspace.description")} />
               <SettingsGroup title={t("workspace.heading")}>
                 <WorkspaceNameForm workspaceId={workspaceId} name={workspace.name} canEdit={isOwner} />
+                {/* Guests can't open the members list, where everyone else leaves from. */}
+                {guest && <LeaveWorkspaceRow workspaceId={workspaceId} userId={user.id} />}
               </SettingsGroup>
               {/* Exporting everything is for owners, like the members list download. */}
               {isOwner && (
@@ -145,41 +138,9 @@ export default async function SettingsPage({
           {tab === "site" && (
             <SiteTab workspaceId={workspaceId} workspaceName={workspace.name} userId={user.id} isOwner={isOwner} />
           )}
-          {tab === "preferences" && (
-            <PreferencesTab workspaceId={workspaceId} userId={user.id} guest={isGuest(workspace.role)} />
-          )}
-          {tab === "accountSecurity" && <AccountSecurityTab userId={user.id} />}
-          {tab === "apps" && (
-            <>
-              <SettingsHeader title={t("nav.apps")} description={t("connectedApps.description")} />
-              <div className="space-y-10">
-                <ConnectedApps />
-                <McpInstructions />
-                <ApiTokens />
-              </div>
-            </>
-          )}
         </div>
       </div>
     </div>
-  );
-}
-
-async function AccountSecurityTab({ userId }: { userId: string }) {
-  const [security, t] = await Promise.all([getAccountSecurity(userId), getTranslations("security")]);
-  return (
-    <>
-      <SettingsHeader title={t("title")} description={t("description")} />
-      <div className="space-y-10">
-        <SettingsGroup title={t("twoFactor.heading")} description={t("twoFactor.headingDescription")}>
-          <TwoFactorSettings enabled={security.twoFactorEnabled} hasPassword={security.hasPassword} />
-        </SettingsGroup>
-        <SettingsGroup title={t("passkeys.heading")} description={t("passkeys.headingDescription")}>
-          <PasskeySettings passkeys={security.passkeys} />
-        </SettingsGroup>
-        <p className="text-sm text-fg-muted">{t("connectedAppsNote")}</p>
-      </div>
-    </>
   );
 }
 
@@ -287,38 +248,5 @@ async function MembersTab({ workspaceId, userId, isOwner }: { workspaceId: strin
       joinLink={joinLink}
       now={new Date()}
     />
-  );
-}
-
-async function PreferencesTab({ workspaceId, userId, guest }: { workspaceId: string; userId: string; guest: boolean }) {
-  const [cookieStore, notificationPreferences] = await Promise.all([cookies(), getNotificationPreferences(userId)]);
-  const savedLocale = cookieStore.get(LOCALE_COOKIE)?.value;
-  const t = await getTranslations("settings");
-  return (
-    <>
-      <SettingsHeader title={t("nav.preferences")} description={t("preferences.description")} />
-      <div className="space-y-10">
-        <SettingsGroup title={t("language.heading")}>
-          <LanguageSettings current={isLocale(savedLocale) ? savedLocale : null} />
-        </SettingsGroup>
-        <SettingsGroup
-          title={t("notifications.heading")}
-          description={
-            <>
-              {t("notifications.description")}
-              {mailStatus() === "disabled" && <> {t("notifications.mailOff")}</>}
-            </>
-          }
-        >
-          <NotificationSettings preferences={notificationPreferences} />
-        </SettingsGroup>
-        {/* Guests can't open the members list, where everyone else leaves from. */}
-        {guest && (
-          <SettingsGroup title={t("nav.workspace")}>
-            <LeaveWorkspaceRow workspaceId={workspaceId} userId={userId} />
-          </SettingsGroup>
-        )}
-      </div>
-    </>
   );
 }

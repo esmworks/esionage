@@ -39,6 +39,14 @@ describe("authMethodOf / recordAuthMethod", () => {
     expect((await recordAuthMethod({ authMethod: "passkey" }, { path: "/two-factor/disable" })).data.authMethod).toBe("passkey");
     expect((await recordAuthMethod({}, null)).data.authMethod).toBeNull();
   });
+
+  it("carries the method over when a request replaces its own session (password change)", async () => {
+    const ctx = { path: "/change-password", context: { session: { session: { authMethod: "passkey" } } } };
+    expect((await recordAuthMethod({ userId: "u" }, ctx)).data.authMethod).toBe("passkey");
+    // A sign-in names its own method, whatever session the browser had before.
+    const signIn = { path: "/sign-in/email", context: { session: { session: { authMethod: "passkey" } } } };
+    expect((await recordAuthMethod({ userId: "u" }, signIn)).data.authMethod).toBe("password");
+  });
 });
 
 describe("isStrongSession", () => {

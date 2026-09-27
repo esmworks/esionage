@@ -4,6 +4,7 @@ import { Check, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { cn } from "@/components/ui";
+import { UserAvatar } from "@/components/user-avatar";
 import type { PersonRef, Property } from "./types";
 
 export type PeopleContextValue = {
@@ -31,18 +32,16 @@ export function assignedPeople(people: PersonRef[], value: unknown): PersonRef[]
   });
 }
 
-export function PersonAvatar({ person, className }: { person: Pick<PersonRef, "name" | "active">; className?: string }) {
+export function PersonAvatar({ person, className }: { person: Pick<PersonRef, "name" | "active" | "image">; className?: string }) {
   return (
-    <span
-      aria-hidden
-      className={cn(
-        "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium",
-        person.active ? "bg-accent/15 text-accent" : "bg-bg-active text-fg-muted",
-        className,
-      )}
-    >
-      {(person.name.trim()[0] ?? "?").toLocaleUpperCase()}
-    </span>
+    <UserAvatar
+      name={person.name}
+      // Former members show their initial, muted, like their name.
+      image={person.active ? person.image : null}
+      size="xs"
+      colors={person.active ? "bg-accent/15 text-accent" : "bg-bg-active text-fg-muted"}
+      className={className}
+    />
   );
 }
 

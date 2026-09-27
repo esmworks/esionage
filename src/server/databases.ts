@@ -15,6 +15,7 @@ import {
   type ViewConfig,
   type ViewType,
 } from "@/db/schema";
+import { avatarSrc } from "@/lib/avatar";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { firstImageInYdoc, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { asFiles, fileIdOf, fileUrl, type FileValue } from "@/lib/files";
@@ -1365,6 +1366,8 @@ export type PersonRef = {
   email: string | null;
   /** False once they left the workspace: still shown where assigned, no longer offered. */
   active: boolean;
+  /** Their profile picture (see lib/avatar.ts), if any. */
+  image?: string | null;
 };
 
 /**
@@ -1402,7 +1405,13 @@ export async function getPeople(userId: string, properties: DatabaseProperty[]):
   const guest = isGuest(membership.role);
   const out: PersonRef[] = members
     .filter((m) => !guest || m.id === userId || referenced.has(m.id))
-    .map((m) => ({ id: m.id, name: m.name, email: guest && m.id !== userId ? null : m.email, active: true }));
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      email: guest && m.id !== userId ? null : m.email,
+      active: true,
+      image: avatarSrc(m.image),
+    }));
   const former = [...referenced].filter((id) => !members.some((m) => m.id === id));
   if (former.length) {
     const users = await db.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, former));

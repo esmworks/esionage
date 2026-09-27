@@ -32,6 +32,29 @@
   An OpenAPI 3.1 document is served at `/api/v1/openapi.json` and rendered at `/docs/api`.
   Claiming an account through an email-verified sign-in also revokes its tokens (migration
   `0020_api_tokens`).
+- **My account** (#54): a page of its own at `/account`, opened from "My account" (or the name
+  and picture) in the workspace menu, with Profile, Security, Preferences and Connected apps tabs.
+  Language, notifications, two-step verification, passkeys and connected apps moved here from the
+  workspace settings; the old settings addresses redirect. New:
+  - Name and an uploaded picture (PNG, JPEG, WebP or GIF up to 2 MB, cropped to 256×256 in the
+    browser, checked by content, served only to signed-in people from `/api/avatars/…`). Pictures
+    now show in the sidebar, member lists, the share dialog, presence, person properties,
+    mentions and comments.
+  - Changing the password (optionally signing out every other device) or, for GitHub/Google-only
+    accounts, setting one; a notice goes by email.
+  - Changing the email address through a 24-hour link sent to the new address, confirmed on a page
+    that signs nobody in; the old address is told. Off, with an explanation, without SMTP in
+    production.
+  - Signed-in devices with browser, system, IP and last activity; sign out one or all others
+    (which also closes their live collaboration connections).
+  - Deleting the account after typing its email. Refused while the person is the only owner of a
+    workspace others are in; otherwise workspaces nobody else is in are deleted with their files,
+    the others are left the way leaving works (an owner takes over pages only this person could
+    manage), and sessions, passkeys, connected apps and the picture go with it.
+  - Email, password and deletion ask for the password again, or a two-step or recovery code for
+    accounts without one, or else a sign-in from the last 10 minutes; all of it is rate-limited.
+  No migration: email-change links use the existing `verification` table and pictures the upload
+  storage.
 
 - **Workspace site and Duplicate for published pages:** owners set up a site in Settings → Site: a
   slug (lowercase letters, digits and hyphens, 3–40 characters, unique, a few reserved), a title
@@ -291,6 +314,10 @@
 
 ### Changed
 
+- Better Auth's `/update-user` endpoint now only accepts a name or removing the picture, so a
+  picture can't point at an arbitrary URL. A password change that signs out other devices keeps the
+  current session's sign-in method (a passkey session keeps satisfying a workspace's two-step
+  policy).
 - **Published databases** show the columns their first view shows. A board no longer publishes
   the text and number properties it hides on its cards.
 - **New databases** start with a Status property of the status type (to do, in progress, done)

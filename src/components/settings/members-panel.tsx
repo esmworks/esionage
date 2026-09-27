@@ -17,6 +17,7 @@ import { SettingsGroup, SettingsHeader, SettingsRow } from "@/components/setting
 import { selectClass, useAction } from "@/components/settings/workspace-settings";
 import { Floating, useFloating } from "@/components/database/floating";
 import { Button, cn, Dialog, IconButton, Input, MenuItem, Switch } from "@/components/ui";
+import { UserAvatar } from "@/components/user-avatar";
 import type { WorkspaceRole } from "@/db/schema/app";
 import { MAX_BULK_EMAILS, parseEmailList } from "@/lib/emails";
 import type { BulkAddResult } from "@/server/workspaces";
@@ -25,6 +26,7 @@ export type Member = {
   userId: string;
   name: string;
   email: string;
+  image: string | null;
   role: WorkspaceRole;
   joinedAt: Date;
   lastEditedAt: Date | null;
@@ -344,17 +346,6 @@ function MembersTable({
   );
 }
 
-function Avatar({ name }: { name: string }) {
-  const initial = (name.trim()[0] ?? "?").toLocaleUpperCase();
-  return (
-    <span
-      aria-hidden
-      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-bg-active text-xs font-medium text-fg-muted"
-    >
-      {initial}
-    </span>
-  );
-}
 
 type PendingConfirm = "remove" | "transfer" | null;
 
@@ -386,7 +377,7 @@ function MemberRow({
     <tr className="align-middle">
       <td className="px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <Avatar name={member.name || member.email} />
+          <UserAvatar name={member.name || member.email} image={member.image} size="md" />
           <div className="min-w-0">
             <div className="truncate font-medium">
               {member.name}
