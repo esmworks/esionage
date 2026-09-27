@@ -16,11 +16,14 @@ approve them over OAuth.
     email, phone, person, one- or two-way relations to other databases, formulas, rollups over
     relations, and the read-only "created by", "created time", "last edited time" and
     "last edited by".
-  - Views: table, board, calendar, gallery, list and timeline, each with its own filters, sorting
-    and grouping. Filters combine with "and"/"or" in groups and take relative dates such as
+  - Views: table, board, calendar, gallery, list, timeline and chart, each with its own filters,
+    sorting and grouping. Filters combine with "and"/"or" in groups and take relative dates such as
     "this week". A "Me" filter shows each viewer their own rows.
   - Table views calculate column totals, averages, counts and more over the filtered rows.
   - Select rows to edit a property, duplicate, export or trash them at once.
+  - Form views collect answers as new rows, in the app or through a public link, signed in or
+    anonymous.
+  - Put a database inside any page, or show a view of an existing one there.
   - Lock a database to freeze its properties and views, and export its rows as CSV.
 - **Inbox**: a notification when someone assigns you to a row or shares a page with you, with an
   email a little later. Choose per kind whether it shows in the inbox and whether it comes by email.
@@ -134,8 +137,8 @@ The client opens a browser window where you sign in and approve access. The tool
 - **Databases:** `get_database`, `query_database`, `create_database`, `create_database_row`,
   `create_database_rows`, `update_database_row`, `update_database_rows`, `add_database_property`
   (including one- or two-way relations), `update_database_property`, `delete_database_property`,
-  `create_database_view` and `update_database_view` (table, board, calendar, gallery, list or
-  timeline).
+  `create_database_view` and `update_database_view` (table, board, calendar, gallery, list,
+  timeline, chart or form, including a form's public link).
 
 An app only ever sees the pages its user can see. Read-only apps can't call the tools that
 change anything.
@@ -161,7 +164,7 @@ Useful scripts:
 | `pnpm build` | Production build |
 | `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
-| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
+| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
 

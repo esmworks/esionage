@@ -39,11 +39,28 @@
 - **Timeline view:** bars from a start date to an optional end date, day, week or month zoom,
   drag to move or resize, swimlanes by any groupable property, and a "No date" section you can
   drag rows from. MCP `create_database_view` and `update_database_view` handle the new views.
+- **Chart view:** vertical or horizontal bars, a line or a donut over a grouping property, counting
+  rows or using any column calculation (sum, average, median…). Counts and sums can be stacked by
+  a second property. Hover a bar for its value, click it to list its rows.
+- **Form view:** ask for chosen properties in order, with labels, help text, required answers,
+  default values and a thank-you message. Each answer adds a row. A form can get a public link
+  (`/f/…`) for signed-in or anonymous answers, guarded by rate limits. Owners see and close every
+  public form under Settings > Security. MCP can create and change forms and their links.
+- **Inline databases and linked views:** the slash menu adds a database inside a page, or a view
+  of an existing database whose layout, filters and sorts are kept in the page. What a block shows
+  follows the reader's access to the database. Published pages show them as tables.
 
 ### Changed
 
 - **Published databases** show the columns their first view shows. A board no longer publishes
   the text and number properties it hides on its cards.
+- **New databases** start with a Status property of the status type (to do, in progress, done)
+  instead of a select.
+
+### Fixed
+
+- Empty lines on published pages no longer show as a box.
+- A formula dividing by an empty property is empty instead of a "division by zero" error.
 
 ## 0.2.0 — 2026-09-27
 
