@@ -27,7 +27,9 @@
     "exportCsv": "CSV olarak dışa aktar",
     "versionHistory": "Sürüm geçmişi",
     "lastEdited": "Son düzenleyen: {name}",
-    "actionFailed": "İşlem tamamlanamadı."
+    "actionFailed": "İşlem tamamlanamadı.",
+    "viewers": "{count, plural, other {Bu sayfayı # kişi daha görüntülüyor}}",
+    "viewersTitle": "Bu sayfayı görüntüleyenler"
   },
   "comments": {
     "title": "Yorumlar",

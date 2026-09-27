@@ -29,9 +29,11 @@ import { getTreeAction, movePageAction } from "@/app/actions/pages";
 import { cn, Dialog, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, Popover, Switch } from "@/components/ui";
 import type { PageKind } from "@/db/schema/app";
 import { FAVORITES_EVENT } from "@/lib/favorites-event";
+import type { Presence } from "@/lib/presence";
 import { relativeTime } from "@/lib/relative-time";
 import type { PageHeaderInfo } from "@/server/page-meta";
 import type { TreeNode } from "@/server/pages";
+import { PresenceAvatars } from "./presence-avatars";
 import { SharePanel } from "./share-panel";
 
 const RANK = { none: 0, view: 1, comment: 2, edit: 3, full: 4 } as const;
@@ -47,7 +49,7 @@ const STORE_MAX_WAIT_MS = 11_000;
 
 /**
  * Right side of the page header, like Notion's: when it was last edited (with who made and changed
- * it), Share, the favorite star and the page menu.
+ * it), who else has the page open, Share, the favorite star and the page menu.
  */
 export function PageHeaderActions({
   workspaceId,
@@ -55,6 +57,7 @@ export function PageHeaderActions({
   currentUser,
   info: initialInfo,
   doc,
+  viewers = [],
   onHistory,
   onComments,
   commentsOpen = false,
@@ -66,6 +69,8 @@ export function PageHeaderActions({
   info: PageHeaderInfo;
   /** The page's shared doc once synced; its edits trigger a refetch of the header info. */
   doc?: Y.Doc;
+  /** Everyone else who has the page open. */
+  viewers?: Presence[];
   onHistory: () => void;
   /** Opens or closes the comments beside the page; pages without a body have none. */
   onComments?: () => void;
@@ -117,6 +122,7 @@ export function PageHeaderActions({
       <span className="hidden md:inline-flex">
         <EditedButton info={info} onOpen={refresh} />
       </span>
+      <PresenceAvatars viewers={viewers} />
       {!page.archived && (
         <Popover
           align="end"
