@@ -5,7 +5,7 @@ import { planDuplicate, type SourcePage } from "@/lib/duplicate";
 import { positionBetween } from "@/lib/properties";
 import { AccessError, pageVisibleTo, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
-import { syncPairedRelations, withCode } from "@/server/databases";
+import { bulkRowIds, rowsWithAccess, syncPairedRelations, withCode, type BulkResult } from "@/server/databases";
 import { makePagePrivate } from "@/server/permissions";
 import { requireTopLevel } from "@/server/workspaces";
 
@@ -23,6 +23,8 @@ export async function duplicatePage(
   actor: WriteActor,
   pageId: string,
   copySuffix: string,
+  /** False when the caller tells open views about several copies at once. */
+  { notify = true }: { notify?: boolean } = {},
 ): Promise<{ id: string; workspaceId: string }> {
   const { userId } = actor;
   const source = await requirePageAccess(userId, pageId, "view");
@@ -164,7 +166,40 @@ export async function duplicatePage(
   const collab = getCollab();
   // The copied doc still carries the original title; the store hook persists the new one.
   await collab.setTitle(plan.rootId, title, actor);
-  collab.broadcast(`ws:${source.workspaceId}`, "tree");
-  if (parentKind === "database") collab.broadcast(`db:${source.parentId}`, "rows");
+  if (notify) {
+    collab.broadcast(`ws:${source.workspaceId}`, "tree");
+    if (parentKind === "database") collab.broadcast(`db:${source.parentId}`, "rows");
+  }
   return { id: plan.rootId, workspaceId: source.workspaceId };
+}
+
+/**
+ * Duplicates several rows of a database, each copy right after its original (see duplicatePage).
+ * Needs edit access to the database, like adding a row. Rows the user can't see, rows in the
+ * trash and ids of other pages are skipped and returned. Each row is copied in its own
+ * transaction, so an error part way keeps the copies made so far; open views hear about all of
+ * them once.
+ */
+export async function duplicateRows(
+  actor: WriteActor,
+  databaseId: string,
+  rowIds: string[],
+  copySuffix: string,
+): Promise<BulkResult> {
+  const ids = bulkRowIds(rowIds);
+  const database = await requirePageAccess(actor.userId, databaseId, "edit");
+  if (database.kind !== "database") throw withCode(new AccessError("Not a database"), "notADatabase");
+  if (database.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
+  const { rows, skipped } = await rowsWithAccess(actor.userId, databaseId, ids, "view");
+  const done: string[] = [];
+  try {
+    for (const row of rows) done.push((await duplicatePage(actor, row.id, copySuffix, { notify: false })).id);
+  } finally {
+    if (done.length) {
+      const collab = getCollab();
+      collab.broadcast(`ws:${database.workspaceId}`, "tree");
+      collab.broadcast(`db:${databaseId}`, "rows");
+    }
+  }
+  return { done, skipped };
 }

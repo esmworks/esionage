@@ -5,6 +5,7 @@ import {
   describeViewConfig,
   displayProperties,
   resolvePropertyKey,
+  toFilterEntries,
   toFilterRule,
   toSortRule,
   type PropertyDef,
@@ -293,6 +294,13 @@ describe("system, status and checklist properties", () => {
     });
     expect(() => toFilterRule(all, { property: "Edited", op: "contains", value: "2026" })).toThrow(/supports equals/);
     expect(() => toFilterRule(all, { property: "Edited", op: "equals", value: "yesterday" })).toThrow(/YYYY-MM-DD/);
+    expect(toFilterRule(all, { property: "Edited", op: "is_within", value: "past_n_days", days: 7 })).toEqual({
+      propertyId: "p_edited",
+      op: "is_within",
+      value: "past_n_days",
+      days: 7,
+    });
+    expect(() => toFilterRule(all, { property: "Edited by", op: "is_within", value: "today" })).toThrow(/only applies to date/);
   });
 
   it("treats last edited by like a person and names it in errors", () => {
@@ -321,5 +329,91 @@ describe("system, status and checklist properties", () => {
     });
     expect(describeProperty(edited)).toMatchObject({ read_only: true });
     expect(describeProperty(editor, lookups)).toEqual({ id: "p_editor", name: "Edited by", type: "last_edited_by", read_only: true });
+  });
+});
+
+describe("filter groups and relative dates", () => {
+  const all: PropertyDef[] = [...props, { id: "p_due", name: "Due", type: "date", options: {} }];
+
+  it("converts nested groups and keeps plain rule lists as they were", () => {
+    expect(
+      toFilterEntries(all, [
+        { property: "Status", op: "equals", value: "Done" },
+        {
+          type: "group",
+          combinator: "or",
+          rules: [
+            { property: "Tags", op: "contains", value: "urgent" },
+            { type: "group", rules: [{ property: "Estimate", op: "gt", value: "3" }] },
+          ],
+        },
+      ]),
+    ).toEqual([
+      { propertyId: "p_status", op: "equals", value: "o_done" },
+      {
+        type: "group",
+        combinator: "or",
+        rules: [
+          { propertyId: "p_tags", op: "contains", value: "o_urgent" },
+          { type: "group", combinator: "and", rules: [{ propertyId: "p_est", op: "gt", value: 3 }] },
+        ],
+      },
+    ]);
+    expect(toFilterEntries(all, [{ property: "Status", op: "is_empty" }])).toEqual([{ propertyId: "p_status", op: "is_empty" }]);
+  });
+
+  it("rejects groups nested too deep, empty groups and bad rules inside groups", () => {
+    const deep = { type: "group" as const, rules: [{ type: "group" as const, rules: [{ type: "group" as const, rules: [] }] }] };
+    expect(() => toFilterEntries(all, [deep])).toThrowError(/at most 2 levels deep/);
+    expect(() => toFilterEntries(all, [{ type: "group", rules: [] }])).toThrowError(/at least one rule/);
+    expect(() =>
+      toFilterEntries(all, [{ type: "group", rules: [{ property: "Status", op: "equals", value: "Blocked" }] }]),
+    ).toThrowError(/not an option of "Status"/);
+  });
+
+  it("accepts relative date ranges on dates and timestamps", () => {
+    expect(toFilterRule(all, { property: "Due", op: "is_within", value: "This_Week" })).toEqual({
+      propertyId: "p_due",
+      op: "is_within",
+      value: "this_week",
+    });
+    expect(toFilterRule(all, { property: "Due", op: "is_within", value: "past_n_days", days: 14 })).toEqual({
+      propertyId: "p_due",
+      op: "is_within",
+      value: "past_n_days",
+      days: 14,
+    });
+    expect(toFilterRule(all, { property: "created_at", op: "is_within", value: "today" }).propertyId).toBe("created_at");
+  });
+
+  it("explains what is wrong with a relative date filter", () => {
+    expect(() => toFilterRule(all, { property: "Estimate", op: "is_within", value: "today" })).toThrowError(/only applies to date/);
+    expect(() => toFilterRule(all, { property: "Due", op: "is_within", value: "tomorrow" })).toThrowError(/today, this_week/);
+    expect(() => toFilterRule(all, { property: "Due", op: "is_within", value: "next_n_days" })).toThrowError(/needs "days"/);
+    expect(() => toFilterRule(all, { property: "Due", op: "is_within", value: "today", days: 3 })).toThrowError(
+      /only applies to past_n_days/,
+    );
+    expect(() => toFilterRule(all, { property: "Due", op: "equals", value: "2026-01-01", days: 3 })).toThrowError(
+      /only applies to is_within/,
+    );
+    expect(() => toFilterRule(all, { property: "Due", op: "is_within" })).toThrowError(/needs a value/);
+  });
+
+  it("describes groups, the top-level combinator and day counts by name", () => {
+    expect(
+      describeViewConfig(all, {
+        filterCombinator: "or",
+        filters: [
+          { propertyId: "p_due", op: "is_within", value: "next_n_days", days: 7 },
+          { type: "group", combinator: "and", rules: [{ propertyId: "p_status", op: "equals", value: "o_done" }] },
+        ],
+      }),
+    ).toEqual({
+      filters: [
+        { property: "Due", op: "is_within", value: "next_n_days", days: 7 },
+        { type: "group", combinator: "and", rules: [{ property: "Status", op: "equals", value: "Done" }] },
+      ],
+      filter_combinator: "or",
+    });
   });
 });

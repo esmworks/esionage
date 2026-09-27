@@ -445,7 +445,7 @@ function editText(value: unknown, locale: string) {
 }
 
 /** Hint under a text editor whose draft can't be saved, per property type (`database.cell.*`). */
-const INVALID_INPUT: Partial<Record<Property["type"], "enterNumber" | "enterUrl" | "enterEmail" | "enterPhone">> = {
+export const INVALID_INPUT: Partial<Record<Property["type"], "enterNumber" | "enterUrl" | "enterEmail" | "enterPhone">> = {
   number: "enterNumber",
   url: "enterUrl",
   email: "enterEmail",
@@ -453,7 +453,7 @@ const INVALID_INPUT: Partial<Record<Property["type"], "enterNumber" | "enterUrl"
 };
 
 /** Keyboard hints for touch devices. */
-const INPUT_MODE: Partial<Record<Property["type"], "decimal" | "email" | "tel">> = {
+export const INPUT_MODE: Partial<Record<Property["type"], "decimal" | "email" | "tel">> = {
   number: "decimal",
   email: "email",
   phone: "tel",

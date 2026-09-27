@@ -31,6 +31,7 @@ const {
   listRows,
   updateProperty,
   updateRowProperties,
+  updateRowsProperties,
 } = await import("@/server/databases");
 const { createPage } = await import("@/server/pages");
 const { PropertyValueError } = await import("@/lib/properties");
@@ -191,6 +192,20 @@ try {
   check(mine.map((r) => r.title).sort().join() === "r2,r3", "last edited by filters on me", mine.map((r) => r.title));
   const recent = await listRows(ids.owner, tasks.id, { sorts: [{ propertyId: edited.id, direction: "desc" }] });
   check(recent[0].title === "r2", "rows sort by last edited time", recent.map((r) => r.title));
+  // Past 1 day includes yesterday, so this holds when the run crosses midnight.
+  const fresh = await listRows(ids.owner, tasks.id, {
+    filters: [{ propertyId: created.id, op: "is_within", value: "past_n_days", days: 1 }],
+  });
+  check(fresh.length === 3, "created time filters by relative dates", fresh.map((r) => r.title));
+  const bulk = await updateRowsProperties(ids.editor, tasks.id, [r1.id], { Stage: "Blocked" });
+  const afterBulk = (await listRows(ids.owner, tasks.id)).find((r) => r.id === r1.id)!;
+  check(
+    bulk.done.length === 1 &&
+      afterBulk.properties[stage.id] === column.id &&
+      JSON.stringify(afterBulk.properties[editor.id]) === JSON.stringify([ids.editor]),
+    "a bulk status edit sets the status and the last editor",
+    afterBulk.properties,
+  );
   const untouched = (await stored(r1.id)).updatedAt.getTime();
   await tick();
   const email = (await getProperties(tasks.id)).find((p) => p.type === "email")!;

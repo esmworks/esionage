@@ -520,6 +520,21 @@ describe("created and last edited properties", () => {
     expect(filterOperators("created_time")).toEqual(filterOperators("date"));
   });
 
+  it("filters timestamps by relative dates on their local day", () => {
+    const within = (value: string, days?: number) =>
+      applyView(rows, { filters: [{ propertyId: "p_last_edited_time", op: "is_within", value, days }] }, props, {
+        now: at(27, 12),
+      }).map((r) => r.id);
+    expect(within("today")).toEqual(["a"]);
+    expect(within("past_n_days", 1)).toEqual(["a", "b"]);
+    expect(within("next_n_days", 1)).toEqual(["a", "c"]);
+    const created: FilterRule[] = [{ propertyId: "p_created_time", op: "is_within", value: "this_month" }];
+    expect(applyView(rows, { filters: created }, props, { now: at(30, 12) })).toHaveLength(3);
+    expect(applyView(rows, { filters: created }, props, { now: new Date(2026, 9, 1) })).toHaveLength(0);
+    // Nothing to write into a new row: it is created (and edited) today anyway.
+    expect(defaultsFromFilters(created, props, { now: at(30, 12) })).toEqual({});
+  });
+
   it("treats last edited by like created by", () => {
     const mine: FilterRule[] = [{ propertyId: "p_last_edited_by", op: "contains", value: "me" }];
     expect(applyView(rows, { filters: mine }, props, { viewerId: "u1" }).map((r) => r.id)).toEqual(["b"]);

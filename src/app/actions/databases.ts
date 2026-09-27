@@ -5,6 +5,7 @@ import type { PropertyType, SelectOption, ViewConfig, ViewType } from "@/db/sche
 import { isDatabaseErrorCode, PropertyValueError } from "@/lib/properties";
 import { AccessError } from "@/server/access";
 import * as databases from "@/server/databases";
+import { duplicateRows } from "@/server/duplicate";
 import * as pages from "@/server/pages";
 import { requireUserId } from "@/server/session";
 
@@ -67,6 +68,23 @@ export async function createRowAction(
 
 export async function updateRowPropertiesAction(rowId: string, patch: Record<string, unknown>) {
   return run((userId) => databases.updateRowProperties(userId, rowId, patch));
+}
+
+// Bulk row actions skip rows the user may not change and return them (see databases.rowsWithAccess).
+
+export async function updateRowsPropertiesAction(databaseId: string, rowIds: string[], patch: Record<string, unknown>) {
+  return run((userId) => databases.updateRowsProperties(userId, databaseId, rowIds, patch));
+}
+
+export async function archiveRowsAction(databaseId: string, rowIds: string[]) {
+  return run((userId) => pages.archiveRows(userId, databaseId, rowIds));
+}
+
+export async function duplicateRowsAction(databaseId: string, rowIds: string[]) {
+  return run(async (userId) => {
+    const t = await getTranslations("page.header");
+    return duplicateRows({ userId }, databaseId, rowIds, t("duplicateSuffix"));
+  });
 }
 
 export async function moveRowAction(

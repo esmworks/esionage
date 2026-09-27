@@ -16,9 +16,27 @@ import {
   X,
 } from "lucide-react";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem, MenuSeparator } from "@/components/ui";
-import type { FilterOp, FilterRule, SortRule, ViewConfig, ViewType } from "@/db/schema/app";
+import type {
+  FilterCombinator,
+  FilterEntry,
+  FilterGroup,
+  FilterOp,
+  FilterRule,
+  RelativeDateRange,
+  SortRule,
+  ViewConfig,
+  ViewType,
+} from "@/db/schema/app";
+import {
+  filterRules,
+  isFilterGroup,
+  isRelativeDateRange,
+  MAX_RELATIVE_DAYS,
+  RELATIVE_DATE_RANGES,
+  rangeNeedsDays,
+} from "@/lib/filters";
 import { pageLabel } from "@/lib/labels";
 import {
   boardGroupProperty,
@@ -269,6 +287,7 @@ export function ViewToolbar({
   const propsMenu = useFloating<HTMLButtonElement>();
   const config = view.config;
   const filters = config.filters ?? [];
+  const filterCount = filterRules(filters).length;
   const sorts = config.sorts ?? [];
   const hiddenCount = properties.filter((p) => isHiddenInView(view, p)).length;
   const columns = columnsOf(properties, t("nameColumn"));
@@ -284,13 +303,20 @@ export function ViewToolbar({
       <ToolbarButton
         icon={<ListFilter className="h-4 w-4" />}
         label={t("toolbar.filter")}
-        count={filters.length}
-        active={filters.length > 0}
+        count={filterCount}
+        active={filterCount > 0}
         buttonRef={filterMenu.ref}
         onClick={filterMenu.toggle}
       />
       <Floating open={filterMenu.open} anchor={filterMenu.el} onClose={filterMenu.close} align="end">
-        <FilterEditor columns={columns} filters={filters} onChange={(f) => onConfig({ ...config, filters: f })} />
+        <FilterEditor
+          columns={columns}
+          filters={filters}
+          combinator={config.filterCombinator ?? "and"}
+          onChange={(f, combinator) =>
+            onConfig({ ...config, filters: f, filterCombinator: combinator === "or" ? "or" : undefined })
+          }
+        />
       </Floating>
 
       <ToolbarButton
@@ -446,12 +472,20 @@ export function ActiveRulesBar({
   readOnly?: boolean;
 }) {
   const t = useTranslations("database");
+  const locale = useLocale();
   const describeFilter = useDescribeFilter();
   const filters = view.config.filters ?? [];
   const sorts = view.config.sorts ?? [];
   if (!filters.length && !sorts.length) return null;
   const columns = columnsOf(properties, t("nameColumn"));
   const nameOf = (id: string) => columns.find((c) => c.id === id)?.name ?? t("activeRules.unknownProperty");
+  const word = (combinator: FilterCombinator) => t(`filter.${combinator}`).toLocaleLowerCase(locale);
+  // A group reads as one chip: "(Status is Done or Assignee contains Me)".
+  const describeEntry = (entry: FilterEntry): string =>
+    isFilterGroup(entry)
+      ? `(${entry.rules.map(describeEntry).join(` ${word(entry.combinator)} `)})`
+      : describeFilter(entry, columns);
+  const or = view.config.filterCombinator === "or";
   return (
     <div className="flex flex-wrap items-center gap-1.5 py-1.5 text-xs">
       {sorts.map((s) => (
@@ -466,16 +500,20 @@ export function ActiveRulesBar({
           {nameOf(s.propertyId)}
         </span>
       ))}
+      {/* Chips side by side read as "and"; an "or" between them is spelled out. */}
       {filters.map((f, i) => (
-        <span key={`f-${i}`} className="inline-flex h-6 items-center gap-1 rounded-md border border-border px-1.5 text-fg-muted">
-          <ListFilter className="h-3 w-3" />
-          {describeFilter(f, columns)}
-        </span>
+        <Fragment key={`f-${i}`}>
+          {or && i > 0 && <span className="text-fg-faint">{word("or")}</span>}
+          <span className="inline-flex min-h-6 items-center gap-1 rounded-md border border-border px-1.5 text-fg-muted">
+            <ListFilter className="h-3 w-3 shrink-0" />
+            {describeEntry(f)}
+          </span>
+        </Fragment>
       ))}
       {!readOnly && (
         <button
           type="button"
-          onClick={() => onConfig({ ...view.config, filters: [], sorts: [] })}
+          onClick={() => onConfig({ ...view.config, filters: [], filterCombinator: undefined, sorts: [] })}
           className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-fg-muted hover:bg-bg-hover hover:text-fg"
         >
           <X className="h-3 w-3" />
@@ -507,9 +545,14 @@ function useDescribeFilter() {
   const tc = useTranslations("common");
   const tf = useTranslations("database.filter");
   const tp = useTranslations("database.person");
+  const rangeLabel = useRangeLabel();
   return (f: FilterRule, columns: Column[]) => {
     const col = columns.find((c) => c.id === f.propertyId);
     if (!col) return t("unknownFilter");
+    if (f.op === "is_within") {
+      const range = isRelativeDateRange(f.value) ? rangeLabel(f.value, f.days).toLocaleLowerCase(locale) : "…";
+      return t("filterWithin", { property: col.name, range });
+    }
     const operator = operatorLabel(col.type, f.op).toLocaleLowerCase(locale);
     if (!filterNeedsValue(f.op) || col.type === "checkbox") {
       return t("filterWithoutValue", { property: col.name, operator });
@@ -531,34 +574,58 @@ function useDescribeFilter() {
   };
 }
 
+/** Message keys (`database.filter.relative.*`) for the choices of an "is within" rule. */
+const RANGE_LABELS: Record<RelativeDateRange, "today" | "thisWeek" | "thisMonth" | "pastNDays" | "nextNDays"> = {
+  today: "today",
+  this_week: "thisWeek",
+  this_month: "thisMonth",
+  past_n_days: "pastNDays",
+  next_n_days: "nextNDays",
+};
+
+/** "This week", "Past 7 days"… for an "is within" rule's value. */
+function useRangeLabel() {
+  const t = useTranslations("database.filter.relative");
+  return (range: RelativeDateRange, days?: number) => {
+    if (range === "past_n_days" && days) return t("pastDays", { count: days });
+    if (range === "next_n_days" && days) return t("nextDays", { count: days });
+    return t(RANGE_LABELS[range]);
+  };
+}
+
+/** Groups the editor lets users add: top-level groups of rules. Deeper groups (made over MCP) still show and edit. */
+const EDITOR_GROUP_DEPTH = 1;
+
 function FilterEditor({
   columns,
   filters,
+  combinator,
   onChange,
 }: {
   columns: Column[];
-  filters: FilterRule[];
-  onChange: (filters: FilterRule[]) => void;
+  filters: FilterEntry[];
+  combinator: FilterCombinator;
+  onChange: (filters: FilterEntry[], combinator: FilterCombinator) => void;
 }) {
   const t = useTranslations("database.filter");
-  const operatorLabel = useOperatorLabel();
-  // Text values are drafted locally and saved with a short debounce.
-  const [draft, setDraft] = useState(filters);
+  // The top level edits like a group. Text values are drafted locally and saved with a short debounce.
+  const [draft, setDraft] = useState<FilterGroup>({ type: "group", combinator, rules: filters });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(draft);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const save = (root: FilterGroup) => onChangeRef.current(root.rules, root.combinator);
   useEffect(
     () => () => {
       if (timer.current) {
         clearTimeout(timer.current);
-        onChangeRef.current(latest.current);
+        save(latest.current);
       }
     },
     [],
   );
 
-  const update = (next: FilterRule[], debounce = false) => {
+  const update = (next: FilterGroup, debounce = false) => {
     setDraft(next);
     latest.current = next;
     if (timer.current) clearTimeout(timer.current);
@@ -566,70 +633,253 @@ function FilterEditor({
     if (debounce) {
       timer.current = setTimeout(() => {
         timer.current = null;
-        onChange(next);
+        save(next);
       }, 400);
-    } else onChange(next);
+    } else save(next);
   };
 
-  const defaultRule = (col: Column): FilterRule => ({ propertyId: col.id, op: filterOperators(col.type)[0].op });
-
   return (
-    <div className="w-[26rem] max-w-[calc(100vw-2rem)] p-1">
-      {!draft.length && <div className="px-2 py-1.5 text-xs text-fg-faint">{t("empty")}</div>}
-      {draft.map((rule, i) => {
-        const col = columns.find((c) => c.id === rule.propertyId) ?? columns[0];
-        const ops = filterOperators(col.type);
-        const set = (patch: Partial<FilterRule>, debounce = false) =>
-          update(
-            draft.map((r, j) => (j === i ? { ...r, ...patch } : r)),
-            debounce,
-          );
-        return (
-          <div key={i} className="flex items-center gap-1 px-1 py-1">
-            <NativeSelect
-              label={t("property")}
-              value={col.id}
-              onChange={(id) => {
-                const next = columns.find((c) => c.id === id);
-                if (next) update(draft.map((r, j) => (j === i ? defaultRule(next) : r)));
-              }}
-              options={columns.map((c) => ({ value: c.id, label: c.name }))}
-              className="w-32"
-            />
-            <NativeSelect
-              label={t("condition")}
-              value={rule.op}
-              onChange={(op) => set({ op: op as FilterOp })}
-              options={ops.map((o) => ({ value: o.op, label: operatorLabel(col.type, o.op) }))}
-              className="w-32"
-            />
-            <div className="min-w-0 flex-1">
-              {filterNeedsValue(rule.op) && col.type !== "checkbox" && (
-                <FilterValue col={col} value={rule.value} onChange={(value, debounce) => set({ value }, debounce)} />
-              )}
-            </div>
-            <button
-              type="button"
-              aria-label={t("remove")}
-              onClick={() => update(draft.filter((_, j) => j !== i))}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-hover hover:text-fg"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        );
-      })}
+    <div className="w-[34rem] max-w-[calc(100vw-2rem)] p-1">
+      {!draft.rules.length && <div className="px-2 py-1.5 text-xs text-fg-faint">{t("empty")}</div>}
+      <FilterEntries group={draft} depth={0} columns={columns} onChange={update} />
       <MenuSeparator />
-      <div className="flex items-center justify-between">
-        <MenuItemInline onClick={() => update([...draft, defaultRule(columns[0])])} icon={<Plus className="h-3.5 w-3.5" />}>
-          {t("add")}
-        </MenuItemInline>
-        {draft.length > 0 && (
-          <Button size="sm" variant="ghost" onClick={() => update([])}>
+      <div className="flex flex-wrap items-center justify-between gap-1">
+        <div className="flex flex-wrap items-center">
+          <MenuItemInline
+            onClick={() => update({ ...draft, rules: [...draft.rules, defaultRule(columns[0])] })}
+            icon={<Plus className="h-3.5 w-3.5" />}
+          >
+            {t("add")}
+          </MenuItemInline>
+          <MenuItemInline
+            onClick={() => update({ ...draft, rules: [...draft.rules, newGroup(columns[0])] })}
+            icon={<Plus className="h-3.5 w-3.5" />}
+          >
+            {t("addGroup")}
+          </MenuItemInline>
+        </div>
+        {draft.rules.length > 0 && (
+          <Button size="sm" variant="ghost" onClick={() => update({ type: "group", combinator: "and", rules: [] })}>
             {t("clearAll")}
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+function defaultRule(col: Column): FilterRule {
+  return { propertyId: col.id, op: filterOperators(col.type)[0].op };
+}
+
+function newGroup(col: Column): FilterGroup {
+  return { type: "group", combinator: "and", rules: [defaultRule(col)] };
+}
+
+/**
+ * The rules and groups of one group, Notion style: the first line reads "Where", the second holds
+ * the and/or switch, and later lines repeat its choice (a group combines all its rules one way).
+ */
+function FilterEntries({
+  group,
+  depth,
+  columns,
+  onChange,
+}: {
+  group: FilterGroup;
+  depth: number;
+  columns: Column[];
+  onChange: (group: FilterGroup, debounce?: boolean) => void;
+}) {
+  const t = useTranslations("database.filter");
+  // A group whose last rule is removed goes away with it.
+  const setEntry = (i: number, entry: FilterEntry | null, debounce = false) => {
+    const rules = group.rules.flatMap((e, j) => (j !== i ? [e] : entry && !(isFilterGroup(entry) && !entry.rules.length) ? [entry] : []));
+    onChange({ ...group, rules }, debounce);
+  };
+  return group.rules.map((entry, i) => (
+    <div key={i} className="flex items-start gap-1 px-1 py-1">
+      <div className="flex h-7 w-16 shrink-0 items-center text-sm text-fg-muted">
+        {i === 0 ? (
+          <span className="px-1.5">{t("where")}</span>
+        ) : i === 1 ? (
+          <NativeSelect
+            label={t("combinator")}
+            value={group.combinator}
+            onChange={(c) => onChange({ ...group, combinator: c === "or" ? "or" : "and" })}
+            options={[
+              { value: "and", label: t("and") },
+              { value: "or", label: t("or") },
+            ]}
+            className="w-full"
+          />
+        ) : (
+          <span className="px-1.5">{t(group.combinator)}</span>
+        )}
+      </div>
+      {isFilterGroup(entry) ? (
+        <>
+          <div className="min-w-0 flex-1 rounded-md border border-border bg-bg-subtle p-0.5">
+            <FilterEntries
+              group={entry}
+              depth={depth + 1}
+              columns={columns}
+              onChange={(next, debounce) => setEntry(i, next, debounce)}
+            />
+            <div className="flex flex-wrap items-center">
+              <MenuItemInline
+                onClick={() => setEntry(i, { ...entry, rules: [...entry.rules, defaultRule(columns[0])] })}
+                icon={<Plus className="h-3.5 w-3.5" />}
+              >
+                {t("add")}
+              </MenuItemInline>
+              {depth + 1 < EDITOR_GROUP_DEPTH && (
+                <MenuItemInline
+                  onClick={() => setEntry(i, { ...entry, rules: [...entry.rules, newGroup(columns[0])] })}
+                  icon={<Plus className="h-3.5 w-3.5" />}
+                >
+                  {t("addGroup")}
+                </MenuItemInline>
+              )}
+            </div>
+          </div>
+          <RemoveButton label={t("removeGroup")} onClick={() => setEntry(i, null)} />
+        </>
+      ) : (
+        <FilterRuleRow
+          rule={entry}
+          columns={columns}
+          onChange={(next, debounce) => setEntry(i, next, debounce)}
+          onRemove={() => setEntry(i, null)}
+        />
+      )}
+    </div>
+  ));
+}
+
+/** Property, condition and value of one rule; the value drops below on narrow screens. */
+function FilterRuleRow({
+  rule,
+  columns,
+  onChange,
+  onRemove,
+}: {
+  rule: FilterRule;
+  columns: Column[];
+  onChange: (rule: FilterRule, debounce?: boolean) => void;
+  onRemove: () => void;
+}) {
+  const t = useTranslations("database.filter");
+  const operatorLabel = useOperatorLabel();
+  const col = columns.find((c) => c.id === rule.propertyId) ?? columns[0];
+  const ops = filterOperators(col.type);
+  const set = (patch: Partial<FilterRule>, debounce = false) => onChange({ ...rule, ...patch }, debounce);
+  // "Is within" takes a range instead of a value, so switching to or from it starts the value over.
+  const setOp = (op: FilterOp) => {
+    if ((op === "is_within") === (rule.op === "is_within")) return set({ op });
+    onChange({ propertyId: rule.propertyId, op });
+  };
+  return (
+    <>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+        <NativeSelect
+          label={t("property")}
+          value={col.id}
+          onChange={(id) => {
+            const next = columns.find((c) => c.id === id);
+            if (next) onChange(defaultRule(next));
+          }}
+          options={columns.map((c) => ({ value: c.id, label: c.name }))}
+          className="min-w-0 flex-1 basis-28"
+        />
+        <NativeSelect
+          label={t("condition")}
+          value={rule.op}
+          onChange={(op) => setOp(op as FilterOp)}
+          options={ops.map((o) => ({ value: o.op, label: operatorLabel(col.type, o.op) }))}
+          className="min-w-0 flex-1 basis-28"
+        />
+        {rule.op === "is_within" ? (
+          <div className="min-w-0 flex-1 basis-40">
+            <RelativeDateValue rule={rule} onChange={set} />
+          </div>
+        ) : (
+          filterNeedsValue(rule.op) &&
+          col.type !== "checkbox" && (
+            <div className="min-w-0 flex-1 basis-32">
+              <FilterValue col={col} value={rule.value} onChange={(value, debounce) => set({ value }, debounce)} />
+            </div>
+          )
+        )}
+      </div>
+      <RemoveButton label={t("remove")} onClick={onRemove} />
+    </>
+  );
+}
+
+function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-hover hover:text-fg"
+    >
+      <X className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
+/** Today, this week, this month, or past / next N days (with N). */
+function RelativeDateValue({
+  rule,
+  onChange,
+}: {
+  rule: FilterRule;
+  onChange: (patch: Partial<FilterRule>, debounce?: boolean) => void;
+}) {
+  const t = useTranslations("database.filter");
+  const rangeLabel = useRangeLabel();
+  const range = isRelativeDateRange(rule.value) ? rule.value : null;
+  return (
+    <div className="flex items-center gap-1">
+      <NativeSelect
+        label={t("range")}
+        value={range ?? ""}
+        onChange={(v) => {
+          const next = isRelativeDateRange(v) ? v : undefined;
+          onChange({ value: next, days: next && rangeNeedsDays(next) ? (rule.days ?? 7) : undefined });
+        }}
+        options={[
+          { value: "", label: t("choose") },
+          ...RELATIVE_DATE_RANGES.map((r) => ({ value: r, label: rangeLabel(r) })),
+        ]}
+        className="min-w-0 flex-1"
+      />
+      {range && rangeNeedsDays(range) && (
+        // Input's own `w-full` wins over a width passed in, so the wrapper sets the width.
+        <div className="w-16 shrink-0">
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={MAX_RELATIVE_DAYS}
+            step={1}
+            aria-label={t("days")}
+            title={t("days")}
+            value={rule.days ?? ""}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const n = Math.round(Number(raw));
+              // Out-of-range counts are clamped rather than saved; an empty box leaves the rule incomplete.
+              const days = raw === "" || !Number.isFinite(n) ? undefined : Math.min(MAX_RELATIVE_DAYS, Math.max(1, n));
+              onChange({ days }, true);
+            }}
+            className="h-7"
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -5,14 +5,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addPropertyAction,
   addViewAction,
+  archiveRowsAction,
   createRowAction,
   deletePropertyAction,
   deleteViewAction,
+  duplicateRowsAction,
   ensureOptionAction,
   loadDatabaseAction,
   moveRowAction,
   updatePropertyAction,
   updateRowPropertiesAction,
+  updateRowsPropertiesAction,
   updateViewAction,
   type ActionResult,
 } from "@/app/actions/databases";
@@ -41,6 +44,7 @@ async function unwrap<T>(p: Promise<ActionResult<T>>): Promise<T> {
  */
 export function useDatabase(databaseId: string) {
   const tc = useTranslations("common");
+  const tb = useTranslations("database.bulk");
   const genericError = tc("genericError");
   // Other failures (thrown page actions, network errors) carry untranslated text, so they get
   // the generic message instead.
@@ -144,6 +148,36 @@ export function useDatabase(databaseId: string) {
     [withPending],
   );
 
+  /**
+   * Sets one property on several rows (bulk edit): every row shows the new value right away, and
+   * rows the server skipped (see databases.rowsWithAccess) are reported, then refetched back.
+   */
+  const setCells = useCallback(
+    async (rowIds: string[], key: string, value: unknown) => {
+      const v = ++version.current;
+      const tokens = rowIds.map((rowId) => `${rowId}\u0000${key}`);
+      setPending((p) => {
+        const next = { ...p };
+        for (const rowId of rowIds) next[`${rowId}\u0000${key}`] = { rowId, key, value, version: v };
+        return next;
+      });
+      try {
+        const result = await unwrap(updateRowsPropertiesAction(databaseId, rowIds, { [key]: value }));
+        if (result.skipped.length) setError(tb("skipped", { count: result.skipped.length }));
+        await refetch();
+      } catch (e) {
+        report(e);
+      } finally {
+        setPending((p) => {
+          const next = { ...p };
+          for (const token of tokens) if (next[token]?.version === v) delete next[token];
+          return next;
+        });
+      }
+    },
+    [databaseId, refetch, report, tb],
+  );
+
   /** Applies a local schema change immediately, then persists it and refetches. */
   const mutateSchema = useCallback(
     async <T,>(local: (s: DatabaseSnapshot) => DatabaseSnapshot, write: () => Promise<ActionResult<T>>) => {
@@ -170,7 +204,10 @@ export function useDatabase(databaseId: string) {
     () => ({
       refetch,
       setCell,
+      setCells,
       clearError: () => setError(null),
+      /** Shows an already translated message in the error banner. */
+      showError: (message: string) => setError(message),
       report,
 
       async createRow(input: { title?: string; properties?: Record<string, unknown> } = {}) {
@@ -198,6 +235,31 @@ export function useDatabase(databaseId: string) {
             next.delete(rowId);
             return next;
           });
+        }
+      },
+
+      /** Moves rows to the trash; they disappear right away and come back if the server refuses. */
+      async deleteRows(rowIds: string[]) {
+        setRemoved((s) => new Set([...s, ...rowIds]));
+        try {
+          const result = await unwrap(archiveRowsAction(databaseId, rowIds));
+          if (result.skipped.length) setError(tb("skipped", { count: result.skipped.length }));
+          await refetch();
+        } catch (e) {
+          report(e);
+        } finally {
+          setRemoved((s) => new Set([...s].filter((id) => !rowIds.includes(id))));
+        }
+      },
+
+      async duplicateRows(rowIds: string[]) {
+        try {
+          const result = await unwrap(duplicateRowsAction(databaseId, rowIds));
+          if (result.skipped.length) setError(tb("skipped", { count: result.skipped.length }));
+        } catch (e) {
+          report(e);
+        } finally {
+          await refetch();
         }
       },
 
@@ -307,7 +369,7 @@ export function useDatabase(databaseId: string) {
       },
     }),
     // patchProperty is a pure helper; the rest are stable callbacks.
-    [databaseId, snapshot?.database.workspaceId, refetch, setCell, mutateSchema, report],
+    [databaseId, snapshot?.database.workspaceId, refetch, setCell, setCells, mutateSchema, report, tb],
   );
 
   return { snapshot, rows, loadError, error, api };

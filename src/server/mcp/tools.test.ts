@@ -40,6 +40,7 @@ const databases = vi.hoisted(() => ({
   getDatabase: vi.fn(),
   listRows: vi.fn(),
   updateRowProperties: vi.fn(),
+  updateRowsProperties: vi.fn(),
   createRows: vi.fn(),
   addProperty: vi.fn(),
   updateProperty: vi.fn(),
@@ -377,6 +378,43 @@ describe("create_database_rows", () => {
   });
 });
 
+describe("update_database_rows", () => {
+  it("sets the values on every row and lists the rows it skipped", async () => {
+    databases.updateRowsProperties.mockResolvedValue({ done: ["row-1"], skipped: ["row-2"] });
+    const r = await callTool(writer, "update_database_rows", {
+      database_id: "db-1",
+      row_ids: ["row-1", "row-2"],
+      properties: { Status: "Done" },
+    });
+    expect(r.isError).toBe(false);
+    expect(databases.updateRowsProperties).toHaveBeenCalledWith("user-1", "db-1", ["row-1", "row-2"], { Status: "Done" });
+    expect(r.data).toMatchObject({ updated: 1, skipped_row_ids: ["row-2"], url: "http://localhost:3000/w/ws-1/p/db-1" });
+  });
+
+  it("leaves skipped_row_ids out when every row changed", async () => {
+    databases.updateRowsProperties.mockResolvedValue({ done: ["row-1"], skipped: [] });
+    const r = await callTool(writer, "update_database_rows", { database_id: "db-1", row_ids: ["row-1"], properties: { Notes: null } });
+    expect(r.data).toEqual({ database_id: "db-1", updated: 1, url: "http://localhost:3000/w/ws-1/p/db-1" });
+  });
+
+  it("refuses read-only tokens, empty changes, trashed databases and oversized batches", async () => {
+    const readOnly = await callTool(reader, "update_database_rows", { database_id: "db-1", row_ids: ["r"], properties: { Status: "Done" } });
+    expect(readOnly.text).toMatch(/read-only/);
+    const empty = await callTool(writer, "update_database_rows", { database_id: "db-1", row_ids: ["r"], properties: {} });
+    expect(empty.text).toMatch(/at least one property/);
+    const tooMany = await callTool(writer, "update_database_rows", {
+      database_id: "db-1",
+      row_ids: Array.from({ length: 101 }, (_, i) => `row-${i}`),
+      properties: { Status: "Done" },
+    });
+    expect(tooMany.isError).toBe(true);
+    databases.getDatabase.mockResolvedValue({ ...database, database: { ...database.database, archivedAt: new Date() } });
+    const trashed = await callTool(writer, "update_database_rows", { database_id: "db-1", row_ids: ["r"], properties: { Status: "Done" } });
+    expect(trashed.text).toMatch(/trash/);
+    expect(databases.updateRowsProperties).not.toHaveBeenCalled();
+  });
+});
+
 describe("database views", () => {
   it("validates board grouping before creating the view", async () => {
     const r = await callTool(writer, "create_database_view", { database_id: "db-1", name: "By notes", type: "board", group_by: "Notes" });
@@ -406,6 +444,106 @@ describe("database views", () => {
   it("rejects unknown view ids", async () => {
     const r = await callTool(writer, "update_database_view", { database_id: "db-1", view_id: "nope", name: "X" });
     expect(r.text).toMatch(/No view with id/);
+  });
+});
+
+describe("filter groups over MCP", () => {
+  const done = { propertyId: "prop-status", op: "equals", value: "opt-done" };
+  const todo = { propertyId: "prop-status", op: "equals", value: "opt-todo" };
+  const noNotes = { propertyId: "prop-notes", op: "is_empty" };
+
+  it("stores groups and the top-level combinator of a new view", async () => {
+    databases.addView.mockResolvedValue({ id: "view-2", name: "Either", type: "table", config: {} });
+    const r = await callTool(writer, "create_database_view", {
+      database_id: "db-1",
+      name: "Either",
+      filter_combinator: "or",
+      filters: [
+        { property: "Status", op: "equals", value: "Done" },
+        {
+          type: "group",
+          combinator: "and",
+          rules: [
+            { property: "Status", op: "equals", value: "Todo" },
+            { type: "group", combinator: "or", rules: [{ property: "Notes", op: "is_empty" }] },
+          ],
+        },
+      ],
+    });
+    expect(r.isError).toBe(false);
+    expect(databases.updateView).toHaveBeenCalledWith("user-1", "view-2", {
+      config: {
+        filterCombinator: "or",
+        filters: [done, { type: "group", combinator: "and", rules: [todo, { type: "group", combinator: "or", rules: [noNotes] }] }],
+      },
+    });
+    expect(r.data.filter_combinator).toBe("or");
+    expect(r.data.filters[1]).toEqual({
+      type: "group",
+      combinator: "and",
+      rules: [
+        { property: "Status", op: "equals", value: "Todo" },
+        { type: "group", combinator: "or", rules: [{ property: "Notes", op: "is_empty" }] },
+      ],
+    });
+  });
+
+  it("rejects groups nested too deep and unknown ops with clear messages", async () => {
+    const leaf = { property: "Notes", op: "is_empty" };
+    const deep = await callTool(writer, "update_database_view", {
+      database_id: "db-1",
+      view_id: "view-1",
+      filters: [{ type: "group", rules: [{ type: "group", rules: [{ type: "group", rules: [leaf] }] }] }],
+    });
+    expect(deep.isError).toBe(true);
+    expect(deep.text).toMatch(/at most 2 levels deep/);
+    const unknown = await callTool(writer, "query_database", {
+      database_id: "db-1",
+      filters: [{ property: "Notes", op: "matches", value: "x" }],
+    });
+    expect(unknown.isError).toBe(true);
+    expect(unknown.text).toMatch(/filters\.0: op: Invalid option: expected one of .*"is_within"/);
+    expect(databases.updateView).not.toHaveBeenCalled();
+    expect(databases.listRows).not.toHaveBeenCalled();
+  });
+
+  it("switches only the combinator when that is all it is given", async () => {
+    await callTool(writer, "update_database_view", { database_id: "db-1", view_id: "view-1", filter_combinator: "or" });
+    expect(databases.updateView).toHaveBeenCalledWith("user-1", "view-1", {
+      config: { groupBy: "prop-status", sorts: [{ propertyId: "title", direction: "asc" }], filterCombinator: "or" },
+    });
+  });
+
+  it("queries with a saved view's filters and the caller's, each keeping its combinator", async () => {
+    databases.getDatabase.mockResolvedValue({
+      ...database,
+      views: [{ id: "view-or", name: "Either", type: "table", config: { filterCombinator: "or", filters: [done, todo] } }],
+    });
+    databases.listRows.mockResolvedValue([]);
+    await callTool(reader, "query_database", {
+      database_id: "db-1",
+      view_id: "view-or",
+      filters: [{ property: "Notes", op: "is_empty" }],
+    });
+    expect(databases.listRows).toHaveBeenCalledWith("user-1", "db-1", {
+      filters: [
+        { type: "group", combinator: "or", rules: [done, todo] },
+        { type: "group", combinator: "and", rules: [noNotes] },
+      ],
+      sorts: [],
+    });
+  });
+
+  it("still accepts a plain list of rules", async () => {
+    databases.listRows.mockResolvedValue([]);
+    await callTool(reader, "query_database", {
+      database_id: "db-1",
+      filters: [{ property: "Status", op: "equals", value: "Done" }, { property: "Notes", op: "is_empty" }],
+    });
+    expect(databases.listRows).toHaveBeenCalledWith("user-1", "db-1", {
+      filters: [{ type: "group", combinator: "and", rules: [done, noNotes] }],
+      sorts: [],
+    });
   });
 });
 

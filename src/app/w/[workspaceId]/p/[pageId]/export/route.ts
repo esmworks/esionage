@@ -3,7 +3,7 @@ import { asChecklist, displayValue } from "@/lib/properties";
 import { holdsPeople } from "@/lib/property-types";
 import { AccessError } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
-import { getDatabaseSnapshot } from "@/server/databases";
+import { getDatabaseSnapshot, MAX_BULK_ROWS } from "@/server/databases";
 import { getPage } from "@/server/pages";
 import { getSession } from "@/server/session";
 
@@ -23,16 +23,32 @@ function download(body: string, type: string, disposition: string) {
   });
 }
 
-/** A page as Markdown, or a database's rows as CSV. Pages the user can't see are 404. */
-export async function GET(_request: Request, { params }: { params: Promise<{ pageId: string }> }) {
+/**
+ * The rows a POST asks for (`{ "rows": [ids] }`, the table's selection), in that order; null for
+ * a GET, which exports every row. Ids of rows the user can't see simply match nothing.
+ */
+async function requestedRows(request: Request): Promise<string[] | null> {
+  if (request.method !== "POST") return null;
+  const body: unknown = await request.json().catch(() => null);
+  const rows = (body as { rows?: unknown } | null)?.rows;
+  return Array.isArray(rows) ? rows.filter((id): id is string => typeof id === "string").slice(0, MAX_BULK_ROWS) : [];
+}
+
+/**
+ * A page as Markdown, or a database's rows as CSV (all of them, or with POST the selected ones).
+ * Pages the user can't see are 404.
+ */
+export async function GET(request: Request, { params }: { params: Promise<{ pageId: string }> }) {
   const session = await getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   const { pageId } = await params;
   try {
     const target = await getPage(session.user.id, pageId);
+    const only = await requestedRows(request);
     if (target.kind === "database") {
       const snapshot = await getDatabaseSnapshot(session.user.id, pageId);
-      const rows = snapshot.rows;
+      const byId = new Map(snapshot.rows.map((row) => [row.id, row]));
+      const rows = only ? only.flatMap((id) => byId.get(id) ?? []) : snapshot.rows;
       const titleOf = new Map(
         Object.values(snapshot.relations).flatMap((r) => r.rows.map((row) => [row.id, row.title] as const)),
       );
@@ -72,3 +88,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pag
     throw error;
   }
 }
+
+/** Exports the selected rows of a database: a POST, since a large selection would not fit in a URL. */
+export const POST = GET;

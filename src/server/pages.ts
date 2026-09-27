@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
@@ -23,7 +23,15 @@ import {
   requirePageAccess,
 } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
-import { announceAssignments, normalizeRowProperties, syncPairedRelations, withCode } from "@/server/databases";
+import {
+  announceAssignments,
+  bulkRowIds,
+  normalizeRowProperties,
+  rowsWithAccess,
+  syncPairedRelations,
+  withCode,
+  type BulkResult,
+} from "@/server/databases";
 import { makePagePrivate } from "@/server/permissions";
 import { requireTopLevel } from "@/server/workspaces";
 
@@ -262,6 +270,38 @@ export async function archivePage(userId: string, pageId: string) {
   getCollab().broadcast(`ws:${p.workspaceId}`, "tree");
   if (p.parentId) getCollab().broadcast(`db:${p.parentId}`, "rows");
   return p;
+}
+
+/**
+ * Moves several rows of a database to the trash at once, each with its subpages, like archivePage
+ * does for one. Rows the user may edit go in one statement; the rest are skipped and returned
+ * (see rowsWithAccess). Each row stays its own trash entry, restorable on its own.
+ */
+export async function archiveRows(userId: string, databaseId: string, rowIds: string[]): Promise<BulkResult> {
+  const ids = bulkRowIds(rowIds);
+  const database = await requirePageAccess(userId, databaseId, "view");
+  if (database.kind !== "database") throw withCode(new AccessError("Not a database"), "notADatabase");
+  const { rows, skipped } = await rowsWithAccess(userId, databaseId, ids, "edit");
+  if (!rows.length) return { done: [], skipped };
+  const roots = rows.map((r) => r.id);
+  await db
+    .update(page)
+    .set({ archivedAt: new Date(), updatedBy: userId })
+    .where(
+      and(
+        sql`${page.id} in (
+          with recursive sub as (
+            select id from ${page} where ${inArray(page.id, roots)}
+            union all
+            select p.id from ${page} p join sub on p.parent_id = sub.id
+          ) select id from sub
+        )`,
+        isNull(page.archivedAt),
+      ),
+    );
+  getCollab().broadcast(`ws:${database.workspaceId}`, "tree");
+  getCollab().broadcast(`db:${databaseId}`, "rows");
+  return { done: roots, skipped };
 }
 
 export async function restorePage(userId: string, pageId: string) {

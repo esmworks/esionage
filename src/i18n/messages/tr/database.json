@@ -84,7 +84,8 @@
     "filterWithValue": "{property} {operator} {value}",
     "filterWithoutValue": "{property} {operator}",
     "sortedAscending": "{property}, artan",
-    "sortedDescending": "{property}, azalan"
+    "sortedDescending": "{property}, azalan",
+    "filterWithin": "{property} {range} içinde"
   },
   "filter": {
     "empty": "Bu görünüme filtre uygulanmadı",
@@ -93,7 +94,7 @@
     "value": "Değer",
     "choose": "Seçin…",
     "remove": "Filtreyi kaldır",
-    "add": "Filtre ekle",
+    "add": "Filtre kuralı ekle",
     "clearAll": "Tümünü temizle",
     "ops": {
       "contains": "İçerir",
@@ -109,9 +110,27 @@
       "isBefore": "Şundan önce",
       "isAfter": "Şundan sonra",
       "isChecked": "İşaretli",
-      "isUnchecked": "İşaretsiz"
+      "isUnchecked": "İşaretsiz",
+      "isWithin": "Şu süre içinde"
     },
-    "me": "Ben"
+    "me": "Ben",
+    "addGroup": "Filtre grubu ekle",
+    "removeGroup": "Filtre grubunu kaldır",
+    "where": "Koşul",
+    "combinator": "Kuralları birleştirme",
+    "and": "Ve",
+    "or": "Veya",
+    "range": "Tarih aralığı",
+    "days": "Gün sayısı",
+    "relative": {
+      "today": "Bugün",
+      "thisWeek": "Bu hafta",
+      "thisMonth": "Bu ay",
+      "pastNDays": "Son N gün",
+      "nextNDays": "Önümüzdeki N gün",
+      "pastDays": "Son {count} gün",
+      "nextDays": "Önümüzdeki {count} gün"
+    }
   },
   "sort": {
     "empty": "Bu görünüme sıralama uygulanmadı",
@@ -134,6 +153,78 @@
   },
   "rowMenu": {
     "open": "Aç"
+  },
+  "bulk": {
+    "actions": "Seçili satırlar",
+    "selected": "{count} seçili",
+    "selectRow": "Satırı seç",
+    "selectAll": "Tüm satırları seç",
+    "editProperty": "Özelliği düzenle",
+    "chooseProperty": "Seçili satırlarda bir özelliği ayarla",
+    "noEditable": "Düzenlenecek özellik yok",
+    "setValue": "{property} değerini ayarla",
+    "apply": "Uygula",
+    "clearValue": "Temizle",
+    "checked": "İşaretli",
+    "unchecked": "İşaretsiz",
+    "back": "Geri",
+    "duplicate": "Kopyasını oluştur",
+    "trash": "Çöp kutusuna taşı",
+    "export": "CSV olarak dışa aktar",
+    "exportFailed": "Seçili satırlar dışa aktarılamadı.",
+    "clearSelection": "Seçimi temizle",
+    "confirmTrash": "{count} satır çöp kutusuna taşınsın mı?",
+    "skipped": "{count} satır, değiştirme izniniz olmadığı için atlandı."
+  },
+  "calculate": {
+    "calculate": "Hesapla",
+    "calculateColumn": "{column} sütununu hesapla",
+    "none": "Yok",
+    "days": "{count, plural, other {# gün}}",
+    "menu": {
+      "count_all": "Tümünü say",
+      "count_values": "Değerleri say",
+      "count_unique": "Benzersiz değerleri say",
+      "count_empty": "Boş olanları say",
+      "count_not_empty": "Dolu olanları say",
+      "percent_empty": "Boş yüzdesi",
+      "percent_not_empty": "Dolu yüzdesi",
+      "sum": "Toplam",
+      "average": "Ortalama",
+      "median": "Medyan",
+      "min": "En küçük",
+      "max": "En büyük",
+      "range": "Aralık",
+      "earliest_date": "En erken tarih",
+      "latest_date": "En geç tarih",
+      "date_range": "Tarih aralığı",
+      "count_checked": "İşaretli",
+      "count_unchecked": "İşaretsiz",
+      "percent_checked": "İşaretli yüzdesi",
+      "percent_unchecked": "İşaretsiz yüzdesi"
+    },
+    "label": {
+      "count_all": "Adet",
+      "count_values": "Değer",
+      "count_unique": "Benzersiz",
+      "count_empty": "Boş",
+      "count_not_empty": "Dolu",
+      "percent_empty": "Boş",
+      "percent_not_empty": "Dolu",
+      "sum": "Toplam",
+      "average": "Ortalama",
+      "median": "Medyan",
+      "min": "En küçük",
+      "max": "En büyük",
+      "range": "Aralık",
+      "earliest_date": "En erken",
+      "latest_date": "En geç",
+      "date_range": "Aralık",
+      "count_checked": "İşaretli",
+      "count_unchecked": "İşaretsiz",
+      "percent_checked": "İşaretli",
+      "percent_unchecked": "İşaretsiz"
+    }
   },
   "board": {
     "needsSelectTitle": "Panolar satırları bir seçim, durum veya kişi özelliğine göre gruplar",
@@ -289,6 +380,8 @@
     "relationTargetReadOnly": "O veritabanını yalnızca görüntüleyebiliyorsun, bu yüzden bağlantı orada gösterilemez. O seçeneğin işaretini kaldır ya da düzenleme izni iste.",
     "databaseLocked": "Veritabanı kilitli. Özellikleri ve görünümleri değiştirmek için önce kilidi açın.",
     "invalidPerson": "“{property}” yalnızca bu çalışma alanındaki kişileri içerebilir.",
-    "readOnlyProperty": "“{property}” otomatik doldurulur, değiştirilemez."
+    "readOnlyProperty": "“{property}” otomatik doldurulur, değiştirilemez.",
+    "invalidFilter": "Bu filtre kaydedilemedi. Sayfayı yenileyip tekrar deneyin.",
+    "tooManyRows": "Tek seferde en fazla {max} satır değiştirilebilir."
   }
 }
