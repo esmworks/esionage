@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
-import { parseLinkedView, remapInlineDatabases, serializeLinkedView } from "@/lib/embed-blocks";
+import { LINKED_VIEW_TYPES, parseLinkedView, remapInlineDatabases, serializeLinkedView } from "@/lib/embed-blocks";
 import { blocksToMarkdown, markdownToBlocks, serverEditor, type PageBlock } from "./blocknote";
 import { bodySegmentsFromYdoc } from "./published-body";
 
@@ -137,13 +137,21 @@ describe("published body segments", () => {
     expect(html).not.toContain(DB);
     expect(html).not.toContain(OTHER);
   });
+
+  it("keep empty lines as line breaks, not replacement characters", async () => {
+    const doc = docFrom([{ type: "paragraph", content: "One" }, { type: "paragraph" }, { type: "heading" }]);
+    const [segment] = await bodySegmentsFromYdoc(Y.encodeStateAsUpdate(doc));
+    const html = segment.kind === "html" ? segment.html : "";
+    expect(html).not.toContain("\uFFFC");
+    expect(html).toContain("<p><br></p>");
+  });
 });
 
 describe("linked view settings", () => {
   it("fall back to a plain table when malformed", () => {
     expect(parseLinkedView("")).toEqual({ type: "table", config: {} });
     expect(parseLinkedView("{nope")).toEqual({ type: "table", config: {} });
-    expect(parseLinkedView(JSON.stringify({ type: "chart", config: {} }))).toEqual({ type: "table", config: {} });
+    expect(parseLinkedView(JSON.stringify({ type: "kanban", config: {} }))).toEqual({ type: "table", config: {} });
     expect(parseLinkedView(JSON.stringify({ type: "list", config: { filters: "bad" } }))).toEqual({ type: "list", config: {} });
     expect(parseLinkedView(JSON.stringify({ type: "gallery", config: { cardSize: "huge" } }))).toEqual({ type: "gallery", config: {} });
     expect(parseLinkedView(linked).type).toBe("board");
@@ -152,5 +160,12 @@ describe("linked view settings", () => {
   it("never take the form layout: forms belong to the database's own views", () => {
     const form = { type: "form", config: { form: { questions: [{ propertyId: "title", required: true }] } } };
     expect(parseLinkedView(JSON.stringify(form))).toEqual({ type: "table", config: {} });
+    expect(LINKED_VIEW_TYPES).not.toContain("form");
+    // Charts only read rows, so a page can show one of its own.
+    expect(LINKED_VIEW_TYPES).toContain("chart");
+    expect(parseLinkedView(JSON.stringify({ type: "chart", config: { chartType: "donut" } }))).toEqual({
+      type: "chart",
+      config: { chartType: "donut" },
+    });
   });
 });

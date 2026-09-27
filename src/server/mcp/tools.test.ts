@@ -370,6 +370,110 @@ describe("relations and calendars", () => {
     expect(r.data).toMatchObject({ card_size: "large", cover: "none" });
   });
 
+  it("creates charts with a calculation, stacking and sort, and checks each setting", async () => {
+    const amount = { id: "prop-amount", name: "Amount", type: "number", options: {} };
+    const done = { id: "prop-done", name: "Done", type: "checkbox", options: {} };
+    databases.getDatabase.mockResolvedValue({ ...database, properties: [status, notes, amount, done] });
+    const onTable = await callTool(writer, "create_database_view", { database_id: "db-1", name: "T", type: "table", chart_type: "line" });
+    expect(onTable.text).toMatch(/chart_type only applies to chart views/);
+    const noProperty = await callTool(writer, "create_database_view", { database_id: "db-1", name: "C", type: "chart", aggregate: "sum" });
+    expect(noProperty.text).toMatch(/needs aggregate_property/);
+    const wrongType = await callTool(writer, "create_database_view", {
+      database_id: "db-1",
+      name: "C",
+      type: "chart",
+      aggregate: "sum",
+      aggregate_property: "Notes",
+    });
+    expect(wrongType.text).toMatch(/can't calculate sum over "Notes"/);
+    const averageStack = await callTool(writer, "create_database_view", {
+      database_id: "db-1",
+      name: "C",
+      type: "chart",
+      aggregate: "average",
+      aggregate_property: "Amount",
+      stack_by: "Done",
+    });
+    expect(averageStack.text).toMatch(/stack_by only applies to bar and horizontal_bar charts/);
+    expect(databases.addView).not.toHaveBeenCalled();
+
+    databases.addView.mockResolvedValue({ id: "view-c", name: "Spend", type: "chart", config: { groupBy: "prop-status" } });
+    const r = await callTool(writer, "create_database_view", {
+      database_id: "db-1",
+      name: "Spend",
+      type: "chart",
+      chart_type: "horizontal_bar",
+      aggregate: "sum",
+      aggregate_property: "Amount",
+      stack_by: "Done",
+      chart_sort: "value_desc",
+      show_values: true,
+    });
+    expect(databases.updateView).toHaveBeenCalledWith("user-1", "view-c", {
+      config: {
+        groupBy: "prop-status",
+        chartType: "horizontal_bar",
+        chartAggregate: { fn: "sum", propertyId: "prop-amount" },
+        stackBy: "prop-done",
+        chartSort: "value_desc",
+        showValues: true,
+      },
+    });
+    expect(r.data).toMatchObject({
+      type: "chart",
+      group_by: "Status",
+      chart_type: "horizontal_bar",
+      aggregate: "sum",
+      aggregate_property: "Amount",
+      stack_by: "Done",
+      chart_sort: "value_desc",
+      show_values: true,
+    });
+  });
+
+  it("updates a chart's calculation one part at a time and goes back to counting rows", async () => {
+    const amount = { id: "prop-amount", name: "Amount", type: "number", options: {} };
+    const views = [
+      { id: "view-c", name: "Spend", type: "chart", config: { groupBy: "prop-status", chartAggregate: { fn: "sum", propertyId: "prop-amount" } } },
+    ];
+    databases.getDatabase.mockResolvedValue({ ...database, properties: [status, notes, amount], views });
+    await callTool(writer, "update_database_view", { database_id: "db-1", view_id: "view-c", aggregate: "median" });
+    expect(databases.updateView).toHaveBeenLastCalledWith("user-1", "view-c", {
+      config: { groupBy: "prop-status", chartAggregate: { fn: "median", propertyId: "prop-amount" } },
+    });
+    const r = await callTool(writer, "update_database_view", { database_id: "db-1", view_id: "view-c", aggregate: "count", chart_type: "donut" });
+    expect(databases.updateView).toHaveBeenLastCalledWith("user-1", "view-c", {
+      config: { groupBy: "prop-status", chartAggregate: undefined, chartType: "donut" },
+    });
+    expect(r.data).toMatchObject({ chart_type: "donut", aggregate: "count", show_legend: true });
+    expect(r.data).not.toHaveProperty("aggregate_property");
+    const ungrouped = await callTool(writer, "update_database_view", { database_id: "db-1", view_id: "view-c", group_by: null });
+    expect(ungrouped.text).toMatch(/Charts always group/);
+  });
+
+  it("returns what a chart view plots with its rows", async () => {
+    const views = [{ id: "view-c", name: "Chart", type: "chart", config: { groupBy: "prop-status", filters: [] } }];
+    databases.getDatabase.mockResolvedValue({ ...database, views });
+    databases.listRows.mockResolvedValue([
+      { id: "r1", title: "A", properties: { "prop-status": "opt-done" } },
+      { id: "r2", title: "B", properties: { "prop-status": "opt-done" } },
+      { id: "r3", title: "C", properties: {} },
+    ]);
+    const r = await callTool(reader, "query_database", { database_id: "db-1", view_id: "view-c", limit: 1 });
+    expect(r.data.returned).toBe(1);
+    expect(r.data.chart).toMatchObject({
+      chart_type: "bar",
+      aggregate: "count",
+      group_by: "Status",
+      format: "number",
+      series: [
+        { group: "Todo", value: 0, row_count: 0 },
+        { group: "Done", value: 2, row_count: 2 },
+        { group: "No Status", value: 1, row_count: 1 },
+      ],
+    });
+  });
+
   it("creates calendar views on a date property only", async () => {
     const due = { id: "prop-due", name: "Due", type: "date", options: {} };
     databases.getDatabase.mockResolvedValue({ ...database, properties: [status, notes, due] });
@@ -469,7 +573,7 @@ describe("database views", () => {
     const due = { id: "prop-due", name: "Due", type: "date", options: {} };
     databases.getDatabase.mockResolvedValue({ ...database, properties: [status, notes, due] });
     const onCalendar = await callTool(writer, "create_database_view", { database_id: "db-1", name: "C", type: "calendar", group_by: "Due" });
-    expect(onCalendar.text).toMatch(/only applies to board, table and timeline/);
+    expect(onCalendar.text).toMatch(/only applies to board, table, timeline and chart/);
     const wrongProp = await callTool(writer, "create_database_view", {
       database_id: "db-1",
       name: "T",

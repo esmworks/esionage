@@ -11,6 +11,7 @@ import { applyView, defaultsFromFilters } from "@/lib/properties";
 import { galleryCover } from "@/lib/views";
 import { BoardView } from "./board-view";
 import { CalendarView } from "./calendar-view";
+import { ChartView } from "./chart-view";
 import { FormToolbar, FormView } from "./form-view";
 import { GalleryView } from "./gallery-view";
 import { ListView } from "./list-view";
@@ -196,7 +197,7 @@ export function DatabasePage({
       t("page.defaultGroupOptions.inProgress"),
       t("page.defaultGroupOptions.done"),
     ]);
-    if (created && (view?.type === "board" || view?.type === "table")) {
+    if (created && (view?.type === "board" || view?.type === "table" || view?.type === "chart")) {
       await setConfig(view, { ...view.config, groupBy: created.id });
     }
   };
@@ -380,6 +381,16 @@ export function DatabasePage({
                   readOnly={readOnly}
                   locked={locked}
                   onCreateDateProperty={createDateProperty}
+                />
+              ) : view.type === "chart" ? (
+                <ChartView
+                  workspaceId={workspaceId}
+                  view={view}
+                  properties={snapshot.properties}
+                  rows={visibleRows}
+                  readOnly={readOnly}
+                  locked={locked}
+                  onCreateGroupProperty={createGroupProperty}
                 />
               ) : view.type === "calendar" ? (
                 <div className="page-gutter">

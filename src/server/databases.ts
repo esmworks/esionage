@@ -20,6 +20,7 @@ import { firstImageInYdoc, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { isApplicable, isRollupFn, ROLLUP_DISPLAYS, type RollupDisplay } from "@/lib/aggregate";
 import { compileFormulas, formulaForStorage, TITLE_FIELD, valueType, withFormulaTypes } from "@/lib/derived";
 import { filterConfigError, filterRules, mapFilterRules } from "@/lib/filters";
+import { chartGroupProperty } from "@/lib/chart";
 import { defaultFormConfig } from "@/lib/forms";
 import { DEFAULT_VIEW_NAMES, galleryCover, isViewType, layoutConfigError } from "@/lib/views";
 import { holdsOptions, holdsPeople, isComputed, PERSON_ME, type StatusGroup } from "@/lib/property-types";
@@ -973,6 +974,8 @@ export async function deleteProperty(userId: string, propertyId: string) {
             groupBy: c.groupBy === propertyId ? undefined : c.groupBy,
             dateBy: c.dateBy === propertyId ? undefined : c.dateBy,
             endDateBy: c.endDateBy === propertyId ? undefined : c.endDateBy,
+            stackBy: c.stackBy === propertyId ? undefined : c.stackBy,
+            chartAggregate: c.chartAggregate?.propertyId === propertyId ? undefined : c.chartAggregate,
             sorts: c.sorts?.filter((s) => s.propertyId !== propertyId),
             filters: c.filters && mapFilterRules(c.filters, (f) => (f.propertyId === propertyId ? null : f)),
             hidden: c.hidden?.filter((h) => h !== propertyId),
@@ -1011,6 +1014,8 @@ export async function addView(userId: string, databaseId: string, input: { name:
   // Timelines start without swimlanes and with a week per column; list rows and timeline bars show
   // only titles until the user picks properties (see hiddenByDefault).
   if (input.type === "timeline") config.dateBy = props.find((p) => p.type === "date")?.id;
+  // Charts count rows per option of the property a board would group by, in columns.
+  if (input.type === "chart") config.groupBy = chartGroupProperty(props, {})?.id;
   // Forms start out asking for the name and every property a form can ask for.
   if (input.type === "form") config.form = defaultFormConfig(props);
   const [{ max }] = await db

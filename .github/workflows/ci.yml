@@ -91,6 +91,9 @@ jobs:
       - name: Gallery, list and timeline views end-to-end
         run: pnpm tsx scripts/views-e2e.ts
 
+      - name: Chart views end-to-end
+        run: pnpm tsx scripts/chart-e2e.ts
+
       - name: Form views end-to-end
         run: pnpm tsx scripts/form-e2e.ts
 

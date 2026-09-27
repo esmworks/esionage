@@ -199,7 +199,7 @@ export const databaseProperty = pgTable(
   (t) => [index("database_property_db_idx").on(t.databaseId)],
 );
 
-export type ViewType = "table" | "board" | "calendar" | "gallery" | "list" | "timeline" | "form";
+export type ViewType = "table" | "board" | "calendar" | "gallery" | "list" | "timeline" | "chart" | "form";
 /** Grouping by a date: one group per day, week (Monday to Sunday), month or year. */
 export type GroupDateBy = "day" | "week" | "month" | "year";
 export type GroupStatusBy = "option" | "group";
@@ -222,6 +222,12 @@ export type CardSize = "small" | "medium" | "large";
 export type ViewCover = { source: "first_image" } | { source: "none" };
 /** Timeline scale: a column per day, per week or per month. */
 export type TimelineZoom = "day" | "week" | "month";
+/** Chart kinds: vertical bars (columns), horizontal bars, a line, or a donut (a pie with a hole). */
+export type ChartType = "bar" | "horizontal_bar" | "line" | "donut";
+/** Chart group order: the grouping's own order (see lib/grouping), or by value. */
+export type ChartSort = "group" | "value_desc" | "value_asc";
+/** What a chart measures per group instead of counting rows: a calculation over one property. */
+export type ChartAggregate = { fn: AggregateFn; propertyId: string };
 /** One question of a form view: a property (or "title", the row's name) the form asks for. */
 export type FormQuestion = {
   propertyId: string;
@@ -253,7 +259,7 @@ export type FormConfig = {
   allowAnother?: boolean;
 };
 export type ViewConfig = {
-  /** Boards: the column property. Timelines: optional swimlanes (none when missing). */
+  /** Boards: the column property. Timelines: optional swimlanes (none when missing). Charts: the bars, points or slices. */
   groupBy?: string;
   /** Calendar views: the date property that places rows on days. Timelines: where bars start. */
   dateBy?: string;
@@ -267,6 +273,18 @@ export type ViewConfig = {
   cardSize?: CardSize;
   /** Galleries: the first image of each row when missing. */
   cover?: ViewCover;
+  /** Charts: "bar" when missing. */
+  chartType?: ChartType;
+  /** Charts: counts rows per group when missing. */
+  chartAggregate?: ChartAggregate;
+  /** Bar charts: splits each bar into segments by a second property (only for measures that add up). */
+  stackBy?: string;
+  /** Charts: "group" when missing. */
+  chartSort?: ChartSort;
+  /** Charts: print each value on its bar or point, and in the donut's legend. */
+  showValues?: boolean;
+  /** Donut charts: the legend beside the donut; shown when missing. */
+  showLegend?: boolean;
   sorts?: SortRule[];
   /** Rules and groups; plain rule lists from before groups existed are still valid. */
   filters?: FilterEntry[];
@@ -279,11 +297,11 @@ export type ViewConfig = {
   groupDateBy?: GroupDateBy;
   /** Status grouping: one group per option (the default), or per stage (to do, in progress, done). */
   groupStatusBy?: GroupStatusBy;
-  /** Board and table views: group order by group key (see lib/grouping), "" for no value. Unlisted groups follow in their natural order. */
+  /** Board, table and chart views: group order by group key (see lib/grouping), "" for no value. Unlisted groups follow in their natural order. */
   groupOrder?: string[];
-  /** Board and table views: groups the user hid, by group key ("" for no value). */
+  /** Board, table and chart views: groups the user hid, by group key ("" for no value). */
   hiddenGroups?: string[];
-  /** Board and table views: leave out groups without rows (the no-value group only shows with rows anyway). */
+  /** Board, table and chart views: leave out groups without rows (the no-value group only shows with rows anyway). */
   hideEmptyGroups?: boolean;
   /** Table views: groups shown collapsed, by group key. */
   collapsedGroups?: string[];

@@ -73,6 +73,14 @@ export function sanitizeBlocks<T>(blocks: T[]): T[] {
   return blocks.map((block) => sanitizeValue(block) as T);
 }
 
+/**
+ * BlockNote's HTML export fills a block without text (an empty line, an empty heading) with an
+ * object replacement character, which browsers draw as a box. A line break keeps the empty line.
+ */
+function emptyLinesAsBreaks(html: string): string {
+  return html.replaceAll("\uFFFC", "<br>");
+}
+
 /** A run of ordinary blocks as HTML, or a database block the page shows at that point. */
 export type BodySegment =
   | { kind: "html"; html: string }
@@ -99,7 +107,7 @@ export async function bodySegmentsFromYdoc(state: Uint8Array | null): Promise<Bo
     let run: PageBlock[] = [];
     const flush = async () => {
       if (!run.length) return;
-      const html = await editor.blocksToHTMLLossy(sanitizeBlocks(run));
+      const html = emptyLinesAsBreaks(await editor.blocksToHTMLLossy(sanitizeBlocks(run)));
       run = [];
       if (html) segments.push({ kind: "html", html });
     };

@@ -26,7 +26,10 @@ const { registerCollab } = await import("@/server/collab/bridge");
 const { createCollab } = await import("@/server/collab/service");
 const { createMcpServer } = await import("@/server/mcp/tools");
 const { READ_SCOPE, WRITE_SCOPE } = await import("@/server/mcp/principal");
-const { addProperty, addView, deleteProperty, getProperties, updateView } = await import("@/server/databases");
+const { addProperty, addView, deleteProperty, deleteView, getDatabaseSnapshot, getProperties, updateView } = await import(
+  "@/server/databases"
+);
+const { getPublishedPage, publishPage } = await import("@/server/publication");
 const forms = await import("@/server/forms");
 const { duplicatePage } = await import("@/server/duplicate");
 const { archivePage, createPage, restorePage } = await import("@/server/pages");
@@ -404,6 +407,23 @@ try {
   // Removing the publisher from the workspace closes the link
   await removeMember(ids.owner, workspaceId, ids.member);
   check((await forms.getPublicForm(byMember.token)) === null, "a publisher removed from the workspace leaves the link closed");
+
+  // A published database never opens on a form: it shows the first view that shows rows
+  const survey = await createPage(actor, { workspaceId, kind: "database", title: "Survey" });
+  const [surveyTable] = (await getDatabaseSnapshot(ids.owner, survey.id)).views;
+  const answer = await addProperty(ids.owner, survey.id, { name: "Answer", type: "text" });
+  const when = await addProperty(ids.owner, survey.id, { name: "When", type: "date" });
+  await addView(ids.owner, survey.id, { name: "", type: "form" });
+  const compact = await addView(ids.owner, survey.id, { name: "", type: "list" });
+  await updateView(ids.owner, compact.id, { config: { shown: [when.id] } });
+  await deleteView(ids.owner, surveyTable.id);
+  const surveyToken = (await publishPage(ids.owner, survey.id)).token;
+  const publicColumns = (await getPublishedPage(surveyToken))?.database?.properties.map((p) => p.id);
+  check(
+    publicColumns?.length === 1 && publicColumns[0] === when.id && !publicColumns.includes(answer.id),
+    "a published database skips a form in first place and shows the next view",
+    publicColumns,
+  );
 
   // Deleting a property takes it out of questions and defaults
   await deleteProperty(ids.owner, email.id);
