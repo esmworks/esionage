@@ -194,6 +194,7 @@
     "creating": "Création…",
     "deleteTitle": "Supprimer {name} ?",
     "deleteBody": "Ses membres gardent l’accès qu’ils ont par eux-mêmes. Ce que le groupe avait reçu sur des pages et dans des espaces d’équipe disparaît, et les pages ouvertes qu’ils ne peuvent plus voir se ferment. Les pages que seul le groupe pouvait gérer vous reviennent.",
+    "provisioned": "De votre fournisseur d'identité",
     "members": {
       "title": "Membres de {name}",
       "list": "Personnes de ce groupe",
@@ -205,7 +206,8 @@
       "noOneToAdd": "Tous les propriétaires et membres de l’espace de travail font déjà partie de ce groupe.",
       "noMatches": "Personne ne correspond à votre recherche.",
       "remove": "Retirer {name}",
-      "guestsHint": "Les invités ne peuvent pas faire partie de groupes."
+      "guestsHint": "Les invités ne peuvent pas faire partie de groupes.",
+      "provisionedHint": "Votre fournisseur d'identité gère ce groupe via SCIM. Les modifications faites ici peuvent être annulées à la prochaine synchronisation."
     },
     "errors": {
       "nameRequired": "Donnez un nom au groupe.",
@@ -409,7 +411,7 @@
     },
     "scim": {
       "title": "Provisionnement des utilisateurs (SCIM)",
-      "description": "Laissez votre fournisseur d'identité ajouter, modifier et retirer des membres via SCIM 2.0. Les groupes ne sont pas encore pris en charge.",
+      "description": "Laissez votre fournisseur d'identité ajouter, modifier et retirer des membres, et gérer les groupes de membres, via SCIM 2.0.",
       "baseUrl": "URL de base SCIM",
       "managed": "{count, plural, =0 {Personne n'est encore géré par SCIM.} one {# personne est gérée par SCIM.} other {# personnes sont gérées par SCIM.}}",
       "tokens": "Jetons",

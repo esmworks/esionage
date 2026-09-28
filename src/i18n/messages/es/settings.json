@@ -194,6 +194,7 @@
     "creating": "Creando…",
     "deleteTitle": "¿Eliminar {name}?",
     "deleteBody": "Sus miembros conservan el acceso que tienen por sí mismos. Lo que el grupo recibió en páginas y espacios de equipo desaparece, y se cierran las páginas abiertas que ya no pueden ver. Las páginas que solo el grupo podía gestionar pasan a ti.",
+    "provisioned": "De tu proveedor de identidad",
     "members": {
       "title": "Miembros de {name}",
       "list": "Personas en este grupo",
@@ -205,7 +206,8 @@
       "noOneToAdd": "Todos los propietarios y miembros del espacio de trabajo ya están en este grupo.",
       "noMatches": "Nadie coincide con tu búsqueda.",
       "remove": "Quitar a {name}",
-      "guestsHint": "Los invitados no pueden estar en grupos."
+      "guestsHint": "Los invitados no pueden estar en grupos.",
+      "provisionedHint": "Tu proveedor de identidad gestiona este grupo mediante SCIM. Los cambios que hagas aquí pueden deshacerse en la próxima sincronización."
     },
     "errors": {
       "nameRequired": "Ponle un nombre al grupo.",
@@ -409,7 +411,7 @@
     },
     "scim": {
       "title": "Aprovisionamiento de usuarios (SCIM)",
-      "description": "Permite que tu proveedor de identidad añada, actualice y quite miembros mediante SCIM 2.0. Los grupos aún no se admiten.",
+      "description": "Permite que tu proveedor de identidad añada, actualice y quite miembros, y gestione los grupos de miembros, mediante SCIM 2.0.",
       "baseUrl": "URL base de SCIM",
       "managed": "{count, plural, =0 {Todavía nadie se gestiona por SCIM.} one {# persona se gestiona por SCIM.} other {# personas se gestionan por SCIM.}}",
       "tokens": "Tokens",

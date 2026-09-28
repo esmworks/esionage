@@ -4,13 +4,17 @@
  * auth, one workspace per token), discovery endpoints, listing and filtering users, creating them
  * (new accounts only in the workspace's verified SSO domains; existing accounts and guests join as
  * members), deactivating (they leave the workspace and can't rejoin through SSO), reactivating,
- * renaming, deleting, owners protected, and /Groups (none; changes answer 501).
+ * renaming, deleting, owners protected, and /Groups: creating member groups with members, Okta-
+ * and Entra ID-style PATCH (add, remove by filter or by value, rename, externalId), PUT, filters
+ * and paging, guests and outsiders refused, open editors closed when someone leaves a group (a real
+ * collab websocket), pages only a deleted group could manage passing to the oldest owner, the
+ * settings marking provisioned groups, and another workspace's token seeing none of it.
  *
  *   APP_URL=http://localhost:5100 pnpm tsx scripts/scim-e2e.ts
  *
- * Env: APP_URL (default http://localhost:3000), DATABASE_URL (read from .env when present). The
- * workspace's SSO domain is verified with a stub DNS answer. Creates its own users and workspaces
- * and deletes them afterwards.
+ * Env: APP_URL (default http://localhost:3000), DATABASE_URL (read from .env when present; the
+ * same database as the app's). The workspace's SSO domain is verified with a stub DNS answer.
+ * Creates its own users and workspaces and deletes them afterwards.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -21,9 +25,29 @@ try {
 
 const { and, eq, ilike, inArray, or } = await import("drizzle-orm");
 const { db } = await import("@/db");
-const { scimIdentity, scimToken, user, workspace, workspaceMember } = await import("@/db/schema");
+const { memberGroup, memberGroupMember, scimGroup, scimIdentity, scimToken, user, workspace, workspaceMember } = await import("@/db/schema");
 const { saveSsoConnection, verifySsoDomains, joinThroughSso } = await import("@/server/sso");
 const { domainRecordName } = await import("@/lib/sso-config");
+const { createGroup } = await import("@/server/groups");
+const { createPage } = await import("@/server/pages");
+const { removePagePermission, setPageGroupPermission } = await import("@/server/permissions");
+const { resolvePageAccess } = await import("@/server/access");
+const { registerCollab } = await import("@/server/collab/bridge");
+const { HocuspocusProvider } = await import("@hocuspocus/provider");
+const Y = await import("yjs");
+
+// Page and group changes made here (not over HTTP) notify open editors through the collab
+// service, which runs inside the app server only.
+registerCollab({
+  broadcast() {},
+  async setTitle() {},
+  async disconnectUser() {},
+  async disconnectTeamspace() {},
+  async disconnectLostAccess() {},
+  async readPage() {
+    return { title: "", markdown: "", text: "" };
+  },
+} as unknown as Parameters<typeof registerCollab>[0]);
 
 const BASE = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const RUN = Date.now().toString(36);
@@ -123,6 +147,42 @@ async function scim(token: string | null, method: string, path: string, body?: u
     body: (await res.json().catch(() => null)) as any,
   };
 }
+
+const connections: InstanceType<typeof HocuspocusProvider>[] = [];
+/** A live editor on a page, the way the app opens one: collab token, then the websocket. */
+async function connect(jar: Jar, name: string) {
+  const { token } = (await fetch(`${BASE}/api/collab-token`, { headers: { cookie: jar.header() } }).then((r) => r.json())) as { token: string };
+  const closes: number[] = [];
+  let refusals = 0;
+  let settle: (outcome: "synced" | "refused") => void = () => {};
+  const settled = new Promise<"synced" | "refused">((resolve) => (settle = resolve));
+  const provider = new HocuspocusProvider({
+    url: `${BASE.replace(/^http/, "ws")}/collab`,
+    name,
+    document: new Y.Doc(),
+    token,
+    onSynced: () => settle("synced"),
+    onAuthenticationFailed: () => {
+      refusals++;
+      settle("refused");
+    },
+    onClose: ({ event }) => void closes.push(event.code),
+  });
+  connections.push(provider);
+  const outcome = await Promise.race([settled, new Promise<"timeout">((r) => setTimeout(() => r("timeout"), 10_000))]);
+  return { outcome, closes, failed: () => refusals > 0 };
+}
+
+async function eventually(fn: () => boolean, ms = 5000) {
+  const until = Date.now() + ms;
+  while (Date.now() < until && !fn()) await new Promise((r) => setTimeout(r, 50));
+  return fn();
+}
+
+const levelOf = async (userId: string, pageId: string) => (await resolvePageAccess(userId, pageId)).level;
+const idsOf = (group: { members?: { value: string }[] }) => (group.members ?? []).map((m) => m.value).sort();
+const PATCH_OP = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
+const GROUP = "urn:ietf:params:scim:schemas:core:2.0:Group";
 
 const userIds: string[] = [];
 const workspaceIds: string[] = [];
@@ -299,10 +359,165 @@ async function main() {
   check(ownerDelete.status === 400 && (await roleOf(workspaceId, owner.id)) === "owner", "owners can't be deleted over SCIM", ownerDelete.body);
 
   // ── Groups ────────────────────────────────────────────────────────────────────────────────
-  const groups = await scim(token, "GET", "/Groups");
-  check(groups.status === 200 && groups.body.totalResults === 0, "/Groups lists none", groups.body);
-  const newGroup = await scim(token, "POST", "/Groups", { displayName: "Design", members: [] });
-  check(newGroup.status === 501, "…and creating one answers 501", newGroup.body);
+  // In the workspace now: the owner, and `bystander` and `guest` as members (provisioned above).
+  const noGroups = await scim(token, "GET", "/Groups");
+  check(noGroups.status === 200 && noGroups.body.totalResults === 0 && noGroups.body.Resources.length === 0, "/Groups starts empty", noGroups.body);
+  const realGuest = await signUp("groupguest");
+  await db.insert(workspaceMember).values({ workspaceId, userId: realGuest.id, role: "guest" });
+
+  const design = await scim(token, "POST", "/Groups", {
+    schemas: [GROUP],
+    displayName: "Design",
+    externalId: "00g-design",
+    members: [{ value: bystander.id, display: "Bystander" }, { value: guest.id }],
+  });
+  const designId: string = design.body?.id;
+  check(design.status === 201 && design.location?.endsWith(`/scim/v2/Groups/${designId}`), "creating a group answers 201 with its location", design);
+  check(
+    design.body.displayName === "Design" && design.body.externalId === "00g-design" && idsOf(design.body).join() === [bystander.id, guest.id].sort().join(),
+    "…with its name, externalId and members",
+    design.body,
+  );
+  check(design.body.members.every((m: { $ref: string; type: string }) => m.type === "User" && m.$ref.includes("/scim/v2/Users/")), "…members point at their users");
+  const [designRow] = await db.select().from(memberGroup).where(eq(memberGroup.id, designId));
+  check(designRow?.workspaceId === workspaceId && designRow.createdBy === owner.id, "…an ordinary member group, created on behalf of the oldest owner", designRow);
+  check((await db.select().from(memberGroupMember).where(eq(memberGroupMember.groupId, designId))).length === 2, "…with both people in it");
+
+  const takenName = await scim(token, "POST", "/Groups", { displayName: " design " });
+  check(takenName.status === 409 && takenName.body.scimType === "uniqueness", "a name already taken (ignoring case) is a 409", takenName.body);
+  const guestMember = await scim(token, "POST", "/Groups", { displayName: "With guest", members: [{ value: realGuest.id }] });
+  check(guestMember.status === 400 && guestMember.body.scimType === "invalidValue" && guestMember.body.detail.includes(realGuest.id), "guests can't be members (400 invalidValue)", guestMember.body);
+  const outsiderMember = await scim(token, "POST", "/Groups", { displayName: "With outsider", members: [{ value: outsider.id }] });
+  check(outsiderMember.status === 400 && outsiderMember.body.scimType === "invalidValue", "…nor people outside the workspace", outsiderMember.body);
+  const unknownMember = await scim(token, "POST", "/Groups", { displayName: "With nobody", members: [{ value: "no-such-user" }] });
+  check(unknownMember.status === 400 && unknownMember.body.scimType === "invalidValue", "…nor unknown ids", unknownMember.body);
+  const nested = await scim(token, "POST", "/Groups", { displayName: "Nested", members: [{ value: designId, type: "Group" }] });
+  check(nested.status === 400, "…nor groups", nested.body);
+  const unnamed = await scim(token, "POST", "/Groups", { members: [] });
+  check(unnamed.status === 400 && unnamed.body.scimType === "invalidValue", "a group needs a displayName", unnamed.body);
+  const refusedRows = await db.select().from(memberGroup).where(eq(memberGroup.workspaceId, workspaceId));
+  check(refusedRows.length === 1, "…and refused requests create nothing", refusedRows.map((r) => r.name));
+
+  const byName = await scim(token, "GET", `/Groups?filter=${encodeURIComponent('displayName eq "DESIGN"')}`);
+  check(byName.status === 200 && byName.body.totalResults === 1 && byName.body.Resources[0].id === designId, "filter by displayName (as Okta looks groups up)", byName.body);
+  const byExternalGroup = await scim(token, "GET", `/Groups?filter=${encodeURIComponent('externalId eq "00g-design"')}`);
+  check(byExternalGroup.body.totalResults === 1, "filter by externalId", byExternalGroup.body);
+  const lean = await scim(token, "GET", `/Groups?filter=${encodeURIComponent('displayName eq "Design"')}&excludedAttributes=members`);
+  check(lean.body.totalResults === 1 && !("members" in lean.body.Resources[0]), "excludedAttributes=members leaves members out (as Entra ID asks)", lean.body);
+  const missing = await scim(token, "GET", `/Groups?filter=${encodeURIComponent('displayName eq "Nope"')}`);
+  check(missing.body.totalResults === 0, "no match is an empty list", missing.body);
+  const badGroupFilter = await scim(token, "GET", `/Groups?filter=${encodeURIComponent('displayName co "Des"')}`);
+  check(badGroupFilter.status === 400 && badGroupFilter.body.scimType === "invalidFilter", "an unsupported group filter is a 400", badGroupFilter.body);
+  const gotDesign = await scim(token, "GET", `/Groups/${designId}`);
+  check(gotDesign.status === 200 && idsOf(gotDesign.body).length === 2, "get one group", gotDesign.body);
+  check(!("members" in (await scim(token, "GET", `/Groups/${designId}?excludedAttributes=members`)).body), "…without members when asked");
+  check((await scim(token, "GET", `/Groups/${designId}x`)).status === 404, "an unknown group is 404");
+  check((await scim(token, "POST", `/Groups/${designId}`, {})).status === 405, "POST on a group is 405");
+
+  // A page only the group reaches, open live in the bystander's editor.
+  const secret = await createPage({ userId: owner.id }, { workspaceId, title: `SCIM ${RUN} secret`, teamspaceId: null });
+  await setPageGroupPermission(owner.id, secret.id, designId, "edit");
+  check((await levelOf(bystander.id, secret.id)) === "edit", "the group gives its members a page");
+  const live = await connect(bystander.jar, `page:${secret.id}`);
+  check(live.outcome === "synced", "…which the bystander has open live", live.outcome);
+  const stays = await connect(guest.jar, `page:${secret.id}`);
+  check(stays.outcome === "synced", "…and so does another member of the group", stays.outcome);
+
+  // Okta: remove one member by a filter path.
+  const oktaRemove = await scim(token, "PATCH", `/Groups/${designId}`, {
+    schemas: [PATCH_OP],
+    Operations: [{ op: "remove", path: `members[value eq "${bystander.id}"]` }],
+  });
+  check(oktaRemove.status === 200 && idsOf(oktaRemove.body).join() === guest.id, "Okta-style remove by members[value eq …]", oktaRemove.body);
+  check((await levelOf(bystander.id, secret.id)) === "none", "…takes away what the group gave");
+  check(await eventually(() => live.closes.length > 0), "…and closes their open editor on it", live.closes);
+  check(stays.closes.length === 0, "…but not the editor of someone still in the group", stays.closes);
+
+  // Okta: add members, rename with a path-less replace.
+  const oktaAdd = await scim(token, "PATCH", `/Groups/${designId}`, {
+    schemas: [PATCH_OP],
+    Operations: [{ op: "add", path: "members", value: [{ value: bystander.id, display: "Bystander" }, { value: guest.id }] }],
+  });
+  check(oktaAdd.status === 200 && idsOf(oktaAdd.body).join() === [bystander.id, guest.id].sort().join(), "Okta-style add (people already in stay)", oktaAdd.body);
+  check((await levelOf(bystander.id, secret.id)) === "edit", "…gives the page back");
+  const oktaRename = await scim(token, "PATCH", `/Groups/${designId}`, {
+    schemas: [PATCH_OP],
+    Operations: [{ op: "replace", value: { id: designId, displayName: "Product Design" } }],
+  });
+  check(oktaRename.status === 200 && oktaRename.body.displayName === "Product Design" && idsOf(oktaRename.body).length === 2, "Okta-style rename", oktaRename.body);
+
+  // Entra ID: capitalised ops, add and remove by value in one request, displayName and externalId paths.
+  const entraMembers = await scim(token, "PATCH", `/Groups/${designId}`, {
+    schemas: [PATCH_OP],
+    Operations: [
+      { op: "Add", path: "members", value: [{ value: owner.id }] },
+      { op: "Remove", path: "members", value: [{ value: guest.id }] },
+    ],
+  });
+  check(entraMembers.status === 200 && idsOf(entraMembers.body).join() === [bystander.id, owner.id].sort().join(), "Entra ID-style Add and Remove by value", entraMembers.body);
+  const entraRename = await scim(token, "PATCH", `/Groups/${designId}`, {
+    schemas: [PATCH_OP],
+    Operations: [
+      { op: "Replace", path: "displayName", value: "Designers" },
+      { op: "Replace", path: "externalId", value: "aad-designers" },
+    ],
+  });
+  check(entraRename.body.displayName === "Designers" && entraRename.body.externalId === "aad-designers", "Entra ID-style rename and externalId", entraRename.body);
+  const [renamedRow] = await db.select({ name: memberGroup.name }).from(memberGroup).where(eq(memberGroup.id, designId));
+  check(renamedRow?.name === "Designers", "…the app's group is renamed");
+
+  const guestAdd = await scim(token, "PATCH", `/Groups/${designId}`, {
+    Operations: [
+      { op: "add", path: "members", value: [{ value: guest.id }] },
+      { op: "add", path: "members", value: [{ value: realGuest.id }] },
+    ],
+  });
+  check(guestAdd.status === 400 && guestAdd.body.scimType === "invalidValue", "adding a guest is a 400 invalidValue", guestAdd.body);
+  check(idsOf((await scim(token, "GET", `/Groups/${designId}`)).body).join() === [bystander.id, owner.id].sort().join(), "…and the rest of that request isn't applied");
+  const badPath = await scim(token, "PATCH", `/Groups/${designId}`, { Operations: [{ op: "replace", path: "owners", value: [] }] });
+  check(badPath.status === 400 && badPath.body.scimType === "invalidPath", "unsupported group attributes are refused", badPath.body);
+
+  const support = await scim(token, "POST", "/Groups", { displayName: "Support" });
+  check(support.status === 201 && idsOf(support.body).length === 0 && Array.isArray(support.body.members), "a group without members", support.body);
+  const clash = await scim(token, "PATCH", `/Groups/${designId}`, { Operations: [{ op: "replace", path: "displayName", value: "SUPPORT" }] });
+  check(clash.status === 409 && clash.body.scimType === "uniqueness", "renaming onto another group's name is a 409", clash.body);
+
+  const put = await scim(token, "PUT", `/Groups/${designId}`, { schemas: [GROUP], displayName: "Design", members: [{ value: guest.id }] });
+  check(put.status === 200 && put.body.displayName === "Design" && idsOf(put.body).join() === guest.id, "PUT replaces the name and members", put.body);
+  check(put.body.externalId === "aad-designers", "…keeping an externalId it leaves out", put.body);
+  check((await levelOf(bystander.id, secret.id)) === "none", "…and whoever left loses the page");
+  const putKeep = await scim(token, "PUT", `/Groups/${designId}`, { displayName: "Design" });
+  check(putKeep.status === 200 && idsOf(putKeep.body).join() === guest.id, "a PUT without members leaves them as they are", putKeep.body);
+
+  const appGroup = await createGroup(owner.id, workspaceId, "Made in the app", [bystander.id]);
+  const all = await scim(token, "GET", "/Groups");
+  check(all.body.totalResults === 3 && all.body.Resources.some((g: { id: string }) => g.id === appGroup.id), "groups made in the app are listed too", all.body);
+  const groupPage = await scim(token, "GET", "/Groups?startIndex=2&count=1");
+  check(groupPage.body.totalResults === 3 && groupPage.body.Resources.length === 1 && groupPage.body.startIndex === 2, "paging groups", groupPage.body);
+
+  const groupsHtml = await (await fetch(`${BASE}${settingsPath}?tab=groups`, { headers: { cookie: owner.jar.header() } })).text();
+  check(
+    (groupsHtml.match(/data-group-provisioned/g) ?? []).length === 2 && groupsHtml.includes("From your identity provider"),
+    "Settings > Groups marks the two provisioned groups",
+  );
+
+  // Pages only a deleted group could manage pass to the oldest owner, not to a newer one.
+  const owner2 = await signUp("owner2");
+  await db.insert(workspaceMember).values({ workspaceId, userId: owner2.id, role: "owner" });
+  const solo = await createPage({ userId: owner.id }, { workspaceId, title: `SCIM ${RUN} solo`, teamspaceId: null });
+  await setPageGroupPermission(owner.id, solo.id, designId, "full");
+  await removePagePermission(owner.id, solo.id, owner.id);
+  check((await levelOf(owner.id, solo.id)) === "none" && (await levelOf(guest.id, solo.id)) === "full", "a page only the group can manage");
+  const removedGroup = await scim(token, "DELETE", `/Groups/${designId}`);
+  check(removedGroup.status === 204, "deleting a group answers 204", removedGroup);
+  check((await scim(token, "GET", `/Groups/${designId}`)).status === 404, "…it is gone");
+  check(
+    (await db.select().from(memberGroup).where(eq(memberGroup.id, designId))).length === 0 &&
+      (await db.select().from(scimGroup).where(eq(scimGroup.groupId, designId))).length === 0,
+    "…from the app too, with its SCIM record",
+  );
+  check((await levelOf(owner.id, solo.id)) === "full" && (await levelOf(owner2.id, solo.id)) === "none", "…and its page passes to the oldest owner");
+  check((await levelOf(guest.id, solo.id)) === "none", "…while its members lose it");
 
   // ── One workspace per token, and revoking ─────────────────────────────────────────────────
   const otherToken = /"data":"(scim_[A-Za-z0-9]{40})"/.exec(
@@ -314,6 +529,20 @@ async function main() {
     ).text,
   )?.[1];
   check(otherToken, "another owner creates a token for their workspace");
+  const supportId: string = support.body.id;
+  const otherGroups = await scim(otherToken, "GET", "/Groups");
+  check(otherGroups.status === 200 && otherGroups.body.totalResults === 0, "…which lists none of this workspace's groups", otherGroups.body);
+  const otherFilter = await scim(otherToken, "GET", `/Groups?filter=${encodeURIComponent('displayName eq "Support"')}`);
+  check(otherFilter.body.totalResults === 0, "…nor finds them by name", otherFilter.body);
+  check((await scim(otherToken, "GET", `/Groups/${supportId}`)).status === 404, "…nor by id");
+  const otherPatch = await scim(otherToken, "PATCH", `/Groups/${supportId}`, { Operations: [{ op: "add", path: "members", value: [{ value: outsider.id }] }] });
+  const otherPut = await scim(otherToken, "PUT", `/Groups/${supportId}`, { displayName: "Hijacked" });
+  const otherDelete = await scim(otherToken, "DELETE", `/Groups/${supportId}`);
+  check(otherPatch.status === 404 && otherPut.status === 404 && otherDelete.status === 404, "…and can't change or delete them", [otherPatch.status, otherPut.status, otherDelete.status]);
+  const supportAfter = await scim(token, "GET", `/Groups/${supportId}`);
+  check(supportAfter.status === 200 && supportAfter.body.displayName === "Support" && idsOf(supportAfter.body).length === 0, "…which stay as they were", supportAfter.body);
+  const otherMembers = await scim(otherToken, "POST", "/Groups", { displayName: "Theirs", members: [{ value: bystander.id }] });
+  check(otherMembers.status === 400 && otherMembers.body.scimType === "invalidValue", "…nor put this workspace's people in its own groups", otherMembers.body);
   const otherList = await scim(otherToken, "GET", "/Users");
   check(otherList.body.totalResults === 1 && otherList.body.Resources[0].id === outsider.id, "…which sees only that workspace", otherList.body);
   check((await scim(otherToken, "GET", `/Users/${owner.id}`)).status === 404, "…and not this one's people");
@@ -328,6 +557,7 @@ async function main() {
 try {
   await main();
 } finally {
+  for (const provider of connections) provider.destroy();
   const byRun = await db
     .select({ id: user.id })
     .from(user)
