@@ -81,7 +81,10 @@ async function readBody(req: IncomingMessage) {
   return raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
 }
 
-export async function startFakeOpenAi(reply: (request: FakeChatRequest) => FakeReply | Promise<FakeReply> = () => ({ text: "ok" })) {
+export async function startFakeOpenAi(
+  reply: (request: FakeChatRequest) => FakeReply | Promise<FakeReply> = () => ({ text: "ok" }),
+  { port = 0 }: { port?: number } = {},
+) {
   let answer = reply;
   const state: FakeOpenAi = {
     baseUrl: "",
@@ -136,7 +139,7 @@ export async function startFakeOpenAi(reply: (request: FakeChatRequest) => FakeR
       res.end(JSON.stringify({ error: { message: (error as Error).message } }));
     }
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(port, "127.0.0.1", resolve));
   state.baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
   return state;
 }

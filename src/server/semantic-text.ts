@@ -140,6 +140,8 @@ export function sourceHash(model: string, chunks: Pick<ChunkDraft, "hash" | "blo
 /** A chunk's passage without the title line it was embedded with, for snippets. */
 export function passageOf(chunkText: string, title: string): string {
   const t = title.trim().replace(/\s+/g, " ");
+  // A page with only a title has nothing else to show.
+  if (t && chunkText.trim() === t) return "";
   const body = t && chunkText.startsWith(`${t}\n`) ? chunkText.slice(t.length + 1) : chunkText;
   return body.trim();
 }

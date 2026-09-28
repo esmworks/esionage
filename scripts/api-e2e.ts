@@ -290,7 +290,14 @@ try {
     check(res.status === 404 && errorCode(res) === "not_found", `a page the user can't see: ${label} is 404 not_found`, res.body);
   }
   const hiddenSearch = await api("GET", `/search?query=${encodeURIComponent(`${RUN} Bob`)}`, W);
-  check(hiddenSearch.body.results.length === 0, "search leaves out pages the user can't see");
+  // With an embeddings model on the server, pages that merely look alike (the run's prefix) may
+  // come back by meaning; they're pages the user can see.
+  const hiddenIds = hiddenSearch.body.results.map((r: { id: string }) => r.id);
+  check(
+    !hiddenIds.includes(secret.id) && !hiddenIds.includes(bobsOwn.id) && hiddenSearch.body.results.every((r: { match: string }) => r.match === "semantic"),
+    "search leaves out pages the user can't see",
+    hiddenSearch.body,
+  );
   check((await api("GET", `/pages/${secret.id}`, (await createApiToken(ids.bob, { name: "bob", scopes: ["pages:read"] })).secret)).status === 200, "…while their owner reads them");
 
   // ------------------------------------------------------------------ workspace-bound tokens

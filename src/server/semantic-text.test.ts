@@ -98,6 +98,7 @@ describe("chunks", () => {
   it("shows a passage without its title line", () => {
     expect(passageOf("Plans\nWe go north.", "Plans")).toBe("We go north.");
     expect(passageOf("Other\nWe go north.", "Plans")).toBe("Other\nWe go north.");
+    expect(passageOf("Plans", "Plans")).toBe("");
     expect(snippetOf("a\n  b ".repeat(3))).toBe("a b a b a b");
     expect(snippetOf("x".repeat(200), 10)).toBe(`${"x".repeat(9)}…`);
   });
