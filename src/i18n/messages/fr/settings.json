@@ -321,7 +321,7 @@
     "heading": "Langue",
     "label": "Langue de l’interface",
     "followBrowser": "Suivre le navigateur",
-    "note": "Ce paramètre ne s’applique qu’à ce navigateur."
+    "note": "Ce paramètre ne s’applique qu’à ce navigateur. Les e-mails qui vous sont adressés sont dans la dernière langue que vous avez choisie ou utilisée pour vous connecter."
   },
   "leaveWorkspace": {
     "title": "Quitter l’espace de travail",

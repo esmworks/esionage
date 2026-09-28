@@ -321,7 +321,7 @@
     "heading": "Dil",
     "label": "Arayüz dili",
     "followBrowser": "Tarayıcı dilini kullan",
-    "note": "Bu ayar yalnızca bu tarayıcı için geçerlidir."
+    "note": "Bu ayar yalnızca bu tarayıcı için geçerlidir. Size gelen e-postalar en son seçtiğiniz ya da giriş yaparken kullandığınız dildedir."
   },
   "leaveWorkspace": {
     "title": "Çalışma alanından ayrıl",

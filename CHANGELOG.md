@@ -25,6 +25,29 @@
   logged. The daily retention cleanup prunes events older than a year. Migration `0031_audit_log`
   (`audit_event`). New checks: `scripts/audit-e2e.ts` (169), `src/lib/audit.test.ts`.
 
+### Changed
+
+- **Emails in the recipient's language.** Every email to someone with an account (shares,
+  comments, mentions, reminders, assignments, access and join requests and their answers, password
+  resets, verification and account notices) is written in the language they last used: the one
+  they picked in My account → Language, or their browser's, stored with their account
+  (`user_preference.locale`) when they sign in or up and when they change it, not on every request.
+  Until it is known it falls back to the language the email was queued with, as before (the
+  actor's, or the requester's); invitations to addresses without an account still go out in the
+  inviter's. At sign-in a language picked on that device replaces the stored one, while a browser's
+  only fills it in when none is stored, so signing in elsewhere keeps the language someone chose; a
+  sign-in that states no language (no cookie, no `Accept-Language`) keeps it too.
+- **Settings → Guests shows who really invited a guest.** The membership now records who brought
+  each person in (`workspace_member.invited_by`): whoever added them or shared a page with them,
+  sent the invitation they redeemed (also through the join link), or approved their request.
+  Nobody for those who came in on their own (join link, allowed email domain, single sign-on,
+  SCIM). The list used to guess from the oldest page entry someone else gave them, and still does
+  where nothing is recorded. The migration fills it in for existing members from the audit log
+  (added by someone else, or the sender of the invitation they accepted), and for other guests
+  with the old guess. Migration `0032_recipient_locale_and_inviter`. New checks:
+  `src/server/mail/locale.test.ts`, and in `scripts/access-requests-e2e.ts`, `person-e2e.ts`,
+  `account-e2e.ts`, `guests-e2e.ts` and `membership-e2e.ts`.
+
 ## 0.3.0 — 2026-09-28
 
 ### Upgrading from 0.2.0

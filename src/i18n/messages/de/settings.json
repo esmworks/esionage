@@ -321,7 +321,7 @@
     "heading": "Sprache",
     "label": "Sprache der Oberfläche",
     "followBrowser": "Wie im Browser",
-    "note": "Diese Einstellung gilt nur für diesen Browser."
+    "note": "Diese Einstellung gilt nur für diesen Browser. E-Mails an dich kommen in der Sprache, die du zuletzt gewählt oder bei der Anmeldung verwendet hast."
   },
   "leaveWorkspace": {
     "title": "Workspace verlassen",

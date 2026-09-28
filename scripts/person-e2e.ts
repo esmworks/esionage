@@ -2,8 +2,8 @@
  * End-to-end check of person properties against the database: values resolve from "me", ids,
  * emails and names; guests see only the people already assigned and can't look anyone up;
  * "me" filters show each viewer their own rows; former members keep showing where assigned;
- * people assigned by someone else get one email after the delay, queued in the database, unless
- * they turned them off; board drags swap assignees; rows sort by assignee name; a "created by"
+ * people assigned by someone else get one email after the delay, queued in the database, in their
+ * own language once it is known, unless they turned them off; board drags swap assignees; rows sort by assignee name; a "created by"
  * property shows each row's creator, filters on "me" and can't be written; assignments land in the
  * assignee's inbox right away and unread ones disappear when undone.
  * Creates its own users and workspace and deletes them afterwards.
@@ -27,6 +27,7 @@ const { addProperty, getDatabaseSnapshot, getLookups, getRow, listRows, moveRow,
   "@/server/databases"
 );
 const { flushAssignmentEmails, setAssignmentMailer } = await import("@/server/assignments");
+const { rememberLocale } = await import("@/server/mail/locale");
 const { setNotificationPreference } = await import("@/server/notification-preferences");
 const { listInbox, markRead, unreadCount } = await import("@/server/notifications");
 const { flushShareEmails, setShareMailer } = await import("@/server/share-emails");
@@ -246,6 +247,25 @@ try {
   await updateRowProperties(ids.owner, job.id, { Assignee: [ids.bystander, ids.member] });
   await flushAssignmentEmails();
   check(sentCount() === 1 && sent[0].to === `${ids.member}@example.test`, "turning them back on works", sent);
+  check(sent.at(0)?.subject === "Owner Olcay assigned you to “Notify me”", "…in the assigner's language while the assignee's isn't known", sent[0].subject);
+
+  // In the assignee's language once it is known, whatever the assigner's (English outside a request)
+  sent.length = 0;
+  await rememberLocale(ids.member, "tr");
+  await updateRowProperties(ids.owner, job.id, { Assignee: [ids.bystander] });
+  await updateRowProperties(ids.owner, job.id, { Assignee: [ids.bystander, ids.member] });
+  const [queuedFor] = await db
+    .select({ locale: pendingAssignmentEmail.locale })
+    .from(pendingAssignmentEmail)
+    .where(and(eq(pendingAssignmentEmail.rowId, job.id), eq(pendingAssignmentEmail.userId, ids.member)));
+  check(queuedFor?.locale === "en", "the email is queued in the assigner's language", queuedFor);
+  await flushAssignmentEmails();
+  check(
+    sentCount() === 1 && sent.at(0)?.subject === "Owner Olcay sizi “Notify me” işine atadı",
+    "…and goes out in Turkish to an assignee who uses Turkish",
+    sent,
+  );
+  await rememberLocale(ids.member, "en");
 
   // Sorting by a person property orders rows by the assignees' names
   const byName = await listRows(ids.owner, tasks.id, { sorts: [{ propertyId: owner.id, direction: "asc" }] });

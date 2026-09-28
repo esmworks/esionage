@@ -480,8 +480,8 @@ Owners decide in the workspace's **Settings → Security → Members**:
 
 Requests wait in **Settings → Members → Requests**, where owners approve or decline them; every
 owner also gets one in their inbox (and by email, unless they turned join request emails off in My
-account → Preferences). The person who asked hears the decision by email, in the language they
-asked in. There is one pending request per person and workspace (and per invited address), and
+account → Preferences). The person who asked hears the decision by email, in their language (see
+Languages), else the one they asked in. There is one pending request per person and workspace (and per invited address), and
 people may send 10 requests an hour, members 100 invitation requests an hour.
 
 ## Two-step verification and passkeys
@@ -963,8 +963,10 @@ Useful scripts:
 The interface is available in English, Turkish (Türkçe), German (Deutsch), Spanish (Español) and
 French (Français). Each person picks a language in My account → Language, stored per browser;
 without a choice the app follows the browser's `Accept-Language` and falls back to English. Dates
-and numbers are formatted for the language, and emails go out in the language of whoever caused
-them. The editor's own menus use [BlockNote](https://www.blocknotejs.org)'s dictionaries (Turkish is
+and numbers are formatted for the language. Emails go out in the recipient's language: the one they
+last picked in My account → Language, else their browser's when they first signed in, stored with
+their account (signing in on another device doesn't trade a picked language for that browser's). Until they have signed in once since, and for invitations to addresses without
+an account, emails use the language of whoever caused them. The editor's own menus use [BlockNote](https://www.blocknotejs.org)'s dictionaries (Turkish is
 ours, in `src/i18n/blocknote/tr.ts`).
 
 Texts live in `src/i18n/messages/<locale>/*.json` (app, `email.json`, `templates.json` for the

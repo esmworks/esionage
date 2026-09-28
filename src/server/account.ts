@@ -32,7 +32,7 @@ import { getCollab } from "@/server/collab/bridge";
 import { removeStored } from "@/server/files";
 import { applyDomainPolicies } from "@/server/join-requests";
 import { emailChangedEmail, emailChangeEmail, mailStatus, passwordChangedEmail, sendMail } from "@/server/mail";
-import { requestLocale } from "@/server/mail/locale";
+import { recipientLocale, requestLocale } from "@/server/mail/locale";
 import { clearPasswordResetRequirement, consumeResetStep, resetStepUser } from "@/server/required-password";
 import { getStorage } from "@/server/storage";
 import { accountDeletionPlan, withdrawFromWorkspaces } from "@/server/workspaces";
@@ -284,9 +284,17 @@ function authErrorCode(error: unknown): string | null {
   return null;
 }
 
-async function notify(to: string, build: (locale: Awaited<ReturnType<typeof requestLocale>>) => { subject: string; text: string; html: string }) {
+/**
+ * Tells the account's owner about a change to it, at `to`: in their stored language (see
+ * server/mail/locale.ts), else the request's. A confirmation link may be opened in another browser.
+ */
+async function notify(
+  userId: string,
+  to: string,
+  build: (locale: Awaited<ReturnType<typeof requestLocale>>) => { subject: string; text: string; html: string },
+) {
   if (mailStatus() === "disabled") return;
-  const mail = build(await requestLocale());
+  const mail = build(await recipientLocale(userId, await requestLocale()));
   // Not awaited: a slow or failing mail server shouldn't hold up or undo the change.
   void sendMail({ to, ...mail }).catch((error) => console.error("could not send account email", error));
 }
@@ -323,7 +331,7 @@ export async function changePassword(
     throw error;
   }
   if (input.revokeOthers === true) await disconnectEndedSessions(userId);
-  await notify(current.user.email, (locale) => passwordChangedEmail(locale, { name: current.user.name }));
+  await notify(userId, current.user.email, (locale) => passwordChangedEmail(locale, { name: current.user.name }));
 }
 
 /** For accounts without a password (GitHub or Google only): adds one, after proof. */
@@ -338,7 +346,7 @@ export async function setPassword(current: AccountSession, headers: Headers, inp
     if (authErrorCode(error) === "PASSWORD_ALREADY_SET") throw new AccountError("passwordAlreadySet");
     throw error;
   }
-  await notify(current.user.email, (locale) => passwordChangedEmail(locale, { name: current.user.name }));
+  await notify(current.user.id, current.user.email, (locale) => passwordChangedEmail(locale, { name: current.user.name }));
 }
 
 /**
@@ -377,7 +385,7 @@ export async function finishRequiredPasswordReset(input: { token: unknown; newPa
   await db.delete(session).where(eq(session.userId, userId));
   await disconnectEndedSessions(userId);
   const [owner] = await db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, userId)).limit(1);
-  if (owner) await notify(owner.email, (locale) => passwordChangedEmail(locale, { name: owner.name }));
+  if (owner) await notify(userId, owner.email, (locale) => passwordChangedEmail(locale, { name: owner.name }));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -449,7 +457,7 @@ export async function requestEmailChange(current: AccountSession, input: { newEm
     expiresAt: new Date(Date.now() + EMAIL_CHANGE_HOURS * 60 * 60_000),
   });
   const url = `${env.appUrl}/confirm-email?token=${encodeURIComponent(token)}`;
-  const mail = emailChangeEmail(await requestLocale(), {
+  const mail = emailChangeEmail(await recipientLocale(userId, await requestLocale()), {
     name: current.user.name,
     oldEmail: current.user.email,
     url,
@@ -510,7 +518,7 @@ export async function confirmEmailChange(token: string) {
   });
   if (!result.ok) throw new AccountError(result.error);
   const { change, name } = result;
-  await notify(change.from, (locale) => emailChangedEmail(locale, { name, oldEmail: change.from, newEmail: change.to }));
+  await notify(change.userId, change.from, (locale) => emailChangedEmail(locale, { name, oldEmail: change.from, newEmail: change.to }));
   // A newly verified address may be on a workspace's allowed domain.
   await applyDomainPolicies(change.userId).catch((error) => console.error("could not apply allowed email domains", error));
   return { email: change.to };

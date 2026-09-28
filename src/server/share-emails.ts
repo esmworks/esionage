@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accessRequest, notification, pageReminder, user, workspace, workspaceJoinRequest } from "@/db/schema";
-import { DEFAULT_LOCALE, isLocale, type Locale } from "@/i18n/config";
+import type { Locale } from "@/i18n/config";
 import { env } from "@/lib/env";
 import { commentText } from "@/lib/comments";
 import { pageLabel } from "@/lib/labels";
@@ -18,6 +18,7 @@ import {
   shareEmail,
   type OutgoingMail,
 } from "@/server/mail";
+import { recipientLocale } from "@/server/mail/locale";
 import { emailTranslator } from "@/server/mail/templates";
 import { wantsEmail } from "@/server/notification-preferences";
 
@@ -29,6 +30,9 @@ import { wantsEmail } from "@/server/notification-preferences";
  * reminders and requests), undoing the share or the mention (or answering or deciding the request)
  * deletes the notification, and the sweep sends what is still there once it falls due. A restart
  * delays these emails instead of losing them.
+ *
+ * Each email is written in its recipient's language when it is known (see server/mail/locale.ts),
+ * else in the one it was queued with (`email_locale`: the actor's, or the requester's).
  *
  * The answer to an access request goes to the requester right away instead (`mailNow`): they may
  * be outside the workspace, with no inbox to queue it in.
@@ -125,7 +129,7 @@ async function sendJoinRequest(userId: string, workspaceId: string, joinRequestI
  */
 async function send({ kind, userId, actorId, pageId, threadId, mentionId, accessRequestId, joinRequestId, workspaceId, emailLocale, readAt }: Due) {
   if (readAt || kind === "assignment") return;
-  const locale = isLocale(emailLocale) ? emailLocale : DEFAULT_LOCALE;
+  const locale = await recipientLocale(userId, emailLocale);
   if (kind === "join_request") return sendJoinRequest(userId, workspaceId, joinRequestId, locale);
   if (!pageId) return;
   const { page: target, level } = await resolvePageAccess(userId, pageId);

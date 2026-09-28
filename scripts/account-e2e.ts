@@ -4,6 +4,7 @@
  * removing, and Better Auth's /update-user taking nothing else), changing the password with and
  * without signing out other devices, the list of signed-in devices and signing them out, setting a
  * password on an account that only signs in with a provider (simulated by removing its password),
+ * the language stored for emails (picked in the language setting, or stated at sign-in),
  * proving it's you with a two-step or recovery code or a recent sign-in, changing the email through
  * the confirmation link, and deleting the account: refused while the only owner of a shared
  * workspace, then leaving shared workspaces (their private pages handed to an owner) and deleting
@@ -32,8 +33,19 @@ try {
 // Imported after .env is loaded: the database client reads DATABASE_URL when it is created.
 const { and, eq, inArray, like, ne } = await import("drizzle-orm");
 const { db } = await import("@/db");
-const { account, file, oauthClient, oauthConsent, pagePermission, session, user, verification, workspace, workspaceMember } =
-  await import("@/db/schema");
+const {
+  account,
+  file,
+  oauthClient,
+  oauthConsent,
+  pagePermission,
+  session,
+  user,
+  userPreference,
+  verification,
+  workspace,
+  workspaceMember,
+} = await import("@/db/schema");
 const { totpCode, totpKeyFromUri } = await import("@/lib/totp");
 const { getStorage } = await import("@/server/storage");
 
@@ -151,7 +163,7 @@ function actionId(file: string, name: string) {
  * Calls a server action as the browser does, posting to `path` (a page whose bundle has the
  * action), and keeps the cookies it sets. Actions answer 200 with their result, 500 when they throw.
  */
-async function callAction(jar: Jar, path: string, file: string, name: string, args: unknown[]) {
+async function callAction(jar: Jar, path: string, file: string, name: string, args: unknown[], headers: Record<string, string> = {}) {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
     headers: {
@@ -160,6 +172,7 @@ async function callAction(jar: Jar, path: string, file: string, name: string, ar
       "next-action": actionId(file, name),
       origin: BASE,
       cookie: jar.header(),
+      ...headers,
     },
     body: JSON.stringify(args),
     redirect: "manual",
@@ -261,6 +274,49 @@ async function main() {
     const opened = await open(sent.location!, ada.jar);
     check(opened.status === 200, `…and opens`, opened.status);
   }
+
+  // ── Language, for emails ────────────────────────────────────────────────────────────────
+  // Node's fetch sends `Accept-Language: *`, which states no language: Ada's sign-up stored none.
+  // Lena signs up from a Spanish browser; her own sign-ins keep Ada's devices out of the counts below.
+  const localeOf = async (id: string) =>
+    (await db.select({ locale: userPreference.locale }).from(userPreference).where(eq(userPreference.userId, id)))[0]?.locale ?? null;
+  check((await localeOf(ada.id)) === null, "a sign-up that states no language stores none for emails");
+  const lenaJar = new Jar();
+  const lenaSignUp = await fetch(`${BASE}/api/auth/sign-up/email`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: BASE, "accept-language": "es-ES,es;q=0.9,en;q=0.5" },
+    body: JSON.stringify({ name: "Account lena", email: emailOf("lena"), password: PASSWORD }),
+  });
+  lenaJar.store(lenaSignUp);
+  const lena = (await sessionOf(lenaJar))!.user.id;
+  userIds.push(lena);
+  workspaceIds.push(
+    ...(await db.select({ id: workspaceMember.workspaceId }).from(workspaceMember).where(eq(workspaceMember.userId, lena))).map((w) => w.id),
+  );
+  check(lenaSignUp.ok && (await localeOf(lena)) === "es", "signing up stores the language the browser states", lenaSignUp.status);
+  const LOCALE_ACTIONS = "src/app/actions/locale.ts";
+  const picked = await callAction(lenaJar, "/account", LOCALE_ACTIONS, "setLocaleAction", ["tr"]);
+  check(picked.status === 200 && (await localeOf(lena)) === "tr", "picking a language stores it for emails", picked.status);
+  const followed = await callAction(lenaJar, "/account", LOCALE_ACTIONS, "setLocaleAction", [null], { "accept-language": "de-AT,de;q=0.9" });
+  check(followed.status === 200 && (await localeOf(lena)) === "de", "following the browser stores the browser's language", followed.status);
+  const signedIn = await fetch(`${BASE}/api/auth/sign-in/email`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: BASE, "accept-language": "fr-FR,fr;q=0.8" },
+    body: JSON.stringify({ email: emailOf("lena"), password: PASSWORD }),
+  });
+  check(
+    signedIn.ok && (await localeOf(lena)) === "de",
+    "signing in on a device whose browser states another language keeps the one stored",
+    signedIn.status,
+  );
+  const pickedThere = await fetch(`${BASE}/api/auth/sign-in/email`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: BASE, cookie: "NEXT_LOCALE=fr", "accept-language": "de" },
+    body: JSON.stringify({ email: emailOf("lena"), password: PASSWORD }),
+  });
+  check(pickedThere.ok && (await localeOf(lena)) === "fr", "…while a language picked on that device replaces it", pickedThere.status);
+  const quiet = await signIn(emailOf("lena"), PASSWORD);
+  check(quiet.status === 200 && (await localeOf(lena)) === "fr", "…and a sign-in that states none keeps it", quiet.status);
 
   // ── Name ────────────────────────────────────────────────────────────────────────────────
   const renamed = await account_(ada.jar, "updateNameAction", ["  Ada   Lovelace "]);

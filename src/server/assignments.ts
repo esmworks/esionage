@@ -1,13 +1,12 @@
 import { and, eq, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { databaseProperty, page, pendingAssignmentEmail, user } from "@/db/schema";
-import { DEFAULT_LOCALE, isLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
 import { pageLabel } from "@/lib/labels";
 import { newAssignees } from "@/lib/properties";
 import { resolvePageAccess } from "@/server/access";
 import { assignmentEmail, mailStatus, sendMail, type OutgoingMail } from "@/server/mail";
-import { requestLocale } from "@/server/mail/locale";
+import { recipientLocale, requestLocale } from "@/server/mail/locale";
 import { emailTranslator } from "@/server/mail/templates";
 import { wantsEmail } from "@/server/notification-preferences";
 
@@ -97,9 +96,12 @@ export function startAssignmentEmails() {
   return () => clearInterval(timer);
 }
 
-/** Sends one queued email if the person still wants it, is still assigned and can open the row. */
-async function send({ actorId, rowId, propertyId, userId, locale: savedLocale }: Pending) {
-  const locale = isLocale(savedLocale) ? savedLocale : DEFAULT_LOCALE;
+/**
+ * Sends one queued email if the person still wants it, is still assigned and can open the row; in
+ * their language, else in that of whoever assigned them.
+ */
+async function send({ actorId, rowId, propertyId, userId, locale: queuedLocale }: Pending) {
+  const locale = await recipientLocale(userId, queuedLocale);
   const [row] = await db
     .select({ title: page.title, properties: page.properties, parentId: page.parentId, workspaceId: page.workspaceId, archivedAt: page.archivedAt })
     .from(page)

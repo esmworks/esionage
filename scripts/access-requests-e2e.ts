@@ -4,7 +4,8 @@
  * reaches only the people with full access (inbox and email) and is stored once; people are rate
  * limited, whatever they ask for; approving shares the page with a member, or brings someone from
  * outside in as a guest when the guest invite policy lets the approver; declining drops the request
- * and tells the requester without naming the page; the workspace setting turns requests off.
+ * and tells the requester without naming the page; emails go out in the recipient's stored
+ * language rather than the actor's; the workspace setting turns requests off.
  * Creates its own users and workspace and deletes them afterwards.
  *
  *   pnpm tsx scripts/access-requests-e2e.ts
@@ -23,7 +24,7 @@ const { createElement } = await import("react");
 const { renderToStaticMarkup } = await import("react-dom/server");
 const { NextIntlClientProvider } = await import("next-intl");
 const { db } = await import("@/db");
-const { accessRequest, notification, page, user, workspace, workspaceMember } = await import("@/db/schema");
+const { accessRequest, notification, page, user, userPreference, workspace, workspaceMember } = await import("@/db/schema");
 const { default: pageMessages } = await import("@/i18n/messages/en/page.json");
 const { default: commonMessages } = await import("@/i18n/messages/en/common.json");
 const { ACCESS_REQUEST_LIMIT } = await import("@/lib/access-requests");
@@ -38,6 +39,8 @@ const {
   requestPageAccess,
   resetAccessRequestLimits,
 } = await import("@/server/access-requests");
+const { accessDeclinedEmail, accessRequestEmail } = await import("@/server/mail");
+const { rememberLocale } = await import("@/server/mail/locale");
 const { listInbox, unreadCount } = await import("@/server/notifications");
 const { setNotificationPreference } = await import("@/server/notification-preferences");
 const { getPageHeaderInfo } = await import("@/server/page-meta");
@@ -314,6 +317,50 @@ try {
     check(!declined[0].text.includes(leak) && !declined[0].html.includes(leak), `…without naming the page, workspace or who declined (${leak.slice(0, 12)})`);
   }
   await rejects(() => declineAccessRequest(owner, guestRequest.id), isAccessError, "a request can be answered once");
+
+  // Emails in the recipient's language. Outside a request the actor's language is English, so the
+  // request and its notifications are queued in English; the owner and the guest use Turkish.
+  sent.length = 0;
+  await rememberLocale(owner, "tr");
+  await rememberLocale(guest, "tr");
+  const storedOf = async (id: string) =>
+    (await db.select({ locale: userPreference.locale, at: userPreference.updatedAt }).from(userPreference).where(eq(userPreference.userId, id)))[0];
+  const ownerStored = await storedOf(owner);
+  check(ownerStored?.locale === "tr" && (await storedOf(guest))?.locale === "tr", "the language someone uses is stored with their account");
+  await rememberLocale(owner, "tr");
+  check((await storedOf(owner))?.at.getTime() === ownerStored.at.getTime(), "…and storing the same one again writes nothing");
+  check((await requestPageAccess(guest, secret, "tekrar bakar mısın?")) === "sent", "the guest asks again");
+  const [trRequest] = (await requestsFor(secret)).filter((r) => r.requesterId === guest);
+  const [queued] = await db
+    .select({ emailLocale: notification.emailLocale })
+    .from(notification)
+    .where(and(eq(notification.accessRequestId, trRequest.id), eq(notification.userId, owner)));
+  check(trRequest.locale === "en" && queued?.emailLocale === "en", "…queued in the actor's language, English", { trRequest, queued });
+  await flushShareEmails();
+  const askedInTurkish = mailTo(emailOf(owner));
+  const asked = {
+    requesterName: "Name guest",
+    requesterEmail: emailOf(guest),
+    pageTitle: `secret title ${RUN}`,
+    workspaceName,
+    message: "tekrar bakar mısın?",
+    link: "https://example.test/",
+  };
+  const turkishAsk = accessRequestEmail("tr", asked).subject;
+  check(turkishAsk !== accessRequestEmail("en", asked).subject, "setup: the Turkish subject differs from the English one");
+  check(askedInTurkish.length === 1 && askedInTurkish[0].subject === turkishAsk, "the owner, who uses Turkish, gets the request in Turkish", askedInTurkish);
+  await declineAccessRequest(owner, trRequest.id);
+  await flushShareEmails();
+  const declinedInTurkish = mailTo(emailOf(guest));
+  const turkishDecline = accessDeclinedEmail("tr", { link: "https://example.test/" }).subject;
+  check(turkishDecline !== "Your request for access was declined", "setup: the Turkish decline subject differs from the English one");
+  check(
+    declinedInTurkish.length === 1 && declinedInTurkish[0].subject === turkishDecline,
+    "the guest, who uses Turkish, hears the answer in Turkish though they asked in English",
+    declinedInTurkish,
+  );
+  await rememberLocale(owner, "en");
+  await rememberLocale(guest, "en");
 
   // Sharing the page some other way answers the request too
   await requestPageAccess(alice, secret);

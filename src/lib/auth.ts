@@ -18,6 +18,7 @@ import { revokeAllApiTokens } from "@/server/api/tokens";
 import { connectedAppAuditPlugin, revokeAllConnectedApps } from "@/server/mcp/grants";
 import { applyDomainPolicies } from "@/server/join-requests";
 import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetEmail, sendMail, verificationEmail } from "@/server/mail";
+import { recipientLocale, rememberLocale, statedLanguage } from "@/server/mail/locale";
 import {
   afterPasswordReset,
   clearPasswordResetRequirement,
@@ -68,14 +69,14 @@ async function beforeUserCreate(user: { email: string } & Record<string, unknown
 }
 
 /**
- * Emails a reset link. Not awaited, so the endpoint answers equally fast whether or not an
- * account exists for the address; failures only reach the log.
+ * Emails a reset link, in the account's language (anyone can ask for one for any address), else
+ * the request's. Not awaited, so the endpoint answers equally fast whether or not an account exists
+ * for the address; failures only reach the log.
  */
-async function sendResetPassword({ user, url }: { user: { email: string; name: string }; url: string }, request?: Request) {
-  const locale = request ? requestLocale(request.headers) : "en";
-  void sendMail({ to: user.email, ...passwordResetEmail(locale, { name: user.name, url }) }).catch((error) =>
-    console.error("could not send password reset email", error),
-  );
+async function sendResetPassword({ user, url }: { user: { id: string; email: string; name: string }; url: string }, request?: Request) {
+  void recipientLocale(user.id, request ? requestLocale(request.headers) : null)
+    .then((locale) => sendMail({ to: user.email, ...passwordResetEmail(locale, { name: user.name, url }) }))
+    .catch((error) => console.error("could not send password reset email", error));
 }
 
 /**
@@ -95,11 +96,21 @@ async function domainPolicies(userId: string) {
  * Emails the link that verifies an address. Email and password sign-up gets one right away; the
  * account page sends another on request. Not awaited, like password resets.
  */
-async function sendVerificationEmail({ user, url }: { user: { email: string; name: string }; url: string }, request?: Request) {
-  const locale = request ? requestLocale(request.headers) : "en";
-  void sendMail({ to: user.email, ...verificationEmail(locale, { name: user.name, url }) }).catch((error) =>
-    console.error("could not send verification email", error),
-  );
+async function sendVerificationEmail({ user, url }: { user: { id: string; email: string; name: string }; url: string }, request?: Request) {
+  void recipientLocale(user.id, request ? requestLocale(request.headers) : null)
+    .then((locale) => sendMail({ to: user.email, ...verificationEmail(locale, { name: user.name, url }) }))
+    .catch((error) => console.error("could not send verification email", error));
+}
+
+/**
+ * Stores the language the person sees the app in, for the emails they get (server/mail/locale.ts):
+ * at sign-up and at every sign-in, rather than on every request. A language they picked replaces
+ * the stored one; a browser's only fills it in when none is stored, so signing in on a device in
+ * another language keeps the one they chose. A call that states neither leaves it alone.
+ */
+async function rememberSignInLocale(userId: string, ctx: { request?: Request; headers?: Headers } | null | undefined) {
+  const stated = statedLanguage(ctx?.request?.headers ?? ctx?.headers);
+  if (stated) await rememberLocale(userId, stated.locale, { onlyIfUnknown: !stated.chosen });
 }
 
 export const auth = betterAuth({
@@ -149,6 +160,7 @@ export const auth = betterAuth({
       create: {
         before: beforeUserCreate,
         after: async (user, ctx) => {
+          await rememberSignInLocale(user.id, ctx);
           // A workspace connection's sign-in joins that workspace instead (account.create.after).
           if (workspaceOfProvider(ssoProviderOf(ctx))) return;
           // Signing up from an invitation link joins that workspace instead of creating a
@@ -214,7 +226,8 @@ export const auth = betterAuth({
         },
         // Every sign-in: workspaces that allow the (verified) email domain and haven't dealt with
         // this person yet let them in or take their request.
-        after: async (session) => {
+        after: async (session, ctx) => {
+          await rememberSignInLocale(session.userId, ctx);
           await domainPolicies(session.userId);
         },
       },
