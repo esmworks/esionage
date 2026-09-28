@@ -12,10 +12,15 @@
   --fg-muted: #6b6d75;
   --fg-faint: #9a9ca3;
   --border: #e4e4e7;
-  --accent: #2f6fed;
+  /* Brand green (brand/): links, primary buttons and focus rings. */
+  --accent: #2f7d4f;
   --accent-fg: #ffffff;
   --danger: #d03b3b;
-  --ring: rgba(47, 111, 237, 0.35);
+  --ring: rgba(47, 125, 79, 0.35);
+  /* The logo's colors (components/brand/logo.tsx). */
+  --logo-leaf: #4aa56a;
+  --logo-block: #16301f;
+  --logo-text: #13201a;
   --scrollbar: rgba(31, 32, 35, 0.16);
   --scrollbar-hover: rgba(31, 32, 35, 0.32);
   /* Page history changes, in the green and red of the option palette below. */
@@ -38,10 +43,13 @@
     --fg-muted: #a1a3aa;
     --fg-faint: #6f727a;
     --border: #2f3034;
-    --accent: #5b8ff5;
+    --accent: #6cc38a;
     --accent-fg: #0d1117;
     --danger: #ef6b6b;
-    --ring: rgba(91, 143, 245, 0.4);
+    --ring: rgba(108, 195, 138, 0.4);
+    --logo-leaf: #9ed8ab;
+    --logo-block: #f3efe3;
+    --logo-text: #f3efe3;
     --scrollbar: rgba(232, 232, 234, 0.16);
     --scrollbar-hover: rgba(232, 232, 234, 0.3);
     --added-bg: #2d5a41;
