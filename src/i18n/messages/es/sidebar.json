@@ -50,7 +50,9 @@
     "title": "Papelera",
     "empty": "La papelera está vacía",
     "deletePermanently": "Eliminar definitivamente",
-    "confirmDelete": "¿Eliminar definitivamente? No se puede deshacer."
+    "confirmDelete": "¿Eliminar definitivamente? No se puede deshacer.",
+    "deletesIn": "Se eliminará en {count, plural, one {# día} other {# días}}",
+    "deletesSoon": "Se eliminará pronto"
   },
   "newWorkspace": {
     "title": "Nuevo espacio de trabajo",

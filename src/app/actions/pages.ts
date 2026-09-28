@@ -68,6 +68,8 @@ export async function listTrashAction(workspaceId: string) {
     icon: r.icon,
     kind: r.kind,
     archivedAt: new Date(r.archived_at),
+    /** When the retention cleanup deletes it for good; null when the workspace keeps trashed pages. */
+    deletesAt: r.deletesAt,
     canRestore: hasLevel(r.level, "edit"),
     canDelete: hasLevel(r.level, "full"),
   }));

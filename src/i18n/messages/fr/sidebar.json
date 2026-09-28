@@ -50,7 +50,9 @@
     "title": "Corbeille",
     "empty": "La corbeille est vide",
     "deletePermanently": "Supprimer définitivement",
-    "confirmDelete": "Supprimer définitivement ? Cette action est irréversible."
+    "confirmDelete": "Supprimer définitivement ? Cette action est irréversible.",
+    "deletesIn": "Supprimée dans {count, plural, one {# jour} other {# jours}}",
+    "deletesSoon": "Bientôt supprimée"
   },
   "newWorkspace": {
     "title": "Nouvel espace de travail",

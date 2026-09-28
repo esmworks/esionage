@@ -438,6 +438,17 @@
         "limit": "Bir çalışma alanında en fazla 20 SCIM token'ı olabilir. Önce birini iptal edin.",
         "generic": "Bir şeyler ters gitti. Lütfen tekrar deneyin."
       }
+    },
+    "retentionHeading": "Veri saklama",
+    "trashRetention": {
+      "title": "Çöp kutusundaki sayfaları şu süreden sonra sil",
+      "description": "Bu süre boyunca çöp kutusunda kalan sayfalar, alt sayfaları ve dosyalarıyla birlikte kalıcı olarak silinir. Çöp kutusu her sayfanın kaç günü kaldığını gösterir.",
+      "never": "Hiçbir zaman",
+      "days": "{count, plural, other {# gün}}"
+    },
+    "historyRetention": {
+      "title": "Sayfa geçmişi",
+      "description": "Bir sayfanın önceki sürümleri {days} gün, sayfa başına en fazla {count} adet saklanır. Kaydedilen sürümler ve geri yüklemeden önceki sürümler {keptDays} gün saklanır; sayfanın en son sürümü her zaman kalır."
     }
   },
   "notifications": {

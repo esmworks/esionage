@@ -12,8 +12,10 @@ import { PublishedPages } from "@/components/settings/published-pages";
 import {
   GuestInviteSetting,
   GuestPrivatePagesSetting,
+  HistoryRetentionNote,
   PublishingSetting,
   RequireTwoFactorSetting,
+  TrashRetentionSetting,
 } from "@/components/settings/security-settings";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
 import {
@@ -245,6 +247,10 @@ async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: stri
           <PublicForms workspaceId={workspaceId} forms={forms} />
         </SettingsGroup>
       )}
+      <SettingsGroup title={t("security.retentionHeading")}>
+        <TrashRetentionSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
+        <HistoryRetentionNote />
+      </SettingsGroup>
     </div>
   );
 }

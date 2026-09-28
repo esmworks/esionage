@@ -519,6 +519,15 @@
   timelines and charts show as tables). Boards by people or linked rows show as tables, and only
   the values a view shows reach the visitor. A publication can let search engines index the page
   and its subpages; it is off by default, and Settings > Security shows which ones allow it.
+- **Trash and history retention** (#55): owners choose in Settings > Security > Data retention
+  how long pages stay in the trash (7 to 365 days, or never; 30 by default, stored in
+  `workspace.settings.trashRetentionDays`, no migration). The trash shows how many days each page
+  has left, MCP `list_trash` returns `deletes_at`. Once a day the server deletes the pages whose
+  time is up the way *Delete permanently* does (subpages and files included) and prunes page
+  history: versions older than 90 days or past the newest 200 of a page go, saved versions and
+  versions from before a restore stay a year, and the newest version of a page always stays. With
+  several replicas a Postgres advisory lock lets one run at a time; each run logs what it removed.
+  New checks: `scripts/retention-e2e.ts` (35), `src/lib/retention.test.ts`.
 
 ### Changed
 
