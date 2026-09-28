@@ -1,6 +1,7 @@
 import { requireMcpAuth } from "@better-auth/mcp";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { auth } from "@/lib/auth";
+import { CLIENT_IP_HEADER } from "@/lib/client-ip";
 import { internalUrl, mcpResource } from "@/lib/env";
 import { runAsConnectedApp } from "@/server/connected-app";
 import { hasActiveGrant } from "@/server/mcp/grants";
@@ -56,8 +57,15 @@ const protectedHandler = requireMcpAuth(
     if (!authInfo) return revokedResponse();
     const { userId, clientId } = principalFromAuthInfo(authInfo);
     if (!(await hasActiveGrant(userId, clientId, claims.iat))) return revokedResponse();
-    // Held to each workspace's connected-apps setting; write tools mark themselves (tools.ts).
-    return runAsConnectedApp({ userId }, () => mcp.fetch(request, { authInfo }));
+    // Held to each workspace's connected-apps setting; write tools mark themselves (tools.ts). The
+    // client is named in the audit log for what the tools change (server/audit.ts).
+    const app = {
+      kind: "connected_app" as const,
+      id: clientId,
+      ip: request.headers.get(CLIENT_IP_HEADER),
+      userAgent: request.headers.get("user-agent"),
+    };
+    return runAsConnectedApp({ userId, app }, () => mcp.fetch(request, { authInfo }));
   },
   // Signing keys are fetched over HTTP; use loopback so it works behind proxies and port mappings.
   {

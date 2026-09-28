@@ -13,6 +13,7 @@ import { firstImageFile } from "@/lib/files";
 import { holdsPeople, UNPUBLISHED_PROPERTY_TYPES } from "@/lib/property-types";
 import { publishedHref, type PublishedLinks } from "@/lib/site";
 import { AccessError, accessRank, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
+import { recordAudit } from "@/server/audit";
 import { rowCovers, type DatabaseProperty } from "@/server/databases";
 import { computeDerived } from "@/server/derived";
 import { publishedPageRefs } from "@/server/mentions";
@@ -93,10 +94,14 @@ export async function publishPage(userId: string, pageId: string): Promise<{ tok
   await assertWorkspaceAllows(userId, p.workspaceId);
   if (p.archivedAt) throw new PublishError("Pages in the trash can't be published");
   if (p.inTemplate) throw new PublishError("Templates can't be published");
-  await db
+  const published = await db
     .insert(pagePublication)
     .values({ pageId, token: randomBytes(32).toString("base64url"), publishedBy: userId })
-    .onConflictDoNothing({ target: pagePublication.pageId });
+    .onConflictDoNothing({ target: pagePublication.pageId })
+    .returning({ pageId: pagePublication.pageId });
+  if (published.length) {
+    await recordAudit({ workspaceId: p.workspaceId, actorId: userId, action: "page.published", target: { type: "page", id: pageId, label: p.title } });
+  }
   // Already published (or published concurrently): keep the existing link.
   const [row] = await db
     .select({ token: pagePublication.token, indexable: pagePublication.indexable })
@@ -108,8 +113,11 @@ export async function publishPage(userId: string, pageId: string): Promise<{ tok
 }
 
 export async function unpublishPage(userId: string, pageId: string): Promise<void> {
-  await requirePageAccess(userId, pageId, "full");
-  await db.delete(pagePublication).where(eq(pagePublication.pageId, pageId));
+  const p = await requirePageAccess(userId, pageId, "full");
+  const removed = await db.delete(pagePublication).where(eq(pagePublication.pageId, pageId)).returning({ pageId: pagePublication.pageId });
+  if (removed.length) {
+    await recordAudit({ workspaceId: p.workspaceId, actorId: userId, action: "page.unpublished", target: { type: "page", id: pageId, label: p.title } });
+  }
 }
 
 /** Changing what a publication shows asks for what publishing does. */
@@ -241,7 +249,19 @@ export async function listWorkspacePublications(userId: string, workspaceId: str
 export async function revokePublication(userId: string, workspaceId: string, pageId: string): Promise<void> {
   await requireMembership(userId, workspaceId, "owner");
   const inWorkspace = db.select({ id: page.id }).from(page).where(and(eq(page.id, pageId), eq(page.workspaceId, workspaceId)));
-  await db.delete(pagePublication).where(and(eq(pagePublication.pageId, pageId), inArray(pagePublication.pageId, inWorkspace)));
+  const revoked = await db
+    .delete(pagePublication)
+    .where(and(eq(pagePublication.pageId, pageId), inArray(pagePublication.pageId, inWorkspace)))
+    .returning({ publishedBy: pagePublication.publishedBy });
+  for (const { publishedBy } of revoked) {
+    await recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: "page.publication_revoked",
+      target: { type: "page", id: pageId },
+      subject: publishedBy ? { type: "user", id: publishedBy } : null,
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

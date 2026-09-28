@@ -308,6 +308,16 @@ export async function workspaceOwnerIds(workspaceId: string): Promise<string[]> 
   return rows.map((row) => row.id);
 }
 
+/**
+ * Every workspace the user is in, whatever their role and whatever a connected app may see: where
+ * the audit log records what reaches all of them (an app they connected, an API token for all
+ * their workspaces, see server/audit.ts).
+ */
+export async function memberWorkspaceIds(userId: string): Promise<string[]> {
+  const rows = await db.select({ id: workspaceMember.workspaceId }).from(workspaceMember).where(eq(workspaceMember.userId, userId));
+  return rows.map((row) => row.id);
+}
+
 /** SQL: whether the user owns the workspace (an id expression), for filters inside larger queries. */
 export const ownsWorkspace = (userId: string, workspaceId: SQL | AnyColumn) =>
   sql<boolean>`exists (select 1 from ${workspaceMember} wm where wm.workspace_id = ${workspaceId} and wm.user_id = ${userId} and wm.role = 'owner')`;

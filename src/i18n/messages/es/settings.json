@@ -11,6 +11,7 @@
     "groups": "Grupos",
     "analytics": "Analíticas",
     "security": "Seguridad",
+    "audit": "Registro de auditoría",
     "site": "Sitio",
     "myAccount": "Mi cuenta"
   },
@@ -602,6 +603,221 @@
       "full": "Leer y editar",
       "read": "Solo lectura",
       "off": "Sin acceso"
+    }
+  },
+  "audit": {
+    "description": "Quién cambió qué en este espacio de trabajo: miembros y roles, invitaciones, uso compartido, espacios de equipo y grupos, ajustes, seguridad, eliminaciones, publicaciones, apps conectadas y exportaciones. Solo los propietarios pueden verlo.",
+    "filters": "Filtrar el registro de auditoría",
+    "actor": "Quién",
+    "anyone": "Cualquiera",
+    "category": "Qué",
+    "allCategories": "Todos los cambios",
+    "from": "Desde",
+    "to": "Hasta",
+    "apply": "Aplicar",
+    "clear": "Quitar filtros",
+    "eventsHeading": "Eventos",
+    "retention": "Los más recientes primero. Los eventos se conservan durante un año.",
+    "export": "Descargar como CSV",
+    "noMatches": "Ningún evento coincide con estos filtros.",
+    "empty": "Todavía no se ha registrado nada.",
+    "columns": {
+      "time": "Hora",
+      "actor": "Quién",
+      "event": "Qué pasó",
+      "source": "Desde dónde"
+    },
+    "device": "{browser} en {os}",
+    "noSource": "Desconocido",
+    "paging": "Páginas del registro de auditoría",
+    "newer": "Más recientes",
+    "older": "Más antiguos",
+    "page": "Página {page}",
+    "actors": {
+      "deletedUser": "Usuario eliminado",
+      "unnamed": "sin nombre",
+      "apiToken": "{name} (token de API {via})",
+      "connectedApp": "{name} (a través de {via})",
+      "scim": "Proveedor de identidad (token SCIM {via})",
+      "system": "Sistema"
+    },
+    "actorKinds": {
+      "scim": "Proveedor de identidad (SCIM)",
+      "system": "Sistema (automático)"
+    },
+    "categories": {
+      "members": "Miembros y roles",
+      "invitations": "Invitaciones y solicitudes para unirse",
+      "sharing": "Uso compartido de páginas",
+      "teamspaces": "Espacios de equipo",
+      "groups": "Grupos",
+      "settings": "Ajustes del espacio de trabajo",
+      "security": "Inicio de sesión único y SCIM",
+      "pages": "Eliminación y publicación",
+      "integrations": "Apps conectadas y tokens de API",
+      "exports": "Exportaciones"
+    },
+    "change": "{name}: {from} → {to}",
+    "untitled": "Sin título",
+    "everyone": "todo el espacio de trabajo",
+    "roles": {
+      "owner": "propietario",
+      "member": "miembro",
+      "guest": "invitado"
+    },
+    "teamspaceRoles": {
+      "owner": "propietario del espacio de equipo",
+      "member": "miembro"
+    },
+    "levels": {
+      "none": "Sin acceso",
+      "view": "Puede ver",
+      "comment": "Puede comentar",
+      "edit": "Puede editar",
+      "full": "Acceso total"
+    },
+    "teamspaceFields": {
+      "name": "nombre",
+      "icon": "icono",
+      "description": "descripción",
+      "access": "acceso"
+    },
+    "via": {
+      "invitation": "una invitación",
+      "link": "el enlace para unirse",
+      "domain": "su dominio de correo",
+      "sso": "inicio de sesión único",
+      "scim": "SCIM",
+      "join_request": "una solicitud para unirse",
+      "share": "una página compartida",
+      "account_deleted": "cuenta eliminada"
+    },
+    "formats": {
+      "zip": "ZIP",
+      "csv": "CSV",
+      "markdown": "Markdown",
+      "pdf": "PDF"
+    },
+    "settingNames": {
+      "guestInvites": "Quién puede añadir invitados",
+      "guestPrivatePages": "Los invitados pueden crear páginas privadas",
+      "publishing": "Quién puede publicar en la web",
+      "requireTwoFactor": "Exigir la verificación en dos pasos",
+      "teamspaceCreation": "Quién puede crear espacios de equipo",
+      "loginMethod": "Cómo inician sesión los miembros",
+      "ai": "Funciones de IA",
+      "trashRetentionDays": "Eliminar las páginas de la papelera tras",
+      "export": "Permitir exportar",
+      "connectedApps": "Apps conectadas y tokens de API",
+      "accessRequests": "Solicitudes de acceso",
+      "memberInvites": "Quién puede añadir miembros",
+      "allowedDomains": "Dominios de correo permitidos",
+      "domainJoin": "Cuando alguien de estos dominios inicia sesión",
+      "joinRequests": "Quién puede pedir unirse"
+    },
+    "values": {
+      "on": "Activado",
+      "off": "Desactivado",
+      "unset": "Sin definir",
+      "never": "Nunca",
+      "days": "{days, plural, one {# día} other {# días}}",
+      "none": "Ninguno",
+      "owners": "Solo los propietarios",
+      "members": "Propietarios y miembros",
+      "any": "Cualquier método",
+      "sso": "Solo inicio de sesión único",
+      "full": "Leer y editar",
+      "read": "Solo lectura",
+      "join": "Se une como miembro",
+      "request": "Pide unirse",
+      "nobody": "Nadie",
+      "allowed_domains": "Personas con un dominio de correo permitido",
+      "anyone_with_link": "Cualquiera con el enlace para unirse",
+      "members_with_approval": "Miembros, con la aprobación de un propietario",
+      "any_member": "Propietarios y miembros"
+    },
+    "actions": {
+      "member": {
+        "added": "Añadió a {target} como {role}",
+        "joined": "Se unió como {role} mediante {via}",
+        "removed": "Quitó a {target} ({role})",
+        "left": "Salió del espacio de trabajo",
+        "role_changed": "Cambió el rol de {target} de {from} a {to}",
+        "ownership_transferred": "Hizo propietario a {target} y pasó a ser miembro"
+      },
+      "invitation": {
+        "sent": "Invitó a {target} como {role}",
+        "revoked": "Retiró la invitación a {target}",
+        "accepted": "Aceptó la invitación a {target} y se unió como {role}"
+      },
+      "join_link": {
+        "enabled": "Activó el enlace para unirse",
+        "disabled": "Desactivó el enlace para unirse",
+        "regenerated": "Reemplazó el enlace para unirse (el anterior dejó de funcionar)"
+      },
+      "join_request": {
+        "approved": "{kind, select, invite {Aprobó la solicitud de invitar a {target} como {role}} other {Aprobó la solicitud de {target} para unirse como {role}}}",
+        "declined": "{kind, select, invite {Rechazó la solicitud de invitar a {target}} other {Rechazó la solicitud de {target} para unirse}}"
+      },
+      "page": {
+        "permission_changed": "Fijó el acceso de {subject} a {target}: {level}",
+        "permission_removed": "Quitó a {subject} del uso compartido de {target}",
+        "deleted": "Eliminó {target} definitivamente",
+        "published": "Publicó {target} en la web",
+        "unpublished": "Dejó de publicar {target}",
+        "publication_revoked": "Retiró {target} de la web (publicada por {subject})"
+      },
+      "access_request": {
+        "approved": "Aprobó la solicitud de acceso de {subject} a {target}: {level}",
+        "declined": "Rechazó la solicitud de acceso de {subject} a {target}"
+      },
+      "teamspace": {
+        "created": "Creó el espacio de equipo {target}",
+        "updated": "Cambió en el espacio de equipo {target}: {fields}",
+        "archived": "Archivó el espacio de equipo {target}",
+        "restored": "Restauró el espacio de equipo {target}",
+        "member_added": "Añadió a {names} al espacio de equipo {target} como {role}",
+        "member_removed": "Quitó a {subject} del espacio de equipo {target}",
+        "role_changed": "Cambió el rol de {subject} en el espacio de equipo {target} a {role}",
+        "group_added": "Añadió los grupos {names} al espacio de equipo {target}",
+        "group_removed": "Quitó el grupo {subject} del espacio de equipo {target}"
+      },
+      "group": {
+        "created": "Creó el grupo {target}",
+        "renamed": "Cambió el nombre del grupo {from} a {to}",
+        "deleted": "Eliminó el grupo {target}",
+        "members_added": "Añadió a {names} al grupo {target}",
+        "members_removed": "Quitó a {names} del grupo {target}"
+      },
+      "workspace": {
+        "renamed": "Cambió el nombre del espacio de trabajo de {from} a {to}",
+        "settings_changed": "Cambió ajustes: {settings}"
+      },
+      "sso": {
+        "configured": "Guardó la conexión de inicio de sesión único ({protocol}) para {domains}",
+        "domains_verified": "Verificó los dominios de inicio de sesión único {domains}",
+        "removed": "Quitó la conexión de inicio de sesión único"
+      },
+      "scim": {
+        "token_created": "Creó el token SCIM {target}",
+        "token_revoked": "Revocó el token SCIM {target}"
+      },
+      "site": {
+        "saved": "Guardó el sitio en {slug}",
+        "removed": "Retiró el sitio en {slug}"
+      },
+      "connected_app": {
+        "connected": "Conectó la app {target}",
+        "revoked": "Desconectó la app {target}"
+      },
+      "api_token": {
+        "created": "Creó el token de API {target}",
+        "revoked": "Revocó el token de API {target}"
+      },
+      "export": {
+        "workspace": "Exportó el espacio de trabajo ({count, plural, one {# página} other {# páginas}})",
+        "page": "Exportó {target} como {format}"
+      }
     }
   },
   "notifications": {

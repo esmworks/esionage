@@ -33,7 +33,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ work
     try {
       const plan = await planExport(userId, { workspaceId }, labels);
       plan.title = `${plan.title} ${new Date().toISOString().slice(0, 10)}`;
-      return archiveResponse(userId, plan, labels, release);
+      return await archiveResponse(userId, plan, labels, release);
     } catch (error) {
       release();
       throw error;

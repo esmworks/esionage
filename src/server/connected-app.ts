@@ -21,8 +21,20 @@ export type ConnectedAppsMode = "full" | "read" | "off";
 
 export const CONNECTED_APPS_MODES: readonly ConnectedAppsMode[] = ["full", "read", "off"];
 
+/**
+ * Which program the request comes from, for the audit log (server/audit.ts): an MCP client (its
+ * OAuth client id) or a REST API token (its id), with the request's address and user agent.
+ */
+export type ConnectedAppIdentity = {
+  kind: "connected_app" | "api_token";
+  id: string;
+  ip?: string | null;
+  userAgent?: string | null;
+};
+
 export type ConnectedAppCall = {
   userId: string;
+  app: ConnectedAppIdentity | null;
   /** The request changes something: refused in workspaces where connected apps may only read. */
   writing: boolean;
   /** Per workspace id: its setting, asked once per request. Filled by access.ts. */
@@ -34,8 +46,8 @@ const globalForApps = globalThis as unknown as { __leafdeskConnectedApps?: Async
 const storage = (globalForApps.__leafdeskConnectedApps ??= new AsyncLocalStorage<ConnectedAppCall>());
 
 /** Runs `fn` (an MCP request, a REST API call) as a connected app acting for `userId`. */
-export function runAsConnectedApp<T>(call: { userId: string; writing?: boolean }, fn: () => T): T {
-  return storage.run({ userId: call.userId, writing: call.writing ?? false, modes: new Map() }, fn);
+export function runAsConnectedApp<T>(call: { userId: string; writing?: boolean; app?: ConnectedAppIdentity }, fn: () => T): T {
+  return storage.run({ userId: call.userId, app: call.app ?? null, writing: call.writing ?? false, modes: new Map() }, fn);
 }
 
 /**

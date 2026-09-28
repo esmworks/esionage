@@ -127,6 +127,10 @@ jobs:
       - name: Membership policies end-to-end
         run: pnpm tsx scripts/membership-e2e.ts
 
+      # Emails are dropped by the script, never sent.
+      - name: Audit log end-to-end
+        run: pnpm tsx scripts/audit-e2e.ts
+
       # The admin e2e's administrator, and new workspaces for administrators only (the other policy
       # is checked against the database).
       - name: Start the server

@@ -7,6 +7,7 @@ import { env } from "@/lib/env";
 import { pageLabel } from "@/lib/labels";
 import { sharedLimiter, takeAll } from "@/lib/rate-limit";
 import { AccessError, findMembership, pageAccessOf, requirePageAccess, workspaceRoleOf } from "@/server/access";
+import { recordAudit } from "@/server/audit";
 import { accessApprovedEmail, accessDeclinedEmail } from "@/server/mail";
 import { requestLocale } from "@/server/mail/locale";
 import { emailTranslator } from "@/server/mail/templates";
@@ -157,6 +158,15 @@ export async function approveAccessRequest(actorId: string, requestId: string, l
     await sharePageByEmail(actorId, request.pageId, request.email, level);
   }
   await forget(request.workspaceId, request.id);
+  // After the sharing (recorded on its own as a permission change) and the request are done.
+  await recordAudit({
+    workspaceId: request.workspaceId,
+    actorId,
+    action: "access_request.approved",
+    target: { type: "page", id: request.pageId },
+    subject: { type: "user", id: request.requesterId },
+    details: { level },
+  });
   await skipShareEmail(request.requesterId, request.pageId);
   const [[actor], [space]] = await Promise.all([
     db.select({ name: user.name }).from(user).where(eq(user.id, actorId)),
@@ -177,6 +187,14 @@ export async function approveAccessRequest(actorId: string, requestId: string, l
 export async function declineAccessRequest(actorId: string, requestId: string) {
   const { request, locale } = await answerable(actorId, requestId);
   await forget(request.workspaceId, request.id);
+  await recordAudit({
+    workspaceId: request.workspaceId,
+    actorId,
+    action: "access_request.declined",
+    target: { type: "page", id: request.pageId },
+    subject: { type: "user", id: request.requesterId },
+  });
+
   mailNow({ to: request.email, ...accessDeclinedEmail(locale, { link: pageLink(request.workspaceId, request.pageId) }) });
   return { workspaceId: request.workspaceId, pageId: request.pageId };
 }

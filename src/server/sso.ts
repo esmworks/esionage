@@ -19,6 +19,7 @@ import {
   workspaceProviderId,
 } from "@/lib/sso-config";
 import { requireMembership } from "@/server/access";
+import { recordAudit } from "@/server/audit";
 import { fetchRemoteFile, isBlockedAddress } from "@/server/remote-fetch";
 import { joinAsMember } from "@/server/workspaces";
 
@@ -132,7 +133,7 @@ export async function joinThroughSso(providerId: string, user: { id: string; ema
     .where(and(eq(scimIdentity.workspaceId, workspaceId), eq(scimIdentity.userId, user.id), eq(scimIdentity.active, false)))
     .limit(1);
   if (deactivated) return false;
-  return joinAsMember(workspaceId, user.id, user.email);
+  return joinAsMember(workspaceId, user.id, user.email, "sso");
 }
 
 // ------------------------------------------------------------------------------------ connections
@@ -463,6 +464,16 @@ export async function saveSsoConnection(
         createdBy: actorId,
       });
     }
+    await recordAudit(
+      {
+        workspaceId,
+        actorId,
+        action: "sso.configured",
+        target: { type: "sso", id: providerId },
+        details: { protocol: input.protocol, domains, created: !existing, verified },
+      },
+      tx,
+    );
   });
   return getSsoConnection(actorId, workspaceId);
 }
@@ -498,6 +509,7 @@ export async function verifySsoDomains(actorId: string, workspaceId: string, res
     }
   }
   await db.update(ssoProvider).set({ domainVerified: true }).where(eq(ssoProvider.providerId, row.providerId));
+  await recordAudit({ workspaceId, actorId, action: "sso.domains_verified", target: { type: "sso", id: row.providerId }, details: { domains } });
   return getSsoConnection(actorId, workspaceId);
 }
 
@@ -508,7 +520,10 @@ export async function verifySsoDomains(actorId: string, workspaceId: string, res
 export async function removeSsoConnection(actorId: string, workspaceId: string) {
   await requireMembership(actorId, workspaceId, "owner");
   await db.transaction(async (tx) => {
-    await tx.delete(workspaceSso).where(eq(workspaceSso.workspaceId, workspaceId));
+    const removed = await tx.delete(workspaceSso).where(eq(workspaceSso.workspaceId, workspaceId)).returning({ providerId: workspaceSso.providerId });
+    for (const { providerId } of removed) {
+      await recordAudit({ workspaceId, actorId, action: "sso.removed", target: { type: "sso", id: providerId } }, tx);
+    }
     if (!env.instanceOidc) {
       const [row] = await tx.select({ settings: workspace.settings }).from(workspace).where(eq(workspace.id, workspaceId)).limit(1);
       if (row?.settings.loginMethod === "sso") {

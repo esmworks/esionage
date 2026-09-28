@@ -15,7 +15,7 @@ import {
   socialAuthOptions,
 } from "@/lib/auth-options";
 import { revokeAllApiTokens } from "@/server/api/tokens";
-import { revokeAllConnectedApps } from "@/server/mcp/grants";
+import { connectedAppAuditPlugin, revokeAllConnectedApps } from "@/server/mcp/grants";
 import { applyDomainPolicies } from "@/server/join-requests";
 import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetEmail, sendMail, verificationEmail } from "@/server/mail";
 import {
@@ -220,7 +220,7 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [...base.plugins, requiredPasswordPlugin(), nextCookies()],
+  plugins: [...base.plugins, requiredPasswordPlugin(), connectedAppAuditPlugin(), nextCookies()],
 });
 
 export type Session = typeof auth.$Infer.Session;

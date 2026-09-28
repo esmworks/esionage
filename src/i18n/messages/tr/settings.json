@@ -11,6 +11,7 @@
     "groups": "Gruplar",
     "analytics": "Analitik",
     "security": "Güvenlik",
+    "audit": "Denetim kaydı",
     "site": "Site",
     "myAccount": "Hesabım"
   },
@@ -602,6 +603,221 @@
       "full": "Okuma ve düzenleme",
       "read": "Yalnızca okuma",
       "off": "Erişim yok"
+    }
+  },
+  "audit": {
+    "description": "Bu çalışma alanında kimin neyi değiştirdiğinin kaydı: üyeler ve roller, davetler, paylaşım, teamspace’ler ve gruplar, ayarlar, güvenlik, silmeler, yayınlama, bağlı uygulamalar ve dışa aktarmalar. Yalnızca sahipler görebilir.",
+    "filters": "Denetim kaydını filtrele",
+    "actor": "Kim",
+    "anyone": "Herkes",
+    "category": "Ne",
+    "allCategories": "Tüm değişiklikler",
+    "from": "Başlangıç",
+    "to": "Bitiş",
+    "apply": "Uygula",
+    "clear": "Filtreleri temizle",
+    "eventsHeading": "Olaylar",
+    "retention": "En yeniler üstte. Olaylar bir yıl saklanır.",
+    "export": "CSV olarak indir",
+    "noMatches": "Bu filtrelere uyan olay yok.",
+    "empty": "Henüz bir şey kaydedilmedi.",
+    "columns": {
+      "time": "Zaman",
+      "actor": "Kim",
+      "event": "Ne oldu",
+      "source": "Nereden"
+    },
+    "device": "{browser}, {os}",
+    "noSource": "Bilinmiyor",
+    "paging": "Denetim kaydının sayfaları",
+    "newer": "Daha yeni",
+    "older": "Daha eski",
+    "page": "Sayfa {page}",
+    "actors": {
+      "deletedUser": "Silinmiş kullanıcı",
+      "unnamed": "adsız",
+      "apiToken": "{name} (API anahtarı {via})",
+      "connectedApp": "{name} ({via} üzerinden)",
+      "scim": "Kimlik sağlayıcı (SCIM anahtarı {via})",
+      "system": "Sistem"
+    },
+    "actorKinds": {
+      "scim": "Kimlik sağlayıcı (SCIM)",
+      "system": "Sistem (otomatik)"
+    },
+    "categories": {
+      "members": "Üyeler ve roller",
+      "invitations": "Davetler ve katılma istekleri",
+      "sharing": "Sayfa paylaşımı",
+      "teamspaces": "Teamspace’ler",
+      "groups": "Gruplar",
+      "settings": "Çalışma alanı ayarları",
+      "security": "Çoklu oturum açma ve SCIM",
+      "pages": "Silme ve yayınlama",
+      "integrations": "Bağlı uygulamalar ve API anahtarları",
+      "exports": "Dışa aktarmalar"
+    },
+    "change": "{name}: {from} → {to}",
+    "untitled": "Adsız",
+    "everyone": "çalışma alanındaki herkes",
+    "roles": {
+      "owner": "sahip",
+      "member": "üye",
+      "guest": "misafir"
+    },
+    "teamspaceRoles": {
+      "owner": "teamspace sahibi",
+      "member": "üye"
+    },
+    "levels": {
+      "none": "Erişim yok",
+      "view": "Görüntüleyebilir",
+      "comment": "Yorum yapabilir",
+      "edit": "Düzenleyebilir",
+      "full": "Tam erişim"
+    },
+    "teamspaceFields": {
+      "name": "ad",
+      "icon": "simge",
+      "description": "açıklama",
+      "access": "erişim"
+    },
+    "via": {
+      "invitation": "davet",
+      "link": "katılma bağlantısı",
+      "domain": "e-posta alan adı",
+      "sso": "çoklu oturum açma",
+      "scim": "SCIM",
+      "join_request": "katılma isteği",
+      "share": "paylaşılan sayfa",
+      "account_deleted": "hesap silindi"
+    },
+    "formats": {
+      "zip": "ZIP",
+      "csv": "CSV",
+      "markdown": "Markdown",
+      "pdf": "PDF"
+    },
+    "settingNames": {
+      "guestInvites": "Kimler misafir davet edebilir",
+      "guestPrivatePages": "Misafirler özel sayfa oluşturabilir",
+      "publishing": "Kimler web’de yayınlayabilir",
+      "requireTwoFactor": "İki adımlı doğrulamayı zorunlu kıl",
+      "teamspaceCreation": "Kimler teamspace oluşturabilir",
+      "loginMethod": "Üyeler nasıl giriş yapar",
+      "ai": "Yapay zekâ özellikleri",
+      "trashRetentionDays": "Çöp kutusundaki sayfaların silinme süresi",
+      "export": "Dışa aktarmaya izin ver",
+      "connectedApps": "Bağlı uygulamalar ve API anahtarları",
+      "accessRequests": "Erişim istekleri",
+      "memberInvites": "Kimler üye ekleyebilir",
+      "allowedDomains": "İzin verilen e-posta alan adları",
+      "domainJoin": "Bu alan adlarından biri giriş yaptığında",
+      "joinRequests": "Kimler katılmak için istek gönderebilir"
+    },
+    "values": {
+      "on": "Açık",
+      "off": "Kapalı",
+      "unset": "Ayarlanmamış",
+      "never": "Hiçbir zaman",
+      "days": "{days, plural, other {# gün}}",
+      "none": "Yok",
+      "owners": "Yalnızca sahipler",
+      "members": "Sahipler ve üyeler",
+      "any": "Her yöntem",
+      "sso": "Yalnızca çoklu oturum açma",
+      "full": "Okuma ve düzenleme",
+      "read": "Yalnızca okuma",
+      "join": "Üye olarak katılır",
+      "request": "Katılmak için istek gönderir",
+      "nobody": "Hiç kimse",
+      "allowed_domains": "İzin verilen e-posta alan adına sahip kişiler",
+      "anyone_with_link": "Katılma bağlantısına sahip herkes",
+      "members_with_approval": "Üyeler, bir sahibin onayıyla",
+      "any_member": "Sahipler ve üyeler"
+    },
+    "actions": {
+      "member": {
+        "added": "Üye eklendi: {target} (rol: {role})",
+        "joined": "Katıldı (rol: {role}, yol: {via})",
+        "removed": "Üye çıkarıldı: {target} (rol: {role})",
+        "left": "Çalışma alanından ayrıldı",
+        "role_changed": "Rol değiştirildi: {target}, {from} → {to}",
+        "ownership_transferred": "Sahipliği devretti: {target} sahip oldu, kendisi üye oldu"
+      },
+      "invitation": {
+        "sent": "Davet gönderildi: {target} (rol: {role})",
+        "revoked": "Davet geri alındı: {target}",
+        "accepted": "Daveti kabul etti: {target} (rol: {role})"
+      },
+      "join_link": {
+        "enabled": "Katılma bağlantısını açtı",
+        "disabled": "Katılma bağlantısını kapattı",
+        "regenerated": "Katılma bağlantısını yeniledi (eskisi artık çalışmıyor)"
+      },
+      "join_request": {
+        "approved": "{kind, select, invite {Davet isteği onaylandı: {target} (rol: {role})} other {Katılma isteği onaylandı: {target} (rol: {role})}}",
+        "declined": "{kind, select, invite {Davet isteği reddedildi: {target}} other {Katılma isteği reddedildi: {target}}}"
+      },
+      "page": {
+        "permission_changed": "Erişim ayarlandı: {subject}, {target} sayfasında: {level}",
+        "permission_removed": "Paylaşımdan çıkarıldı: {subject}, {target} sayfasından",
+        "deleted": "Kalıcı olarak silindi: {target}",
+        "published": "Web’de yayınlandı: {target}",
+        "unpublished": "Yayından kaldırıldı: {target}",
+        "publication_revoked": "Web’den kaldırıldı: {target} (yayınlayan: {subject})"
+      },
+      "access_request": {
+        "approved": "Erişim isteği onaylandı: {subject}, {target} sayfası için: {level}",
+        "declined": "Erişim isteği reddedildi: {subject}, {target} sayfası için"
+      },
+      "teamspace": {
+        "created": "Teamspace oluşturuldu: {target}",
+        "updated": "Teamspace değiştirildi: {target} ({fields})",
+        "archived": "Teamspace arşivlendi: {target}",
+        "restored": "Teamspace geri getirildi: {target}",
+        "member_added": "Teamspace’e eklendi: {names}, {target} (rol: {role})",
+        "member_removed": "Teamspace’ten çıkarıldı: {subject}, {target}",
+        "role_changed": "Teamspace rolü değiştirildi: {subject}, {target} → {role}",
+        "group_added": "Teamspace’e gruplar eklendi: {names}, {target}",
+        "group_removed": "Teamspace’ten grup çıkarıldı: {subject}, {target}"
+      },
+      "group": {
+        "created": "Grup oluşturuldu: {target}",
+        "renamed": "Grup yeniden adlandırıldı: {from} → {to}",
+        "deleted": "Grup silindi: {target}",
+        "members_added": "Gruba eklendi: {names}, {target}",
+        "members_removed": "Gruptan çıkarıldı: {names}, {target}"
+      },
+      "workspace": {
+        "renamed": "Çalışma alanı yeniden adlandırıldı: {from} → {to}",
+        "settings_changed": "Ayarlar değiştirildi: {settings}"
+      },
+      "sso": {
+        "configured": "Çoklu oturum açma bağlantısı kaydedildi ({protocol}): {domains}",
+        "domains_verified": "Çoklu oturum açma alan adları doğrulandı: {domains}",
+        "removed": "Çoklu oturum açma bağlantısı kaldırıldı"
+      },
+      "scim": {
+        "token_created": "SCIM anahtarı oluşturuldu: {target}",
+        "token_revoked": "SCIM anahtarı iptal edildi: {target}"
+      },
+      "site": {
+        "saved": "Site kaydedildi: {slug}",
+        "removed": "Site kaldırıldı: {slug}"
+      },
+      "connected_app": {
+        "connected": "Uygulama bağlandı: {target}",
+        "revoked": "Uygulamanın bağlantısı kesildi: {target}"
+      },
+      "api_token": {
+        "created": "API anahtarı oluşturuldu: {target}",
+        "revoked": "API anahtarı iptal edildi: {target}"
+      },
+      "export": {
+        "workspace": "Çalışma alanı dışa aktarıldı ({count, plural, other {# sayfa}})",
+        "page": "Dışa aktarıldı: {target} ({format})"
+      }
     }
   },
   "notifications": {

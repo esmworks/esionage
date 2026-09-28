@@ -1,4 +1,5 @@
 import type * as z from "zod";
+import { CLIENT_IP_HEADER } from "@/lib/client-ip";
 import { SlidingWindowLimiter } from "@/lib/rate-limit";
 import { runAsConnectedApp } from "@/server/connected-app";
 import { ApiError, apiErrorFor, errorBody } from "./errors";
@@ -201,8 +202,15 @@ export function createApiHandler(deps: ApiDeps) {
       }
       const ctx = { userId: principal.userId, actor: { userId: principal.userId } };
       // Held to each workspace's connected-apps setting (see connected-app.ts): endpoints that
-      // need pages:write are writes, refused where apps may only read.
-      const result = await runAsConnectedApp({ userId: principal.userId, writing: route.scope === "pages:write" }, () =>
+      // need pages:write are writes, refused where apps may only read. The token is named in the
+      // audit log for what the endpoint changes (server/audit.ts).
+      const app = {
+        kind: "api_token" as const,
+        id: principal.tokenId,
+        ip: request.headers.get(CLIENT_IP_HEADER),
+        userAgent: request.headers.get("user-agent"),
+      };
+      const result = await runAsConnectedApp({ userId: principal.userId, writing: route.scope === "pages:write", app }, () =>
         route.handler({ principal, ctx, params, query, body }),
       );
       return json(route.status ?? 200, result, headers);

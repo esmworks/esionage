@@ -2,7 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, count, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { API_TOKEN_SCOPES, apiToken, workspace, type ApiTokenScope } from "@/db/schema";
-import { findMembership } from "@/server/access";
+import { findMembership, memberWorkspaceIds } from "@/server/access";
+import { recordAudit } from "@/server/audit";
 
 /**
  * Personal access tokens for the REST API. A token is `esi_` plus 40 letters and digits (about 238
@@ -52,6 +53,27 @@ export function normalizeScopes(scopes: readonly string[]): ApiTokenScope[] {
   const known = new Set(scopes.filter((s): s is ApiTokenScope => (API_TOKEN_SCOPES as readonly string[]).includes(s)));
   if (known.has("pages:write")) known.add("pages:read");
   return API_TOKEN_SCOPES.filter((s) => known.has(s));
+}
+
+/**
+ * Records a token's creation or revocation in the audit log of the workspace it is limited to, or
+ * of every workspace its user is in when it reaches all of them.
+ */
+async function recordToken(
+  userId: string,
+  token: { id: string; name: string; workspaceId: string | null; scopes: string[] },
+  action: "api_token.created" | "api_token.revoked",
+) {
+  const workspaceIds = token.workspaceId ? [token.workspaceId] : await memberWorkspaceIds(userId);
+  await recordAudit(
+    workspaceIds.map((workspaceId) => ({
+      workspaceId,
+      actorId: userId,
+      action,
+      target: { type: "api_token" as const, id: token.id, label: token.name },
+      details: { scopes: normalizeScopes(token.scopes), allWorkspaces: token.workspaceId === null },
+    })),
+  );
 }
 
 export type NewApiToken = {
@@ -107,6 +129,7 @@ export async function createApiToken(userId: string, input: NewApiToken, now = n
       createdAt: now,
     })
     .returning();
+  await recordToken(userId, row, "api_token.created");
   return { secret, token: row };
 }
 
@@ -135,8 +158,10 @@ export async function revokeApiToken(userId: string, tokenId: string): Promise<b
   const deleted = await db
     .delete(apiToken)
     .where(and(eq(apiToken.id, tokenId), eq(apiToken.userId, userId)))
-    .returning({ id: apiToken.id });
+    .returning({ id: apiToken.id, name: apiToken.name, workspaceId: apiToken.workspaceId, scopes: apiToken.scopes });
+  for (const token of deleted) await recordToken(userId, token, "api_token.revoked");
   return deleted.length > 0;
+
 }
 
 export async function revokeAllApiTokens(userId: string) {

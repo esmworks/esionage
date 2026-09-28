@@ -6,7 +6,7 @@ import { printOrder } from "@/lib/print";
 import { pageVisibleTo, requirePageAccess } from "@/server/access";
 import type { PageBlock } from "@/server/blocknote";
 import { getCollab } from "@/server/collab/bridge";
-import { assertExportAllowed } from "@/server/export";
+import { assertExportAllowed, recordExport } from "@/server/export";
 import { resolvePageRefs } from "@/server/mentions";
 import { getBreadcrumbs } from "@/server/pages";
 import {
@@ -205,5 +205,7 @@ export async function printDocument(userId: string, pageId: string, { subpages =
       if (index === 0) throw error;
     }
   }
+  // Opening the print view is how a page is exported as PDF.
+  await recordExport(userId, { workspaceId: root.workspaceId, page: { id: root.id, title: root.title }, format: "pdf", pages: sections.length });
   return { workspaceId: root.workspaceId, sections, truncated };
 }

@@ -9,3 +9,4 @@ export * from "./api-tokens";
 export * from "./sso";
 export * from "./groups";
 export * from "./ai";
+export * from "./audit";

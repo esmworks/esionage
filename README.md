@@ -91,6 +91,12 @@ approve them over OAuth.
   owners, Settings → Analytics: active members, edits per person and the most edited pages over
   7, 30 or 90 days, with CSV export. Counted from page history and last edits; nothing extra is
   tracked.
+- **Audit log**: for owners, Settings → Audit log lists who changed what in the workspace (members
+  and roles, invitations and join requests, page sharing, teamspaces and groups, settings with
+  their before and after, single sign-on and SCIM, permanent deletes, publishing, API tokens and
+  connected apps, exports), with the app or identity provider it went through and the address it
+  came from, newest first, filtered by person, kind of change and dates, and as CSV. Events are
+  kept for a year.
 - **Publish to the web**: a read-only public link for a page and its subpages, kept out of search
   engines unless you allow them. Published databases show the views you pick (tables, boards,
   lists, galleries) and visitors switch between them. Owners decide whether members may publish,
@@ -262,8 +268,9 @@ trash brings the subpages trashed with it.
 Pages stay in the trash for the time owners choose in Settings > Security > Data retention (30
 days by default, or forever); once a day the server deletes the pages whose time is up, with their
 files, and prunes old page history (versions older than 90 days or past the newest 200 of a page;
-saved versions and those from before a restore stay a year). Production servers run this cleanup;
-set `RETENTION_JOB=on` or `off` to decide otherwise (a dev server doesn't run it unless it is `on`).
+saved versions and those from before a restore stay a year) and the audit log's events older than
+a year. Production servers run this cleanup; set `RETENTION_JOB=on` or `off` to decide otherwise
+(a dev server doesn't run it unless it is `on`).
 
 The ZIP is streamed while it is built, one download at a time per person. Larger exports are
 refused up front with a message:

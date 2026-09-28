@@ -27,6 +27,7 @@ import {
   requirePageAccess,
   workspacesHeldBack,
 } from "@/server/access";
+import { recordAudit } from "@/server/audit";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import {
   announceAssignments,
@@ -416,7 +417,7 @@ export async function restorePage(userId: string, pageId: string) {
 export async function deletePagePermanently(userId: string, pageId: string) {
   const p = await requirePageAccess(userId, pageId, "full");
   if (!p.archivedAt) throw new Error("Move the page to the trash before deleting it");
-  await deleteTrashedPages(p.workspaceId, [pageId]);
+  await deleteTrashedPages(p.workspaceId, [pageId], userId);
 }
 
 /**
@@ -424,14 +425,27 @@ export async function deletePagePermanently(userId: string, pageId: string) {
  * which go with the page), then the uploads no other page shows. Pages taken out of the trash in
  * the meantime are left alone. Returns the ids deleted. No access check: deletePagePermanently
  * checks the person, the retention cleanup (server/retention.ts) acts for the workspace.
+ *
+ * Each page deleted is recorded in the audit log, as `actorId`'s doing or, for null, the server's.
  */
-export async function deleteTrashedPages(workspaceId: string, pageIds: string[]) {
+export async function deleteTrashedPages(workspaceId: string, pageIds: string[], actorId: string | null = null) {
   if (!pageIds.length) return [];
   const deleted = await db
     .delete(page)
     .where(and(eq(page.workspaceId, workspaceId), inArray(page.id, pageIds), isNotNull(page.archivedAt)))
-    .returning({ id: page.id });
+    .returning({ id: page.id, title: page.title, kind: page.kind });
   if (!deleted.length) return [];
+  // After the delete, which is one statement: the titles came back from it.
+  await recordAudit(
+    deleted.map((d) => ({
+      workspaceId,
+      actorId,
+      action: "page.deleted" as const,
+      target: { type: "page" as const, id: d.id, label: d.title },
+      details: { kind: d.kind },
+    })),
+  );
+
   getCollab().broadcast(`ws:${workspaceId}`, "tree");
   await removeOrphanFiles(workspaceId);
   return deleted.map((d) => d.id);

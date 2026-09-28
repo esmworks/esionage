@@ -1,9 +1,22 @@
-import { Boxes, ChartColumn, ContactRound, Globe, Settings, Shield, UserRound, Users, UsersRound, type LucideIcon } from "lucide-react";
+import {
+  Boxes,
+  ChartColumn,
+  ContactRound,
+  Globe,
+  ScrollText,
+  Settings,
+  Shield,
+  UserRound,
+  Users,
+  UsersRound,
+  type LucideIcon,
+} from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTimeZone, getTranslations } from "next-intl/server";
 import { AnalyticsPanel } from "@/components/settings/analytics-panel";
+import { AuditPanel } from "@/components/settings/audit-panel";
 import { GroupsPanel } from "@/components/settings/groups-panel";
 import { GuestsPanel } from "@/components/settings/guests-panel";
 import { AiSettings } from "@/components/settings/ai-settings";
@@ -35,11 +48,13 @@ import { TeamspacesPanel } from "@/components/settings/teamspaces-panel";
 import { WorkspaceExport } from "@/components/settings/workspace-export";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { parseAnalyticsPeriod } from "@/lib/analytics";
+import { parseAuditFilters } from "@/lib/audit";
 import { isStrongSession } from "@/lib/auth-security";
 import { type SettingsTab, visibleSettingsTabs } from "@/lib/settings-tabs";
 import { AccessError, isGuest } from "@/server/access";
 import { aiInfo, embeddingModel } from "@/server/ai";
 import { workspaceAnalytics } from "@/server/analytics";
+import { auditActors, listAuditEvents } from "@/server/audit";
 import { listWorkspaceFormPublications } from "@/server/forms";
 import { listJoinRequests } from "@/server/join-requests";
 import { mailStatus } from "@/server/mail";
@@ -79,6 +94,7 @@ const ICONS: Record<SettingsTab, LucideIcon> = {
   groups: UsersRound,
   analytics: ChartColumn,
   security: Shield,
+  audit: ScrollText,
   site: Globe,
 };
 
@@ -176,6 +192,7 @@ export default async function SettingsPage({
           {tab === "groups" && <GroupsTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "analytics" && <AnalyticsTab workspaceId={workspaceId} userId={user.id} days={query.days} />}
           {tab === "security" && <SecurityTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
+          {tab === "audit" && <AuditTab workspaceId={workspaceId} userId={user.id} query={query} />}
           {tab === "site" && (
             <SiteTab workspaceId={workspaceId} workspaceName={workspace.name} userId={user.id} isOwner={isOwner} />
           )}
@@ -405,6 +422,26 @@ async function AnalyticsTab({ workspaceId, userId, days }: { workspaceId: string
   const now = new Date();
   const report = await workspaceAnalytics(userId, workspaceId, parseAnalyticsPeriod(days), now);
   return <AnalyticsPanel workspaceId={workspaceId} report={report} now={now} />;
+}
+
+/** Settings > Audit log, for owners (the tab isn't offered to anyone else, and the list refuses them). */
+async function AuditTab({
+  workspaceId,
+  userId,
+  query,
+}: {
+  workspaceId: string;
+  userId: string;
+  query: Record<string, string | string[] | undefined>;
+}) {
+  const filters = parseAuditFilters(query);
+  // The date range is in days of the viewer's clock (the time zone cookie, UTC without one).
+  const timeZone = await getTimeZone();
+  const [{ events, hasMore }, actors] = await Promise.all([
+    listAuditEvents(userId, workspaceId, filters, { timeZone }),
+    auditActors(userId, workspaceId),
+  ]);
+  return <AuditPanel workspaceId={workspaceId} events={events} hasMore={hasMore} filters={filters} actors={actors} />;
 }
 
 async function TeamspacesTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {

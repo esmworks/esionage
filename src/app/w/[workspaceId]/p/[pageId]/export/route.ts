@@ -13,6 +13,7 @@ import {
   pageMarkdown,
   planExport,
   planSummary,
+  recordExport,
   startExport,
 } from "@/server/export";
 import { exportLabels } from "@/server/export-labels";
@@ -67,7 +68,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
       }
       const release = startExport(userId);
       try {
-        return archiveResponse(userId, await planExport(userId, { pageId }, labels), labels, release);
+        return await archiveResponse(userId, await planExport(userId, { pageId }, labels), labels, release);
       } catch (error) {
         release();
         throw error;
@@ -80,6 +81,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
     }
     const { title, body } = await pageMarkdown(userId, pageId, labels);
     const name = title || target.title;
+    await recordExport(userId, { workspaceId: target.workspaceId, page: { id: pageId, title: name }, format: "markdown" });
     return download(markdownFile(name, body), "text/markdown", attachment(pageLabel(name, labels.untitled), "md"));
   } catch (error) {
     if (error instanceof AccessError) return new Response("Not found", { status: 404 });

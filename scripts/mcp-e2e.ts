@@ -2,7 +2,7 @@
  * End-to-end check of the remote MCP server against a running app (`pnpm dev`):
  * discovery, DCR, sign-in continuation, consent (deny, read-only, full), authorization
  * code + PKCE with `resource`, refresh, MCP tool calls on both protocol eras, scope
- * step-up for writes, and revocation. Signs up its own @example.test user and deletes it
+ * step-up for writes, and revocation (both recorded in the audit log). Signs up its own @example.test user and deletes it
  * afterwards, with its workspace (and everything the run created in it) and the OAuth clients.
  *
  *   pnpm tsx scripts/mcp-e2e.ts
@@ -825,6 +825,21 @@ async function main() {
   check(!refreshAfter.ok, "revoked app's refresh token is rejected", refreshAfter.status);
   const appsAfter = await listConnectedApps(me.id);
   check(!appsAfter.some((x) => x.clientId === full.client_id || x.clientId === ro.client_id), "revoked apps disappear from connected apps");
+
+  // The workspace's audit log has each app connected on the consent page, and disconnected.
+  const { auditEvent } = await import("@/db/schema");
+  const { and, inArray: within } = await import("drizzle-orm");
+  const logged = await db
+    .select({ action: auditEvent.action, targetId: auditEvent.targetId, actorUserId: auditEvent.actorUserId })
+    .from(auditEvent)
+    .where(and(within(auditEvent.workspaceId, workspaceIds), within(auditEvent.targetId, [full.client_id, ro.client_id])));
+  const loggedAs = (action: string, clientId: string) => logged.some((e) => e.action === action && e.targetId === clientId && e.actorUserId === me.id);
+  check(
+    loggedAs("connected_app.connected", full.client_id) && loggedAs("connected_app.connected", ro.client_id),
+    "the audit log records apps connected on the consent page",
+    logged,
+  );
+  check(loggedAs("connected_app.revoked", full.client_id) && loggedAs("connected_app.revoked", ro.client_id), "…and disconnected", logged);
 
   console.log(`\nAll ${passed} checks passed.`);
 }
