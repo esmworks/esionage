@@ -7,6 +7,7 @@
     "general": "Général",
     "members": "Membres",
     "teamspaces": "Espaces d’équipe",
+    "groups": "Groupes",
     "security": "Sécurité",
     "site": "Site",
     "myAccount": "Mon compte"
@@ -52,6 +53,7 @@
       "user": "Utilisateur",
       "role": "Rôle",
       "teamspaces": "Espaces d’équipe",
+      "groups": "Groupes",
       "joined": "Arrivée",
       "lastEdited": "Dernière modification",
       "actions": "Actions",
@@ -68,6 +70,8 @@
     },
     "teamspaceCount": "{count, plural, one {# espace d’équipe} other {# espaces d’équipe}}",
     "teamspacesOf": "Espaces d’équipe de {name}",
+    "groupCount": "{count, plural, one {# groupe} other {# groupes}}",
+    "groupsOf": "Groupes de {name}",
     "neverEdited": "Aucune modification",
     "actionsFor": "Actions pour {name}",
     "transfer": "Transférer la propriété",
@@ -159,6 +163,55 @@
       "title": "Seuls les propriétaires de l’espace de travail peuvent créer des espaces d’équipe",
       "description": "Désactivé : les propriétaires et les membres peuvent créer des espaces d’équipe. Les invités ne le peuvent jamais.",
       "ownersOnly": "Seuls les propriétaires de l’espace de travail peuvent modifier ce paramètre."
+    }
+  },
+  "groups": {
+    "heading": "Groupes",
+    "description": "Les groupes rassemblent des personnes pour partager une page avec toutes à la fois ou les ajouter d’un coup à un espace d’équipe. Qui rejoint un groupe obtient ce que le groupe possède ; qui le quitte le perd. Seuls les propriétaires et les membres peuvent faire partie de groupes, pas les invités.",
+    "ownersOnly": "Seuls les propriétaires de l’espace de travail peuvent créer et modifier des groupes.",
+    "newButton": "Nouveau groupe",
+    "search": "Rechercher des groupes",
+    "empty": "Aucun groupe pour l’instant.",
+    "emptyOwner": "Aucun groupe pour l’instant. Créez-en un pour partager des pages avec plusieurs personnes à la fois.",
+    "noMatches": "Aucun groupe ne correspond à votre recherche.",
+    "memberCount": "{count, plural, =0 {Aucun membre} one {# membre} other {# membres}}",
+    "columns": {
+      "group": "Groupe",
+      "members": "Membres",
+      "teamspaces": "Espaces d’équipe",
+      "actions": "Actions"
+    },
+    "actionsFor": "Actions pour {name}",
+    "manageMembers": "Gérer les membres",
+    "viewMembers": "Voir les membres",
+    "rename": "Renommer",
+    "delete": "Supprimer le groupe",
+    "createTitle": "Nouveau groupe",
+    "renameTitle": "Renommer le groupe",
+    "name": "Nom",
+    "namePlaceholder": "Design, Support, Direction…",
+    "create": "Créer le groupe",
+    "creating": "Création…",
+    "deleteTitle": "Supprimer {name} ?",
+    "deleteBody": "Ses membres gardent l’accès qu’ils ont par eux-mêmes. Ce que le groupe avait reçu sur des pages et dans des espaces d’équipe disparaît, et les pages ouvertes qu’ils ne peuvent plus voir se ferment. Les pages que seul le groupe pouvait gérer vous reviennent.",
+    "members": {
+      "title": "Membres de {name}",
+      "list": "Personnes de ce groupe",
+      "empty": "Personne ne fait encore partie de ce groupe.",
+      "add": "Ajouter des personnes",
+      "search": "Rechercher des personnes",
+      "select": "Sélectionner {name}",
+      "addSelected": "{count, plural, =0 {Ajouter des personnes} other {Ajouter #}}",
+      "noOneToAdd": "Tous les propriétaires et membres de l’espace de travail font déjà partie de ce groupe.",
+      "noMatches": "Personne ne correspond à votre recherche.",
+      "remove": "Retirer {name}",
+      "guestsHint": "Les invités ne peuvent pas faire partie de groupes."
+    },
+    "errors": {
+      "nameRequired": "Donnez un nom au groupe.",
+      "nameTaken": "Un autre groupe porte déjà ce nom.",
+      "notMember": "Seuls les propriétaires et les membres de l’espace de travail peuvent faire partie de ses groupes.",
+      "accessDenied": "Seuls les propriétaires de l’espace de travail peuvent modifier les groupes."
     }
   },
   "preferences": {

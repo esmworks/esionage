@@ -7,6 +7,7 @@
     "general": "Genel",
     "members": "Üyeler",
     "teamspaces": "Teamspace'ler",
+    "groups": "Gruplar",
     "security": "Güvenlik",
     "site": "Site",
     "myAccount": "Hesabım"
@@ -52,6 +53,7 @@
       "user": "Kullanıcı",
       "role": "Rol",
       "teamspaces": "Teamspace'ler",
+      "groups": "Gruplar",
       "joined": "Katılma",
       "lastEdited": "Son düzenleme",
       "actions": "İşlemler",
@@ -68,6 +70,8 @@
     },
     "teamspaceCount": "{count, plural, one {# teamspace} other {# teamspace}}",
     "teamspacesOf": "{name} adlı üyenin teamspace'leri",
+    "groupCount": "{count, plural, one {# grup} other {# grup}}",
+    "groupsOf": "{name} adlı üyenin grupları",
     "neverEdited": "Henüz düzenleme yok",
     "actionsFor": "{name} için işlemler",
     "transfer": "Sahip yap ve sahiplikten çekil",
@@ -159,6 +163,55 @@
       "title": "Teamspace'leri yalnızca çalışma alanı sahipleri oluşturabilir",
       "description": "Kapalıyken sahipler ve üyeler teamspace oluşturabilir. Misafirler hiçbir zaman oluşturamaz.",
       "ownersOnly": "Bunu yalnızca çalışma alanı sahipleri değiştirebilir."
+    }
+  },
+  "groups": {
+    "heading": "Gruplar",
+    "description": "Gruplar kişileri bir araya getirir; böylece bir sayfayı hepsiyle paylaşabilir ya da hepsini bir teamspace'e tek seferde ekleyebilirsiniz. Gruba katılan, grubun erişimini alır; gruptan ayrılan kaybeder. Gruplarda yalnızca sahipler ve üyeler olabilir, misafirler olamaz.",
+    "ownersOnly": "Grupları yalnızca çalışma alanı sahipleri oluşturup değiştirebilir.",
+    "newButton": "Yeni grup",
+    "search": "Grup ara",
+    "empty": "Henüz grup yok.",
+    "emptyOwner": "Henüz grup yok. Sayfaları birkaç kişiyle tek seferde paylaşmak için bir grup oluşturun.",
+    "noMatches": "Aramanıza uyan grup yok.",
+    "memberCount": "{count, plural, =0 {Üye yok} one {# üye} other {# üye}}",
+    "columns": {
+      "group": "Grup",
+      "members": "Üyeler",
+      "teamspaces": "Teamspace'ler",
+      "actions": "İşlemler"
+    },
+    "actionsFor": "{name} için işlemler",
+    "manageMembers": "Üyeleri yönet",
+    "viewMembers": "Üyeleri gör",
+    "rename": "Yeniden adlandır",
+    "delete": "Grubu sil",
+    "createTitle": "Yeni grup",
+    "renameTitle": "Grubu yeniden adlandır",
+    "name": "Ad",
+    "namePlaceholder": "Tasarım, Destek, Yönetim…",
+    "create": "Grup oluştur",
+    "creating": "Oluşturuluyor…",
+    "deleteTitle": "{name} silinsin mi?",
+    "deleteBody": "Üyeleri kendi erişimlerini korur. Gruba sayfalarda ve teamspace'lerde verilen erişim kalkar; artık göremedikleri açık sayfalar kapanır. Yalnızca grubun yönetebildiği sayfalar size geçer.",
+    "members": {
+      "title": "{name} üyeleri",
+      "list": "Bu gruptaki kişiler",
+      "empty": "Bu grupta henüz kimse yok.",
+      "add": "Kişi ekle",
+      "search": "Kişi ara",
+      "select": "{name} adlı kişiyi seç",
+      "addSelected": "{count, plural, =0 {Kişi ekle} other {# kişiyi ekle}}",
+      "noOneToAdd": "Çalışma alanının tüm sahipleri ve üyeleri zaten bu grupta.",
+      "noMatches": "Aramanıza uyan kimse yok.",
+      "remove": "{name} adlı kişiyi çıkar",
+      "guestsHint": "Misafirler gruplarda olamaz."
+    },
+    "errors": {
+      "nameRequired": "Gruba bir ad verin.",
+      "nameTaken": "Bu adda başka bir grup var.",
+      "notMember": "Gruplarda yalnızca çalışma alanının sahipleri ve üyeleri olabilir.",
+      "accessDenied": "Grupları yalnızca çalışma alanı sahipleri değiştirebilir."
     }
   },
   "preferences": {

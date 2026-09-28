@@ -7,6 +7,7 @@
     "general": "General",
     "members": "Members",
     "teamspaces": "Teamspaces",
+    "groups": "Groups",
     "security": "Security",
     "site": "Site",
     "myAccount": "My account"
@@ -52,6 +53,7 @@
       "user": "User",
       "role": "Role",
       "teamspaces": "Teamspaces",
+      "groups": "Groups",
       "joined": "Joined",
       "lastEdited": "Last edit",
       "actions": "Actions",
@@ -68,6 +70,8 @@
     },
     "teamspaceCount": "{count, plural, one {# teamspace} other {# teamspaces}}",
     "teamspacesOf": "Teamspaces of {name}",
+    "groupCount": "{count, plural, one {# group} other {# groups}}",
+    "groupsOf": "Groups of {name}",
     "neverEdited": "No edits yet",
     "actionsFor": "Actions for {name}",
     "transfer": "Make owner and step down",
@@ -159,6 +163,55 @@
       "title": "Only workspace owners can create teamspaces",
       "description": "Off: owners and members can create teamspaces. Guests never can.",
       "ownersOnly": "Only workspace owners can change this."
+    }
+  },
+  "groups": {
+    "heading": "Groups",
+    "description": "Groups bundle people so you can share a page with all of them or add them to a teamspace at once. Whoever joins a group gets what the group has; whoever leaves it loses it. Only owners and members can be in groups, not guests.",
+    "ownersOnly": "Only workspace owners can create and change groups.",
+    "newButton": "New group",
+    "search": "Search groups",
+    "empty": "No groups yet.",
+    "emptyOwner": "No groups yet. Create one to share pages with several people at once.",
+    "noMatches": "No group matches your search.",
+    "memberCount": "{count, plural, =0 {No members} one {# member} other {# members}}",
+    "columns": {
+      "group": "Group",
+      "members": "Members",
+      "teamspaces": "Teamspaces",
+      "actions": "Actions"
+    },
+    "actionsFor": "Actions for {name}",
+    "manageMembers": "Manage members",
+    "viewMembers": "View members",
+    "rename": "Rename",
+    "delete": "Delete group",
+    "createTitle": "New group",
+    "renameTitle": "Rename group",
+    "name": "Name",
+    "namePlaceholder": "Design, Support, Leadership…",
+    "create": "Create group",
+    "creating": "Creating…",
+    "deleteTitle": "Delete {name}?",
+    "deleteBody": "Its members keep the access they have on their own. What the group was given on pages and in teamspaces goes away, and open pages they can no longer see close. Pages only the group could manage pass to you.",
+    "members": {
+      "title": "Members of {name}",
+      "list": "People in this group",
+      "empty": "No one is in this group yet.",
+      "add": "Add people",
+      "search": "Search people",
+      "select": "Select {name}",
+      "addSelected": "{count, plural, =0 {Add people} other {Add #}}",
+      "noOneToAdd": "Every owner and member of the workspace is already in this group.",
+      "noMatches": "No one matches your search.",
+      "remove": "Remove {name}",
+      "guestsHint": "Guests can't be in groups."
+    },
+    "errors": {
+      "nameRequired": "Give the group a name.",
+      "nameTaken": "Another group already has this name.",
+      "notMember": "Only owners and members of the workspace can be in its groups.",
+      "accessDenied": "Only workspace owners can change groups."
     }
   },
   "preferences": {

@@ -1,25 +1,28 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { Search, UsersRound, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import {
+  addTeamspaceGroupsAction,
   addTeamspaceMembersAction,
+  listTeamspaceGroupsAction,
   listTeamspaceMembersAction,
+  removeTeamspaceGroupAction,
   removeTeamspaceMemberAction,
   setTeamspaceRoleAction,
 } from "@/app/actions/teamspaces";
 import { selectClass, useAction } from "@/components/settings/workspace-settings";
 import { Button, cn, Dialog, IconButton, Input } from "@/components/ui";
 import type { TeamspaceRole } from "@/db/schema/app";
-import type { TeamspacePerson, TeamspaceSummary } from "@/server/teamspaces";
+import type { TeamspaceGroupSummary, TeamspacePerson, TeamspaceSummary } from "@/server/teamspaces";
 
 type WorkspacePerson = { userId: string; name: string; email: string; role: "owner" | "member" | "guest" };
 
 /**
- * Who is in a teamspace. Its managers change roles, remove people and add owners and members of
- * the workspace; everyone else sees the list. A default teamspace has everyone in it, so there it
- * only picks owners.
+ * Who is in a teamspace: people, and groups whose members are all in it. Its managers change
+ * roles, remove people and add owners and members of the workspace or its groups; everyone else
+ * sees the lists. A default teamspace has everyone in it, so there it only picks owners.
  */
 export function TeamspaceMembersDialog({
   workspaceId,
@@ -145,7 +148,9 @@ function MembersBody({
                   {person.name}
                   {person.userId === currentUserId && <span className="font-normal text-fg-muted"> {t("members.you")}</span>}
                 </div>
-                <div className="truncate text-xs text-fg-muted">{person.email}</div>
+                <div className="truncate text-xs text-fg-muted">
+                  {person.direct ? person.email : t("members.viaGroups", { groups: person.groups.join(", ") })}
+                </div>
               </div>
               {canManage ? (
                 <select
@@ -166,8 +171,9 @@ function MembersBody({
               ) : (
                 <span className="shrink-0 text-fg-muted">{t(`roles.${person.role}`)}</span>
               )}
-              {/* Nobody leaves a default teamspace; there only the role changes. */}
-              {canManage && !isDefault && (
+              {/* Nobody leaves a default teamspace; there only the role changes. People in it through
+                  a group leave with the group. */}
+              {canManage && !isDefault && person.direct && (
                 <IconButton
                   label={t("members.remove", { name: person.name })}
                   disabled={pending}
@@ -181,12 +187,129 @@ function MembersBody({
         </ul>
       )}
 
+      {!isDefault && (
+        <Groups
+          workspaceId={workspaceId}
+          teamspaceId={teamspace.id}
+          canManage={canManage}
+          version={version}
+          pending={pending}
+          run={run}
+          onChanged={changed}
+        />
+      )}
+
       <div className="flex justify-end">
         <Button variant="ghost" onClick={onClose}>
           {tc("close")}
         </Button>
       </div>
     </div>
+  );
+}
+
+/** The groups in the teamspace; its managers add the workspace's groups and take them out. */
+function Groups({
+  workspaceId,
+  teamspaceId,
+  canManage,
+  version,
+  pending,
+  run,
+  onChanged,
+}: {
+  workspaceId: string;
+  teamspaceId: string;
+  canManage: boolean;
+  /** Changes after every change in the dialog, to load the list again. */
+  version: number;
+  pending: boolean;
+  run: ReturnType<typeof useAction>["run"];
+  onChanged: () => void;
+}) {
+  const t = useTranslations("teamspaces.members");
+  const [data, setData] = useState<{ groups: TeamspaceGroupSummary[]; options: { id: string; name: string }[] } | null>(null);
+  const [choice, setChoice] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    listTeamspaceGroupsAction(workspaceId, teamspaceId)
+      .then((result) => !cancelled && result.ok && setData(result.data))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId, teamspaceId, version]);
+
+  if (!data) return null;
+  const available = data.options.filter((o) => !data.groups.some((g) => g.id === o.id));
+  // Nothing to show or do: no groups in it, and none the viewer could add.
+  if (!data.groups.length && !(canManage && available.length)) return null;
+
+  return (
+    <section className="space-y-2">
+      <div>
+        <h3 className="text-sm font-medium">{t("groups")}</h3>
+        <p className="text-xs text-fg-muted">{t("groupsHint")}</p>
+      </div>
+      {data.groups.length ? (
+        <ul aria-label={t("groups")} className="divide-y divide-border rounded-md border border-border">
+          {data.groups.map((group) => (
+            <li key={group.id} className="flex items-center gap-2.5 px-3 py-2 text-sm">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-bg-active text-fg-muted" aria-hidden>
+                <UsersRound className="h-3.5 w-3.5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium">{group.name}</div>
+                <div className="truncate text-xs text-fg-muted">{t("groupMemberCount", { count: group.memberCount })}</div>
+              </div>
+              {canManage && (
+                <IconButton
+                  label={t("removeGroup", { name: group.name })}
+                  disabled={pending}
+                  onClick={() => run(() => removeTeamspaceGroupAction(workspaceId, teamspaceId, group.id), onChanged)}
+                >
+                  <X className="h-4 w-4" />
+                </IconButton>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-fg-muted">{t("noGroups")}</p>
+      )}
+      {canManage && available.length > 0 && (
+        <div className="flex items-center gap-2">
+          <select
+            aria-label={t("chooseGroup")}
+            className={cn(selectClass, "min-w-0 flex-1")}
+            value={choice}
+            onChange={(e) => setChoice(e.target.value)}
+          >
+            <option value="">{t("chooseGroup")}</option>
+            {available.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+          <Button
+            disabled={pending || !choice}
+            onClick={() =>
+              run(
+                () => addTeamspaceGroupsAction(workspaceId, teamspaceId, [choice]),
+                () => {
+                  setChoice("");
+                  onChanged();
+                },
+              )
+            }
+          >
+            {t("addGroupButton")}
+          </Button>
+        </div>
+      )}
+    </section>
   );
 }
 

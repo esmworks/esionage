@@ -56,11 +56,17 @@ describe("pageVisibleTo", () => {
 /**
  * Page access must be decided in access.ts only. A query that joins workspace_member elsewhere
  * would bypass page-level sharing once it exists, so membership tables may only appear in the
- * access module and in workspace/member management.
+ * access module and in workspace/member management (groups.ts: who may be in a member group).
  */
 describe("access checks stay in one place", () => {
   const root = join(__dirname, "..");
-  const ALLOWED = new Set(["server/access.ts", "server/permissions.ts", "server/workspaces.ts", "server/teamspaces.ts"]);
+  const ALLOWED = new Set([
+    "server/access.ts",
+    "server/permissions.ts",
+    "server/workspaces.ts",
+    "server/teamspaces.ts",
+    "server/groups.ts",
+  ]);
 
   function sources(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

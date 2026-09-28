@@ -8,6 +8,7 @@ import {
   page,
   pageInvitation,
   passkey,
+  pageGroupPermission,
   pagePermission,
   user,
   workspace,
@@ -24,6 +25,7 @@ import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
 import { AccessError, findMembership, FULL_RANK, getMembership, isGuest, requireMember, requireMembership } from "@/server/access";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
+import { dropFromGroups } from "@/server/groups";
 import { dropFromTeamspaces, setUpGeneralTeamspace } from "@/server/teamspaces";
 
 /** "Erhan's workspace" / "Erhan'ın çalışma alanı", in the language of the sign-up request. */
@@ -552,7 +554,11 @@ export async function setMemberRole(actorId: string, workspaceId: string, target
       .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetId)));
     // Becoming a guest strands no page: what they had as a member through the defaults or
     // "everyone", owners have too, and their own entries keep applying. Guests aren't in teamspaces.
-    if (isGuest(role) && !isGuest(current.role)) await dropFromTeamspaces(tx, workspaceId, targetId, actorId);
+    // Nor in groups: a group's pages and teamspaces are for owners and members.
+    if (isGuest(role) && !isGuest(current.role)) {
+      await dropFromTeamspaces(tx, workspaceId, targetId, actorId);
+      await dropFromGroups(tx, workspaceId, targetId);
+    }
     return current.role;
   });
   // Open editors keep the access checked when they connected. Owners and members see pages alike,
@@ -688,10 +694,11 @@ export async function oldestOwner(tx: Tx, workspaceId: string) {
 }
 
 /**
- * After someone leaves the workspace, gives `heirId` full access to every page nobody in the
- * workspace can manage any more, so no page is stranded where nobody can share or delete it.
- * Only pages with entries of their own can be stranded: the others inherit from a parent, or are
- * open to every member. Private pages stay private from everyone else.
+ * After someone leaves the workspace (or a group loses a member or is deleted), gives `heirId` full
+ * access to every page nobody in the workspace can manage any more, so no page is stranded where
+ * nobody can share or delete it. Only pages with entries of their own (for people or groups) can be
+ * stranded: the others inherit from a parent, or are open to every member. Private pages stay
+ * private from everyone else.
  */
 export async function handOverOrphanedPages(tx: Tx, workspaceId: string, heirId: string) {
   // Same lock as sharing changes, so one can't strand a page this has just checked.
@@ -701,7 +708,8 @@ export async function handOverOrphanedPages(tx: Tx, workspaceId: string, heirId:
     select gen_random_uuid()::text, p.id, p.workspace_id, ${heirId}, 'full', ${heirId}
     from ${page} p
     where p.workspace_id = ${workspaceId}
-      and exists (select 1 from ${pagePermission} pp where pp.page_id = p.id)
+      and (exists (select 1 from ${pagePermission} pp where pp.page_id = p.id)
+        or exists (select 1 from ${pageGroupPermission} gp where gp.page_id = p.id))
       and not exists (
         select 1 from ${workspaceMember} wm
         where wm.workspace_id = ${workspaceId} and page_access_level(wm.user_id, p.id) = ${FULL_RANK}

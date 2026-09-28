@@ -1,5 +1,6 @@
 import { toCsv } from "@/lib/csv";
 import { AccessError, requireMembership } from "@/server/access";
+import { groupsByMember } from "@/server/groups";
 import { blockedByTwoFactorPolicy, getSession } from "@/server/session";
 import { lastEdits, listMembers } from "@/server/workspaces";
 
@@ -11,13 +12,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ wor
   if (await blockedByTwoFactorPolicy(session, workspaceId)) return new Response("Two-step verification required", { status: 403 });
   try {
     await requireMembership(session.user.id, workspaceId, "owner");
-    const [members, edits] = await Promise.all([
+    const [members, edits, groups] = await Promise.all([
       listMembers(session.user.id, workspaceId),
       lastEdits(session.user.id, workspaceId),
+      groupsByMember(session.user.id, workspaceId),
     ]);
     const csv = toCsv([
-      ["name", "email", "role", "joined_at", "last_edited_at"],
-      ...members.map((m) => [m.name, m.email, m.role, m.joinedAt, edits.get(m.userId) ?? null]),
+      ["name", "email", "role", "joined_at", "last_edited_at", "groups"],
+      ...members.map((m) => [
+        m.name,
+        m.email,
+        m.role,
+        m.joinedAt,
+        edits.get(m.userId) ?? null,
+        (groups.get(m.userId) ?? []).map((g) => g.name).join(", "),
+      ]),
     ]);
     const date = new Date().toISOString().slice(0, 10);
     return new Response(csv, {

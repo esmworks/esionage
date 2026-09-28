@@ -4,11 +4,14 @@ import { revalidatePath } from "next/cache";
 import type { PageLevel } from "@/db/schema";
 import { AccessError, resolvePageAccess } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
+import { listGroups } from "@/server/groups";
 import {
   listPagePermissions,
   PermissionError,
+  removePageGroupPermission,
   removePageInvitation,
   removePagePermission,
+  setPageGroupPermission,
   setPagePermission,
   sharePageByEmail,
   type ShareByEmailResult,
@@ -19,25 +22,28 @@ import { canInviteGuests, listMembers } from "@/server/workspaces";
 export type SharingErrorCode = "notMember" | "lastFullAccess" | "invalidEmail" | "invitesRestricted" | "accessDenied" | "generic";
 export type SharingResult<T = unknown> = { ok: true; data?: T } | { ok: false; code: SharingErrorCode };
 
-/** Who the page is shared with, plus the workspace members it can be shared with. */
+/** Who the page is shared with, plus the workspace members and groups it can be shared with. */
 export async function getSharingAction(pageId: string) {
   const userId = await requireUserId();
   const { page: target, level } = await resolvePageAccess(userId, pageId);
   if (!target || level === "none") throw new AccessError();
-  const [permissions, canInvite, members] = await Promise.all([
+  const noneForGuests = (error: unknown) => {
+    if (error instanceof AccessError) return [];
+    throw error;
+  };
+  const [permissions, canInvite, members, groups] = await Promise.all([
     listPagePermissions(userId, pageId),
     canInviteGuests(userId, target.workspaceId),
     // Guests can't see who is in the workspace, so they get no one to pick from.
-    listMembers(userId, target.workspaceId).catch((error) => {
-      if (error instanceof AccessError) return [];
-      throw error;
-    }),
+    listMembers(userId, target.workspaceId).catch(noneForGuests),
+    listGroups(userId, target.workspaceId).catch(noneForGuests),
   ]);
   return {
     ...permissions,
     /** Whether they may share with people outside the workspace (Settings > Security). */
     canInvite,
     members: members.map((m) => ({ userId: m.userId, name: m.name, email: m.email, image: m.image, role: m.role })),
+    groupOptions: groups.map((g) => ({ groupId: g.id, name: g.name, memberCount: g.memberCount })),
   };
 }
 
@@ -71,6 +77,15 @@ export async function setPagePermissionAction(pageId: string, principal: string 
 
 export async function removePagePermissionAction(pageId: string, principal: string | null) {
   return change(pageId, (userId) => removePagePermission(userId, pageId, principal));
+}
+
+/** What a group of the page's workspace gets on the page. */
+export async function setPageGroupPermissionAction(pageId: string, groupId: string, level: PageLevel) {
+  return change(pageId, (userId) => setPageGroupPermission(userId, pageId, groupId, level));
+}
+
+export async function removePageGroupPermissionAction(pageId: string, groupId: string) {
+  return change(pageId, (userId) => removePageGroupPermission(userId, pageId, groupId));
 }
 
 /** Shares the page with an email address: a member, an account to add as a guest, or an invitation. */

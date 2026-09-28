@@ -531,6 +531,39 @@ export function createCollab() {
         }
       }
     },
+
+    async disconnectLostAccess(workspaceId, userIds) {
+      const who = new Set(userIds);
+      if (!who.size) return;
+      const open: { pageId: string; connections: ReturnType<Document["getConnections"]> }[] = [];
+      for (const doc of hocuspocus.documents.values()) {
+        const target = parseName(doc.name);
+        if (!target || target.kind === "ws") continue;
+        const connections = doc.getConnections().filter((c) => {
+          const userId = (c.context as Context).userId;
+          return userId !== undefined && who.has(userId);
+        });
+        if (connections.length) open.push({ pageId: target.id, connections });
+      }
+      if (!open.length) return;
+      const pairs = open.flatMap(({ pageId, connections }) =>
+        [...new Set(connections.map((c) => (c.context as Context).userId!))].map((userId) => ({ user_id: userId, page_id: pageId })),
+      );
+      const rows = await db.execute<{ user_id: string; page_id: string; level: number }>(sql`
+        select x.user_id, x.page_id, page_access_level(x.user_id, x.page_id)::int as level
+        from jsonb_to_recordset(${JSON.stringify(pairs)}::jsonb) as x(user_id text, page_id text)
+        join ${page} p on p.id = x.page_id and p.workspace_id = ${workspaceId}
+      `);
+      const levels = new Map(rows.map((r) => [`${r.user_id}:${r.page_id}`, Number(r.level)]));
+      for (const { pageId, connections } of open) {
+        for (const connection of connections) {
+          const level = levels.get(`${(connection.context as Context).userId}:${pageId}`);
+          if (level === undefined) continue; // another workspace's page
+          // 1 view, 2 comment, 3 edit (page_access_level): below edit, a writable connection is out of date.
+          if (level < 1 || (!connection.readOnly && level < 3)) connection.close({ code: 4403, reason: "Forbidden" });
+        }
+      }
+    },
   };
 
   /** Closes the connections to the workspace's documents (signals, pages, databases) that match. */

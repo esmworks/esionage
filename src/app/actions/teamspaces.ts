@@ -4,16 +4,20 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import type { TeamspaceAccess, TeamspaceRole } from "@/db/schema";
 import { AccessError } from "@/server/access";
+import { listGroups } from "@/server/groups";
 import { requireUserId } from "@/server/session";
 import {
+  addTeamspaceGroups,
   addTeamspaceMembers,
   canCreateTeamspace,
   createTeamspace,
   isTeamspaceAccess,
   joinTeamspace,
   leaveTeamspace,
+  listTeamspaceGroups,
   listTeamspaceMembers,
   listTeamspaces,
+  removeTeamspaceGroup,
   removeTeamspaceMember,
   setTeamspaceArchived,
   setTeamspaceRole,
@@ -120,6 +124,33 @@ export async function removeTeamspaceMemberAction(workspaceId: string, teamspace
 
 export async function setTeamspaceRoleAction(workspaceId: string, teamspaceId: string, targetId: string, role: TeamspaceRole) {
   const result = await run((userId) => setTeamspaceRole(userId, teamspaceId, targetId, role === "owner" ? "owner" : "member"));
+  refresh(workspaceId);
+  return result;
+}
+
+/** The groups in a teamspace, and the workspace's groups (owners and members see them). */
+export async function listTeamspaceGroupsAction(workspaceId: string, teamspaceId: string) {
+  return run(async (userId) => {
+    const [groups, all] = await Promise.all([
+      listTeamspaceGroups(userId, teamspaceId),
+      listGroups(userId, workspaceId).catch((error) => {
+        if (error instanceof AccessError) return [];
+        throw error;
+      }),
+    ]);
+    return { groups, options: all.map((g) => ({ id: g.id, name: g.name, memberCount: g.memberCount })) };
+  });
+}
+
+export async function addTeamspaceGroupsAction(workspaceId: string, teamspaceId: string, groupIds: string[]) {
+  if (!Array.isArray(groupIds) || !groupIds.every((id) => typeof id === "string")) return fail("accessDenied");
+  const result = await run((userId) => addTeamspaceGroups(userId, teamspaceId, groupIds));
+  refresh(workspaceId);
+  return result;
+}
+
+export async function removeTeamspaceGroupAction(workspaceId: string, teamspaceId: string, groupId: string) {
+  const result = await run((userId) => removeTeamspaceGroup(userId, teamspaceId, groupId));
   refresh(workspaceId);
   return result;
 }

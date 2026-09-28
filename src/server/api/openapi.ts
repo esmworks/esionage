@@ -120,6 +120,24 @@ const SCHEMAS: Record<string, JsonSchema> = {
       ),
     },
   }),
+  GroupList: loose({
+    groups: {
+      type: "array",
+      items: loose(
+        {
+          id,
+          name: { type: "string" },
+          member_count: { type: "integer" },
+          members: {
+            type: "array",
+            items: loose({ id, name: { type: "string" }, email: { type: "string" } }, ["id", "name", "email"]),
+          },
+          teamspaces: { type: "array", items: loose({ id, name: { type: "string" } }, ["id", "name"]) },
+        },
+        ["id", "name", "member_count", "members", "teamspaces"],
+      ),
+    },
+  }),
   PageSummary: loose(
     {
       id,

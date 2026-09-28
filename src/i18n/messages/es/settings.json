@@ -7,6 +7,7 @@
     "general": "General",
     "members": "Miembros",
     "teamspaces": "Espacios de equipo",
+    "groups": "Grupos",
     "security": "Seguridad",
     "site": "Sitio",
     "myAccount": "Mi cuenta"
@@ -52,6 +53,7 @@
       "user": "Usuario",
       "role": "Rol",
       "teamspaces": "Espacios de equipo",
+      "groups": "Grupos",
       "joined": "Fecha de ingreso",
       "lastEdited": "Última edición",
       "actions": "Acciones",
@@ -68,6 +70,8 @@
     },
     "teamspaceCount": "{count, plural, one {# espacio de equipo} other {# espacios de equipo}}",
     "teamspacesOf": "Espacios de equipo de {name}",
+    "groupCount": "{count, plural, one {# grupo} other {# grupos}}",
+    "groupsOf": "Grupos de {name}",
     "neverEdited": "Sin ediciones todavía",
     "actionsFor": "Acciones para {name}",
     "transfer": "Hacer propietario y dejar de serlo",
@@ -159,6 +163,55 @@
       "title": "Solo los propietarios del espacio de trabajo pueden crear espacios de equipo",
       "description": "Desactivado: los propietarios y los miembros pueden crear espacios de equipo. Los invitados nunca pueden.",
       "ownersOnly": "Solo los propietarios del espacio de trabajo pueden cambiar esto."
+    }
+  },
+  "groups": {
+    "heading": "Grupos",
+    "description": "Los grupos reúnen a personas para que puedas compartir una página con todas ellas o añadirlas a un espacio de equipo de una vez. Quien entra en un grupo obtiene lo que tiene el grupo; quien sale, lo pierde. Solo los propietarios y los miembros pueden estar en grupos, no los invitados.",
+    "ownersOnly": "Solo los propietarios del espacio de trabajo pueden crear y cambiar grupos.",
+    "newButton": "Nuevo grupo",
+    "search": "Buscar grupos",
+    "empty": "Aún no hay grupos.",
+    "emptyOwner": "Aún no hay grupos. Crea uno para compartir páginas con varias personas a la vez.",
+    "noMatches": "Ningún grupo coincide con tu búsqueda.",
+    "memberCount": "{count, plural, =0 {Sin miembros} one {# miembro} other {# miembros}}",
+    "columns": {
+      "group": "Grupo",
+      "members": "Miembros",
+      "teamspaces": "Espacios de equipo",
+      "actions": "Acciones"
+    },
+    "actionsFor": "Acciones para {name}",
+    "manageMembers": "Gestionar miembros",
+    "viewMembers": "Ver miembros",
+    "rename": "Cambiar nombre",
+    "delete": "Eliminar grupo",
+    "createTitle": "Nuevo grupo",
+    "renameTitle": "Cambiar nombre del grupo",
+    "name": "Nombre",
+    "namePlaceholder": "Diseño, Soporte, Dirección…",
+    "create": "Crear grupo",
+    "creating": "Creando…",
+    "deleteTitle": "¿Eliminar {name}?",
+    "deleteBody": "Sus miembros conservan el acceso que tienen por sí mismos. Lo que el grupo recibió en páginas y espacios de equipo desaparece, y se cierran las páginas abiertas que ya no pueden ver. Las páginas que solo el grupo podía gestionar pasan a ti.",
+    "members": {
+      "title": "Miembros de {name}",
+      "list": "Personas en este grupo",
+      "empty": "Todavía no hay nadie en este grupo.",
+      "add": "Añadir personas",
+      "search": "Buscar personas",
+      "select": "Seleccionar a {name}",
+      "addSelected": "{count, plural, =0 {Añadir personas} other {Añadir #}}",
+      "noOneToAdd": "Todos los propietarios y miembros del espacio de trabajo ya están en este grupo.",
+      "noMatches": "Nadie coincide con tu búsqueda.",
+      "remove": "Quitar a {name}",
+      "guestsHint": "Los invitados no pueden estar en grupos."
+    },
+    "errors": {
+      "nameRequired": "Ponle un nombre al grupo.",
+      "nameTaken": "Otro grupo ya tiene este nombre.",
+      "notMember": "Solo los propietarios y miembros del espacio de trabajo pueden estar en sus grupos.",
+      "accessDenied": "Solo los propietarios del espacio de trabajo pueden cambiar los grupos."
     }
   },
   "preferences": {

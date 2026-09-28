@@ -72,6 +72,11 @@ approve them over OAuth.
   for a private page), full, edit, comment, view or no access to a page. Subpages inherit it
   unless you change them. Share a page with someone outside the workspace by email and they join
   as a guest who sees only the pages shared with them.
+- **Member groups**: workspace owners gather members into groups (Settings → Groups) and share a
+  page with a group, or add it to a teamspace, the way they would with a person. Everyone in the
+  group gets that access for as long as they are in it; when a page has entries for someone and
+  their groups, the highest level wins. Guests can't be in groups, and people leave their groups
+  when they leave the workspace or become guests. The member list shows each person's groups.
 - **Publish to the web**: a read-only public link for a page and its subpages, kept out of search
   engines unless you allow them. Published databases show the views you pick (tables, boards,
   lists, galleries) and visitors switch between them. Owners decide whether members may publish
@@ -431,7 +436,7 @@ claude mcp add --transport http esionage http://localhost:3000/mcp
 
 The client opens a browser window where you sign in and approve access. The tools cover:
 
-- **Finding things:** `list_workspaces`, `list_teamspaces`, `search`, `list_pages`, `list_recent_pages`, `list_users`.
+- **Finding things:** `list_workspaces`, `list_teamspaces`, `search`, `list_pages`, `list_recent_pages`, `list_users`, `list_groups` (member groups with their members and teamspaces).
 - **Teamspaces:** `create_page`, `create_database` and `move_page` take a `teamspace_id` for
   top-level pages (`"private"` for the user's private pages). Without one, a page an AI app
   creates at the top is private to the user, as in Notion's API; the user moves it to share it.
@@ -478,7 +483,7 @@ curl -X POST http://localhost:3000/api/v1/databases/<database_id>/query \
   -d '{"filters": [{"property": "Status", "op": "equals", "value": "Done"}], "limit": 20}'
 ```
 
-- **Account and workspaces:** `GET /me`, `GET /workspaces`, `GET /workspaces/{id}/teamspaces`,
+- **Account and workspaces:** `GET /me`, `GET /workspaces`, `GET /workspaces/{id}/teamspaces`, `GET /workspaces/{id}/groups`,
   `GET /workspaces/{id}/pages` (`teamspace_id` narrows it to one teamspace, or `private`).
   `POST /pages` and `POST /pages/{id}/move` take a `teamspace_id` for top-level pages, as the MCP
   tools do.

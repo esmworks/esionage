@@ -25,6 +25,8 @@
     "archived": "Cet espace d’équipe est archivé.",
     "notMember": "Seuls les propriétaires et les membres de l’espace de travail peuvent faire partie de ses espaces d’équipe.",
     "invalidAccess": "Choisissez qui peut voir l’espace d’équipe.",
+    "inGroup": "Cette personne fait partie de l’espace d’équipe via un groupe. Retirez-la plutôt du groupe.",
+    "everyoneIn": "Tous les membres de l’espace de travail font déjà partie de cet espace d’équipe.",
     "accessDenied": "Vous ne pouvez pas faire cela dans cet espace d’équipe."
   },
   "dialog": {
@@ -57,6 +59,14 @@
     "roleOf": "Rôle de {name}",
     "remove": "Retirer {name}",
     "you": "(vous)",
-    "select": "Sélectionner {name}"
+    "select": "Sélectionner {name}",
+    "viaGroups": "Via {groups}",
+    "groups": "Groupes",
+    "groupsHint": "Toutes les personnes de ces groupes sont membres de l’espace d’équipe tant qu’elles font partie du groupe.",
+    "noGroups": "Aucun groupe dans cet espace d’équipe.",
+    "chooseGroup": "Choisir un groupe",
+    "addGroupButton": "Ajouter le groupe",
+    "removeGroup": "Retirer {name}",
+    "groupMemberCount": "{count, plural, =0 {Aucun membre} one {# membre} other {# membres}}"
   }
 }
