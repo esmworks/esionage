@@ -694,8 +694,12 @@ export async function withdrawFromWorkspaces(tx: Tx, userId: string): Promise<{ 
   return { plan, fileKeys };
 }
 
-export async function oldestOwner(tx: Tx, workspaceId: string) {
-  const [owner] = await tx
+/**
+ * The workspace's longest-standing owner: heir of what nobody else can manage when no owner made
+ * the change (the person left, their provider removed them), and who acts for SCIM group changes.
+ */
+export async function oldestOwner(reader: Pick<typeof db, "select">, workspaceId: string) {
+  const [owner] = await reader
     .select({ userId: workspaceMember.userId })
     .from(workspaceMember)
     .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.role, "owner")))

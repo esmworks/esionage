@@ -194,6 +194,7 @@
     "creating": "Wird erstellt…",
     "deleteTitle": "{name} löschen?",
     "deleteBody": "Ihre Mitglieder behalten den Zugriff, den sie selbst haben. Was die Gruppe auf Seiten und in Teamspaces bekommen hat, fällt weg, und geöffnete Seiten, die sie nicht mehr sehen können, werden geschlossen. Seiten, die nur die Gruppe verwalten konnte, gehen an dich.",
+    "provisioned": "Von deinem Identitätsanbieter",
     "members": {
       "title": "Mitglieder von {name}",
       "list": "Personen in dieser Gruppe",
@@ -205,7 +206,8 @@
       "noOneToAdd": "Alle Inhaber und Mitglieder des Workspace sind bereits in dieser Gruppe.",
       "noMatches": "Niemand entspricht deiner Suche.",
       "remove": "{name} entfernen",
-      "guestsHint": "Gäste können nicht in Gruppen sein."
+      "guestsHint": "Gäste können nicht in Gruppen sein.",
+      "provisionedHint": "Dein Identitätsanbieter verwaltet diese Gruppe über SCIM. Änderungen hier können bei der nächsten Synchronisierung rückgängig gemacht werden."
     },
     "errors": {
       "nameRequired": "Gib der Gruppe einen Namen.",
@@ -409,7 +411,7 @@
     },
     "scim": {
       "title": "Benutzerbereitstellung (SCIM)",
-      "description": "Lass deinen Identitätsanbieter Mitglieder über SCIM 2.0 hinzufügen, ändern und entfernen. Gruppen werden noch nicht unterstützt.",
+      "description": "Lass deinen Identitätsanbieter Mitglieder über SCIM 2.0 hinzufügen, ändern und entfernen und Mitgliedergruppen verwalten.",
       "baseUrl": "SCIM-Basis-URL",
       "managed": "{count, plural, =0 {Noch niemand wird über SCIM verwaltet.} one {# Person wird über SCIM verwaltet.} other {# Personen werden über SCIM verwaltet.}}",
       "tokens": "Tokens",

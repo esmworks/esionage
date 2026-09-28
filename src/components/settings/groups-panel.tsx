@@ -159,6 +159,11 @@ function GroupRow({
         <button type="button" onClick={onOpen} className="max-w-full truncate text-left font-medium hover:underline">
           {group.name}
         </button>
+        {group.provisioned && (
+          <div className="truncate text-xs text-fg-muted" data-group-provisioned>
+            {t("provisioned")}
+          </div>
+        )}
       </td>
       <td className="px-4 py-3">
         <button type="button" onClick={onOpen} className="flex items-center gap-2 text-fg-muted hover:text-fg">
@@ -311,6 +316,8 @@ function GroupMembersDialog({
     <Dialog open onClose={onClose} className="max-w-lg">
       <div className="space-y-4 p-5">
         <h2 className="truncate text-base font-semibold">{t("title", { name: group.name })}</h2>
+
+        {canManage && group.provisioned && <p className="text-xs text-fg-muted">{t("provisionedHint")}</p>}
 
         {canManage && <AddPeople candidates={candidates} pending={pending} onAdd={(ids, done) => run(() => addGroupMembersAction(workspaceId, group.id, ids), done)} />}
 

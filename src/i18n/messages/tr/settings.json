@@ -194,6 +194,7 @@
     "creating": "Oluşturuluyor…",
     "deleteTitle": "{name} silinsin mi?",
     "deleteBody": "Üyeleri kendi erişimlerini korur. Gruba sayfalarda ve teamspace'lerde verilen erişim kalkar; artık göremedikleri açık sayfalar kapanır. Yalnızca grubun yönetebildiği sayfalar size geçer.",
+    "provisioned": "Kimlik sağlayıcınızdan",
     "members": {
       "title": "{name} üyeleri",
       "list": "Bu gruptaki kişiler",
@@ -205,7 +206,8 @@
       "noOneToAdd": "Çalışma alanının tüm sahipleri ve üyeleri zaten bu grupta.",
       "noMatches": "Aramanıza uyan kimse yok.",
       "remove": "{name} adlı kişiyi çıkar",
-      "guestsHint": "Misafirler gruplarda olamaz."
+      "guestsHint": "Misafirler gruplarda olamaz.",
+      "provisionedHint": "Bu grubu kimlik sağlayıcınız SCIM ile yönetiyor. Burada yaptığınız değişiklikler bir sonraki eşitlemede geri alınabilir."
     },
     "errors": {
       "nameRequired": "Gruba bir ad verin.",
@@ -409,7 +411,7 @@
     },
     "scim": {
       "title": "Kullanıcı hazırlama (SCIM)",
-      "description": "Kimlik sağlayıcınızın SCIM 2.0 ile üye eklemesine, güncellemesine ve çıkarmasına izin verin. Gruplar henüz desteklenmiyor.",
+      "description": "Kimlik sağlayıcınızın SCIM 2.0 ile üye eklemesine, güncellemesine, çıkarmasına ve üye gruplarını yönetmesine izin verin.",
       "baseUrl": "SCIM temel URL'si",
       "managed": "{count, plural, =0 {Henüz kimse SCIM ile yönetilmiyor.} one {# kişi SCIM ile yönetiliyor.} other {# kişi SCIM ile yönetiliyor.}}",
       "tokens": "Token'lar",
