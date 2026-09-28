@@ -56,6 +56,7 @@ export function PublishTab({ pageId }: { pageId: string }) {
 
   useEffect(() => {
     load().catch(() => setPublication(null));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads once per page
   }, [pageId]);
 
   const absolute = (url: string) => new URL(url, window.location.origin).toString();

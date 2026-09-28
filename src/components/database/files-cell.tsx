@@ -79,7 +79,6 @@ function Thumb({ file, size = "sm", src }: { file: FileValue; size?: "sm" | "md"
   if (isImageFile(file.type) && !failed) {
     return (
       // Same-origin files, served only to people who may see them: a plain img, no optimizer.
-      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src ?? file.url}
         alt=""
@@ -275,7 +274,7 @@ export function FilesEditor({
             id={answer?.id}
             type="button"
             disabled={Boolean(busy) || disabled}
-            aria-invalid={answer?.invalid || undefined}
+            // The button can't carry aria-invalid; the error it describes says what is wrong.
             aria-describedby={answer?.describedBy}
             onClick={() => picker.current?.click()}
             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-fg-muted hover:bg-bg-hover hover:text-fg disabled:opacity-60"

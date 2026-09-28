@@ -5,7 +5,6 @@ import { findMatches, replaceAllMatches } from "@/lib/find-replace";
 import { serverEditor } from "@/server/blocknote";
 import { findKey, findPlugin, type FindMeta } from "./find-replace";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const docOf = (blocks: unknown[]) => serverEditor._blocksToProsemirrorNode(blocks as any);
 const stateOf = (blocks: unknown[]) => EditorState.create({ doc: docOf(blocks), plugins: [findPlugin()] });
 const withMeta = (state: EditorState, meta: FindMeta) => state.apply(state.tr.setMeta(findKey, meta));

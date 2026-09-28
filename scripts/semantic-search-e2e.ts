@@ -38,7 +38,7 @@ const { createTeamspace } = await import("@/server/teamspaces");
 const { updateWorkspaceSettings } = await import("@/server/workspaces");
 const { handleApiRequest } = await import("@/server/api");
 const { createApiToken } = await import("@/server/api/tokens");
-const { resetAi, useAiEnv } = await import("@/server/ai/testing");
+const { resetAi, setAiEnv } = await import("@/server/ai/testing");
 const { startFakeOpenAi, FAKE_DIMENSIONS } = await import("@/server/ai/fake-openai");
 const index = await import("@/server/semantic-index");
 const { clearQueryCache, semanticSearch } = await import("@/server/semantic-search");
@@ -58,7 +58,7 @@ const EMBEDDINGS = {
   AI_RATE_LIMIT: "1000",
   AI_CONCURRENCY: "4",
 };
-useAiEnv(EMBEDDINGS);
+setAiEnv(EMBEDDINGS);
 
 let passed = 0;
 function check(condition: unknown, label: string, detail?: unknown): asserts condition {
@@ -343,7 +343,7 @@ try {
   check(idsOf(await found(alice, "automobile")).includes(fleet.id), "…and search by meaning comes back");
 
   // ── Another model, or none ──────────────────────────────────────────────────────────────────
-  useAiEnv({ ...EMBEDDINGS, AI_EMBEDDINGS_MODEL: "fake-embed-2" });
+  setAiEnv({ ...EMBEDDINGS, AI_EMBEDDINGS_MODEL: "fake-embed-2" });
   clearQueryCache();
   check((await semanticSearch(alice, "automobile", { workspaceId })).length === 0, "chunks of another embeddings model are never compared");
   check((await index.stalePages(workspaceId)).includes(fleet.id), "…and the pages count as stale for the new model");
@@ -354,7 +354,7 @@ try {
   check(idsOf(await found(alice, "automobile")).includes(fleet.id), "…and search by meaning works with the new model");
 
   resetAi();
-  useAiEnv({});
+  setAiEnv({});
   clearQueryCache();
   for (const q of ["automobile", "tyres", "holiday", "Fleet"]) {
     const hybrid = await found(alice, q);

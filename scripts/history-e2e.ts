@@ -190,7 +190,6 @@ try {
     await conn.transact((doc) => {
       const fragment = doc.getXmlFragment(COLLAB_FRAGMENT);
       const blocks = serverEditor.yXmlFragmentToBlocks(fragment);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       serverEditor.blocksToYXmlFragment([...blocks, { type: "paragraph", content: "Typed live" }] as any, fragment);
     });
     const live = await diffSnapshot(ids.owner, second.id, "current");

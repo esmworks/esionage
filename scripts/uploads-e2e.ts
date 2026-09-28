@@ -32,7 +32,7 @@ process.env.UPLOAD_WORKSPACE_QUOTA_MB = String(30_000 / 1024 / 1024); // 30,000 
 // Imported after .env is loaded: the database client reads DATABASE_URL when it is created.
 const { and, eq, inArray, sql } = await import("drizzle-orm");
 const { db } = await import("@/db");
-const { file, fileReference, page, session, user, workspace, workspaceMember } = await import("@/db/schema");
+const { file, fileReference, session, user, workspace, workspaceMember } = await import("@/db/schema");
 const { makeSignature } = await import("better-auth/crypto");
 const { env } = await import("@/lib/env");
 const { getCollab, registerCollab } = await import("@/server/collab/bridge");

@@ -1,4 +1,4 @@
-import type { FormConfig, FormQuestion, PropertyOptions, PropertyType } from "@/db/schema/app";
+import type { FormConfig, PropertyOptions, PropertyType } from "@/db/schema/app";
 import { normalizeValue, PropertyValueError, type DatabaseErrorCode } from "./properties";
 
 /**

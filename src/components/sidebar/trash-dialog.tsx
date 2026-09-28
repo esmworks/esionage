@@ -32,6 +32,7 @@ export function TrashDialog({
     if (!open) return;
     setError(false);
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads each time the dialog opens
   }, [open, workspaceId]);
 
   /** Runs a trash change; on failure (e.g. someone else just changed the page) shows an error and reloads. */

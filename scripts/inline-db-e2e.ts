@@ -109,7 +109,6 @@ async function writeBlocks(pageId: string, userId: string, blocks: unknown[]) {
   const conn = await hocuspocus.openDirectConnection(`page:${pageId}`, { userId });
   try {
     await conn.transact((doc) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       serverEditor.blocksToYXmlFragment(blocks as any, doc.getXmlFragment(COLLAB_FRAGMENT));
     });
   } finally {

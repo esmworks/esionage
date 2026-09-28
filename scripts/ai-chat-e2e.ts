@@ -33,7 +33,7 @@ const { createTeamspace } = await import("@/server/teamspaces");
 const { removeMember, updateWorkspaceSettings } = await import("@/server/workspaces");
 const { AccessError } = await import("@/server/access");
 const { isAiError } = await import("@/server/ai");
-const { resetAi, useAiEnv } = await import("@/server/ai/testing");
+const { resetAi, setAiEnv } = await import("@/server/ai/testing");
 const { startFakeOpenAi, textOf } = await import("@/server/ai/fake-openai");
 type FakeChatRequest = import("@/server/ai/fake-openai").FakeChatRequest;
 type FakeReply = import("@/server/ai/fake-openai").FakeReply;
@@ -60,7 +60,7 @@ const AI = {
   AI_WORKSPACE_RATE_LIMIT: "1000",
   AI_RATE_LIMIT: "1000",
 };
-useAiEnv(AI);
+setAiEnv(AI);
 
 let passed = 0;
 function check(condition: unknown, label: string, detail?: unknown): asserts condition {
@@ -109,7 +109,6 @@ function sourcesIn(request: FakeChatRequest): Source[] {
 
 /** Everything a request sends to the model, as one string (for "never sent" checks). */
 const everything = (request: FakeChatRequest) => request.messages.map((m) => textOf(m.content)).join("\n");
-const lastOf = (request: FakeChatRequest) => request.messages[request.messages.length - 1];
 /** Tool results the model got in this request, newest last. */
 const toolResults = (request: FakeChatRequest) => request.messages.filter((m) => m.role === "tool").map((m) => textOf(m.content));
 
@@ -365,12 +364,12 @@ try {
     })
     .returning();
   check((await refusal(() => startChat(dave, { workspaceId, conversationId: full.id, message: "One more?" }))) === "tooLarge", `a conversation takes at most ${MAX_CHAT_TURNS} questions`);
-  useAiEnv({ ...AI, AI_RATE_LIMIT: "2" });
+  setAiEnv({ ...AI, AI_RATE_LIMIT: "2" });
   fake.setChat(researcher({}));
   const limited: (string | null)[] = [];
   for (let i = 0; i < 3; i++) limited.push(await refusal(async () => ask(carol, { workspaceId, message: `Tyres ${i}?` })));
   check(limited.join() === ",,rateLimited", "questions count against the person's AI rate limit", limited);
-  useAiEnv(AI);
+  setAiEnv(AI);
 
   check((await refusal(() => startChat(outsider, { workspaceId, message: "Tyres?" }))) === "noAccess", "people outside the workspace can't ask");
   check((await refusal(() => startChat(alice, { workspaceId, conversationId: full.id, message: "Mine?" }))) === "noAccess", "…nor anyone continue another person's conversation");
@@ -379,14 +378,14 @@ try {
   await updateWorkspaceSettings(owner, workspaceId, { ai: false });
   check((await refusal(() => startChat(alice, { workspaceId, message: "Tyres?" }))) === "disabled", "with AI off for the workspace the chat is off");
   await updateWorkspaceSettings(owner, workspaceId, { ai: true });
-  useAiEnv({ AI_EMBEDDINGS_MODEL: "fake-embed", AI_EMBEDDINGS_BASE_URL: fake.baseUrl, AI_EMBEDDINGS_API_KEY: "local-test" });
+  setAiEnv({ AI_EMBEDDINGS_MODEL: "fake-embed", AI_EMBEDDINGS_BASE_URL: fake.baseUrl, AI_EMBEDDINGS_API_KEY: "local-test" });
   check((await refusal(() => startChat(alice, { workspaceId, message: "Tyres?" }))) === "disabled", "with embeddings but no chat model the chat is off");
-  useAiEnv({ AI_PROVIDER: AI.AI_PROVIDER, AI_MODEL: AI.AI_MODEL, AI_BASE_URL: AI.AI_BASE_URL });
+  setAiEnv({ AI_PROVIDER: AI.AI_PROVIDER, AI_MODEL: AI.AI_MODEL, AI_BASE_URL: AI.AI_BASE_URL });
   fake.setChat(researcher({}));
   fake.chats.length = 0;
   const textOnly = await ask(alice, { workspaceId, message: "tyres" });
   check(textOnly.done && sourcesIn(fake.chats[0]).some((s) => s.pageId === fleet.id), "without embeddings the chat answers from full-text search");
-  useAiEnv(AI);
+  setAiEnv(AI);
 
   // ── Deleting ────────────────────────────────────────────────────────────────────────────────
   const aliceBefore = await listConversations(alice, workspaceId);

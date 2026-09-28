@@ -4,7 +4,6 @@ import { serverEditor } from "@/server/blocknote";
 import { findMatches, foldCase, matchIndexAt, replaceAllMatches, replaceMatch, stepIndex } from "./find-replace";
 
 // Page bodies in the page schema (BlockNote's blocks plus the database blocks).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const docOf = (blocks: unknown[]) => serverEditor._blocksToProsemirrorNode(blocks as any);
 const stateOf = (blocks: unknown[]) => EditorState.create({ doc: docOf(blocks) });
 const texts = (state: EditorState) => {

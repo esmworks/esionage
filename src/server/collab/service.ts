@@ -21,7 +21,7 @@ import { mentionablePeople, syncPageReferences } from "@/server/mentions";
 import { pageChanged } from "@/server/page-events";
 import { rowChanged } from "@/server/row-events";
 import { authorizeCollab, parseDocName as parseName } from "./authorize";
-import type { Channel, CollabService, CommentActor, CommentOpResult, PageContent, WriteActor } from "./bridge";
+import type { Channel, CollabService, CommentOpResult, PageContent, WriteActor } from "./bridge";
 import { anchorThread, reanchor, threadQuotes } from "./comment-marks";
 import { stampPresence } from "./presence";
 import { touchesThreads } from "./thread-guard";
@@ -179,8 +179,6 @@ function runOp(store: YjsThreadStore, threads: Y.Map<unknown>, op: CommentOp): P
 }
 
 export function createCollab() {
-  let hocuspocus: Hocuspocus<Context>;
-
   const broadcast = (channel: Channel, event: string) => {
     hocuspocus.documents.get(channel)?.broadcastStateless(event);
   };
@@ -307,7 +305,7 @@ export function createCollab() {
     },
   };
 
-  hocuspocus = new Hocuspocus<Context>({
+  const hocuspocus = new Hocuspocus<Context>({
     name: "esionage",
     quiet: true,
     debounce: 2000,

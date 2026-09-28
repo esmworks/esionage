@@ -46,6 +46,7 @@ export function TemplatesDialog({
     if (!open) return;
     setError(null);
     void load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads each time the dialog opens
   }, [open, workspaceId]);
 
   function create(run: () => ReturnType<typeof createFromTemplateAction>) {

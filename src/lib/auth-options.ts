@@ -188,7 +188,7 @@ export type SsoCallbacks = {
  * Domain verification is on: a workspace connection signs people in only once its email domains
  * are proven by DNS, so nobody can route someone else's domain to their own identity provider.
  */
-export function ssoPlugin(instance: InstanceOidc | null, callbacks: SsoCallbacks = {}) {
+export function ssoPlugin(instance: InstanceOidc | null) {
   return sso({
     defaultSSO: instance
       ? [
@@ -313,7 +313,7 @@ export function baseAuthOptions({
         fetchClientMetadataResource,
         metadataProfile: "mcp-2026-07-28",
       }),
-      ssoPlugin(instanceOidc, ssoCallbacks),
+      ssoPlugin(instanceOidc),
     ],
   } satisfies BetterAuthOptions;
 }

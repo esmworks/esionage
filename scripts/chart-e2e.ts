@@ -118,7 +118,7 @@ try {
   const closed = await addProperty(ids.owner, deals.id, { name: "Closed", type: "date" });
   const paid = await addProperty(ids.owner, deals.id, { name: "Paid", type: "checkbox" });
   const withTax = await addProperty(ids.owner, deals.id, { name: "With tax", type: "formula", formula: { expression: 'prop("Amount") * 1.2' } });
-  const notes = await addProperty(ids.owner, deals.id, { name: "Notes", type: "text" });
+  await addProperty(ids.owner, deals.id, { name: "Notes", type: "text" });
 
   const chart = await addView(ids.owner, deals.id, { name: "Pipeline", type: "chart" });
   check(chart.config.groupBy === stage.id, "a new chart groups by the first select property", chart.config);

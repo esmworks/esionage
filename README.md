@@ -796,6 +796,7 @@ Useful scripts:
 | Script | What it does |
 | --- | --- |
 | `pnpm typecheck` | TypeScript check |
+| `pnpm lint` | ESLint with Next.js's rules (`eslint.config.mjs`); fails on warnings too |
 | `pnpm test` | Unit tests (Vitest) |
 | `pnpm i18n:check [locale…]` | Compares every translation with English: missing or extra files and keys, and placeholders or plural/select syntax that differ (see [Languages](#languages)) |
 | `pnpm build` | Production build |

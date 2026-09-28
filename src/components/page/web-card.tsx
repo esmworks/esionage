@@ -27,7 +27,6 @@ function RemoteImage({ src, className }: { src: string; className: string }) {
   const [failed, setFailed] = useState<string | null>(null);
   if (!src || failed === src) return null;
   return (
-    // eslint-disable-next-line @next/next/no-img-element
     <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" className={className} onError={() => setFailed(src)} />
   );
 }
@@ -48,7 +47,6 @@ export function BookmarkCard({ bookmark }: { bookmark: BookmarkView }) {
         {bookmark.description && <span className="line-clamp-2 text-xs leading-snug text-fg-muted">{bookmark.description}</span>}
         <span className="mt-auto flex min-w-0 items-center gap-1.5 pt-1 text-xs text-fg-muted">
           {showIcon ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={bookmark.favicon}
               alt=""

@@ -8,7 +8,6 @@ const editor = ServerBlockNoteEditor.create();
 
 function ydocFrom(blocks: unknown[]) {
   const doc = new Y.Doc();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   doc.transact(() => editor.blocksToYXmlFragment(blocks as any, doc.getXmlFragment(COLLAB_FRAGMENT)));
   return Y.encodeStateAsUpdate(doc);
 }
@@ -58,7 +57,6 @@ describe("firstImageInYdoc", () => {
 describe("markdownImageHint", () => {
   it("matches both Markdown forms BlockNote writes for images", async () => {
     const markdown = await editor.blocksToMarkdownLossy([
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { type: "image", props: { url: "https://ex.com/a.png", caption: "Cap" } } as any,
     ]);
     expect(markdownImageHint(markdown)).toContain("https://ex.com/a.png");

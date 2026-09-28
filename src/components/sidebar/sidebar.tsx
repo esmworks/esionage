@@ -384,6 +384,7 @@ export function Sidebar({
   }
 
   /** The "+" menu of a section: what to add at its top. */
+  // eslint-disable-next-line react/display-name -- a Popover render callback, not a component
   const newMenu = (target: string | null) => (close: () => void) => (
     <>
       <MenuItem

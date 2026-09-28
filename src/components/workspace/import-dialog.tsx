@@ -119,6 +119,7 @@ export function ImportDialog({
     setError(null);
     setResult(null);
     setBusy(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- resets only when the dialog opens, not while the tree changes
   }, [open]);
 
   useEffect(() => {

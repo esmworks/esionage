@@ -522,6 +522,10 @@
 
 ### Changed
 
+- ESLint 9 with Next.js's rules (`eslint-config-next`): `pnpm lint`, also a CI step, fails on
+  warnings too. The React Compiler checks are off (the app doesn't use it), and so are the rules
+  for `<img>` (images come from any origin) and for full page loads after signing in or out (on
+  purpose).
 - Better Auth's `/update-user` endpoint now only accepts a name or removing the picture, so a
   picture can't point at an arbitrary URL. A password change that signs out other devices keeps the
   current session's sign-in method (a passkey session keeps satisfying a workspace's two-step

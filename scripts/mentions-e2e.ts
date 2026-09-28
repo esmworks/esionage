@@ -18,7 +18,7 @@ try {
 const { and, eq, inArray } = await import("drizzle-orm");
 const Y = await import("yjs");
 const { db } = await import("@/db");
-const { notification, page, pageLink, pageMention, pageReminder, user, workspace, workspaceMember } = await import("@/db/schema");
+const { notification, pageLink, pageMention, pageReminder, user, workspace, workspaceMember } = await import("@/db/schema");
 const { COLLAB_FRAGMENT } = await import("@/lib/collab-constants");
 const { eachMention, MENTION } = await import("@/lib/mentions");
 const { getCollab, registerCollab } = await import("@/server/collab/bridge");
@@ -149,7 +149,7 @@ try {
   // Writing mentions as Markdown
   const body = `Ask @${ids.editor} about ${link(target.id, "whatever")} and ${link(secret.id)}, see ${link(gone.id)} by @2026-10-01.\n\n${link(target.id)} <!-- esionage:page-link -->`;
   await getCollab().replaceContent(plan.id, body, owner);
-  let mentions = await mentionsOf(plan.id);
+  const mentions = await mentionsOf(plan.id);
   check(
     mentions.map((m) => `${m.kind}:${m.userId || m.pageId || m.date}`).join(" ") ===
       `user:${ids.editor} page:${target.id} page:${secret.id} page:${gone.id} date:2026-10-01`,

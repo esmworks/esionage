@@ -25,7 +25,7 @@ function textOf(content: unknown): string {
  * environment's limits unless `config` overrides some. Returns the faux handle and a way to change
  * the script.
  */
-export function useFauxAi(
+export function installFauxAi(
   script: FauxScript,
   options: { config?: Partial<AiConfig["limits"]>; tokensPerSecond?: number; embed?: (texts: string[]) => Promise<number[][]> } = {},
 ) {
@@ -77,7 +77,7 @@ export function disableAi() {
 }
 
 /** Uses the real providers with settings read from `env` instead of process.env. */
-export function useAiEnv(env: Record<string, string | undefined>) {
+export function setAiEnv(env: Record<string, string | undefined>) {
   setAiOverride({ config: readAiConfig(env), backend: null });
 }
 

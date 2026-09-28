@@ -12,7 +12,6 @@ const OTHER = "22222222-2222-4222-8222-222222222222";
 
 function docFrom(blocks: unknown[]) {
   const doc = new Y.Doc();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   doc.transact(() => serverEditor.blocksToYXmlFragment(blocks as any, doc.getXmlFragment(COLLAB_FRAGMENT)));
   return doc;
 }

@@ -55,7 +55,6 @@ export function decodeEntities(text: string): string {
 
 /** Collapses whitespace, drops control characters and cuts to `max` characters. */
 function clean(text: string, max: number): string {
-  // eslint-disable-next-line no-control-regex
   const value = decodeEntities(text).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
   if (value.length <= max) return value;
   return `${[...value].slice(0, max - 1).join("").trimEnd()}…`;

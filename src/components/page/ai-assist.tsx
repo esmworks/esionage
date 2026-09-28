@@ -9,7 +9,6 @@
  * document: everyone else sees it live and Undo takes it back. Closing the panel or "Stop" cancels
  * the request.
  */
-import type { Block } from "@blocknote/core";
 import { FormattingToolbarExtension, ShowSelectionExtension } from "@blocknote/core/extensions";
 import { useComponentsContext, useExtension, type DefaultReactSuggestionItem } from "@blocknote/react";
 import {
@@ -39,7 +38,7 @@ import { AI_LANGUAGES, isAiErrorCode, type EditorAction } from "@/lib/ai";
 import { CALLOUT_BLOCK } from "@/lib/content-blocks";
 import type { PageEditor } from "./embed-blocks";
 
-type AnyBlock = Block<any, any, any>;
+type AnyBlock = PageEditor["document"][number];
 
 /** What the panel works on, captured when it opens (the editor's selection is gone once it's used). */
 type Target = {

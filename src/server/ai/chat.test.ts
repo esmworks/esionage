@@ -7,7 +7,7 @@ import { citedNumbers, conversationTitle, sourceHref, splitCitations, stripCitat
 import { startFakeOpenAi, textOf, type FakeOpenAi } from "./fake-openai";
 import { embed, stream, type AiMessage } from "./index";
 import { chatHistory, chatQuestionPrompt, chatSystemPrompt, formatSources } from "./prompts";
-import { resetAi, useAiEnv } from "./testing";
+import { resetAi, setAiEnv } from "./testing";
 
 describe("citations", () => {
   it("finds the sources an answer cites, each once", () => {
@@ -87,7 +87,7 @@ describe("tool calls over an OpenAI-compatible server", () => {
   afterEach(() => resetAi());
 
   it("streams tool calls and takes their results back", async () => {
-    useAiEnv({ AI_PROVIDER: "openai-compatible", AI_MODEL: "fake", AI_BASE_URL: fake.baseUrl });
+    setAiEnv({ AI_PROVIDER: "openai-compatible", AI_MODEL: "fake", AI_BASE_URL: fake.baseUrl });
     fake.setChat((request) => {
       const last = request.messages[request.messages.length - 1];
       if (last.role === "tool") return { text: `Found: ${textOf(last.content)} [1]` };
@@ -112,7 +112,7 @@ describe("tool calls over an OpenAI-compatible server", () => {
   });
 
   it("embeds with a separately configured embeddings endpoint and no chat provider", async () => {
-    useAiEnv({ AI_EMBEDDINGS_MODEL: "fake-embed", AI_EMBEDDINGS_BASE_URL: fake.baseUrl, AI_EMBEDDINGS_API_KEY: "local" });
+    setAiEnv({ AI_EMBEDDINGS_MODEL: "fake-embed", AI_EMBEDDINGS_BASE_URL: fake.baseUrl, AI_EMBEDDINGS_API_KEY: "local" });
     const [vector] = await embed(["car"], { feature: "test" });
     expect(vector).toHaveLength(256);
     expect(fake.embedded.at(-1)).toBe("car");

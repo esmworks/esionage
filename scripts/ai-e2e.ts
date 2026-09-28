@@ -29,7 +29,7 @@ const databases = await import("@/server/databases");
 const { updateWorkspaceSettings } = await import("@/server/workspaces");
 const { AccessError } = await import("@/server/access");
 const { isAiError } = await import("@/server/ai");
-const { disableAi, useFauxAi } = await import("@/server/ai/testing");
+const { disableAi, installFauxAi } = await import("@/server/ai/testing");
 const { snapshotBeforeAiEdit, startEditorAction } = await import("@/server/ai-writing");
 const { AutofillError, autofillStates, databaseAi, isQueued, requestAutofill, setAutofill } = await import("@/server/ai-properties");
 const { describeProperty } = await import("@/server/mcp/query");
@@ -138,7 +138,7 @@ try {
   check((await databaseAi(books.id, [], [])).enabled === false, "…and databases say AI is off");
 
   // ----------------------------------------------------------------------- writing assistant
-  useFauxAi(script, { config: { maxInputChars: 3000, concurrency: 2 } });
+  installFauxAi(script, { config: { maxInputChars: 3000, concurrency: 2 } });
   check((await getPageHeaderInfo(ids.owner, doc.id)).ai === true, "with a provider the page offers the assistant");
 
   const answer = await startEditorAction(ids.owner, { pageId: doc.id, action: "improve", text: "The first paragraph was writen quickly." });

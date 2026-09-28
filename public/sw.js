@@ -87,7 +87,7 @@ async function navigate(event, url) {
       event.waitUntil(caches.open(STATIC_CACHE).then((c) => keepOfflinePage(c)).catch(() => {}));
     }
     return response;
-  } catch (error) {
+  } catch {
     return offlineResponse(url);
   }
 }

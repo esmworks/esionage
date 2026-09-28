@@ -19,6 +19,7 @@ export default function RootError({ error, retry }: { error: Error & { digest?: 
           {t("retry")}
         </Button>
         {/* A full load, in case the error came from client state a soft navigation would keep. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a
           href="/"
           className="inline-flex h-8 items-center rounded-md border border-border bg-bg px-3 text-sm font-medium transition-colors hover:bg-bg-hover"

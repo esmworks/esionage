@@ -117,6 +117,8 @@ export default function CollabEditor({
   // Files dropped, pasted or picked in a file block go to the server (see api/files); the block keeps
   // the URL it answers with. Read through a ref, so the editor isn't re-created when these change.
   const uploadTo = useRef({ pageId, tu, setEmbedError });
+  // After every render, on purpose: the ref always holds the latest values.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- no dependency list is the point
   useEffect(() => {
     uploadTo.current = { pageId, tu, setEmbedError };
   });

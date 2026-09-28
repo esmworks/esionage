@@ -134,6 +134,7 @@ export function useDatabase(
 
   // Formulas of a row the user just edited are worked out here right away, with the same code the
   // server uses, so the row doesn't show stale results until the refetch.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- recompiled only when the properties change, not the rows
   const formulas = useMemo(() => (snapshot ? compileFormulas(snapshot.properties) : new Map()), [snapshot?.properties]);
   const rows: Row[] = useMemo(() => {
     if (!snapshot) return [];
@@ -495,6 +496,7 @@ export function useDatabase(
       },
     }),
     // patchProperty is a pure helper; the rest are stable callbacks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the workspace id of the snapshot is read
     [databaseId, snapshot?.database.workspaceId, refetch, setCell, setRowValues, setCells, mutateSchema, report, tb, ta],
   );
 

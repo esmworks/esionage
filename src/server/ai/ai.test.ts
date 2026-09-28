@@ -3,7 +3,7 @@ import { checkAutofill, promptPlaceholders } from "@/lib/ai";
 import { describeAiConfig, readAiConfig } from "./config";
 import { AiError, aiInfo, complete, embed, embeddingsEnabled, isEnabled, stream } from "./index";
 import { autofillNeedsBody, autofillPrompt, cleanValue, editorPrompt, fillPlaceholders, formatValue, truncateText } from "./prompts";
-import { disableAi, resetAi, useFauxAi } from "./testing";
+import { disableAi, resetAi, installFauxAi } from "./testing";
 
 afterEach(() => resetAi());
 
@@ -201,7 +201,7 @@ describe("AI interface (faux provider)", () => {
   });
 
   it("completes and streams text with usage", async () => {
-    useFauxAi(({ prompt, system }) => `echo:${prompt}|${system}`);
+    installFauxAi(({ prompt, system }) => `echo:${prompt}|${system}`);
     expect(isEnabled()).toBe(true);
     const result = await complete({ feature: "test", system: "sys", messages: [{ role: "user", content: "hello" }] });
     expect(result.text).toBe("echo:hello|sys");
@@ -216,7 +216,7 @@ describe("AI interface (faux provider)", () => {
   });
 
   it("reports provider failures as AiErrors", async () => {
-    useFauxAi(() => {
+    installFauxAi(() => {
       throw new Error("invalid x-api-key");
     });
     await expect(complete({ feature: "test", messages: [{ role: "user", content: "x" }] })).rejects.toMatchObject({
@@ -226,14 +226,14 @@ describe("AI interface (faux provider)", () => {
   });
 
   it("refuses oversized prompts before sending", () => {
-    useFauxAi(() => "never", { config: { maxInputChars: 10 } });
+    installFauxAi(() => "never", { config: { maxInputChars: 10 } });
     expect(() => stream({ feature: "test", messages: [{ role: "user", content: "x".repeat(11) }] })).toThrow(
       expect.objectContaining({ code: "tooLarge" }),
     );
   });
 
   it("limits requests per person", async () => {
-    useFauxAi(() => "ok", { config: { userPerMinute: 2 } });
+    installFauxAi(() => "ok", { config: { userPerMinute: 2 } });
     const ask = () => complete({ feature: "test", userId: `limit-user-${process.pid}`, messages: [{ role: "user", content: "x" }] });
     await ask();
     await ask();
@@ -241,18 +241,18 @@ describe("AI interface (faux provider)", () => {
   });
 
   it("cancels on abort and times out", async () => {
-    useFauxAi(() => "a long answer ".repeat(50), { tokensPerSecond: 20 });
+    installFauxAi(() => "a long answer ".repeat(50), { tokensPerSecond: 20 });
     const controller = new AbortController();
     const s = stream({ feature: "test", messages: [{ role: "user", content: "x" }], signal: controller.signal });
     setTimeout(() => controller.abort(), 30);
     await expect(s.result()).rejects.toMatchObject({ code: "aborted" });
 
-    useFauxAi(() => "slow ".repeat(100), { tokensPerSecond: 5, config: { timeoutMs: 50 } });
+    installFauxAi(() => "slow ".repeat(100), { tokensPerSecond: 5, config: { timeoutMs: 50 } });
     await expect(complete({ feature: "test", messages: [{ role: "user", content: "x" }] })).rejects.toMatchObject({ code: "timeout" });
   });
 
   it("passes tools and returns tool calls for the caller to run", async () => {
-    const { faux } = useFauxAi(() => "unused");
+    const { faux } = installFauxAi(() => "unused");
     const { fauxAssistantMessage, fauxToolCall, fauxText } = await import("@earendil-works/pi-ai");
     faux.setResponses([
       fauxAssistantMessage([fauxToolCall("search_pages", { query: "tea" }, { id: "call-1" })], { stopReason: "toolUse" }),
@@ -281,7 +281,7 @@ describe("AI interface (faux provider)", () => {
     disableAi();
     expect(embeddingsEnabled()).toBe(false);
     await expect(embed(["a"], { feature: "test" })).rejects.toMatchObject({ code: "disabled" });
-    useFauxAi(() => "", { embed: async (texts) => texts.map((t) => [t.length, 1]) });
+    installFauxAi(() => "", { embed: async (texts) => texts.map((t) => [t.length, 1]) });
     expect(embeddingsEnabled()).toBe(true);
     expect(await embed(["ab", "c"], { feature: "test" })).toEqual([
       [2, 1],

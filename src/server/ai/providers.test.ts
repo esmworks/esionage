@@ -6,7 +6,7 @@ import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { complete, embed, stream } from "./index";
-import { resetAi, useAiEnv } from "./testing";
+import { resetAi, setAiEnv } from "./testing";
 
 let server: Server;
 let base = "";
@@ -69,7 +69,7 @@ afterEach(() => {
 
 describe("providers over HTTP", () => {
   it("streams a chat completion with the configured model, system prompt and limits", async () => {
-    useAiEnv({ AI_PROVIDER: "ollama", AI_MODEL: "llama3.2", AI_BASE_URL: base, AI_MAX_OUTPUT_TOKENS: "300" });
+    setAiEnv({ AI_PROVIDER: "ollama", AI_MODEL: "llama3.2", AI_BASE_URL: base, AI_MAX_OUTPUT_TOKENS: "300" });
     const s = stream({ feature: "test", system: "Be brief.", messages: [{ role: "user", content: "hi" }] });
     let text = "";
     for await (const e of s) text += e.delta;
@@ -87,7 +87,7 @@ describe("providers over HTTP", () => {
   });
 
   it("sends the key and reports the server's refusal", async () => {
-    useAiEnv({ AI_PROVIDER: "openai-compatible", AI_MODEL: "m", AI_BASE_URL: base, AI_API_KEY: "sk-local" });
+    setAiEnv({ AI_PROVIDER: "openai-compatible", AI_MODEL: "m", AI_BASE_URL: base, AI_API_KEY: "sk-local" });
     await complete({ feature: "test", messages: [{ role: "user", content: "hi" }] });
     expect(seen[0].auth).toBe("Bearer sk-local");
     failNext = true;
@@ -95,7 +95,7 @@ describe("providers over HTTP", () => {
   });
 
   it("speaks Anthropic's Messages API with the key from AI_API_KEY", async () => {
-    useAiEnv({ AI_PROVIDER: "anthropic", AI_MODEL: "claude-haiku-4-5", AI_API_KEY: "sk-ant-test", AI_BASE_URL: base.replace(/\/v1$/, "") });
+    setAiEnv({ AI_PROVIDER: "anthropic", AI_MODEL: "claude-haiku-4-5", AI_API_KEY: "sk-ant-test", AI_BASE_URL: base.replace(/\/v1$/, "") });
     const result = await complete({ feature: "test", system: "Translate.", messages: [{ role: "user", content: "Hello" }] });
     expect(result.text).toBe("Bonjour");
     expect(result.usage).toMatchObject({ inputTokens: 9, outputTokens: 3 });
@@ -107,7 +107,7 @@ describe("providers over HTTP", () => {
   });
 
   it("embeds in input order over /embeddings", async () => {
-    useAiEnv({ AI_PROVIDER: "ollama", AI_MODEL: "m", AI_BASE_URL: base, AI_EMBEDDINGS_MODEL: "nomic-embed-text" });
+    setAiEnv({ AI_PROVIDER: "ollama", AI_MODEL: "m", AI_BASE_URL: base, AI_EMBEDDINGS_MODEL: "nomic-embed-text" });
     expect(await embed(["abc", "de"], { feature: "test" })).toEqual([
       [3, 0],
       [2, 1],

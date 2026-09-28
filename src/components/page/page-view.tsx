@@ -377,6 +377,7 @@ function TitleField({
     if (document.activeElement === el) {
       el.setSelectionRange(shiftIndex(before, value, selectionStart), shiftIndex(before, value, selectionEnd));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- inputRef is a ref object; only a new value matters
   }, [value]);
   const font = cn("font-bold leading-tight", compact ? "text-3xl" : "text-4xl");
   // An invisible copy of the text sizes the box, so the field is only as wide and tall as its text

@@ -1,7 +1,7 @@
 # Contributing to Esionage
 
 Issues and pull requests are welcome. For code, the [Development](README.md#development) section
-of the README has the setup; run `pnpm typecheck`, `pnpm test` and `pnpm i18n:check` before
+of the README has the setup; run `pnpm typecheck`, `pnpm lint`, `pnpm test` and `pnpm i18n:check` before
 opening a pull request (CI runs them too, plus a build and the end-to-end scripts).
 
 ## Translations

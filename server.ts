@@ -40,16 +40,22 @@ await app.prepare();
 const handleRequest = app.getRequestHandler();
 const handleNextUpgrade = app.getUpgradeHandler();
 
+type CollabSocket = Parameters<typeof hocuspocus.handleConnection>[0];
+// The Hocuspocus connection behind each websocket peer.
+const connections = new WeakMap<object, ReturnType<typeof hocuspocus.handleConnection>>();
+
 const ws = crossws({
   hooks: {
     open(peer) {
-      (peer as any)._hp = hocuspocus.handleConnection(peer.websocket as any, peer.request as Request);
+      connections.set(peer, hocuspocus.handleConnection(peer.websocket as CollabSocket, peer.request as Request));
     },
     message(peer, message) {
-      (peer as any)._hp?.handleMessage(message.uint8Array());
+      connections.get(peer)?.handleMessage(message.uint8Array());
     },
     close(peer, event) {
-      (peer as any)._hp?.handleClose({ code: event.code, reason: event.reason });
+      // 1005: closed without a status code.
+      connections.get(peer)?.handleClose({ code: event.code ?? 1005, reason: event.reason ?? "" });
+      connections.delete(peer);
     },
     error(peer, error) {
       console.error("collab websocket error", peer.id, error);

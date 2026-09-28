@@ -253,7 +253,7 @@ try {
   // ---------------------------------------------------------------------------------------------
   // Row templates
   const tasks = await pages.createPage(owner, { workspaceId, kind: "database", title: "Tasks" });
-  const assignee = await databases.addProperty(ids.owner, tasks.id, { name: "Assignee", type: "person" });
+  await databases.addProperty(ids.owner, tasks.id, { name: "Assignee", type: "person" });
   const clients = await pages.createPage(owner, { workspaceId, kind: "database", title: "Clients" });
   const acme = await pages.createPage(owner, { workspaceId, parentId: clients.id, title: "Acme" });
   const client = await databases.addProperty(ids.owner, tasks.id, {

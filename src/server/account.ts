@@ -102,7 +102,7 @@ async function twoFactorOf(userId: string) {
  * Whether `code` is the current code of the authenticator app, or an unused recovery code, which
  * is then crossed off (only if nobody used it meanwhile).
  */
-async function useCode(code: string, row: { id: string; secret: string; backupCodes: string }) {
+async function consumeCode(code: string, row: { id: string; secret: string; backupCodes: string }) {
   const { secretConfig: key } = await auth.$context;
   const clean = code.trim();
   const secret = await symmetricDecrypt({ key, data: row.secret });
@@ -137,7 +137,7 @@ export async function reauthenticate(current: AccountSession, proof: Proof) {
   const codes = await twoFactorOf(userId);
   if (codes) {
     if (typeof proof.code !== "string" || !proof.code.trim()) throw new AccountError("proofRequired");
-    if (!(await useCode(proof.code, codes))) throw new AccountError("invalidCode");
+    if (!(await consumeCode(proof.code, codes))) throw new AccountError("invalidCode");
     return;
   }
   const signedInAt = new Date(current.session.createdAt).getTime();

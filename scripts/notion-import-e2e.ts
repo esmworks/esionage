@@ -36,7 +36,7 @@ const { db } = await import("@/db");
 const { file, page, session, user, workspace, workspaceMember } = await import("@/db/schema");
 const { makeSignature } = await import("better-auth/crypto");
 const { env } = await import("@/lib/env");
-const { pagePath, PAGE_LINK_MARKER } = await import("@/lib/mentions");
+const { pagePath } = await import("@/lib/mentions");
 const { getCollab, registerCollab } = await import("@/server/collab/bridge");
 const { createCollab } = await import("@/server/collab/service");
 const { createTeamspace } = await import("@/server/teamspaces");
@@ -97,7 +97,6 @@ const TASKS = hex(0xc1);
 const DESIGN = hex(0xc2);
 const COPY = hex(0xc3);
 const BETA = hex(0xc4);
-const LEGACY = hex(0xc5);
 const GHOST = hex(0xdead);
 const UUID = "4f2e8c1a-1b2c-4d3e-8f90-123456789abc";
 

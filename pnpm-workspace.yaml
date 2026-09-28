@@ -7,3 +7,6 @@ allowBuilds:
   # Pulled in by the AI library (pi-ai); their install scripts are no-ops or version notices.
   '@google/genai': false
   protobufjs: false
+  # ESLint's TypeScript import resolver; its native binary comes as an optional package, the
+  # script only fetches one when that is missing.
+  unrs-resolver: false
