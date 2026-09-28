@@ -55,6 +55,7 @@ export function TableView({
   locked,
   filtered,
   guest,
+  exportable,
 }: {
   workspaceId: string;
   databaseId: string;
@@ -69,6 +70,8 @@ export function TableView({
   filtered: boolean;
   /** Guests don't get bulk trash (see BulkActionBar). */
   guest?: boolean;
+  /** Offers exporting the selection as CSV (see BulkActionBar). */
+  exportable?: boolean;
 }) {
   const t = useTranslations("database");
   const tc = useTranslations("common");
@@ -373,6 +376,7 @@ export function TableView({
         api={api}
         readOnly={readOnly}
         guest={guest}
+        exportable={exportable}
       />
     </div>
   );

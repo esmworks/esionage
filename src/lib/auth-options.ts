@@ -13,6 +13,7 @@ import {
 import { sso } from "@better-auth/sso";
 import { cleanName } from "@/lib/account";
 import { env, mcpResource } from "@/lib/env";
+import { sessionLifetime } from "@/lib/session-lifetime";
 import type { SocialCredentials, SocialProvider } from "@/lib/social-providers";
 import { discoveryUrl, INSTANCE_SSO_PROVIDER_ID, SSO_SCOPES, type InstanceOidc } from "@/lib/sso-config";
 
@@ -281,6 +282,8 @@ export function baseAuthOptions({
       minPasswordLength: 8,
     },
     session: {
+      // SESSION_MAX_AGE_DAYS: how long a sign-in lasts without use (see lib/session-lifetime).
+      ...sessionLifetime(env.sessionDays),
       additionalFields: {
         // How the session was signed in (see authMethodOf); a passkey session counts as two-step.
         authMethod: { type: "string", required: false, input: false },

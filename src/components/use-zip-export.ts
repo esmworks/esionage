@@ -27,6 +27,7 @@ export function useZipExport() {
         if (body?.error === "tooManyPages") setError(t("tooManyPages", { limit: body.limit ?? 0 }));
         else if (body?.error === "tooLarge") setError(t("tooLarge", { size: formatBytes(body.limit ?? 0) }));
         else if (body?.error === "busy") setError(t("busy"));
+        else if (body?.error === "disabled") setError(t("disabled"));
         else setError(t("failed"));
         return;
       }

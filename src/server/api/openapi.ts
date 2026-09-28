@@ -293,7 +293,10 @@ const SCHEMAS: Record<string, JsonSchema> = {
 const ERROR_RESPONSES: Record<string, { description: string }> = {
   "400": { description: "Invalid input (validation_error, invalid_json, invalid_request, invalid_property_value, invalid_cursor)." },
   "401": { description: "No token, or an invalid or expired one (unauthorized, invalid_token, token_expired)." },
-  "403": { description: "The token lacks the scope (insufficient_scope), or the user may not do this (forbidden)." },
+  "403": {
+    description:
+      "The token lacks the scope (insufficient_scope), or the user may not do this, or the workspace lets API tokens only read (forbidden).",
+  },
   "404": { description: "Not found, or the user (or the token's workspace) may not access it." },
   "413": { description: "The request body is too large (payload_too_large)." },
   "429": { description: "Rate limited; wait for Retry-After seconds." },

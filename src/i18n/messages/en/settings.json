@@ -25,7 +25,8 @@
     "title": "Export workspace",
     "description": "Download every page you can see as a ZIP: pages as Markdown, databases as CSV, and the files they show. Pages in the trash are left out; templates are kept in a Templates folder.",
     "button": "Export",
-    "preparing": "Preparing…"
+    "preparing": "Preparing…",
+    "disabled": "Export is turned off for this workspace in Settings → Security."
   },
   "members": {
     "heading": "Members",
@@ -326,7 +327,7 @@
     "ssoFirst": "Set up single sign-on and verify its domains first."
   },
   "security": {
-    "description": "Decide how people sign in, who can bring people into this workspace, what guests can do and who can publish pages to the web. Only owners can change these settings.",
+    "description": "Decide how people sign in, who can bring people into this workspace, what guests can do, what can leave it (exports, connected apps) and who can publish pages to the web. Only owners can change these settings.",
     "authenticationHeading": "Authentication",
     "requireTwoFactor": {
       "title": "Require two-step verification",
@@ -348,9 +349,10 @@
     "publishingHeading": "Publishing",
     "publishing": {
       "title": "Who can publish to the web",
-      "description": "Published pages can be read, and public forms filled in, by anyone with the link. Guests can never publish. Pages and forms already on the web stay there until someone turns them off.",
+      "description": "Published pages can be read, and public forms filled in, by anyone with the link. Guests can never publish. Pages and forms already on the web stay there until someone turns them off. Off: nobody can publish, and pages, forms and the site already on the web stop working until publishing is turned back on.",
       "owners": "Owners only",
-      "members": "Owners and members"
+      "members": "Owners and members",
+      "off": "Nobody (off)"
     },
     "publications": {
       "title": "Published pages",
@@ -363,7 +365,8 @@
       "open": "Open site",
       "unpublish": "Unpublish",
       "confirm": "Unpublish this page? The link stops working for everyone.",
-      "indexable": "Search engines allowed"
+      "indexable": "Search engines allowed",
+      "off": "Publishing is turned off: none of these pages are on the web right now. They come back when publishing is turned on again, unless you unpublish them."
     },
     "forms": {
       "title": "Public forms",
@@ -378,7 +381,8 @@
       "open": "Open form",
       "turnOff": "Turn off",
       "confirm": "Turn off this form's public link? It stops working for everyone.",
-      "stale": "Takes no answers: whoever opened it lost access"
+      "stale": "Takes no answers: whoever opened it lost access",
+      "off": "Publishing is turned off: none of these forms take answers right now. They come back when publishing is turned on again, unless you turn them off."
     },
     "ownersOnly": "Only owners can change this.",
     "loginMethod": {
@@ -496,6 +500,18 @@
     "historyRetention": {
       "title": "Page history",
       "description": "Earlier versions of a page are kept for {days} days, up to {count} per page. Saved versions and versions from before a restore are kept for {keptDays} days, and the latest version of a page always stays."
+    },
+    "dataHeading": "Export and connected apps",
+    "export": {
+      "title": "Allow export",
+      "description": "Everyone in the workspace can download pages as Markdown, CSV or ZIP and print them to PDF. Off: those options are gone for everyone, owners included."
+    },
+    "connectedApps": {
+      "title": "Connected apps and API tokens",
+      "description": "What AI assistants and other apps connected over MCP, and REST API tokens, may do in this workspace. They never get more than the person who connected them. With no access, the workspace is hidden from them.",
+      "full": "Read and edit",
+      "read": "Read only",
+      "off": "No access"
     }
   },
   "notifications": {

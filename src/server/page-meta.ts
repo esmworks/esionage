@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { page, pageFavorite, type PageKind, user } from "@/db/schema";
 import { aiAvailable } from "@/server/ai-writing";
 import { AccessError, isGuest, pageVisibleTo, requireMembership, resolvePageAccess, type AccessLevel } from "@/server/access";
-import { topLevelAccess } from "@/server/workspaces";
+import { exportAllowed, topLevelAccess } from "@/server/workspaces";
 
 /** What the page header shows: who made and last changed the page, the viewer's access and star. */
 export type PageHeaderInfo = {
@@ -26,6 +26,8 @@ export type PageHeaderInfo = {
   template: "workspace" | "row" | "inside" | null;
   /** The AI writing assistant is available: the server has a provider and the workspace has AI on. */
   ai: boolean;
+  /** The workspace lets people export its pages (the menu's export and print entries). */
+  exportable: boolean;
 };
 
 export async function getPageHeaderInfo(userId: string, pageId: string): Promise<PageHeaderInfo> {
@@ -33,7 +35,7 @@ export async function getPageHeaderInfo(userId: string, pageId: string): Promise
   if (!found || level === "none") throw new AccessError();
   const creator = alias(user, "creator");
   const editor = alias(user, "editor");
-  const [[names], [star], membership, topLevel, ai] = await Promise.all([
+  const [[names], [star], membership, topLevel, ai, exportable] = await Promise.all([
     db
       .select({ createdBy: creator.name, updatedBy: editor.name })
       .from(page)
@@ -47,6 +49,7 @@ export async function getPageHeaderInfo(userId: string, pageId: string): Promise
     requireMembership(userId, found.workspaceId),
     topLevelAccess(userId, found.workspaceId),
     aiAvailable(found.workspaceId),
+    exportAllowed(found.workspaceId),
   ]);
   return {
     level,
@@ -60,6 +63,7 @@ export async function getPageHeaderInfo(userId: string, pageId: string): Promise
     locked: Boolean(found.lockedAt),
     template: found.isTemplate ? (found.parentId ? "row" : "workspace") : found.inTemplate ? "inside" : null,
     ai,
+    exportable,
   };
 }
 

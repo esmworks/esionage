@@ -23,6 +23,7 @@
     "failed": "Dışa aktarma başlatılamadı. Tekrar deneyin.",
     "tooManyPages": "Bir kerede dışa aktarmak için fazla: bir dışa aktarma en çok {limit} sayfa içerebilir. Çalışma alanının daha küçük bir bölümünü dışa aktarın.",
     "tooLarge": "Bu dışa aktarmadaki dosyalar toplam {size} sınırını aşıyor. Çalışma alanının daha küçük bir bölümünü dışa aktarın.",
-    "busy": "Zaten süren bir dışa aktarmanız var. İndirmenin bitmesini bekleyin."
+    "busy": "Zaten süren bir dışa aktarmanız var. İndirmenin bitmesini bekleyin.",
+    "disabled": "Bu çalışma alanında dışa aktarma kapalı."
   }
 }

@@ -195,7 +195,8 @@
     "exportFailed": "Impossible d’exporter les lignes sélectionnées.",
     "clearSelection": "Effacer la sélection",
     "confirmTrash": "Placer {count, plural, one {# ligne} other {# lignes}} dans la corbeille ?",
-    "skipped": "{count, plural, one {# ligne a été ignorée, car vous ne pouvez pas la modifier.} other {# lignes ont été ignorées, car vous ne pouvez pas les modifier.}}"
+    "skipped": "{count, plural, one {# ligne a été ignorée, car vous ne pouvez pas la modifier.} other {# lignes ont été ignorées, car vous ne pouvez pas les modifier.}}",
+    "exportDisabled": "L’exportation est désactivée dans cet espace de travail."
   },
   "calculate": {
     "calculate": "Calculer",

@@ -48,6 +48,7 @@ import { isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
 import { holdsOptions, holdsTimestamp, STATUS_GROUPS } from "@/lib/property-types";
 import { CARD_SIZES, TIMELINE_ZOOMS, VIEW_TYPES } from "@/lib/views";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
+import { asWrite } from "@/server/connected-app";
 import * as databases from "@/server/databases";
 import * as files from "@/server/files";
 import { uploadLimits } from "@/server/storage";
@@ -623,6 +624,15 @@ const READ = { readOnlyHint: true, openWorldHint: false } as const;
 
 export function createMcpServer(principal: McpPrincipal) {
   const server = new McpServer({ name: "leafdesk", title: "Leafdesk", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+  // Every tool not annotated read-only runs as a write, so a workspace that lets connected apps
+  // only read refuses it in its access checks (see connected-app.ts), whatever the tool checks.
+  const register = server.registerTool.bind(server) as (name: string, config: unknown, handler: unknown) => unknown;
+  server.registerTool = ((name: string, config: { annotations?: { readOnlyHint?: boolean } }, handler: (...args: unknown[]) => unknown) =>
+    register(
+      name,
+      config,
+      config.annotations?.readOnlyHint === true ? handler : (...args: unknown[]) => asWrite(() => handler(...args)),
+    )) as typeof server.registerTool;
   const { userId } = principal;
   const actor: WriteActor = { userId, oauthClientId: principal.clientId };
 

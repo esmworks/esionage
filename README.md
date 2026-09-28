@@ -81,8 +81,9 @@ approve them over OAuth.
   An identity provider can manage groups over SCIM.
 - **Publish to the web**: a read-only public link for a page and its subpages, kept out of search
   engines unless you allow them. Published databases show the views you pick (tables, boards,
-  lists, galleries) and visitors switch between them. Owners decide whether members may publish
-  and can take any published page offline.
+  lists, galleries) and visitors switch between them. Owners decide whether members may publish,
+  can take any published page offline, or turn publishing off for the whole workspace (see
+  [Workspace security switches](#workspace-security-switches)).
 - **Workspace site**: owners give the workspace's published pages one readable address
   (`/s/<slug>`) with a home page and a navigation of the pages listed in it; pages get addresses
   like `/s/<slug>/getting-started-<id>`, and links between listed pages stay on the site. Pages
@@ -115,7 +116,8 @@ approve them over OAuth.
 - **Workspaces and members**: add people by email (several at once) as owners or members, send
   an invitation link to people who don't have an account yet, or turn on a join link anyone can
   use. Owners can export the member list as CSV, hand ownership to someone else, and decide who
-  may invite guests.
+  may invite guests, whether pages may be exported, and what connected apps and API tokens may do
+  (see [Workspace security switches](#workspace-security-switches)).
 - **Email**: invitations, password reset, assignment and share notifications over SMTP (see [Email](#email)).
 - **Sign in with GitHub or Google**, optional (see [Social login](#social-login)).
 - **My account**: name and picture, password, email address, signed-in devices, connected apps,
@@ -220,8 +222,9 @@ removed after a day.
 
 The page menu exports a page as Markdown or a database as CSV. "Export with subpages" (for a
 database, "Export with row pages") downloads a ZIP of the page and everything under it; owners
-can download the whole workspace from Settings → General → Export. The archive mirrors the
-sidebar:
+can download the whole workspace from Settings → General → Export. Owners can turn exporting off
+in Settings → Security (see [Workspace security switches](#workspace-security-switches)). The
+archive mirrors the sidebar:
 
 ```
 Project.md              a page, and a folder of the same name for its subpages
@@ -379,7 +382,8 @@ workspace and isn't held back by a workspace's two-step policy. The old addresse
   who only sign in with GitHub or Google can set one instead. Both send a notice by email.
 - **Sessions:** every signed-in device with its browser, system, IP address and last activity
   (refreshed about once a day), with "Sign out" per device and "Sign out all other devices",
-  which also closes their live collaboration connections.
+  which also closes their live collaboration connections. A session ends after
+  `SESSION_MAX_AGE_DAYS` without use (see below).
 - **Security, connected apps, language and notifications:** as before, moved here from the
   workspace settings.
 - **Delete account:** type the account's email to confirm. It is refused while the person is the
@@ -393,6 +397,33 @@ Changing the email or password and deleting the account ask for the password aga
 two-step code (or recovery code) on accounts without one. An account with neither needs a
 sign-in from the last 10 minutes. These checks are rate-limited per person (10 tries per 15
 minutes), as are email changes (5 an hour), picture uploads (20 an hour) and signing out devices.
+
+How long a sign-in lasts is set for the whole server:
+
+| Variable | Meaning |
+| --- | --- |
+| `SESSION_MAX_AGE_DAYS` | Days a session lasts, in whole days from 1 to 3650. Default `7`. A session in use is extended (about once a day, or halfway through for a one-day lifetime), so this is how long a device may sit unused before it has to sign in again. Existing sessions keep the expiry they have until they are next extended. |
+
+## Workspace security switches
+
+Owners decide in the workspace's **Settings → Security** what may leave the workspace. The
+server enforces each switch everywhere it applies: in the app, on public pages, over MCP and in
+the REST API.
+
+- **Publishing:** *Owners only*, *Owners and members*, or *Off*. Off stops serving everything the
+  workspace has published: published pages, their files, the workspace site and public forms
+  answer "not found", and nobody can publish or duplicate them. Nothing is deleted: the
+  publications and the site's settings stay listed in Settings, and come back as they were when
+  publishing is turned on again.
+- **Export:** on by default. Off removes Markdown, CSV, ZIP and PDF export (and the print view)
+  for everyone, owners included, and the export routes answer `403`. The member list CSV in
+  Settings → Members stays, as it is an owner's own administration tool.
+- **Connected apps and API tokens:** what MCP apps and personal access tokens may do in the
+  workspace, on top of their own permissions and their user's access. *Full access* (default),
+  *Read only* (write tools and write endpoints are refused, reads still work), or *Off* (the
+  workspace is hidden from them: `list_workspaces` and `GET /workspaces` leave it out, and its
+  pages answer as pages the user can't see). This applies to the MCP server and the REST API
+  only; the app itself in the browser is not affected.
 
 ## Two-step verification and passkeys
 
@@ -739,7 +770,8 @@ The client opens a browser window where you sign in and approve access. The tool
   timeline, chart or form, including a form's public link).
 
 An app only ever sees the pages its user can see. Read-only apps can't call the tools that
-change anything.
+change anything, and a workspace's owners can let apps only read it, or hide it from them (see
+[Workspace security switches](#workspace-security-switches)).
 
 ## REST API
 
@@ -783,7 +815,10 @@ lists page with `next_cursor`. Each token may make 180 requests a minute (`API_R
 `X-RateLimit-*` headers, `429` with `Retry-After` beyond it), and request bodies are limited to
 5 MB. Only tokens authenticate (never the browser session), and CORS is off unless
 `API_CORS_ORIGINS` lists origins. Like connected MCP apps, tokens are not held back by a
-workspace's "require two-step verification" policy: it guards browser sessions.
+workspace's "require two-step verification" policy: it guards browser sessions. They are held to
+its **Connected apps and API tokens** switch: in a read-only workspace write endpoints answer
+`403` (`forbidden`), and a workspace with it off answers `404` like one the user isn't in (see
+[Workspace security switches](#workspace-security-switches)).
 
 ## Development
 
@@ -813,6 +848,7 @@ Useful scripts:
 | `pnpm tsx scripts/sw-e2e.ts` | Checks the service worker (`public/sw.js`) in headless Chrome against a stand-in server: offline pages, per-user copies, the offline page (set `CHROME_PATH` outside macOS) |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/api-e2e.ts` | End-to-end REST API check (tokens, every endpoint, access, rate limits, OpenAPI) against a running server |
+| `pnpm tsx scripts/security-switches-e2e.ts` | End-to-end check of the workspace security switches (export, publishing, connected apps) through the settings action, the export and public routes, MCP and the REST API, against a running server |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
 | `pnpm tsx scripts/two-factor-e2e.ts` | End-to-end two-step verification check (sign-in challenge, recovery codes, workspace policy) against a running server |
 

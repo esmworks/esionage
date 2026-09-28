@@ -1,5 +1,6 @@
 import type * as z from "zod";
 import { SlidingWindowLimiter } from "@/lib/rate-limit";
+import { runAsConnectedApp } from "@/server/connected-app";
 import { ApiError, apiErrorFor, errorBody } from "./errors";
 import { matchRoute, type ApiRoute } from "./routes";
 import type { ApiPrincipal, TokenCheck } from "./tokens";
@@ -10,7 +11,8 @@ import type { ApiPrincipal, TokenCheck } from "./tokens";
  *
  * Only tokens authenticate here, never the browser's session cookie, so pages can't be made to call
  * the API on a signed-in user's behalf. Like MCP's OAuth tokens, bearer requests are outside the
- * workspaces' two-step verification policy (see request-session.ts and access.ts).
+ * workspaces' two-step verification policy (see request-session.ts and access.ts), and answer to
+ * their connected-apps setting instead (see connected-app.ts).
  */
 export const API_PREFIX = "/api/v1";
 /** Largest request body accepted. */
@@ -198,7 +200,11 @@ export function createApiHandler(deps: ApiDeps) {
         body = parsed.data;
       }
       const ctx = { userId: principal.userId, actor: { userId: principal.userId } };
-      const result = await route.handler({ principal, ctx, params, query, body });
+      // Held to each workspace's connected-apps setting (see connected-app.ts): endpoints that
+      // need pages:write are writes, refused where apps may only read.
+      const result = await runAsConnectedApp({ userId: principal.userId, writing: route.scope === "pages:write" }, () =>
+        route.handler({ principal, ctx, params, query, body }),
+      );
       return json(route.status ?? 200, result, headers);
     } catch (error) {
       const apiError = apiErrorFor(error);

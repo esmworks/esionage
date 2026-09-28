@@ -36,7 +36,9 @@
     "viewersTitle": "Bu sayfayı görüntüleyenler",
     "saveAsTemplate": "Şablon olarak kaydet",
     "saveAsRowTemplate": "Satır şablonu olarak kaydet",
-    "deleteTemplate": "Şablonu sil"
+    "deleteTemplate": "Şablonu sil",
+    "exportDisabled": "Dışa aktarma kapalı",
+    "exportDisabledBody": "Bu çalışma alanının sahipleri sayfaların dışa aktarılmasını ve yazdırılmasını kapattı."
   },
   "comments": {
     "title": "Yorumlar",

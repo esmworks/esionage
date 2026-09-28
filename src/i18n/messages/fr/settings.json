@@ -25,7 +25,8 @@
     "title": "Exporter l’espace de travail",
     "description": "Téléchargez toutes les pages que vous pouvez voir dans un fichier ZIP : les pages en Markdown, les bases de données en CSV et les fichiers qu’elles affichent. Les pages de la corbeille sont exclues ; les modèles sont placés dans un dossier Modèles.",
     "button": "Exporter",
-    "preparing": "Préparation…"
+    "preparing": "Préparation…",
+    "disabled": "L’exportation est désactivée pour cet espace de travail dans Paramètres → Sécurité."
   },
   "members": {
     "heading": "Membres",
@@ -326,7 +327,7 @@
     "ssoFirst": "Configurez d'abord l'authentification unique et vérifiez ses domaines."
   },
   "security": {
-    "description": "Choisissez comment les personnes se connectent, qui peut faire entrer des personnes dans cet espace de travail, ce que les invités peuvent faire et qui peut publier des pages sur le Web. Seuls les propriétaires peuvent modifier ces paramètres.",
+    "description": "Choisissez comment les personnes se connectent, qui peut faire entrer des personnes dans cet espace de travail, ce que les invités peuvent faire, ce qui peut en sortir (exportations, applications connectées) et qui peut publier des pages sur le Web. Seuls les propriétaires peuvent modifier ces paramètres.",
     "authenticationHeading": "Authentification",
     "requireTwoFactor": {
       "title": "Exiger la vérification en deux étapes",
@@ -348,9 +349,10 @@
     "publishingHeading": "Publication",
     "publishing": {
       "title": "Qui peut publier sur le Web",
-      "description": "Toute personne disposant du lien peut lire les pages publiées et remplir les formulaires publics. Les invités ne peuvent jamais publier. Les pages et formulaires déjà en ligne y restent jusqu’à ce que quelqu’un les désactive.",
+      "description": "Toute personne disposant du lien peut lire les pages publiées et remplir les formulaires publics. Les invités ne peuvent jamais publier. Les pages et formulaires déjà en ligne y restent jusqu’à ce que quelqu’un les désactive. Désactivé : personne ne peut publier, et les pages, formulaires et le site déjà en ligne cessent de fonctionner jusqu’à ce que la publication soit réactivée.",
       "owners": "Propriétaires uniquement",
-      "members": "Propriétaires et membres"
+      "members": "Propriétaires et membres",
+      "off": "Personne (désactivé)"
     },
     "publications": {
       "title": "Pages publiées",
@@ -363,7 +365,8 @@
       "open": "Ouvrir le site",
       "unpublish": "Annuler la publication",
       "confirm": "Annuler la publication de cette page ? Le lien cessera de fonctionner pour tout le monde.",
-      "indexable": "Moteurs de recherche autorisés"
+      "indexable": "Moteurs de recherche autorisés",
+      "off": "La publication est désactivée : aucune de ces pages n’est en ligne pour le moment. Elles reviendront quand la publication sera réactivée, sauf si vous les retirez."
     },
     "forms": {
       "title": "Formulaires publics",
@@ -378,7 +381,8 @@
       "open": "Ouvrir le formulaire",
       "turnOff": "Désactiver",
       "confirm": "Désactiver le lien public de ce formulaire ? Il cessera de fonctionner pour tout le monde.",
-      "stale": "N’accepte aucune réponse : la personne qui l’a ouvert a perdu son accès"
+      "stale": "N’accepte aucune réponse : la personne qui l’a ouvert a perdu son accès",
+      "off": "La publication est désactivée : aucun de ces formulaires n’accepte de réponses pour le moment. Ils reviendront quand la publication sera réactivée, sauf si vous les désactivez."
     },
     "ownersOnly": "Seuls les propriétaires peuvent modifier ce paramètre.",
     "loginMethod": {
@@ -496,6 +500,18 @@
     "historyRetention": {
       "title": "Historique des pages",
       "description": "Les versions précédentes d’une page sont conservées {days} jours, jusqu’à {count} par page. Les versions enregistrées et celles d’avant une restauration sont conservées {keptDays} jours, et la dernière version d’une page est toujours gardée."
+    },
+    "dataHeading": "Exportation et applications connectées",
+    "export": {
+      "title": "Autoriser l’exportation",
+      "description": "Tout le monde dans l’espace de travail peut télécharger des pages en Markdown, CSV ou ZIP et les imprimer en PDF. Désactivé : ces options disparaissent pour tout le monde, propriétaires compris."
+    },
+    "connectedApps": {
+      "title": "Applications connectées et jetons d’API",
+      "description": "Ce que les assistants IA et autres applications connectées via MCP, ainsi que les jetons de l’API REST, peuvent faire dans cet espace de travail. Ils n’ont jamais plus de droits que la personne qui les a connectés. Sans accès, l’espace de travail leur est caché.",
+      "full": "Lecture et modification",
+      "read": "Lecture seule",
+      "off": "Aucun accès"
     }
   },
   "notifications": {

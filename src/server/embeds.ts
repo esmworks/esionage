@@ -15,6 +15,7 @@ import {
 import type { WriteActor } from "@/server/collab/bridge";
 import { withCode } from "@/server/databases";
 import { createPage, type DatabaseSeedNames } from "@/server/pages";
+import { exportAllowed } from "@/server/workspaces";
 
 /**
  * Databases shown inside page bodies (see lib/embed-blocks). An inline database is an ordinary
@@ -39,12 +40,12 @@ export async function createInlineDatabase(actor: WriteActor, hostPageId: string
 export type EmbedInfo =
   /** Missing, not a database, or not visible to them: the block says so and nothing else. */
   | { state: "unavailable" }
-  | { state: "ok"; workspaceId: string; level: AccessLevel; guest: boolean; archived: boolean };
+  | { state: "ok"; workspaceId: string; level: AccessLevel; guest: boolean; archived: boolean; exportable: boolean };
 
 export async function getEmbedInfo(userId: string, databaseId: string): Promise<EmbedInfo> {
   const { page: found, level } = await resolvePageAccess(userId, databaseId);
   if (!found || found.kind !== "database" || !hasLevel(level, "view")) return { state: "unavailable" };
-  const membership = await getMembership(userId, found.workspaceId);
+  const [membership, exportable] = await Promise.all([getMembership(userId, found.workspaceId), exportAllowed(found.workspaceId)]);
   if (!membership) return { state: "unavailable" };
   return {
     state: "ok",
@@ -52,6 +53,7 @@ export async function getEmbedInfo(userId: string, databaseId: string): Promise<
     level,
     guest: isGuest(membership.role),
     archived: Boolean(found.archivedAt),
+    exportable,
   };
 }
 

@@ -1,9 +1,9 @@
-import { and, count, desc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, notInArray, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { databaseProperty, notification, page, pageReminder, user, workspace, type NotificationKind } from "@/db/schema";
 import { newAssignees } from "@/lib/properties";
-import { pageVisibleTo, requireMembership } from "@/server/access";
+import { pageVisibleTo, requireMembership, workspacesHiddenFromApp } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 import { mailStatus } from "@/server/mail";
 import { requestLocale } from "@/server/mail/locale";
@@ -322,7 +322,7 @@ export async function listNotifications(
   { workspaceId, unreadOnly = false, limit = INBOX_LIMIT }: { workspaceId?: string; unreadOnly?: boolean; limit?: number } = {},
 ): Promise<InboxItem[]> {
   if (workspaceId) await requireMembership(userId, workspaceId);
-  const filter = await inboxFilter(userId, workspaceId);
+  const [filter, hidden] = await Promise.all([inboxFilter(userId, workspaceId), workspaceId ? new Set<string>() : workspacesHiddenFromApp(userId)]);
   if (!filter) return [];
   const rows = await db
     .select({
@@ -350,7 +350,14 @@ export async function listNotifications(
       pageReminder,
       and(eq(notification.kind, "reminder"), eq(pageReminder.pageId, notification.pageId), eq(pageReminder.mentionId, notification.mentionId)),
     )
-    .where(and(filter, unreadOnly ? isNull(notification.readAt) : undefined))
+    .where(
+      and(
+        filter,
+        unreadOnly ? isNull(notification.readAt) : undefined,
+        // All workspaces (MCP): not those whose owners hid them from connected apps.
+        hidden.size ? notInArray(notification.workspaceId, [...hidden]) : undefined,
+      ),
+    )
     .orderBy(desc(notification.createdAt))
     .limit(limit);
   return rows.map(({ readAt, ...row }) => ({ ...row, read: readAt !== null }));

@@ -62,7 +62,8 @@
     "notAllowed": "Bu çalışma alanında web'de yalnızca sahipler yayınlayabilir. Bağlantıyı oluşturması için bir sahibe başvurun.",
     "failed": "Bir şeyler ters gitti. Tekrar deneyin.",
     "stale": "Bu bağlantı yanıt almıyor: açan kişi artık bu veritabanına satır ekleyemiyor. Yanıtları sizin adınıza almak için yeniden açın.",
-    "reactivate": "Yeniden yanıt al"
+    "reactivate": "Yeniden yanıt al",
+    "publishingOff": "Bu çalışma alanında web'de yayınlama kapalı. Bir sahip yeniden açana kadar herkese açık formlar yanıt kabul etmez."
   },
   "errors": {
     "required": "Bu soru zorunludur.",
@@ -78,7 +79,8 @@
     "tooLarge": "Yanıtlarınız çok uzun.",
     "notAllowed": "Bu çalışma alanında web'de yalnızca sahipler yayınlayabilir.",
     "inTrash": "Bu veritabanı çöp kutusunda.",
-    "notAForm": "Bu görünüm bir form değil."
+    "notAForm": "Bu görünüm bir form değil.",
+    "publishingOff": "Bu çalışma alanında web'de yayınlama kapalı."
   },
   "public": {
     "signInTitle": "Yanıtlamak için oturum açın",

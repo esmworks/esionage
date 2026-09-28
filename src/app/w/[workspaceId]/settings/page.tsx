@@ -11,6 +11,8 @@ import { MembersPanel } from "@/components/settings/members-panel";
 import { PublicForms } from "@/components/settings/public-forms";
 import { PublishedPages } from "@/components/settings/published-pages";
 import {
+  ConnectedAppsSetting,
+  ExportSetting,
   GuestInviteSetting,
   GuestPrivatePagesSetting,
   HistoryRetentionNote,
@@ -149,11 +151,7 @@ export default async function SettingsPage({
               </SettingsGroup>
               {!guest && <AiGroup workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
               {/* Exporting everything is for owners, like the members list download. */}
-              {isOwner && (
-                <SettingsGroup title={t("export.heading")} className="mt-10">
-                  <WorkspaceExport workspaceId={workspaceId} />
-                </SettingsGroup>
-              )}
+              {isOwner && <ExportGroup workspaceId={workspaceId} userId={user.id} />}
             </>
           )}
           {tab === "members" && <MembersTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
@@ -176,6 +174,16 @@ async function AiGroup({ workspaceId, userId, isOwner }: { workspaceId: string; 
   return (
     <SettingsGroup title={t("heading")} description={t("description")} className="mt-10">
       <AiSettings workspaceId={workspaceId} enabled={settings.ai !== false} canEdit={isOwner} provider={aiInfo()} embeddings={embeddingModel()} />
+    </SettingsGroup>
+  );
+}
+
+/** Settings > General > Export, for owners: off while the workspace has export turned off. */
+async function ExportGroup({ workspaceId, userId }: { workspaceId: string; userId: string }) {
+  const [settings, t] = await Promise.all([getWorkspaceSettings(userId, workspaceId), getTranslations("settings")]);
+  return (
+    <SettingsGroup title={t("export.heading")} className="mt-10">
+      <WorkspaceExport workspaceId={workspaceId} disabled={settings.export === false} />
     </SettingsGroup>
   );
 }
@@ -238,16 +246,26 @@ async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: stri
           <GuestPrivatePagesSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
         </SettingsGroup>
       </div>
+      <SettingsGroup title={t("security.dataHeading")}>
+        <ExportSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
+        <ConnectedAppsSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
+      </SettingsGroup>
       <SettingsGroup title={t("security.publishingHeading")}>
         <PublishingSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
       </SettingsGroup>
       {publications && (
-        <SettingsGroup title={t("security.publications.title")} description={t("security.publications.description")}>
+        <SettingsGroup
+          title={t("security.publications.title")}
+          description={t(settings.publishing === "off" ? "security.publications.off" : "security.publications.description")}
+        >
           <PublishedPages workspaceId={workspaceId} publications={publications} />
         </SettingsGroup>
       )}
       {forms && (
-        <SettingsGroup title={t("security.forms.title")} description={t("security.forms.description")}>
+        <SettingsGroup
+          title={t("security.forms.title")}
+          description={t(settings.publishing === "off" ? "security.forms.off" : "security.forms.description")}
+        >
           <PublicForms workspaceId={workspaceId} forms={forms} />
         </SettingsGroup>
       )}

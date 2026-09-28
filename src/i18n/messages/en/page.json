@@ -36,7 +36,9 @@
     "viewersTitle": "Viewing this page",
     "saveAsTemplate": "Save as template",
     "saveAsRowTemplate": "Save as row template",
-    "deleteTemplate": "Delete template"
+    "deleteTemplate": "Delete template",
+    "exportDisabled": "Export is turned off",
+    "exportDisabledBody": "The owners of this workspace have turned off exporting and printing its pages."
   },
   "comments": {
     "title": "Comments",

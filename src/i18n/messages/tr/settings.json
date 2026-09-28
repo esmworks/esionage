@@ -25,7 +25,8 @@
     "title": "Çalışma alanını dışa aktar",
     "description": "Görebildiğiniz tüm sayfaları ZIP olarak indirin: sayfalar Markdown, veritabanları CSV olarak, gösterdikleri dosyalarla birlikte. Çöp kutusundaki sayfalar dahil edilmez; şablonlar Templates klasöründe tutulur.",
     "button": "Dışa aktar",
-    "preparing": "Hazırlanıyor…"
+    "preparing": "Hazırlanıyor…",
+    "disabled": "Bu çalışma alanında dışa aktarma Ayarlar → Güvenlik bölümünden kapatılmış."
   },
   "members": {
     "heading": "Üyeler",
@@ -326,7 +327,7 @@
     "ssoFirst": "Önce çoklu oturum açmayı kurun ve alan adlarını doğrulayın."
   },
   "security": {
-    "description": "İnsanların nasıl giriş yapacağını, bu çalışma alanına kimlerin kişi getirebileceğini, misafirlerin neler yapabileceğini ve kimlerin sayfaları web'de yayınlayabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
+    "description": "İnsanların nasıl giriş yapacağını, bu çalışma alanına kimlerin kişi getirebileceğini, misafirlerin neler yapabileceğini, nelerin dışarı çıkabileceğini (dışa aktarma, bağlı uygulamalar) ve kimlerin sayfaları web'de yayınlayabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
     "authenticationHeading": "Kimlik doğrulama",
     "requireTwoFactor": {
       "title": "İki adımlı doğrulamayı zorunlu kıl",
@@ -348,9 +349,10 @@
     "publishingHeading": "Yayınlama",
     "publishing": {
       "title": "Kimler web'de yayınlayabilir",
-      "description": "Yayınlanan sayfaları bağlantıya sahip herkes okuyabilir, herkese açık formları da doldurabilir. Misafirler hiçbir zaman yayınlayamaz. Web'deki sayfalar ve formlar biri kapatana kadar yayında kalır.",
+      "description": "Yayınlanan sayfaları bağlantıya sahip herkes okuyabilir, herkese açık formları da doldurabilir. Misafirler hiçbir zaman yayınlayamaz. Web'deki sayfalar ve formlar biri kapatana kadar yayında kalır. Kapalıyken kimse yayınlayamaz; web'deki sayfalar, formlar ve site yayınlama yeniden açılana kadar çalışmaz.",
       "owners": "Yalnızca sahipler",
-      "members": "Sahipler ve üyeler"
+      "members": "Sahipler ve üyeler",
+      "off": "Hiç kimse (kapalı)"
     },
     "publications": {
       "title": "Yayındaki sayfalar",
@@ -363,7 +365,8 @@
       "open": "Siteyi aç",
       "unpublish": "Yayından kaldır",
       "confirm": "Bu sayfa yayından kaldırılsın mı? Bağlantı herkes için çalışmayı bırakır.",
-      "indexable": "Arama motorlarına açık"
+      "indexable": "Arama motorlarına açık",
+      "off": "Yayınlama kapalı: bu sayfaların hiçbiri şu anda web'de değil. Siz yayından kaldırmadıkça yayınlama yeniden açıldığında geri gelirler."
     },
     "forms": {
       "title": "Herkese açık formlar",
@@ -378,7 +381,8 @@
       "open": "Formu aç",
       "turnOff": "Kapat",
       "confirm": "Bu formun herkese açık bağlantısı kapatılsın mı? Bağlantı herkes için çalışmayı bırakır.",
-      "stale": "Yanıt almıyor: açan kişinin erişimi kalmadı"
+      "stale": "Yanıt almıyor: açan kişinin erişimi kalmadı",
+      "off": "Yayınlama kapalı: bu formların hiçbiri şu anda yanıt kabul etmiyor. Siz kapatmadıkça yayınlama yeniden açıldığında geri gelirler."
     },
     "ownersOnly": "Bunu yalnızca sahipler değiştirebilir.",
     "loginMethod": {
@@ -496,6 +500,18 @@
     "historyRetention": {
       "title": "Sayfa geçmişi",
       "description": "Bir sayfanın önceki sürümleri {days} gün, sayfa başına en fazla {count} adet saklanır. Kaydedilen sürümler ve geri yüklemeden önceki sürümler {keptDays} gün saklanır; sayfanın en son sürümü her zaman kalır."
+    },
+    "dataHeading": "Dışa aktarma ve bağlı uygulamalar",
+    "export": {
+      "title": "Dışa aktarmaya izin ver",
+      "description": "Çalışma alanındaki herkes sayfaları Markdown, CSV veya ZIP olarak indirebilir ve PDF olarak yazdırabilir. Kapalıyken bu seçenekler sahipler dahil herkes için kalkar."
+    },
+    "connectedApps": {
+      "title": "Bağlı uygulamalar ve API anahtarları",
+      "description": "MCP ile bağlanan yapay zekâ asistanlarının ve diğer uygulamaların, ayrıca REST API anahtarlarının bu çalışma alanında neler yapabileceği. Onları bağlayan kişiden fazlasını hiçbir zaman yapamazlar. Erişim yoksa çalışma alanı onlara hiç görünmez.",
+      "full": "Okuma ve düzenleme",
+      "read": "Yalnızca okuma",
+      "off": "Erişim yok"
     }
   },
   "notifications": {

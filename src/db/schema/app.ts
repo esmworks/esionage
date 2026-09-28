@@ -46,8 +46,12 @@ export type WorkspaceSettings = {
   guestInvites: "owners" | "members";
   /** Whether guests may add top-level pages, which only they can see. */
   guestPrivatePages: boolean;
-  /** Who may publish pages to the web. Guests never can. */
-  publishing: "owners" | "members";
+  /**
+   * Who may publish pages and open forms to the web; guests never can. "off": nobody, and what is
+   * already published stops being served (published pages, the workspace's site, public forms)
+   * without being deleted, so turning publishing back on brings it all back.
+   */
+  publishing: "owners" | "members" | "off";
   /**
    * Everyone must use two-step verification (an authenticator app, or a passkey sign-in) to open
    * the workspace in the app. Doesn't apply to connected apps (MCP), which use their own tokens.
@@ -72,6 +76,17 @@ export type WorkspaceSettings = {
    * (see server/retention.ts); 0 keeps it until someone deletes it. One of TRASH_RETENTION_CHOICES.
    */
   trashRetentionDays: number;
+  /**
+   * Whether people may take the workspace's pages out as files: Markdown, CSV and ZIP exports and
+   * the print view ("Export as PDF"). Reading pages through connected apps is `connectedApps`.
+   */
+  export: boolean;
+  /**
+   * What connected apps may do in the workspace: MCP clients a user authorized over OAuth and REST
+   * API tokens alike (see server/connected-app.ts). "full": whatever their user may; "read": read
+   * only, every change refused; "off": the workspace is hidden from them.
+   */
+  connectedApps: "full" | "read" | "off";
 };
 
 export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
@@ -83,6 +98,8 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   loginMethod: "any",
   ai: true,
   trashRetentionDays: 30,
+  export: true,
+  connectedApps: "full",
 };
 
 export const workspace = pgTable("workspace", {

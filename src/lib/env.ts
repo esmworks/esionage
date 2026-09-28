@@ -1,3 +1,4 @@
+import { sessionDaysFrom } from "@/lib/session-lifetime";
 import { socialProvidersFrom, type SocialProvider } from "@/lib/social-providers";
 import { instanceOidcFrom, ssoTrustedOriginsFrom } from "@/lib/sso-config";
 
@@ -16,6 +17,10 @@ export const env = {
   },
   get authSecret() {
     return required("BETTER_AUTH_SECRET");
+  },
+  /** SESSION_MAX_AGE_DAYS: days a sign-in lasts without use (default 7, see lib/session-lifetime). */
+  get sessionDays() {
+    return sessionDaysFrom(process.env.SESSION_MAX_AGE_DAYS);
   },
   /** DISABLE_SIGNUP=true closes email/password sign-up; existing accounts can still sign in. */
   get signUpDisabled() {

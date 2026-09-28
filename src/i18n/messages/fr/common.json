@@ -23,6 +23,7 @@
     "failed": "Impossible de lancer l’exportation. Réessayez.",
     "tooManyPages": "C’est trop à exporter en une fois : une exportation contient au maximum {limit} pages. Exportez une plus petite partie de l’espace de travail.",
     "tooLarge": "Les fichiers de cette exportation dépassent {size} au total. Exportez une plus petite partie de l’espace de travail.",
-    "busy": "Une exportation est déjà en cours. Attendez la fin de son téléchargement."
+    "busy": "Une exportation est déjà en cours. Attendez la fin de son téléchargement.",
+    "disabled": "L’exportation est désactivée dans cet espace de travail."
   }
 }

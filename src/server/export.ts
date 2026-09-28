@@ -17,6 +17,7 @@ import { getDatabaseSnapshot } from "@/server/databases";
 import { resolveEmbeds } from "@/server/embeds";
 import { labelPageLinks } from "@/server/mentions";
 import { getStorage } from "@/server/storage";
+import { exportAllowed } from "@/server/workspaces";
 
 /**
  * Exports: one page as Markdown or one database as CSV (the page menu's "Export"), and a page with
@@ -122,6 +123,7 @@ export function databaseTable(
 /** A database's rows (all of them, or those of `only`, in that order) as CSV, and its title. */
 export async function databaseCsv(userId: string, databaseId: string, only: string[] | null = null) {
   const snapshot = await getDatabaseSnapshot(userId, databaseId);
+  await assertExportAllowed(snapshot.database.workspaceId);
   const byId = new Map(snapshot.rows.map((row) => [row.id, row]));
   const rows = only ? only.flatMap((id) => byId.get(id) ?? []) : snapshot.rows;
   // "photo.png (https://…/api/files/…)": the link opens for people who can see the row.
@@ -136,7 +138,7 @@ export type ExportScope = { pageId: string } | { workspaceId: string };
 
 export class ExportError extends Error {
   constructor(
-    readonly code: "tooManyPages" | "tooLarge" | "busy",
+    readonly code: "tooManyPages" | "tooLarge" | "busy" | "disabled",
     /** The limit that was hit: pages, or bytes of files. */
     readonly limit?: number,
   ) {
@@ -145,10 +147,21 @@ export class ExportError extends Error {
         ? `Exports can hold at most ${limit} pages`
         : code === "tooLarge"
           ? `Exports can hold at most ${formatBytes(limit ?? 0)} of files`
-          : "An export is already running",
+          : code === "disabled"
+            ? "Export is turned off in this workspace"
+            : "An export is already running",
     );
     this.name = "ExportError";
   }
+}
+
+/**
+ * Refuses exports (and the print view) of the workspace's pages while its owners have export
+ * turned off. `databaseCsv` and `planExport` ask it themselves; one page's Markdown is checked by
+ * the export route, since archives read each page's Markdown after their plan was checked.
+ */
+export async function assertExportAllowed(workspaceId: string) {
+  if (!(await exportAllowed(workspaceId))) throw new ExportError("disabled");
 }
 
 const MB = 1024 * 1024;
@@ -230,6 +243,7 @@ export async function planExport(userId: string, scope: ExportScope, labels: Exp
     title = ws?.name?.trim() || "Workspace";
     where = sql`p.workspace_id = ${workspaceId} and p.archived_at is null`;
   }
+  await assertExportAllowed(workspaceId);
 
   const rows = await db.execute<{
     id: string;
@@ -491,7 +505,7 @@ export function attachment(title: string, extension: string) {
 export function exportErrorResponse(error: ExportError) {
   return Response.json(
     { error: error.code, limit: error.limit ?? null, message: error.message },
-    { status: error.code === "busy" ? 429 : 413, headers: { "Cache-Control": "no-store" } },
+    { status: error.code === "busy" ? 429 : error.code === "disabled" ? 403 : 413, headers: { "Cache-Control": "no-store" } },
   );
 }
 
