@@ -1,4 +1,4 @@
-import { and, eq, getTableColumns, sql, type SQL } from "drizzle-orm";
+import { and, eq, getTableColumns, ne, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   page,
@@ -344,6 +344,31 @@ export async function requirePageAccess(userId: string, pageId: string, needed: 
   if (!found || !hasLevel(level, needed)) throw new AccessError();
   return found;
 }
+
+/**
+ * Everyone in the workspace with full access to the page (the people who can share it), but
+ * `except`: who hears about a request for access to it.
+ */
+export async function peopleWithFullAccess(workspaceId: string, pageId: string, except?: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: workspaceMember.userId })
+    .from(workspaceMember)
+    .where(
+      and(
+        eq(workspaceMember.workspaceId, workspaceId),
+        except ? ne(workspaceMember.userId, except) : undefined,
+        sql`page_access_level(${workspaceMember.userId}, ${pageId}) = ${FULL_RANK}`,
+      ),
+    );
+  return rows.map((r) => r.userId);
+}
+
+/**
+ * SQL: someone's role in a workspace, or null when they aren't in it; for lists that say whether
+ * a person is in the workspace (an access request's requester, say). Both are SQL expressions.
+ */
+export const workspaceRoleOf = (userId: SQL | AnyColumn, workspaceId: SQL | AnyColumn) =>
+  sql<WorkspaceRole | null>`(select wm.role from ${workspaceMember} wm where wm.workspace_id = ${workspaceId} and wm.user_id = ${userId})`;
 
 /**
  * SQL condition: the user can at least view the page. Pass the alias when the page table is

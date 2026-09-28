@@ -71,6 +71,27 @@
     "action": "Open page",
     "optOut": "You get these because you set a reminder. You can turn them off in My account > Preferences."
   },
+  "accessRequest": {
+    "subject": "{requester} asked for access to “{page}”",
+    "heading": "{requester} asked for access to “{page}”",
+    "body": "{requester} ({email}) would like to open “{page}” in {workspace}.",
+    "message": "Their message: “{message}”",
+    "answer": "Share the page with them, picking what they can do, or decline the request. You can answer from your inbox or from Share on the page.",
+    "action": "Open page",
+    "optOut": "You get these because you have full access to the page. You can turn them off in My account > Preferences."
+  },
+  "accessApproved": {
+    "subject": "You can now open “{page}”",
+    "heading": "{actor} approved your request",
+    "body": "You can now {level} “{page}” in {workspace}.",
+    "action": "Open page"
+  },
+  "accessDeclined": {
+    "subject": "Your request for access was declined",
+    "heading": "Your request was declined",
+    "body": "Your request for access to this page was declined: {link}",
+    "hint": "If you still need it, ask the person who sent you the link."
+  },
   "emailChange": {
     "subject": "Confirm your new email address",
     "heading": "Confirm your new email address",

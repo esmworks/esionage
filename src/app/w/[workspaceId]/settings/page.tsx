@@ -12,6 +12,7 @@ import { MembersPanel } from "@/components/settings/members-panel";
 import { PublicForms } from "@/components/settings/public-forms";
 import { PublishedPages } from "@/components/settings/published-pages";
 import {
+  AccessRequestsSetting,
   ConnectedAppsSetting,
   ExportSetting,
   GuestInviteSetting,
@@ -245,6 +246,9 @@ async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: stri
           />
         </SettingsGroup>
       )}
+      <SettingsGroup title={t("security.sharingHeading")}>
+        <AccessRequestsSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
+      </SettingsGroup>
       <div>
         <SettingsGroup title={t("security.guestsHeading")}>
           <GuestInviteSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { MailConfigError, readMailConfig } from "./config";
 import {
+  accessApprovedEmail,
+  accessDeclinedEmail,
+  accessRequestEmail,
   assignmentEmail,
   invitationEmail,
   PASSWORD_RESET_MINUTES,
@@ -172,5 +175,44 @@ describe("shareEmail", () => {
     const en = shareEmail("en", { ...share, level: "full" });
     expect(en.subject).toBe("Erhan shared “Yol <haritası>” with you");
     expect(en.text).toContain("You can now view, edit and share “Yol <haritası>” in Ekip.");
+  });
+});
+
+describe("access request emails", () => {
+  const link = "https://notes.example.com/w/ws/p/page1";
+
+  it("tells the people with full access who asked, for which page, and what they wrote", () => {
+    const request = {
+      requesterName: "Ada",
+      requesterEmail: "ada@example.com",
+      pageTitle: "Bütçe",
+      workspaceName: "Ekip",
+      message: "Need it for <the> review",
+      link,
+    };
+    const en = accessRequestEmail("en", request);
+    expect(en.subject).toBe("Ada asked for access to “Bütçe”");
+    expect(en.text).toContain("Ada (ada@example.com) would like to open “Bütçe” in Ekip.");
+    expect(en.text).toContain("Their message: “Need it for <the> review”");
+    expect(en.html).toContain("Need it for &lt;the&gt; review");
+    expect(en.text).toContain(`Open page: ${link}`);
+
+    const bare = accessRequestEmail("tr", { ...request, requesterName: "", message: null });
+    expect(bare.subject).toBe("ada@example.com “Bütçe” sayfasına erişim istedi");
+    expect(bare.text).not.toContain("Mesajı");
+  });
+
+  it("tells the requester what they can do now", () => {
+    const approved = accessApprovedEmail("en", { actorName: "Erhan", pageTitle: "Bütçe", workspaceName: "Ekip", level: "comment", link });
+    expect(approved.subject).toBe("You can now open “Bütçe”");
+    expect(approved.text).toContain("Erhan approved your request");
+    expect(approved.text).toContain("You can now view and comment on “Bütçe” in Ekip.");
+  });
+
+  it("declines without naming the page, its workspace or who declined", () => {
+    const declined = accessDeclinedEmail("en", { link });
+    expect(declined.subject).toBe("Your request for access was declined");
+    expect(declined.text).toContain(link);
+    for (const leak of ["Bütçe", "Ekip", "Erhan"]) expect(declined.text).not.toContain(leak);
   });
 });

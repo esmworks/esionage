@@ -150,10 +150,19 @@ export function PageHeaderActions({
               className="inline-flex h-7 items-center rounded-md px-2 text-sm text-fg hover:bg-bg-hover disabled:cursor-default disabled:text-fg-faint disabled:hover:bg-transparent"
             >
               {t("share")}
+              {info.accessRequests > 0 && (
+                <span
+                  title={t("accessRequests", { count: info.accessRequests })}
+                  className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium text-accent-fg"
+                >
+                  <span aria-hidden>{info.accessRequests}</span>
+                  <span className="sr-only">{t("accessRequests", { count: info.accessRequests })}</span>
+                </span>
+              )}
             </button>
           )}
         >
-          <SharePanel pageId={page.id} currentUser={currentUser} publishable={!info.template} />
+          <SharePanel pageId={page.id} currentUser={currentUser} publishable={!info.template} onChange={refresh} />
         </Popover>
       )}
       {onComments && (

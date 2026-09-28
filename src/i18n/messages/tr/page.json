@@ -12,6 +12,7 @@
     "someone": "Biri",
     "comments": "Yorumlar",
     "share": "Paylaş",
+    "accessRequests": "{count, plural, one {# erişim isteği} other {# erişim isteği}}",
     "addFavorite": "Favorilere ekle",
     "removeFavorite": "Favorilerden çıkar",
     "linkCopied": "Bağlantı kopyalandı",
@@ -160,6 +161,15 @@
     "copyLink": "Bağlantıyı kopyala",
     "copied": "Kopyalandı",
     "loading": "Yükleniyor…",
+    "requests": {
+      "heading": "İstekler",
+      "message": "“{message}”",
+      "level": "Erişim düzeyi",
+      "approve": "Paylaş",
+      "decline": "Reddet",
+      "outsider": "Çalışma alanında değil: paylaşınca misafir olarak eklenir.",
+      "cantInvite": "Çalışma alanında değil ve bu çalışma alanı dışarıdan kişilerle paylaşmanıza izin vermiyor."
+    },
     "levels": {
       "full": "Tam erişim",
       "edit": "Düzenleyebilir",
@@ -175,6 +185,21 @@
       "invitesRestricted": "Bu çalışma alanında sayfaları dışarıdan kişilerle paylaşma izniniz yok. Bir sahipten isteyin.",
       "generic": "Paylaşım güncellenemedi."
     }
+  },
+  "noAccess": {
+    "metaTitle": "Erişim yok",
+    "title": "Bu sayfaya erişiminiz yok",
+    "description": "Erişim isteyin; bu sayfayı paylaşabilen kişilere isteğiniz iletilir.",
+    "descriptionNoRequests": "Bu sayfayı sizinle paylaşması için bağlantıyı gönderen kişiye başvurun.",
+    "messageLabel": "Mesaj (isteğe bağlı)",
+    "messagePlaceholder": "Sayfayı paylaşabilecek kişilere bir not ekleyin",
+    "request": "Erişim iste",
+    "sending": "Gönderiliyor…",
+    "sentTitle": "İstek gönderildi",
+    "sentDescription": "Biri sayfayı sizinle paylaştığında bu bağlantı sayfayı açacak.",
+    "rateLimited": "Çok fazla erişim isteği gönderdiniz. Biraz sonra yeniden deneyin.",
+    "signedInAs": "{email} olarak oturum açtınız.",
+    "home": "Çalışma alanınıza gidin"
   },
   "embed": {
     "label": "Veritabanı",

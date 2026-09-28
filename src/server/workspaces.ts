@@ -802,6 +802,7 @@ const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettin
   trashRetentionDays: TRASH_RETENTION_CHOICES,
   export: [true, false],
   connectedApps: CONNECTED_APPS_MODES,
+  accessRequests: [true, false],
 };
 
 /**

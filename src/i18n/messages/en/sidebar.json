@@ -71,6 +71,7 @@
     "comment": "{actor} commented in a thread you're in",
     "mention": "{actor} mentioned you",
     "reminder": "Reminder: {date}",
+    "accessRequest": "{actor} asked for access to this page",
     "someone": "Someone",
     "unread": "Unread",
     "unreadCount": "{count, plural, one {# unread notification} other {# unread notifications}}"

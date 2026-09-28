@@ -365,6 +365,11 @@
       "withoutCount": "{count, plural, other {Burada # kişi henüz kurmadı.}}"
     },
     "guestsHeading": "Misafirler",
+    "sharingHeading": "Paylaşım",
+    "accessRequests": {
+      "title": "Erişim istekleri",
+      "description": "Göremedikleri bir sayfanın bağlantısını açan kişiler mesajla birlikte erişim isteyebilir. İstek, sayfaya tam erişimi olan kişilere gider. Kapalıyken yalnızca erişimleri olmadığını görürler."
+    },
     "guestInvites": {
       "title": "Kimler misafir davet edebilir",
       "description": "Biri bir sayfayı e-postayla çalışma alanı dışındaki bir kişiyle paylaşınca o kişi misafir olarak katılır ve yalnızca kendisiyle paylaşılan sayfaları görür.",
@@ -563,6 +568,9 @@
     "reminderTitle": "Hatırlatmalar",
     "reminderDescription": "Bir sayfadaki tarihe kurduğunuz hatırlatmanın zamanı gelir.",
     "reminderChannel": "Hatırlatmalar: {channel}",
+    "accessRequestTitle": "Erişim istekleri",
+    "accessRequestDescription": "Biri tam erişiminiz olan bir sayfaya erişim istiyor.",
+    "accessRequestChannel": "Erişim istekleri: {channel}",
     "mailOff": "Bu sunucuda e-posta gönderimi kapalı olduğu için şu an e-posta gitmiyor."
   },
   "site": {

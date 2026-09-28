@@ -67,3 +67,35 @@ export const pageInvitation = pgTable(
     check("page_invitation_level_check", sql`${t.level} in ('view', 'comment', 'edit', 'full')`),
   ],
 );
+
+/**
+ * Someone asked for access to a page they can't open, from the "You don't have access" screen.
+ * Only pending requests are kept: answering one deletes it, and with it the notifications of
+ * everyone who could have answered. One per person and page, so asking again adds nothing. The
+ * requester may be outside the workspace; approving then brings them in as a guest.
+ */
+export const accessRequest = pgTable(
+  "access_request",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => page.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    requesterId: text("requester_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** What they wrote along with the request, if anything. */
+    message: text("message"),
+    /** The requester's interface language, for the email that tells them the answer. */
+    locale: text("locale").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("access_request_requester_key").on(t.pageId, t.requesterId),
+    index("access_request_workspace_idx").on(t.workspaceId),
+    index("access_request_requester_idx").on(t.requesterId),
+  ],
+);

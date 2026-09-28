@@ -194,6 +194,59 @@ export function reminderEmail(
   });
 }
 
+/** To the people with full access to a page: someone asked for access to it. */
+export function accessRequestEmail(
+  locale: Locale,
+  request: { requesterName: string; requesterEmail: string; pageTitle: string; workspaceName: string; message: string | null; link: string },
+): RenderedEmail {
+  const t = emailTranslator(locale);
+  const names = {
+    requester: request.requesterName || request.requesterEmail,
+    email: request.requesterEmail,
+    page: request.pageTitle,
+    workspace: request.workspaceName,
+  };
+  return renderEmail(locale, {
+    subject: t("accessRequest.subject", names),
+    heading: t("accessRequest.heading", names),
+    paragraphs: [
+      t("accessRequest.body", names),
+      ...(request.message ? [t("accessRequest.message", { message: request.message })] : []),
+      t("accessRequest.answer"),
+      t("accessRequest.optOut"),
+    ],
+    action: { label: t("accessRequest.action"), url: request.link },
+  });
+}
+
+/** To the requester: their request was approved, with the level they got. */
+export function accessApprovedEmail(
+  locale: Locale,
+  approval: { actorName: string; pageTitle: string; workspaceName: string; level: "view" | "comment" | "edit" | "full"; link: string },
+): RenderedEmail {
+  const t = emailTranslator(locale);
+  const names = { actor: approval.actorName || t("mention.someone"), page: approval.pageTitle, workspace: approval.workspaceName };
+  return renderEmail(locale, {
+    subject: t("accessApproved.subject", names),
+    heading: t("accessApproved.heading", names),
+    paragraphs: [t("accessApproved.body", { ...names, level: t(`share.levels.${approval.level}`) })],
+    action: { label: t("accessApproved.action"), url: approval.link },
+  });
+}
+
+/**
+ * To the requester: their request was declined. Names neither the page nor the workspace nor who
+ * declined it, since they still can't see the page; the link tells them which one it was.
+ */
+export function accessDeclinedEmail(locale: Locale, decline: { link: string }): RenderedEmail {
+  const t = emailTranslator(locale);
+  return renderEmail(locale, {
+    subject: t("accessDeclined.subject"),
+    heading: t("accessDeclined.heading"),
+    paragraphs: [t("accessDeclined.body", { link: decline.link }), t("accessDeclined.hint")],
+  });
+}
+
 /** Minutes a password reset link stays valid; also the Better Auth token lifetime. */
 export const PASSWORD_RESET_MINUTES = 60;
 

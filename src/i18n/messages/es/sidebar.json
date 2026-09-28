@@ -71,6 +71,7 @@
     "comment": "{actor} comentó en un hilo en el que participas",
     "mention": "{actor} te mencionó",
     "reminder": "Recordatorio: {date}",
+    "accessRequest": "{actor} pidió acceso a esta página",
     "someone": "Alguien",
     "unread": "No leída",
     "unreadCount": "{count, plural, one {# notificación sin leer} other {# notificaciones sin leer}}"

@@ -87,6 +87,12 @@ export type WorkspaceSettings = {
    * only, every change refused; "off": the workspace is hidden from them.
    */
   connectedApps: "full" | "read" | "off";
+  /**
+   * Whether someone who opens a link to a page they can't see may ask for access from the "You
+   * don't have access" screen (see server/access-requests.ts). Guests and people outside the
+   * workspace too: approving brings them in as guests, which the guest invite policy decides.
+   */
+  accessRequests: boolean;
 };
 
 export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
@@ -100,6 +106,7 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   trashRetentionDays: 30,
   export: true,
   connectedApps: "full",
+  accessRequests: true,
 };
 
 export const workspace = pgTable("workspace", {
