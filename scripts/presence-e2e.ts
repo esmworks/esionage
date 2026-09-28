@@ -1,7 +1,8 @@
 /**
  * End-to-end check of presence (who has a page open) over real websockets: people who may only
  * view are counted, each person shows once however many tabs they have, nobody can pose as someone
- * else, and people drop off when they leave.
+ * else, and people drop off when they leave. Open connections are dropped when narrowing a share or
+ * moving a page takes away what they allow.
  * Creates its own users and workspace and deletes them afterwards.
  *
  *   pnpm tsx scripts/presence-e2e.ts
@@ -24,7 +25,7 @@ const { registerCollab } = await import("@/server/collab/bridge");
 const { createCollab } = await import("@/server/collab/service");
 const { authorizeCollab } = await import("@/server/collab/authorize");
 const { issueCollabToken } = await import("@/server/collab/token");
-const { createPage } = await import("@/server/pages");
+const { createPage, movePage } = await import("@/server/pages");
 const { setPagePermission } = await import("@/server/permissions");
 const { createServer } = await import("node:http");
 const crossws = (await import("crossws/adapters/node")).default;
@@ -102,6 +103,13 @@ async function openTab(pageId: string, who: keyof typeof ids): Promise<Tab> {
     });
   });
   return provider;
+}
+
+/** Close codes of `tab`'s connection from now on. */
+function watchCloses(tab: Tab) {
+  const codes: number[] = [];
+  tab.on("close", ({ event }: { event: { code: number } }) => void codes.push(event.code));
+  return codes;
 }
 
 /** Who `tab` sees on the page, as the page header would list them. */
@@ -183,6 +191,39 @@ try {
     "closing the last tab takes them off",
     seenBy(owner, "owner"),
   );
+
+  // Access is checked when a connection opens; taking it away later drops the connections it no longer allows.
+  const notes = await createPage({ userId: ids.owner }, { workspaceId, title: "Team notes" });
+  await setPagePermission(ids.owner, notes.id, ids.owner, "full");
+  await setPagePermission(ids.owner, notes.id, null, "edit");
+  const draft = await createPage({ userId: ids.owner }, { workspaceId, parentId: notes.id, title: "Draft" });
+  const viewerDraft = await openTab(draft.id, "viewer");
+  const viewerDraftCloses = watchCloses(viewerDraft);
+  await movePage(ids.owner, draft.id, doc.id);
+  check(
+    await eventually(() => viewerDraftCloses.length > 0),
+    "moving a page where someone may only view drops their editable connection",
+    viewerDraftCloses,
+  );
+
+  const editorTab = await openTab(doc.id, "editor");
+  const editorCloses = watchCloses(editorTab);
+  const ownerCloses = watchCloses(owner);
+  await setPagePermission(ids.owner, doc.id, ids.editor, "view");
+  check(
+    await eventually(() => editorCloses.length > 0),
+    "lowering a member's share to view drops their editable connection",
+    editorCloses,
+  );
+
+  const viewerCloses = watchCloses(viewer);
+  await setPagePermission(ids.owner, doc.id, null, "none");
+  check(
+    await eventually(() => viewerCloses.length > 0),
+    "closing a page to everyone drops the connections of those it shut out",
+    viewerCloses,
+  );
+  check(ownerCloses.length === 0, "…and leaves the owner's open", ownerCloses);
 
   console.log(`\n${passed} checks passed`);
 } finally {

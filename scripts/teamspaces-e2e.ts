@@ -69,6 +69,7 @@ registerCollab({
   async readPage() {
     return { title: "", markdown: "", text: "" };
   },
+  async disconnectLostAccess() {},
 } as unknown as Parameters<typeof registerCollab>[0]);
 
 let passed = 0;

@@ -24,7 +24,7 @@ const { setPagePermission } = await import("@/server/permissions");
 const RUN = `trash-e2e-${Date.now().toString(36)}`;
 
 // Writes notify open editors through the collab service, which only runs inside the app server.
-registerCollab({ broadcast() {} } as unknown as Parameters<typeof registerCollab>[0]);
+registerCollab({ broadcast() {}, async disconnectLostAccess() {} } as unknown as Parameters<typeof registerCollab>[0]);
 
 let passed = 0;
 function check(condition: unknown, label: string, detail?: unknown): asserts condition {

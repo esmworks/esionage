@@ -559,15 +559,15 @@ export function createCollab() {
     },
 
     async disconnectLostAccess(workspaceId, userIds) {
-      const who = new Set(userIds);
-      if (!who.size) return;
+      const who = userIds && new Set(userIds);
+      if (who && !who.size) return;
       const open: { pageId: string; connections: ReturnType<Document["getConnections"]> }[] = [];
       for (const doc of hocuspocus.documents.values()) {
         const target = parseName(doc.name);
         if (!target || target.kind === "ws") continue;
         const connections = doc.getConnections().filter((c) => {
           const userId = (c.context as Context).userId;
-          return userId !== undefined && who.has(userId);
+          return userId !== undefined && (!who || who.has(userId));
         });
         if (connections.length) open.push({ pageId: target.id, connections });
       }

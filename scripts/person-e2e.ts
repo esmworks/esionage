@@ -42,6 +42,7 @@ const RUN = `person-e2e-${Date.now().toString(36)}`;
 const broadcasts: string[] = [];
 registerCollab({
   broadcast: (channel: string, event: string) => void broadcasts.push(`${channel} ${event}`),
+  async disconnectLostAccess() {},
 } as unknown as Parameters<typeof registerCollab>[0]);
 
 // Assignment and share emails are captured instead of sent.

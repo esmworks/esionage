@@ -37,6 +37,7 @@ const broadcasts: string[] = [];
 registerCollab({
   broadcast: (channel: string, event: string) => void broadcasts.push(`${channel} ${event}`),
   async setTitle() {},
+  async disconnectLostAccess() {},
 } as unknown as Parameters<typeof registerCollab>[0]);
 // Assignment emails are captured, never sent.
 setAssignmentMailer(async () => {});

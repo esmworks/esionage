@@ -522,6 +522,8 @@ export async function movePage(
   });
   getCollab().broadcast(`ws:${p.workspaceId}`, "tree");
   for (const id of [p.parentId, newParentId]) if (id) getCollab().broadcast(`db:${id}`, "rows");
+  // Under another parent or in another space the page inherits other entries, which may give less.
+  if (p.parentId !== newParentId || changesSpace) await getCollab().disconnectLostAccess(p.workspaceId);
 }
 
 export type SearchHit = {

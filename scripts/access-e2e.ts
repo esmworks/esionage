@@ -77,10 +77,15 @@ const {
 const RUN = `access-e2e-${Date.now().toString(36)}`;
 
 // Writes notify open editors through the collab service, which only runs inside the app server.
+// Open editors whose access is checked again, as [workspace, the users or "everyone"].
+const rechecked: string[] = [];
 registerCollab({
   broadcast() {},
   async setTitle() {},
   async disconnectUser() {},
+  async disconnectLostAccess(workspaceId: string, userIds?: string[]) {
+    rechecked.push(`${workspaceId}:${userIds ? userIds.join(",") : "everyone"}`);
+  },
   async readPage() {
     return { title: "", markdown: "", text: "" };
   },
@@ -213,13 +218,19 @@ try {
   check((await levels(R, guest))[0] === "none", "what everyone gets doesn't reach guests");
   await setPagePermission(owner, R, null, "edit");
   check((await levels(R, bob))[0] === "edit", "setting everyone again updates the same entry");
+  rechecked.length = 0;
   await setPagePermission(owner, R, null, "view");
+  check(rechecked.join() === `${workspaceId}:everyone`, "narrowing everyone checks everyone's open editors again", rechecked);
   await rejects(() => setPagePermission(alice, R, alice, "full"), isAccessError, "view access can't share");
   await rejects(() => requirePageAccess(alice, C, "edit"), isAccessError, "view access can't edit");
 
   // Widening and narrowing on a subpage
   await setPagePermission(owner, C, alice, "edit");
   check(JSON.stringify(await levels(G, alice, bob)) === '["edit","view"]', "a subpage entry widens one member");
+  rechecked.length = 0;
+  await setPagePermission(owner, C, bob, "view");
+  check(rechecked.join() === `${workspaceId}:${bob}`, "a member's entry checks their open editors again", rechecked);
+  await removePagePermission(owner, C, bob);
   await setPagePermission(owner, G, null, "none");
   check(
     JSON.stringify(await levels(G, owner, alice, bob)) === '["full","edit","none"]',
@@ -229,8 +240,12 @@ try {
 
   // Moving a page changes who inherits access to it
   await rejects(() => movePage(alice, C, null), isAccessError, "edit access can't move a page to another parent");
+  rechecked.length = 0;
   await movePage(alice, G, C, 5);
-  check(true, "edit access can still reorder a page among its siblings");
+  check(rechecked.length === 0, "edit access can still reorder a page among its siblings, which changes no one's access", rechecked);
+  await movePage(owner, G, R);
+  check(rechecked.join() === `${workspaceId}:everyone`, "moving a page under another parent checks open editors again", rechecked);
+  await movePage(owner, G, C, 5);
 
   // A publication shows only what its publisher can see
   const token = `${RUN}-token`;

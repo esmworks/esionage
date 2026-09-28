@@ -16,6 +16,7 @@ import { teamspaceLabel, teamspaceReach } from "@/server/teamspaces";
 import { everyoneFloor } from "@/lib/teamspace-reach";
 import { isEmail, normalizeEmail } from "@/lib/emails";
 import { AccessError, FULL_RANK, getMembership, hasLevel, requirePageAccess, resolvePageAccess } from "@/server/access";
+import { getCollab } from "@/server/collab/bridge";
 import { afterAccessLoss, groupMemberIds, requireGroupIn } from "@/server/groups";
 import { recordShare, withdrawShare } from "@/server/notifications";
 import { addGuest, canInviteGuests, type InvitationDelivery, inviteGuest } from "@/server/workspaces";
@@ -256,7 +257,8 @@ export async function removePageInvitation(actorId: string, pageId: string, emai
 /**
  * Sets what `principal` (a member's id, or null for everyone) gets on the page. Needs full access.
  * A member whose own entry is new or raised hears about it in their inbox; setting it to "none"
- * takes that back while it is unread.
+ * takes that back while it is unread. Open editors of whoever it narrowed for are dropped: a
+ * connection's access is only checked when it opens.
  */
 export async function setPagePermission(actorId: string, pageId: string, principal: string | null, level: PageLevel) {
   const target = await requirePageAccess(actorId, pageId, "full");
@@ -278,6 +280,7 @@ export async function setPagePermission(actorId: string, pageId: string, princip
         set: { level, createdBy: actorId, createdAt: new Date() },
       });
   });
+  await dropLostEditors(target.workspaceId, principal);
   if (!principal) return;
   if (level === "none") await withdrawShare(target.workspaceId, principal, pageId);
   else if (!previous || PAGE_LEVELS.indexOf(level) > PAGE_LEVELS.indexOf(previous.level)) {
@@ -285,7 +288,10 @@ export async function setPagePermission(actorId: string, pageId: string, princip
   }
 }
 
-/** Removes the page's own entry for `principal`, so it inherits again, and its unread notification. Needs full access. */
+/**
+ * Removes the page's own entry for `principal`, so it inherits again, and its unread notification.
+ * Needs full access. What it inherits may be less, so open editors are checked again.
+ */
 export async function removePagePermission(actorId: string, pageId: string, principal: string | null) {
   const target = await requirePageAccess(actorId, pageId, "full");
   await changePermissions(target.workspaceId, pageId, async (tx) => {
@@ -298,8 +304,13 @@ export async function removePagePermission(actorId: string, pageId: string, prin
         ),
       );
   });
+  await dropLostEditors(target.workspaceId, principal);
   if (principal) await withdrawShare(target.workspaceId, principal, pageId);
 }
+
+/** Drops the open editors `principal` (a member, or everyone for null) may no longer use. */
+const dropLostEditors = (workspaceId: string, principal: string | null) =>
+  getCollab().disconnectLostAccess(workspaceId, principal ? [principal] : undefined);
 
 const rankOf = (level: PageLevel) => PAGE_LEVELS.indexOf(level);
 
