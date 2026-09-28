@@ -19,11 +19,13 @@ import {
   updateViewAction,
   type ActionResult,
 } from "@/app/actions/databases";
+import { addAutofillPropertyAction, refreshAutofillAction, setAutofillAction } from "@/app/actions/ai";
 import { archivePageAction, renamePageAction } from "@/app/actions/pages";
 import { useChannel, useChannels } from "@/components/collab/use-channel";
 import { useIsOffline, useOffline } from "@/components/offline/offline-context";
 import { databaseSnapshotKey, deleteSnapshot, loadSnapshot, saveSnapshot } from "@/components/offline/offline-store";
 import type { PropertyType, SelectOption, ViewConfig, ViewType } from "@/db/schema/app";
+import { MAX_AUTOFILL_ROWS, type AiAutofillConfig } from "@/lib/ai";
 import { compileFormulas, evaluateFormulas } from "@/lib/derived";
 import { moveGroupValue } from "@/lib/grouping";
 import type { RollupConfig } from "@/db/schema/app";
@@ -53,6 +55,7 @@ export function useDatabase(
 ) {
   const tc = useTranslations("common");
   const tb = useTranslations("database.bulk");
+  const ta = useTranslations("ai.autofill");
   const genericError = tc("genericError");
   // Other failures (thrown page actions, network errors) carry untranslated text, so they get
   // the generic message instead.
@@ -455,9 +458,44 @@ export function useDatabase(
           () => deleteViewAction(viewId),
         );
       },
+
+      /** Turns AI autofill on, changes it, or (null) turns it off for a text property. */
+      setAutofill(prop: Property, config: AiAutofillConfig | null) {
+        const options = { ...prop.options };
+        if (config) options.ai = config;
+        else delete options.ai;
+        return mutateSchema(patchProperty(prop.id, { options }), () => setAutofillAction(prop.id, config));
+      },
+
+      /** Adds a text property that AI fills in, and fills it in for `rowIds` (the view's rows). */
+      addAutofillProperty(name: string, config: AiAutofillConfig, rowIds: string[]) {
+        if (rowIds.length > MAX_AUTOFILL_ROWS) setError(ta("tooManyRows", { max: MAX_AUTOFILL_ROWS }));
+        return mutateSchema((s) => s, () => addAutofillPropertyAction(databaseId, name, config, rowIds.slice(0, MAX_AUTOFILL_ROWS)));
+      },
+
+      /** Works the AI values of these rows out again (one row's refresh, or all rows of a view). */
+      async refreshAutofill(propertyId: string, rowIds: string[]) {
+        if (rowIds.length > MAX_AUTOFILL_ROWS) setError(ta("tooManyRows", { max: MAX_AUTOFILL_ROWS }));
+        const ids = rowIds.slice(0, MAX_AUTOFILL_ROWS);
+        // Pending right away; the refetch after the server queued them confirms it.
+        setSnapshot((s) => {
+          if (!s?.ai) return s;
+          const states = { ...s.ai.states };
+          for (const id of ids) states[id] = { ...states[id], [propertyId]: { status: "pending" } };
+          return { ...s, ai: { ...s.ai, states } };
+        });
+        try {
+          const result = await unwrap(refreshAutofillAction(propertyId, ids));
+          if (result.skipped) setError(tb("skipped", { count: result.skipped }));
+        } catch (e) {
+          report(e);
+        } finally {
+          await refetch();
+        }
+      },
     }),
     // patchProperty is a pure helper; the rest are stable callbacks.
-    [databaseId, snapshot?.database.workspaceId, refetch, setCell, setRowValues, setCells, mutateSchema, report, tb],
+    [databaseId, snapshot?.database.workspaceId, refetch, setCell, setRowValues, setCells, mutateSchema, report, tb, ta],
   );
 
   // Back online: replace the offline copy with the server's rows.

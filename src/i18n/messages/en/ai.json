@@ -1,0 +1,112 @@
+{
+  "assistant": {
+    "askAi": "Ask AI",
+    "askAiSubtext": "Rewrite, translate or write on with AI",
+    "askAiAliases": "ai assistant write rewrite improve translate",
+    "continueSubtext": "AI writes on from here",
+    "continueAliases": "ai continue write more",
+    "summarizeSubtext": "AI adds a summary of this page",
+    "summarizeAliases": "ai summary summarize tldr",
+    "group": "AI",
+    "label": "AI assistant",
+    "placeholder": "Tell AI what to write…",
+    "placeholderSelection": "Tell AI what to do with the selection…",
+    "send": "Send",
+    "actions": {
+      "improve": "Improve writing",
+      "shorten": "Make shorter",
+      "fix": "Fix spelling and grammar",
+      "translate": "Translate…",
+      "continue": "Continue writing",
+      "summarize": "Summarize page",
+      "custom": "Your instruction"
+    },
+    "translateInto": "Translate into",
+    "back": "Back",
+    "writing": "Writing…",
+    "stop": "Stop",
+    "replace": "Replace selection",
+    "insertBelow": "Insert below",
+    "retry": "Try again",
+    "discard": "Discard",
+    "cutOff": "The answer reached the length limit and may be cut off.",
+    "reviewNote": "AI can make mistakes. Check the text before you keep it.",
+    "stopped": "Stopped. You can still keep what was written so far.",
+    "applyFailed": "The suggestion couldn't be added to the page.",
+    "selectionChanged": "The selected text changed meanwhile, so the suggestion was added below it."
+  },
+  "errors": {
+    "disabled": "AI isn't available in this workspace.",
+    "noAccess": "You can't change this page.",
+    "tooLarge": "That's too much text for one AI request. Select less and try again.",
+    "rateLimited": "Too many AI requests. Try again in a moment.",
+    "timeout": "The AI took too long to answer. Try again.",
+    "aborted": "The AI request was cancelled.",
+    "provider": "The AI provider couldn't answer. Try again later, or ask an admin to check the AI settings.",
+    "empty": "The AI gave no answer. Try again or rephrase.",
+    "invalid": "The AI request was incomplete. Try again.",
+    "interrupted": "The server restarted while this was being worked out. Update it again."
+  },
+  "autofill": {
+    "addEntry": "AI autofill",
+    "configure": "AI autofill…",
+    "titleNew": "New AI autofill property",
+    "titleFor": "AI autofill of {name}",
+    "back": "Back",
+    "mode": "AI fills in",
+    "modes": {
+      "summary": "A summary",
+      "translation": "A translation",
+      "custom": "Your own prompt"
+    },
+    "modeHints": {
+      "summary": "A short summary of each row's page.",
+      "translation": "A value of the row, translated.",
+      "custom": "Anything you describe, using the row's values."
+    },
+    "defaultNames": {
+      "summary": "AI summary",
+      "translation": "Translation",
+      "custom": "AI text"
+    },
+    "source": "Translate",
+    "sourceTitle": "Name",
+    "sourceBody": "Page content",
+    "language": "Into",
+    "prompt": "Prompt",
+    "promptPlaceholder": "For example: Write a one-line pitch for '{title}' aimed at '{Audience}'.",
+    "promptHint": "Click a property to insert it; the row's value takes its place.",
+    "includeBody": "Also send the row's page content",
+    "auto": "Update when the row changes",
+    "autoHint": "A few seconds after a row's values or page change, its value is worked out again.",
+    "privacy": "What each row's value is worked out from goes to this server's AI provider.",
+    "save": "Save",
+    "create": "Add property",
+    "turnOff": "Turn off AI autofill",
+    "updateAll": "Update all rows in this view",
+    "updateRow": "Update with AI",
+    "pending": "AI is working on this…",
+    "failed": "AI couldn't fill this in: {reason}",
+    "tooManyRows": "At most {max} rows can be updated at once; the first {max} of this view are being updated.",
+    "errors": {
+      "invalidMode": "Choose what AI should fill in.",
+      "unknownLanguage": "Choose a language to translate into.",
+      "unknownSource": "Choose what to translate.",
+      "promptRequired": "Write a prompt.",
+      "promptTooLong": "The prompt can be at most {max} characters.",
+      "unknownPlaceholder": "There is no property called “{name}”.",
+      "notText": "Only text properties can be filled in by AI.",
+      "databaseLocked": "The database is locked."
+    }
+  },
+  "settings": {
+    "heading": "AI",
+    "description": "The AI writing assistant in pages and AI autofill properties in databases.",
+    "enabled": "AI features",
+    "enabledHint": "When on, members can send page content and row values they can see to the AI provider below. Turn off to keep this workspace's content away from it.",
+    "ownersOnly": "Only owners can change this.",
+    "provider": "Provider",
+    "providerValue": "{provider}, model {model}",
+    "notConfigured": "No AI provider is set up on this server, so AI features are off. An admin can set one up with the AI_PROVIDER and AI_MODEL environment variables (see the README)."
+  }
+}

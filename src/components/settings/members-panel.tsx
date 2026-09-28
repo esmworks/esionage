@@ -33,6 +33,7 @@ export type Member = {
 };
 export type Invitation = { id: string; email: string; role: WorkspaceRole; expiresAt: Date; link: string };
 export type MemberTeamspace = { id: string; name: string; icon: string | null };
+export type MemberGroup = { id: string; name: string };
 
 type SortKey = "name" | "role" | "joined" | "edited";
 type Sort = { key: SortKey; dir: "asc" | "desc" };
@@ -67,6 +68,7 @@ export function MembersPanel({
   invitations,
   joinLink,
   teamspaces,
+  groups,
   now,
 }: {
   workspaceId: string;
@@ -81,6 +83,8 @@ export function MembersPanel({
   joinLink: string | null;
   /** By user id: the teamspaces (that the viewer can see) each person is in. Guests have none. */
   teamspaces: Record<string, MemberTeamspace[]>;
+  /** By user id: the groups each person is in. Guests are in none. */
+  groups: Record<string, MemberGroup[]>;
 }) {
   const t = useTranslations("settings.members");
   const [tab, setTab] = useState<"members" | "invitations">("members");
@@ -158,6 +162,7 @@ export function MembersPanel({
                 isOwner={isOwner}
                 members={shownMembers}
                 teamspaces={teamspaces}
+                groups={groups}
                 sort={sort}
                 onSort={(key) =>
                   setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "edited" ? "desc" : "asc" }))
@@ -305,6 +310,7 @@ function MembersTable({
   isOwner,
   members,
   teamspaces,
+  groups,
   sort,
   onSort,
   empty,
@@ -315,6 +321,7 @@ function MembersTable({
   isOwner: boolean;
   members: Member[];
   teamspaces: Record<string, MemberTeamspace[]>;
+  groups: Record<string, MemberGroup[]>;
   sort: Sort;
   onSort: (key: SortKey) => void;
   empty: string | null;
@@ -324,13 +331,16 @@ function MembersTable({
   return (
     // `relative` keeps the absolutely positioned sr-only header text inside the scroller.
     <div className="relative overflow-x-auto">
-      <table className="w-full min-w-[780px] text-sm">
+      <table className="w-full min-w-[900px] text-sm">
         <thead className="border-b border-border bg-bg-subtle text-xs text-fg-muted">
           <tr>
             <SortHeader label={t("columns.user")} column="name" sort={sort} onSort={onSort} />
             <SortHeader label={t("columns.role")} column="role" sort={sort} onSort={onSort} className="w-36" />
             <th scope="col" className="w-36 px-4 py-2.5 text-left font-normal">
               {t("columns.teamspaces")}
+            </th>
+            <th scope="col" className="w-32 px-4 py-2.5 text-left font-normal">
+              {t("columns.groups")}
             </th>
             <SortHeader label={t("columns.joined")} column="joined" sort={sort} onSort={onSort} className="w-32" />
             <SortHeader label={t("columns.lastEdited")} column="edited" sort={sort} onSort={onSort} className="w-40" />
@@ -347,6 +357,7 @@ function MembersTable({
               workspaceId={workspaceId}
               member={m}
               teamspaces={teamspaces[m.userId] ?? []}
+              groups={groups[m.userId] ?? []}
               isSelf={m.userId === currentUserId}
               isOwner={isOwner}
             />
@@ -365,6 +376,7 @@ function MemberRow({
   workspaceId,
   member,
   teamspaces,
+  groups,
   isSelf,
   isOwner,
 }: {
@@ -372,6 +384,7 @@ function MemberRow({
   workspaceId: string;
   member: Member;
   teamspaces: MemberTeamspace[];
+  groups: MemberGroup[];
   isSelf: boolean;
   isOwner: boolean;
 }) {
@@ -420,6 +433,9 @@ function MemberRow({
       </td>
       <td className="px-4 py-3">
         <TeamspacesCell name={member.name || member.email} teamspaces={member.role === "guest" ? [] : teamspaces} />
+      </td>
+      <td className="px-4 py-3">
+        <GroupsCell name={member.name || member.email} groups={member.role === "guest" ? [] : groups} />
       </td>
       <td className="px-4 py-3 whitespace-nowrap text-fg-muted">{format.dateTime(member.joinedAt, { dateStyle: "medium" })}</td>
       <td className="px-4 py-3 whitespace-nowrap text-fg-muted">
@@ -540,6 +556,38 @@ function TeamspacesCell({ name, teamspaces }: { name: string; teamspaces: Member
                 {ts.icon ?? (ts.name.trim()[0] ?? "?").toLocaleUpperCase()}
               </span>
               <span className="truncate">{ts.name}</span>
+            </li>
+          ))}
+        </ul>
+      </Floating>
+    </>
+  );
+}
+
+/** "2 groups", opening the list of them; a dash for guests and people in none. */
+function GroupsCell({ name, groups }: { name: string; groups: MemberGroup[] }) {
+  const t = useTranslations("settings.members");
+  const list = useFloating<HTMLButtonElement>();
+  if (!groups.length) return <span className="text-fg-faint">—</span>;
+  return (
+    <>
+      <button
+        ref={list.ref}
+        type="button"
+        aria-label={t("groupsOf", { name })}
+        aria-expanded={list.open}
+        onClick={list.toggle}
+        className="-mx-1.5 inline-flex h-7 items-center gap-1 rounded-md px-1.5 whitespace-nowrap text-fg-muted hover:bg-bg-hover hover:text-fg"
+      >
+        {t("groupCount", { count: groups.length })}
+        <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      {/* Portaled so the table's scroll container doesn't clip it. */}
+      <Floating anchor={list.el} open={list.open} onClose={list.close} className="text-left">
+        <ul aria-label={t("groupsOf", { name })} className="max-h-64 max-w-64 overflow-y-auto">
+          {groups.map((group) => (
+            <li key={group.id} className="truncate rounded px-2 py-1.5 text-sm">
+              {group.name}
             </li>
           ))}
         </ul>

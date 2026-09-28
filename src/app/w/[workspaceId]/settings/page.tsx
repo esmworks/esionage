@@ -1,8 +1,10 @@
-import { Boxes, Globe, Settings, Shield, UserRound, Users, type LucideIcon } from "lucide-react";
+import { Boxes, Globe, Settings, Shield, UserRound, Users, UsersRound, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { GroupsPanel } from "@/components/settings/groups-panel";
+import { AiSettings } from "@/components/settings/ai-settings";
 import { LeaveWorkspaceRow } from "@/components/settings/leave-workspace";
 import { MembersPanel } from "@/components/settings/members-panel";
 import { PublicForms } from "@/components/settings/public-forms";
@@ -26,7 +28,9 @@ import { WorkspaceExport } from "@/components/settings/workspace-export";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isStrongSession } from "@/lib/auth-security";
 import { AccessError, isGuest } from "@/server/access";
+import { aiInfo } from "@/server/ai";
 import { listWorkspaceFormPublications } from "@/server/forms";
+import { groupsByMember, listGroups } from "@/server/groups";
 import { listWorkspacePublications } from "@/server/publication";
 import { listScimTokens, scimManagedCount } from "@/server/scim";
 import { getSsoConnection, ssoSetupInfo } from "@/server/sso";
@@ -49,7 +53,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("metaTitle") };
 }
 
-const TABS = ["general", "members", "teamspaces", "security", "site"] as const;
+const TABS = ["general", "members", "teamspaces", "groups", "security", "site"] as const;
 type Tab = (typeof TABS)[number];
 /** Tabs that were here before the account page existed, and where they are now. */
 const ACCOUNT_TABS: Record<string, string> = { preferences: "preferences", accountSecurity: "security", apps: "apps" };
@@ -57,6 +61,7 @@ const ICONS: Record<Tab, LucideIcon> = {
   general: Settings,
   members: Users,
   teamspaces: Boxes,
+  groups: UsersRound,
   security: Shield,
   site: Globe,
 };
@@ -137,6 +142,7 @@ export default async function SettingsPage({
                 {/* Guests can't open the members list, where everyone else leaves from. */}
                 {guest && <LeaveWorkspaceRow workspaceId={workspaceId} userId={user.id} />}
               </SettingsGroup>
+              {!guest && <AiGroup workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
               {/* Exporting everything is for owners, like the members list download. */}
               {isOwner && (
                 <SettingsGroup title={t("export.heading")} className="mt-10">
@@ -147,6 +153,7 @@ export default async function SettingsPage({
           )}
           {tab === "members" && <MembersTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "teamspaces" && <TeamspacesTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
+          {tab === "groups" && <GroupsTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "security" && <SecurityTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "site" && (
             <SiteTab workspaceId={workspaceId} workspaceName={workspace.name} userId={user.id} isOwner={isOwner} />
@@ -154,6 +161,16 @@ export default async function SettingsPage({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Settings > General > AI: the workspace's switch and the server's provider (see server/ai). */
+async function AiGroup({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
+  const [settings, t] = await Promise.all([getWorkspaceSettings(userId, workspaceId), getTranslations("ai.settings")]);
+  return (
+    <SettingsGroup title={t("heading")} description={t("description")} className="mt-10">
+      <AiSettings workspaceId={workspaceId} enabled={settings.ai !== false} canEdit={isOwner} provider={aiInfo()} />
+    </SettingsGroup>
   );
 }
 
@@ -274,12 +291,13 @@ async function SiteTab({
 }
 
 async function MembersTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
-  const [members, edits, invitations, joinLink, teamspaces] = await Promise.all([
+  const [members, edits, invitations, joinLink, teamspaces, groups] = await Promise.all([
     listMembers(userId, workspaceId),
     lastEdits(userId, workspaceId),
     isOwner ? listInvitations(userId, workspaceId) : [],
     isOwner ? getJoinLink(userId, workspaceId) : null,
     teamspacesByMember(userId, workspaceId),
+    groupsByMember(userId, workspaceId),
   ]);
   return (
     <MembersPanel
@@ -291,7 +309,20 @@ async function MembersTab({ workspaceId, userId, isOwner }: { workspaceId: strin
       joinLink={joinLink}
       // A plain object: a Map doesn't cross to the client component.
       teamspaces={Object.fromEntries(teamspaces)}
+      groups={Object.fromEntries(groups)}
       now={new Date()}
+    />
+  );
+}
+
+async function GroupsTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
+  const [groups, members] = await Promise.all([listGroups(userId, workspaceId), listMembers(userId, workspaceId)]);
+  return (
+    <GroupsPanel
+      workspaceId={workspaceId}
+      isOwner={isOwner}
+      groups={groups}
+      members={members.map(({ userId: id, name, email, image, role }) => ({ userId: id, name, email, image, role }))}
     />
   );
 }

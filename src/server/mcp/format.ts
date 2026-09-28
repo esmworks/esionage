@@ -3,6 +3,7 @@ import { CommentError } from "@/lib/comments";
 import { env } from "@/lib/env";
 import { PropertyValueError } from "@/lib/properties";
 import { AccessError } from "@/server/access";
+import { GroupError } from "@/lib/groups";
 import { TeamspaceError } from "@/lib/teamspace-error";
 
 /** Max characters of page markdown returned in one get_page call. */
@@ -37,6 +38,7 @@ export function toolErrorFor(error: unknown): CallToolResult {
   }
   if (error instanceof CommentError) return errorResult(`${error.message}.`);
   if (error instanceof TeamspaceError) return errorResult(`${error.message} Call list_teamspaces to see which teamspaces the user is in.`);
+  if (error instanceof GroupError) return errorResult(`${error.message} Call list_groups to see the workspace's groups.`);
   if (error instanceof PropertyValueError) {
     return errorResult(`${error.message}. Call get_database to see property names, types and select options.`);
   }

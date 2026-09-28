@@ -318,7 +318,7 @@ export function foldUnchanged(changes: readonly BlockChange[], context = 1): Dif
 // ---------------------------------------------------------------------------------------------
 // Who made the changes
 
-export type VersionReason = "auto" | "before_mcp_write" | "before_restore" | "manual" | "current";
+export type VersionReason = "auto" | "before_mcp_write" | "before_restore" | "before_ai_edit" | "manual" | "current";
 export type VersionActor = { reason: VersionReason; userName: string | null; clientName: string | null };
 export type ChangeActor = { name: string | null; client: string | null };
 
@@ -337,7 +337,7 @@ export function changeActors(versions: readonly VersionActor[]): ChangeActor[] {
     found.set(`${actor.name}\u0000${actor.client}`, actor);
   };
   versions.forEach((v, i) => {
-    const before = v.reason === "before_mcp_write" || v.reason === "before_restore";
+    const before = v.reason === "before_mcp_write" || v.reason === "before_restore" || v.reason === "before_ai_edit";
     if (before) {
       if (i < versions.length - 1) add(v);
     } else if (i > 0) {

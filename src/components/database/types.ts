@@ -1,4 +1,5 @@
 import type { ChecklistItem, PropertyType, SelectOption } from "@/db/schema/app";
+import type { AiCellState } from "@/lib/ai";
 import type {
   DatabaseProperty,
   DatabaseRowWithPosition,
@@ -49,6 +50,14 @@ export type DatabaseSnapshot = {
   people: PersonRef[];
   /** The signed-in user, who "me" in person filters stands for. */
   viewerId: string;
+  /** AI autofill: whether AI is available here, and values still being worked out or that failed. */
+  ai?: DatabaseAi;
+};
+
+export type DatabaseAi = {
+  enabled: boolean;
+  /** Per row id, per property id; rows without an entry are done. */
+  states: Record<string, Record<string, AiCellState>>;
 };
 
 /** Column key for the implicit Name column (matches TITLE_KEY in lib/properties). */

@@ -38,7 +38,8 @@ import { joinAsMember, removeMemberByProvider, WorkspaceError } from "@/server/w
  * have an account. Guests aren't listed; provisioning one makes them a member. Owners can't be
  * deactivated or removed over SCIM, so a provider can't take a workspace away from its owners.
  *
- * Groups: workspaces don't have member groups yet, so /Groups lists none and refuses changes (501).
+ * Groups: member groups (Settings > Groups) aren't provisioned over SCIM yet, so /Groups lists none
+ * and refuses changes (501); identity providers then manage people only.
  */
 
 export const SCIM_PREFIX = "/scim/v2";
@@ -300,7 +301,7 @@ async function readJson(request: Request): Promise<Record<string, unknown>> {
   throw new ScimError(400, "The request body must be a JSON object.", "invalidSyntax");
 }
 
-const notImplemented = () => new ScimError(501, "This workspace has no member groups to provision yet.");
+const notImplemented = () => new ScimError(501, "Provisioning groups over SCIM is not supported yet; manage member groups in the app.");
 
 /** Every /scim/v2 request (route: src/app/scim/v2/[[...path]]/route.ts). */
 export async function handleScimRequest(request: Request): Promise<Response> {

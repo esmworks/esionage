@@ -25,6 +25,8 @@
     "archived": "Dieser Teamspace ist archiviert.",
     "notMember": "Nur Inhaber und Mitglieder des Workspace können in seinen Teamspaces sein.",
     "invalidAccess": "Wähle aus, wer den Teamspace sehen kann.",
+    "inGroup": "Diese Person ist über eine Gruppe im Teamspace. Entferne sie stattdessen aus der Gruppe.",
+    "everyoneIn": "Alle im Workspace sind bereits in diesem Teamspace.",
     "accessDenied": "Das kannst du in diesem Teamspace nicht tun."
   },
   "dialog": {
@@ -57,6 +59,14 @@
     "roleOf": "Rolle von {name}",
     "remove": "{name} entfernen",
     "you": "(du)",
-    "select": "{name} auswählen"
+    "select": "{name} auswählen",
+    "viaGroups": "Über {groups}",
+    "groups": "Gruppen",
+    "groupsHint": "Alle in diesen Gruppen sind Mitglieder des Teamspace, solange sie in der Gruppe sind.",
+    "noGroups": "Keine Gruppen in diesem Teamspace.",
+    "chooseGroup": "Gruppe auswählen",
+    "addGroupButton": "Gruppe hinzufügen",
+    "removeGroup": "{name} entfernen",
+    "groupMemberCount": "{count, plural, =0 {Keine Mitglieder} one {# Mitglied} other {# Mitglieder}}"
   }
 }

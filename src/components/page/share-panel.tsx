@@ -1,13 +1,15 @@
 "use client";
 
-import { Check, Link2, Mail, Search, Send, Users, X } from "lucide-react";
+import { Check, Link2, Mail, Search, Send, Users, UsersRound, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { UserAvatar } from "@/components/user-avatar";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   getSharingAction,
+  removePageGroupPermissionAction,
   removePageInvitationAction,
   removePagePermissionAction,
+  setPageGroupPermissionAction,
   setPagePermissionAction,
   sharePageByEmailAction,
   type SharingResult,
@@ -15,6 +17,7 @@ import {
 import { cn } from "@/components/ui";
 import type { PageLevel } from "@/db/schema";
 import { isEmail, normalizeEmail } from "@/lib/emails";
+import { searchFold } from "@/lib/search-fold";
 import { PublishTab } from "./publish-tab";
 
 type Sharing = Awaited<ReturnType<typeof getSharingAction>>;
@@ -110,13 +113,22 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
   };
   const listed = useMemo(() => new Set(data?.entries.map((e) => e.userId)), [data]);
   const candidates = useMemo(() => {
-    const q = query.trim().toLocaleLowerCase();
+    const q = searchFold(query.trim());
     if (!data || !q) return [];
     return data.members
       .filter((m) => !listed.has(m.userId) && m.userId !== currentUserId)
-      .filter((m) => m.name.toLocaleLowerCase().includes(q) || m.email.toLocaleLowerCase().includes(q))
+      .filter((m) => searchFold(m.name).includes(q) || searchFold(m.email).includes(q))
       .slice(0, 6);
   }, [data, query, listed, currentUserId]);
+  // Groups are picked like people, by name; ones already on the page change from their row.
+  const groupCandidates = useMemo(() => {
+    const q = searchFold(query.trim());
+    if (!data || !q) return [];
+    const shared = new Set(data.groups.map((g) => g.groupId));
+    return data.groupOptions
+      .filter((g) => !shared.has(g.groupId) && searchFold(g.name).includes(q))
+      .slice(0, 4);
+  }, [data, query]);
 
   const copyLink = (text = window.location.href.split("?")[0]) => {
     void navigator.clipboard.writeText(text);
@@ -195,6 +207,20 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
                   <PersonLabel name={m.name} detail={m.email} />
                 </button>
               ))}
+              {groupCandidates.map((g) => (
+                <button
+                  key={g.groupId}
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    void run(() => setPageGroupPermissionAction(pageId, g.groupId, "edit"));
+                  }}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-bg-hover"
+                >
+                  <GroupAvatar />
+                  <PersonLabel name={g.name} detail={t("groupMembers", { count: g.memberCount })} />
+                </button>
+              ))}
               {invitable && data.canInvite && (
                 <button
                   type="button"
@@ -207,7 +233,7 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
                   <PersonLabel name={t("shareWith", { email: typedEmail })} detail={t("asGuest")} />
                 </button>
               )}
-              {!candidates.length && !(invitable && data.canInvite) && (
+              {!candidates.length && !groupCandidates.length && !(invitable && data.canInvite) && (
                 <p className="px-2 py-1.5 text-sm text-fg-muted">{t("noMatches")}</p>
               )}
               <p className="border-t border-border px-2 pt-1.5 pb-1 text-xs text-fg-faint">
@@ -292,6 +318,35 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
                   onChange={(level) => void run(() => setPagePermissionAction(pageId, entry.userId, level))}
                   onRemove={
                     entry.inherited ? undefined : () => void run(() => removePagePermissionAction(pageId, entry.userId))
+                  }
+                />
+              ) : (
+                <LevelText level={entry.level} />
+              )
+            }
+          />
+        ))}
+        {data.groups.map((entry) => (
+          <Row
+            key={entry.groupId}
+            avatar={<GroupAvatar />}
+            label={
+              <PersonLabel
+                name={entry.name}
+                detail={
+                  entry.inherited
+                    ? t("groupInherited", { title: entry.sourceTitle || "…" })
+                    : t("groupMembers", { count: entry.memberCount })
+                }
+              />
+            }
+            control={
+              canManage ? (
+                <LevelSelect
+                  value={entry.level}
+                  onChange={(level) => void run(() => setPageGroupPermissionAction(pageId, entry.groupId, level))}
+                  onRemove={
+                    entry.inherited ? undefined : () => void run(() => removePageGroupPermissionAction(pageId, entry.groupId))
                   }
                 />
               ) : (
@@ -401,6 +456,14 @@ function PersonLabel({ name, detail }: { name: string; detail?: string | null })
 
 function Avatar({ name, image }: { name: string; image?: string | null }) {
   return <UserAvatar name={name} image={image} size="md" colors="bg-accent/15 text-accent" />;
+}
+
+function GroupAvatar() {
+  return (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent/15 text-accent">
+      <UsersRound className="h-3.5 w-3.5" aria-hidden />
+    </span>
+  );
 }
 
 function LevelText({ level }: { level: PageLevel }) {

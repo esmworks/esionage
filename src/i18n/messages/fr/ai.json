@@ -1,0 +1,112 @@
+{
+  "assistant": {
+    "askAi": "Demander à l’IA",
+    "askAiSubtext": "Réécrire, traduire ou poursuivre avec l’IA",
+    "askAiAliases": "ia ai assistant écrire réécrire améliorer traduire",
+    "continueSubtext": "L’IA poursuit l’écriture à partir d’ici",
+    "continueAliases": "ia ai continuer poursuivre écrire plus",
+    "summarizeSubtext": "L’IA ajoute un résumé de cette page",
+    "summarizeAliases": "ia ai résumé résumer tldr",
+    "group": "IA",
+    "label": "Assistant IA",
+    "placeholder": "Dites à l’IA quoi écrire…",
+    "placeholderSelection": "Dites à l’IA quoi faire de la sélection…",
+    "send": "Envoyer",
+    "actions": {
+      "improve": "Améliorer la rédaction",
+      "shorten": "Raccourcir",
+      "fix": "Corriger l’orthographe et la grammaire",
+      "translate": "Traduire…",
+      "continue": "Poursuivre l’écriture",
+      "summarize": "Résumer la page",
+      "custom": "Votre instruction"
+    },
+    "translateInto": "Traduire en",
+    "back": "Retour",
+    "writing": "Rédaction…",
+    "stop": "Arrêter",
+    "replace": "Remplacer la sélection",
+    "insertBelow": "Insérer en dessous",
+    "retry": "Réessayer",
+    "discard": "Ignorer",
+    "cutOff": "La réponse a atteint la limite de longueur et peut être tronquée.",
+    "reviewNote": "L’IA peut se tromper. Vérifiez le texte avant de le conserver.",
+    "stopped": "Arrêté. Vous pouvez tout de même conserver ce qui a déjà été écrit.",
+    "applyFailed": "La suggestion n’a pas pu être ajoutée à la page.",
+    "selectionChanged": "Le texte sélectionné a changé entre-temps, la suggestion a donc été ajoutée en dessous."
+  },
+  "errors": {
+    "disabled": "L’IA n’est pas disponible dans cet espace de travail.",
+    "noAccess": "Vous ne pouvez pas modifier cette page.",
+    "tooLarge": "Il y a trop de texte pour une requête IA. Sélectionnez-en moins et réessayez.",
+    "rateLimited": "Trop de requêtes IA. Réessayez dans un instant.",
+    "timeout": "L’IA a mis trop de temps à répondre. Réessayez.",
+    "aborted": "La requête IA a été annulée.",
+    "provider": "Le fournisseur d’IA n’a pas pu répondre. Réessayez plus tard ou demandez à un administrateur de vérifier les réglages de l’IA.",
+    "empty": "L’IA n’a donné aucune réponse. Réessayez ou reformulez.",
+    "invalid": "La requête IA était incomplète. Réessayez.",
+    "interrupted": "Le serveur a redémarré pendant ce calcul. Relancez la mise à jour."
+  },
+  "autofill": {
+    "addEntry": "Remplissage par IA",
+    "configure": "Remplissage par IA…",
+    "titleNew": "Nouvelle propriété remplie par IA",
+    "titleFor": "Remplissage par IA de {name}",
+    "back": "Retour",
+    "mode": "L’IA remplit",
+    "modes": {
+      "summary": "Un résumé",
+      "translation": "Une traduction",
+      "custom": "Votre propre prompt"
+    },
+    "modeHints": {
+      "summary": "Un court résumé de la page de chaque ligne.",
+      "translation": "Une valeur de la ligne, traduite.",
+      "custom": "Tout ce que vous décrivez, à partir des valeurs de la ligne."
+    },
+    "defaultNames": {
+      "summary": "Résumé IA",
+      "translation": "Traduction",
+      "custom": "Texte IA"
+    },
+    "source": "Traduire",
+    "sourceTitle": "Nom",
+    "sourceBody": "Contenu de la page",
+    "language": "Langue cible",
+    "prompt": "Prompt",
+    "promptPlaceholder": "Par exemple : Écris un pitch d’une ligne pour '{title}' destiné à '{Audience}'.",
+    "promptHint": "Cliquez sur une propriété pour l’insérer ; la valeur de la ligne prend sa place.",
+    "includeBody": "Envoyer aussi le contenu de la page de la ligne",
+    "auto": "Mettre à jour quand la ligne change",
+    "autoHint": "Quelques secondes après un changement des valeurs ou de la page d’une ligne, sa valeur est recalculée.",
+    "privacy": "Ce à partir de quoi la valeur de chaque ligne est calculée est envoyé au fournisseur d’IA de ce serveur.",
+    "save": "Enregistrer",
+    "create": "Ajouter la propriété",
+    "turnOff": "Désactiver le remplissage par IA",
+    "updateAll": "Mettre à jour toutes les lignes de cette vue",
+    "updateRow": "Mettre à jour avec l’IA",
+    "pending": "L’IA s’en occupe…",
+    "failed": "L’IA n’a pas pu remplir ceci : {reason}",
+    "tooManyRows": "Au plus {max} lignes peuvent être mises à jour à la fois ; les {max} premières de cette vue sont en cours de mise à jour.",
+    "errors": {
+      "invalidMode": "Choisissez ce que l’IA doit remplir.",
+      "unknownLanguage": "Choisissez une langue cible.",
+      "unknownSource": "Choisissez ce qu’il faut traduire.",
+      "promptRequired": "Écrivez un prompt.",
+      "promptTooLong": "Le prompt peut compter au plus {max} caractères.",
+      "unknownPlaceholder": "Aucune propriété ne s’appelle « {name} ».",
+      "notText": "Seules les propriétés de texte peuvent être remplies par l’IA.",
+      "databaseLocked": "La base de données est verrouillée."
+    }
+  },
+  "settings": {
+    "heading": "IA",
+    "description": "L’assistant d’écriture IA dans les pages et les propriétés remplies par IA dans les bases de données.",
+    "enabled": "Fonctions d’IA",
+    "enabledHint": "Si elles sont activées, les membres peuvent envoyer le contenu des pages et les valeurs des lignes qu’ils voient au fournisseur d’IA ci-dessous. Désactivez-les pour tenir le contenu de cet espace de travail à l’écart.",
+    "ownersOnly": "Seuls les propriétaires peuvent modifier ce réglage.",
+    "provider": "Fournisseur",
+    "providerValue": "{provider}, modèle {model}",
+    "notConfigured": "Aucun fournisseur d’IA n’est configuré sur ce serveur, les fonctions d’IA sont donc désactivées. Un administrateur peut en configurer un avec les variables d’environnement AI_PROVIDER et AI_MODEL (voir le README)."
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ChevronRight, Ellipsis, EyeOff, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot, ChevronRight, Ellipsis, EyeOff, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
@@ -11,6 +11,7 @@ import type { AggregateFn } from "@/lib/aggregate";
 import { valueType } from "@/lib/derived";
 import { arrangeGroups, canAddToGroup, groupDefaults, groupRowsBy, type Group } from "@/lib/grouping";
 import { isGroupable, isSortable, localDay } from "@/lib/properties";
+import { AiCell, useAiAutofill } from "./ai-autofill";
 import { BulkActionBar, SelectBox, useRowSelection } from "./bulk-actions";
 import { uploadToPage } from "./files-cell";
 import { Floating, useFloating } from "./floating";
@@ -73,6 +74,7 @@ export function TableView({
   const tc = useTranslations("common");
   const { editTitleOf, typed, create: createNew, stopEditing } = useNewRow((id, title) => void api.setCell(id, TITLE, title));
   const { viewerId } = usePeople();
+  const ai = useAiAutofill();
   // Grouped only when the view asks for it (unlike boards, which always group).
   const groupBy = properties.find((p) => p.id === view.config.groupBy && isGroupable(p.type));
   const groupContext = useGroupContext(groupBy);
@@ -165,14 +167,16 @@ export function TableView({
       </td>
       {visible.map((p) => (
         <td key={p.id} className="border-b border-l border-border p-0 align-top">
-          <PropertyCell
-            prop={p}
-            value={row.properties[p.id]}
-            readOnly={readOnly}
-            onChange={(v) => void api.setCell(row.id, p.id, v)}
-            onCreateOption={createOption}
-            upload={p.type === "files" ? uploadToPage(row.id) : undefined}
-          />
+          <AiCell prop={p} rowId={row.id} readOnly={readOnly}>
+            <PropertyCell
+              prop={p}
+              value={row.properties[p.id]}
+              readOnly={readOnly}
+              onChange={(v) => void api.setCell(row.id, p.id, v)}
+              onCreateOption={createOption}
+              upload={p.type === "files" ? uploadToPage(row.id) : undefined}
+            />
+          </AiCell>
         </td>
       ))}
       {!readOnly && <td className="border-b border-l border-border" />}
@@ -242,6 +246,9 @@ export function TableView({
                   setOptions: locked ? undefined : (options) => api.setOptions(p, options),
                   setFormula: locked ? undefined : (expression) => api.setFormula(p, expression),
                   setRollup: locked ? undefined : (rollup) => api.setRollup(p, rollup),
+                  setAutofill: locked || !ai.enabled || p.type !== "text" ? undefined : (config) => api.setAutofill(p, config),
+                  updateAllAutofill:
+                    !ai.enabled || !ai.refresh || !p.options.ai ? undefined : () => ai.refresh?.(p.id, inView.map((r) => r.id)),
                   remove: locked ? undefined : () => api.deleteProperty(p.id),
                 }}
               />
@@ -251,6 +258,9 @@ export function TableView({
                 {!locked && (
                   <AddPropertyButton
                     onCreate={(name, type, relation, derived) => api.addProperty(name, type, undefined, relation, derived)}
+                    onCreateAutofill={
+                      ai.enabled ? (name, config) => api.addAutofillProperty(name, config, inView.map((r) => r.id)) : undefined
+                    }
                   />
                 )}
               </th>
@@ -475,6 +485,7 @@ function HeaderCell({
   actions: React.ComponentProps<typeof PropertyMenu>["actions"];
 }) {
   const t = useTranslations("database.table");
+  const tAi = useTranslations("ai.autofill");
   const menu = useFloating<HTMLButtonElement>();
   return (
     <th className={cn("border-y border-border p-0 text-left font-normal", prop && "border-l")}>
@@ -487,6 +498,7 @@ function HeaderCell({
       >
         <PropertyTypeIcon type={icon} className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{label}</span>
+        {prop?.type === "text" && prop.options.ai && <Bot className="h-3.5 w-3.5 shrink-0" aria-label={tAi("addEntry")} />}
         {sort === "asc" && <ArrowUp className="h-3 w-3 shrink-0 text-accent" aria-label={t("sortedAscending")} />}
         {sort === "desc" && <ArrowDown className="h-3 w-3 shrink-0 text-accent" aria-label={t("sortedDescending")} />}
       </button>
@@ -497,7 +509,13 @@ function HeaderCell({
   );
 }
 
-function AddPropertyButton({ onCreate }: { onCreate: React.ComponentProps<typeof AddPropertyPanel>["onCreate"] }) {
+function AddPropertyButton({
+  onCreate,
+  onCreateAutofill,
+}: {
+  onCreate: React.ComponentProps<typeof AddPropertyPanel>["onCreate"];
+  onCreateAutofill?: React.ComponentProps<typeof AddPropertyPanel>["onCreateAutofill"];
+}) {
   const t = useTranslations("database.table");
   const menu = useFloating<HTMLButtonElement>();
   return (
@@ -513,7 +531,7 @@ function AddPropertyButton({ onCreate }: { onCreate: React.ComponentProps<typeof
         <Plus className="h-4 w-4" />
       </button>
       <Floating open={menu.open} anchor={menu.el} onClose={menu.close} align="end">
-        <AddPropertyPanel onCreate={onCreate} onDone={menu.close} />
+        <AddPropertyPanel onCreate={onCreate} onCreateAutofill={onCreateAutofill} onDone={menu.close} />
       </Floating>
     </>
   );

@@ -1,9 +1,12 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
+  memberGroup,
+  memberGroupMember,
   TEAMSPACE_ACCESS,
   teamspace,
+  teamspaceGroup,
   teamspaceMember,
   user,
   workspace,
@@ -15,6 +18,8 @@ import {
 import { TeamspaceError } from "@/lib/teamspace-error";
 import { AccessError, isGuest, requireMember } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
+import { afterAccessLoss, groupMemberIds, requireGroupIn } from "@/server/groups";
+import { handOverOrphanedPages } from "@/server/workspaces";
 
 /**
  * Teamspaces group a workspace's pages and the people working on them. Every page tree lives in
@@ -26,7 +31,9 @@ import { getCollab } from "@/server/collab/bridge";
  *
  * Guests are never in a teamspace. Owners and members are in every `default` teamspace without a
  * row in `teamspace_member`; rows there name its owners. People join `open` teamspaces themselves;
- * the owners of a `closed` or `private` one add them.
+ * the owners of a `closed` or `private` one add them. A group that joined a teamspace
+ * (`teamspace_group`) puts everyone in it into the teamspace as a member, as long as they are in
+ * the group; they leave it by leaving the group. Owners are always people with a row.
  */
 
 export { TeamspaceError, type TeamspaceErrorCode } from "@/lib/teamspace-error";
@@ -56,12 +63,33 @@ export async function canCreateTeamspace(userId: string, workspaceId: string) {
   return membership.role === "owner" || (await creationPolicy(workspaceId)) === "members";
 }
 
-async function ownRow(tx: Pick<typeof db, "select">, teamspaceId: string, userId: string) {
+/** SQL: the user is in the teamspace through a group that joined it. */
+const viaGroupSql = (teamspaceId: SQL | string, userId: SQL | string) => sql`exists (
+  select 1 from ${teamspaceGroup} tg join ${memberGroupMember} gm on gm.group_id = tg.group_id
+  where tg.teamspace_id = ${teamspaceId} and gm.user_id = ${userId}
+)`;
+
+/**
+ * The user's place in the teamspace: their own row (`direct`), or a member's place through a group
+ * that joined it. Undefined when neither (they may still be in a default teamspace).
+ */
+async function ownRow(
+  tx: Pick<typeof db, "select">,
+  teamspaceId: string,
+  userId: string,
+): Promise<{ role: TeamspaceRole; direct: boolean } | undefined> {
   const [row] = await tx
     .select({ role: teamspaceMember.role })
     .from(teamspaceMember)
     .where(and(eq(teamspaceMember.teamspaceId, teamspaceId), eq(teamspaceMember.userId, userId)));
-  return row;
+  if (row) return { role: row.role, direct: true };
+  const [grouped] = await tx
+    .select({ one: sql<number>`1` })
+    .from(teamspaceGroup)
+    .innerJoin(memberGroupMember, and(eq(memberGroupMember.groupId, teamspaceGroup.groupId), eq(memberGroupMember.userId, userId)))
+    .where(eq(teamspaceGroup.teamspaceId, teamspaceId))
+    .limit(1);
+  return grouped ? { role: "member", direct: false } : undefined;
 }
 
 /**
@@ -105,6 +133,8 @@ export type TeamspaceSummary = {
   joined: boolean;
   /** The viewer's role in it, when they are in it. */
   role: TeamspaceRole | null;
+  /** The viewer is in it only through a group (they leave it by leaving the group). */
+  viaGroup: boolean;
   canManage: boolean;
   canJoin: boolean;
   canLeave: boolean;
@@ -132,22 +162,25 @@ export async function listTeamspaces(
     created_by: string | null;
     workspace_id: string;
     own_role: TeamspaceRole | null;
+    via_group: boolean;
     member_count: number;
   }>(sql`
     select t.*,
       (select m.role from ${teamspaceMember} m where m.teamspace_id = t.id and m.user_id = ${userId}) as own_role,
+      ${viaGroupSql(sql`t.id`, userId)} as via_group,
       case when t.access = 'default' then
         (select count(*) from ${workspaceMember} wm where wm.workspace_id = t.workspace_id and wm.role in ('owner', 'member'))
       else
-        (select count(*) from ${teamspaceMember} m
-          join ${workspaceMember} wm on wm.user_id = m.user_id and wm.workspace_id = t.workspace_id and wm.role in ('owner', 'member')
-          where m.teamspace_id = t.id)
+        (select count(*) from ${workspaceMember} wm
+          where wm.workspace_id = t.workspace_id and wm.role in ('owner', 'member')
+            and (exists (select 1 from ${teamspaceMember} m where m.teamspace_id = t.id and m.user_id = wm.user_id)
+              or ${viaGroupSql(sql`t.id`, sql`wm.user_id`)}))
       end::int as member_count
     from ${teamspace} t
     where t.workspace_id = ${workspaceId}
       and (t.access <> 'private' or exists (
         select 1 from ${teamspaceMember} m where m.teamspace_id = t.id and m.user_id = ${userId}
-      ))
+      ) or ${viaGroupSql(sql`t.id`, userId)})
       ${archived === "active" ? sql`and t.archived_at is null` : archived === "archived" ? sql`and t.archived_at is not null` : sql``}
     order by t.created_at, t.id
   `);
@@ -165,7 +198,7 @@ export async function listTeamspaces(
         .orderBy(asc(teamspaceMember.createdAt))
     : [];
   return rows.map((r) => {
-    const row = r.own_role ? { role: r.own_role } : undefined;
+    const row = r.own_role ? { role: r.own_role } : r.via_group ? { role: "member" as const } : undefined;
     const t = { access: r.access, archivedAt: r.archived_at } as Row;
     const joined = joinedTeamspace(r, row);
     const ownersOf = owners.filter((o) => o.teamspaceId === r.id).map(({ id, name }) => ({ id, name }));
@@ -181,10 +214,16 @@ export async function listTeamspaces(
       owners: ownersOf,
       joined,
       role: joined ? (row?.role ?? "member") : null,
+      viaGroup: Boolean(r.via_group) && r.access !== "default",
       canManage: canManage(t, workspaceRole, row),
       canJoin: !joined && r.access === "open" && !r.archived_at,
       // The last owner hands the teamspace on first (a default teamspace's owners are optional).
-      canLeave: joined && r.access !== "default" && !(row?.role === "owner" && ownersOf.length <= 1),
+      // Someone in it through a group leaves the group instead.
+      canLeave:
+        joined &&
+        r.access !== "default" &&
+        !r.via_group &&
+        !(row?.role === "owner" && ownersOf.length <= 1),
     };
   });
 }
@@ -374,6 +413,9 @@ export async function removeTeamspaceMember(actorId: string, teamspaceId: string
     const target = members.find((m) => m.userId === targetId);
     if (!target) {
       if (found.access === "default") return;
+      if ((await ownRow(tx, teamspaceId, targetId))?.direct === false) {
+        throw new TeamspaceError("inGroup", "This person is in the teamspace through a group; remove them from the group.");
+      }
       throw new TeamspaceError("notMember", "This person isn't in the teamspace.");
     }
     const owners = members.filter((m) => m.role === "owner");
@@ -399,6 +441,11 @@ export async function setTeamspaceRole(actorId: string, teamspaceId: string, tar
       .where(eq(teamspaceMember.teamspaceId, teamspaceId))
       .for("update");
     const target = members.find((m) => m.userId === targetId);
+    if (!target && found.access !== "default" && (await ownRow(tx, teamspaceId, targetId))?.direct === false) {
+      // In through a group: making them an owner gives them a row of their own.
+      if (role === "owner") await tx.insert(teamspaceMember).values({ teamspaceId, userId: targetId, role: "owner" });
+      return;
+    }
     if (!target) {
       // In a default teamspace everyone is a member without a row.
       const [person] = await tx
@@ -430,51 +477,158 @@ export async function setTeamspaceRole(actorId: string, teamspaceId: string, tar
   await db.update(teamspace).set({ updatedAt: new Date() }).where(eq(teamspace.id, teamspaceId));
 }
 
-export type TeamspacePerson = { userId: string; name: string; email: string; role: TeamspaceRole; joinedAt: Date };
+export type TeamspacePerson = {
+  userId: string;
+  name: string;
+  email: string;
+  role: TeamspaceRole;
+  joinedAt: Date;
+  /** They have a row of their own; without one they are in it only through `groups`. */
+  direct: boolean;
+  /** The groups that put them in the teamspace (none in a default teamspace). */
+  groups: string[];
+};
 
-/** Who is in a teamspace, owners first. Anyone who can see the teamspace can see who is in it. */
+/**
+ * Who is in a teamspace, owners first: people with a row and everyone in its groups. Anyone who
+ * can see the teamspace can see who is in it.
+ */
 export async function listTeamspaceMembers(userId: string, teamspaceId: string): Promise<TeamspacePerson[]> {
   const { teamspace: found } = await visibleTeamspace(userId, teamspaceId);
-  const rows =
-    found.access === "default"
-      ? await db
-          .select({
-            userId: user.id,
-            name: user.name,
-            email: user.email,
-            role: sql<TeamspaceRole>`coalesce(${teamspaceMember.role}, 'member')`,
-            joinedAt: workspaceMember.createdAt,
-          })
-          .from(workspaceMember)
-          .innerJoin(user, eq(user.id, workspaceMember.userId))
-          .leftJoin(
-            teamspaceMember,
-            and(eq(teamspaceMember.teamspaceId, teamspaceId), eq(teamspaceMember.userId, workspaceMember.userId)),
-          )
-          .where(and(eq(workspaceMember.workspaceId, found.workspaceId), inArray(workspaceMember.role, ["owner", "member"])))
-      : await db
-          .select({
-            userId: user.id,
-            name: user.name,
-            email: user.email,
-            role: teamspaceMember.role,
-            joinedAt: teamspaceMember.createdAt,
-          })
-          .from(teamspaceMember)
-          .innerJoin(user, eq(user.id, teamspaceMember.userId))
-          .innerJoin(
-            workspaceMember,
-            and(eq(workspaceMember.userId, teamspaceMember.userId), eq(workspaceMember.workspaceId, found.workspaceId)),
-          )
-          .where(and(eq(teamspaceMember.teamspaceId, teamspaceId), inArray(workspaceMember.role, ["owner", "member"])));
-  return rows
-    .map((r) => ({ ...r, joinedAt: new Date(r.joinedAt) }))
-    .sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "owner" ? -1 : 1));
+  if (found.access === "default") {
+    const rows = await db
+      .select({
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        role: sql<TeamspaceRole>`coalesce(${teamspaceMember.role}, 'member')`,
+        joinedAt: workspaceMember.createdAt,
+      })
+      .from(workspaceMember)
+      .innerJoin(user, eq(user.id, workspaceMember.userId))
+      .leftJoin(
+        teamspaceMember,
+        and(eq(teamspaceMember.teamspaceId, teamspaceId), eq(teamspaceMember.userId, workspaceMember.userId)),
+      )
+      .where(and(eq(workspaceMember.workspaceId, found.workspaceId), inArray(workspaceMember.role, ["owner", "member"])));
+    return sortPeople(rows.map((r) => ({ ...r, joinedAt: new Date(r.joinedAt), direct: true, groups: [] })));
+  }
+  const [direct, grouped] = await Promise.all([
+    db
+      .select({
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        role: teamspaceMember.role,
+        joinedAt: teamspaceMember.createdAt,
+      })
+      .from(teamspaceMember)
+      .innerJoin(user, eq(user.id, teamspaceMember.userId))
+      .innerJoin(
+        workspaceMember,
+        and(eq(workspaceMember.userId, teamspaceMember.userId), eq(workspaceMember.workspaceId, found.workspaceId)),
+      )
+      .where(and(eq(teamspaceMember.teamspaceId, teamspaceId), inArray(workspaceMember.role, ["owner", "member"]))),
+    db
+      .select({
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        group: memberGroup.name,
+        joinedAt: teamspaceGroup.createdAt,
+      })
+      .from(teamspaceGroup)
+      .innerJoin(memberGroup, eq(memberGroup.id, teamspaceGroup.groupId))
+      .innerJoin(memberGroupMember, eq(memberGroupMember.groupId, teamspaceGroup.groupId))
+      .innerJoin(user, eq(user.id, memberGroupMember.userId))
+      .where(eq(teamspaceGroup.teamspaceId, teamspaceId)),
+  ]);
+  const people = new Map<string, TeamspacePerson>(
+    direct.map((r) => [r.userId, { ...r, joinedAt: new Date(r.joinedAt), direct: true, groups: [] }]),
+  );
+  for (const r of grouped) {
+    const person = people.get(r.userId);
+    if (person) {
+      if (!person.groups.includes(r.group)) person.groups.push(r.group);
+    } else {
+      people.set(r.userId, {
+        userId: r.userId,
+        name: r.name,
+        email: r.email,
+        role: "member",
+        joinedAt: new Date(r.joinedAt),
+        direct: false,
+        groups: [r.group],
+      });
+    }
+  }
+  for (const person of people.values()) person.groups.sort((a, b) => a.localeCompare(b));
+  return sortPeople([...people.values()]);
+}
+
+const sortPeople = (people: TeamspacePerson[]) =>
+  people.sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "owner" ? -1 : 1));
+
+export type TeamspaceGroupSummary = { id: string; name: string; memberCount: number; addedAt: Date };
+
+/** The groups that joined a teamspace, by name. Anyone who can see the teamspace can see them. */
+export async function listTeamspaceGroups(userId: string, teamspaceId: string): Promise<TeamspaceGroupSummary[]> {
+  await visibleTeamspace(userId, teamspaceId);
+  const rows = await db
+    .select({
+      id: memberGroup.id,
+      name: memberGroup.name,
+      memberCount: sql<number>`(select count(*) from ${memberGroupMember} gm where gm.group_id = ${memberGroup.id})::int`,
+      addedAt: teamspaceGroup.createdAt,
+    })
+    .from(teamspaceGroup)
+    .innerJoin(memberGroup, eq(memberGroup.id, teamspaceGroup.groupId))
+    .where(eq(teamspaceGroup.teamspaceId, teamspaceId))
+    .orderBy(sql`lower(${memberGroup.name})`);
+  return rows.map((r) => ({ ...r, memberCount: Number(r.memberCount) }));
 }
 
 /**
- * For the members list: which of the teamspaces the viewer can see each person is in (archived
- * ones left out). Guests are in none.
+ * Adds groups of the workspace to the teamspace: everyone in them is in it as a member while they
+ * are in the group. Needs to manage it. A default teamspace has everyone in it already.
+ */
+export async function addTeamspaceGroups(actorId: string, teamspaceId: string, groupIds: string[]) {
+  const { teamspace: found } = await manageableTeamspace(actorId, teamspaceId);
+  const wanted = [...new Set(groupIds)];
+  if (!wanted.length) return;
+  if (found.access === "default") {
+    throw new TeamspaceError("everyoneIn", "Everyone is in this teamspace already.");
+  }
+  for (const groupId of wanted) await requireGroupIn(found.workspaceId, groupId);
+  await db
+    .insert(teamspaceGroup)
+    .values(wanted.map((groupId) => ({ teamspaceId, workspaceId: found.workspaceId, groupId })))
+    .onConflictDoNothing();
+  await db.update(teamspace).set({ updatedAt: new Date() }).where(eq(teamspace.id, teamspaceId));
+  getCollab().broadcast(`ws:${found.workspaceId}`, "tree");
+}
+
+/**
+ * Takes a group out of the teamspace. Needs to manage it. Its members stay in the teamspace only by
+ * a row of their own or another group; open editors of those who lost its pages are dropped, and
+ * pages nobody could manage any more go to the person who did it.
+ */
+export async function removeTeamspaceGroup(actorId: string, teamspaceId: string, groupId: string) {
+  const { teamspace: found } = await manageableTeamspace(actorId, teamspaceId);
+  const members = await groupMemberIds(groupId);
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(teamspaceGroup)
+      .where(and(eq(teamspaceGroup.teamspaceId, teamspaceId), eq(teamspaceGroup.groupId, groupId)));
+    await tx.update(teamspace).set({ updatedAt: new Date() }).where(eq(teamspace.id, teamspaceId));
+    await handOverOrphanedPages(tx, found.workspaceId, actorId);
+  });
+  await afterAccessLoss(found.workspaceId, members);
+}
+
+/**
+ * For the members list: which of the teamspaces the viewer can see each person is in, by a row of
+ * their own or a group (archived ones left out). Guests are in none.
  */
 export async function teamspacesByMember(viewerId: string, workspaceId: string) {
   const visible = await listTeamspaces(viewerId, workspaceId);
@@ -484,10 +638,19 @@ export async function teamspacesByMember(viewerId: string, workspaceId: string) 
     .select({ userId: workspaceMember.userId, role: workspaceMember.role })
     .from(workspaceMember)
     .where(eq(workspaceMember.workspaceId, workspaceId));
-  const rows = await db
-    .select({ teamspaceId: teamspaceMember.teamspaceId, userId: teamspaceMember.userId })
-    .from(teamspaceMember)
-    .where(inArray(teamspaceMember.teamspaceId, visible.map((t) => t.id)));
+  const ids = visible.map((t) => t.id);
+  const [direct, grouped] = await Promise.all([
+    db
+      .select({ teamspaceId: teamspaceMember.teamspaceId, userId: teamspaceMember.userId })
+      .from(teamspaceMember)
+      .where(inArray(teamspaceMember.teamspaceId, ids)),
+    db
+      .select({ teamspaceId: teamspaceGroup.teamspaceId, userId: memberGroupMember.userId })
+      .from(teamspaceGroup)
+      .innerJoin(memberGroupMember, eq(memberGroupMember.groupId, teamspaceGroup.groupId))
+      .where(inArray(teamspaceGroup.teamspaceId, ids)),
+  ]);
+  const rows = [...direct, ...grouped];
   for (const person of people) {
     if (isGuest(person.role)) continue;
     const theirs = visible.filter(
@@ -510,16 +673,23 @@ export async function teamspaceLabel(userId: string, teamspaceId: string) {
 }
 
 /**
- * Who a teamspace page's "everyone" entry reaches: its access and who is in it by row (everyone
- * when it is a default one). Only for callers that already checked access to such a page.
+ * Who a teamspace page's "everyone" entry reaches: its access and who is in it by row or group
+ * (everyone when it is a default one). Only for callers that already checked access to such a page.
  */
 export async function teamspaceReach(teamspaceId: string) {
   const [found] = await db.select({ access: teamspace.access }).from(teamspace).where(eq(teamspace.id, teamspaceId));
-  const rows = await db
-    .select({ userId: teamspaceMember.userId })
-    .from(teamspaceMember)
-    .where(eq(teamspaceMember.teamspaceId, teamspaceId));
-  return { access: (found?.access ?? "private") as TeamspaceAccess, members: new Set(rows.map((r) => r.userId)) };
+  const [rows, grouped] = await Promise.all([
+    db.select({ userId: teamspaceMember.userId }).from(teamspaceMember).where(eq(teamspaceMember.teamspaceId, teamspaceId)),
+    db
+      .select({ userId: memberGroupMember.userId })
+      .from(teamspaceGroup)
+      .innerJoin(memberGroupMember, eq(memberGroupMember.groupId, teamspaceGroup.groupId))
+      .where(eq(teamspaceGroup.teamspaceId, teamspaceId)),
+  ]);
+  return {
+    access: (found?.access ?? "private") as TeamspaceAccess,
+    members: new Set([...rows, ...grouped].map((r) => r.userId)),
+  };
 }
 
 /** The teamspaces the user is in and that aren't archived: the sidebar's sections. */

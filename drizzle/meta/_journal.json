@@ -159,8 +159,22 @@
     {
       "idx": 22,
       "version": "7",
+      "when": 1790551740727,
+      "tag": "0022_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790551124720,
+      "tag": "0023_ai_properties",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
       "when": 1790552151910,
-      "tag": "0022_sso",
+      "tag": "0024_sso",
       "breakpoints": true
     }
   ]

@@ -7,6 +7,7 @@
     "general": "Allgemein",
     "members": "Mitglieder",
     "teamspaces": "Teamspaces",
+    "groups": "Gruppen",
     "security": "Sicherheit",
     "site": "Website",
     "myAccount": "Mein Konto"
@@ -52,6 +53,7 @@
       "user": "Person",
       "role": "Rolle",
       "teamspaces": "Teamspaces",
+      "groups": "Gruppen",
       "joined": "Beigetreten",
       "lastEdited": "Letzte Bearbeitung",
       "actions": "Aktionen",
@@ -68,6 +70,8 @@
     },
     "teamspaceCount": "{count, plural, one {# Teamspace} other {# Teamspaces}}",
     "teamspacesOf": "Teamspaces von {name}",
+    "groupCount": "{count, plural, one {# Gruppe} other {# Gruppen}}",
+    "groupsOf": "Gruppen von {name}",
     "neverEdited": "Noch keine Bearbeitungen",
     "actionsFor": "Aktionen für {name}",
     "transfer": "Zum Inhaber machen und zurücktreten",
@@ -159,6 +163,55 @@
       "title": "Nur Workspace-Inhaber können Teamspaces erstellen",
       "description": "Aus: Inhaber und Mitglieder können Teamspaces erstellen. Gäste können das nie.",
       "ownersOnly": "Nur Workspace-Inhaber können das ändern."
+    }
+  },
+  "groups": {
+    "heading": "Gruppen",
+    "description": "Gruppen fassen Personen zusammen, damit du eine Seite mit allen teilen oder sie auf einmal zu einem Teamspace hinzufügen kannst. Wer einer Gruppe beitritt, bekommt, was die Gruppe hat; wer sie verlässt, verliert es. Nur Inhaber und Mitglieder können in Gruppen sein, keine Gäste.",
+    "ownersOnly": "Nur Workspace-Inhaber können Gruppen erstellen und ändern.",
+    "newButton": "Neue Gruppe",
+    "search": "Gruppen suchen",
+    "empty": "Noch keine Gruppen.",
+    "emptyOwner": "Noch keine Gruppen. Erstelle eine, um Seiten mit mehreren Personen auf einmal zu teilen.",
+    "noMatches": "Keine Gruppe entspricht deiner Suche.",
+    "memberCount": "{count, plural, =0 {Keine Mitglieder} one {# Mitglied} other {# Mitglieder}}",
+    "columns": {
+      "group": "Gruppe",
+      "members": "Mitglieder",
+      "teamspaces": "Teamspaces",
+      "actions": "Aktionen"
+    },
+    "actionsFor": "Aktionen für {name}",
+    "manageMembers": "Mitglieder verwalten",
+    "viewMembers": "Mitglieder ansehen",
+    "rename": "Umbenennen",
+    "delete": "Gruppe löschen",
+    "createTitle": "Neue Gruppe",
+    "renameTitle": "Gruppe umbenennen",
+    "name": "Name",
+    "namePlaceholder": "Design, Support, Leitung…",
+    "create": "Gruppe erstellen",
+    "creating": "Wird erstellt…",
+    "deleteTitle": "{name} löschen?",
+    "deleteBody": "Ihre Mitglieder behalten den Zugriff, den sie selbst haben. Was die Gruppe auf Seiten und in Teamspaces bekommen hat, fällt weg, und geöffnete Seiten, die sie nicht mehr sehen können, werden geschlossen. Seiten, die nur die Gruppe verwalten konnte, gehen an dich.",
+    "members": {
+      "title": "Mitglieder von {name}",
+      "list": "Personen in dieser Gruppe",
+      "empty": "Noch niemand ist in dieser Gruppe.",
+      "add": "Personen hinzufügen",
+      "search": "Personen suchen",
+      "select": "{name} auswählen",
+      "addSelected": "{count, plural, =0 {Personen hinzufügen} other {# hinzufügen}}",
+      "noOneToAdd": "Alle Inhaber und Mitglieder des Workspace sind bereits in dieser Gruppe.",
+      "noMatches": "Niemand entspricht deiner Suche.",
+      "remove": "{name} entfernen",
+      "guestsHint": "Gäste können nicht in Gruppen sein."
+    },
+    "errors": {
+      "nameRequired": "Gib der Gruppe einen Namen.",
+      "nameTaken": "Eine andere Gruppe hat bereits diesen Namen.",
+      "notMember": "Nur Inhaber und Mitglieder des Workspace können in seinen Gruppen sein.",
+      "accessDenied": "Nur Workspace-Inhaber können Gruppen ändern."
     }
   },
   "preferences": {

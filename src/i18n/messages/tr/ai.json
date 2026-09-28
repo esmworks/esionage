@@ -1,0 +1,112 @@
+{
+  "assistant": {
+    "askAi": "Yapay zekâya sor",
+    "askAiSubtext": "Yapay zekâyla yeniden yaz, çevir ya da devam ettir",
+    "askAiAliases": "yapay zeka ai asistan yaz yeniden iyileştir çevir",
+    "continueSubtext": "Yapay zekâ buradan yazmaya devam eder",
+    "continueAliases": "yapay zeka ai devam yaz",
+    "summarizeSubtext": "Yapay zekâ bu sayfanın özetini ekler",
+    "summarizeAliases": "yapay zeka ai özet özetle",
+    "group": "Yapay zekâ",
+    "label": "Yapay zekâ asistanı",
+    "placeholder": "Yapay zekâya ne yazacağını söyle…",
+    "placeholderSelection": "Seçili metinle ne yapılacağını söyle…",
+    "send": "Gönder",
+    "actions": {
+      "improve": "Yazımı iyileştir",
+      "shorten": "Kısalt",
+      "fix": "Yazım ve dilbilgisini düzelt",
+      "translate": "Çevir…",
+      "continue": "Yazmaya devam et",
+      "summarize": "Sayfayı özetle",
+      "custom": "Senin talimatın"
+    },
+    "translateInto": "Şu dile çevir",
+    "back": "Geri",
+    "writing": "Yazıyor…",
+    "stop": "Durdur",
+    "replace": "Seçimin yerine koy",
+    "insertBelow": "Altına ekle",
+    "retry": "Yeniden dene",
+    "discard": "Vazgeç",
+    "cutOff": "Yanıt uzunluk sınırına ulaştı, eksik kalmış olabilir.",
+    "reviewNote": "Yapay zekâ hata yapabilir. Metni tutmadan önce kontrol et.",
+    "stopped": "Durduruldu. Şimdiye kadar yazılanı yine de tutabilirsin.",
+    "applyFailed": "Öneri sayfaya eklenemedi.",
+    "selectionChanged": "Seçili metin bu arada değişti, bu yüzden öneri altına eklendi."
+  },
+  "errors": {
+    "disabled": "Bu çalışma alanında yapay zekâ kullanılamıyor.",
+    "noAccess": "Bu sayfayı değiştiremezsin.",
+    "tooLarge": "Bu, tek bir yapay zekâ isteği için fazla metin. Daha azını seçip yeniden dene.",
+    "rateLimited": "Çok fazla yapay zekâ isteği gönderildi. Birazdan yeniden dene.",
+    "timeout": "Yapay zekâ çok geç yanıt verdi. Yeniden dene.",
+    "aborted": "Yapay zekâ isteği iptal edildi.",
+    "provider": "Yapay zekâ sağlayıcısı yanıt veremedi. Sonra yeniden dene ya da bir yöneticiden yapay zekâ ayarlarını kontrol etmesini iste.",
+    "empty": "Yapay zekâ yanıt vermedi. Yeniden dene ya da farklı ifade et.",
+    "invalid": "Yapay zekâ isteği eksikti. Yeniden dene.",
+    "interrupted": "Bu değer hesaplanırken sunucu yeniden başladı. Yeniden güncelle."
+  },
+  "autofill": {
+    "addEntry": "Yapay zekâyla doldur",
+    "configure": "Yapay zekâyla doldurma…",
+    "titleNew": "Yapay zekânın dolduracağı yeni özellik",
+    "titleFor": "{name}: yapay zekâyla doldurma",
+    "back": "Geri",
+    "mode": "Yapay zekâ neyi doldursun",
+    "modes": {
+      "summary": "Özet",
+      "translation": "Çeviri",
+      "custom": "Kendi komutun"
+    },
+    "modeHints": {
+      "summary": "Her satırın sayfasının kısa bir özeti.",
+      "translation": "Satırın bir değerinin çevirisi.",
+      "custom": "Satırın değerlerini kullanarak tarif ettiğin her şey."
+    },
+    "defaultNames": {
+      "summary": "YZ özeti",
+      "translation": "Çeviri",
+      "custom": "YZ metni"
+    },
+    "source": "Çevrilecek",
+    "sourceTitle": "Ad",
+    "sourceBody": "Sayfa içeriği",
+    "language": "Hedef dil",
+    "prompt": "Komut",
+    "promptPlaceholder": "Örnek: '{title}' için '{Audience}' kitlesine yönelik tek cümlelik bir tanıtım yaz.",
+    "promptHint": "Eklemek için bir özelliğe tıkla; yerine satırın değeri gelir.",
+    "includeBody": "Satırın sayfa içeriğini de gönder",
+    "auto": "Satır değişince güncelle",
+    "autoHint": "Bir satırın değerleri ya da sayfası değiştikten birkaç saniye sonra değeri yeniden hesaplanır.",
+    "privacy": "Her satırın değerinin hesaplandığı bilgiler bu sunucunun yapay zekâ sağlayıcısına gönderilir.",
+    "save": "Kaydet",
+    "create": "Özellik ekle",
+    "turnOff": "Yapay zekâyla doldurmayı kapat",
+    "updateAll": "Bu görünümdeki tüm satırları güncelle",
+    "updateRow": "Yapay zekâyla güncelle",
+    "pending": "Yapay zekâ bunun üzerinde çalışıyor…",
+    "failed": "Yapay zekâ bunu dolduramadı: {reason}",
+    "tooManyRows": "Tek seferde en fazla {max} satır güncellenebilir; bu görünümün ilk {max} satırı güncelleniyor.",
+    "errors": {
+      "invalidMode": "Yapay zekânın neyi dolduracağını seç.",
+      "unknownLanguage": "Çevrilecek dili seç.",
+      "unknownSource": "Neyin çevrileceğini seç.",
+      "promptRequired": "Bir komut yaz.",
+      "promptTooLong": "Komut en fazla {max} karakter olabilir.",
+      "unknownPlaceholder": "“{name}” adında bir özellik yok.",
+      "notText": "Yalnızca metin özellikleri yapay zekâyla doldurulabilir.",
+      "databaseLocked": "Veritabanı kilitli."
+    }
+  },
+  "settings": {
+    "heading": "Yapay zekâ",
+    "description": "Sayfalardaki yapay zekâ yazma asistanı ve veritabanlarındaki yapay zekâyla doldurulan özellikler.",
+    "enabled": "Yapay zekâ özellikleri",
+    "enabledHint": "Açıkken üyeler görebildikleri sayfa içeriğini ve satır değerlerini aşağıdaki yapay zekâ sağlayıcısına gönderebilir. Bu çalışma alanının içeriğini ondan uzak tutmak için kapat.",
+    "ownersOnly": "Bunu yalnızca sahipler değiştirebilir.",
+    "provider": "Sağlayıcı",
+    "providerValue": "{provider}, model {model}",
+    "notConfigured": "Bu sunucuda bir yapay zekâ sağlayıcısı ayarlanmamış, bu yüzden yapay zekâ özellikleri kapalı. Bir yönetici AI_PROVIDER ve AI_MODEL ortam değişkenleriyle ayarlayabilir (README'ye bak)."
+  }
+}

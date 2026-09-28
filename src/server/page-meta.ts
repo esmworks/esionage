@@ -2,6 +2,7 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { page, pageFavorite, type PageKind, user } from "@/db/schema";
+import { aiAvailable } from "@/server/ai-writing";
 import { AccessError, isGuest, pageVisibleTo, requireMembership, resolvePageAccess, type AccessLevel } from "@/server/access";
 import { topLevelAccess } from "@/server/workspaces";
 
@@ -23,6 +24,8 @@ export type PageHeaderInfo = {
    * for the template picker's pages, "row" for a database's row templates, "inside" below either.
    */
   template: "workspace" | "row" | "inside" | null;
+  /** The AI writing assistant is available: the server has a provider and the workspace has AI on. */
+  ai: boolean;
 };
 
 export async function getPageHeaderInfo(userId: string, pageId: string): Promise<PageHeaderInfo> {
@@ -30,7 +33,7 @@ export async function getPageHeaderInfo(userId: string, pageId: string): Promise
   if (!found || level === "none") throw new AccessError();
   const creator = alias(user, "creator");
   const editor = alias(user, "editor");
-  const [[names], [star], membership, topLevel] = await Promise.all([
+  const [[names], [star], membership, topLevel, ai] = await Promise.all([
     db
       .select({ createdBy: creator.name, updatedBy: editor.name })
       .from(page)
@@ -43,6 +46,7 @@ export async function getPageHeaderInfo(userId: string, pageId: string): Promise
       .where(and(eq(pageFavorite.userId, userId), eq(pageFavorite.pageId, pageId))),
     requireMembership(userId, found.workspaceId),
     topLevelAccess(userId, found.workspaceId),
+    aiAvailable(found.workspaceId),
   ]);
   return {
     level,
@@ -55,6 +59,7 @@ export async function getPageHeaderInfo(userId: string, pageId: string): Promise
     favorite: Boolean(star),
     locked: Boolean(found.lockedAt),
     template: found.isTemplate ? (found.parentId ? "row" : "workspace") : found.inTemplate ? "inside" : null,
+    ai,
   };
 }
 

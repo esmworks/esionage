@@ -7,7 +7,9 @@ export type TeamspaceErrorCode =
   | "notJoinable"
   | "archived"
   | "notMember"
-  | "invalidAccess";
+  | "invalidAccess"
+  | "inGroup"
+  | "everyoneIn";
 
 /** An expected failure the UI translates by `code`; the English message is for logs and MCP. */
 export class TeamspaceError extends Error {

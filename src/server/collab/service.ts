@@ -18,6 +18,7 @@ import { AccessError, policyHoldFor, WorkspacePolicyError } from "@/server/acces
 import { collabSessionFacts } from "@/server/account-security";
 import { blocksToMarkdown, markdownToBlocks, serverEditor as editor } from "@/server/blocknote";
 import { mentionablePeople, syncPageReferences } from "@/server/mentions";
+import { rowChanged } from "@/server/row-events";
 import { authorizeCollab, parseDocName as parseName } from "./authorize";
 import type { Channel, CollabService, CommentActor, CommentOpResult, PageContent, WriteActor } from "./bridge";
 import { anchorThread, reanchor, threadQuotes } from "./comment-marks";
@@ -215,6 +216,8 @@ export function createCollab() {
     // Every save, not only edits: a reminder changes the document but not its Markdown.
     await syncPageReferences(pageId, row.workspaceId, blocks, userId ?? null, context?.locale ?? null);
     if (!edited) return;
+    // A database row's title or content changed: AI autofill values that follow it may update.
+    if (row.parentId) rowChanged({ rowId: pageId, databaseId: row.parentId, userId: userId ?? null });
     if (title !== row.title) {
       broadcast(`ws:${row.workspaceId}`, "tree");
       if (row.parentId) broadcast(`db:${row.parentId}`, "rows");
@@ -487,6 +490,10 @@ export function createCollab() {
       old.destroy();
     },
 
+    async snapshot(pageId, reason, actor) {
+      await transactPage(pageId, actor, (doc) => snapshotBefore(pageId, doc, reason, actor));
+    },
+
     broadcast,
 
     async disconnectUser(userId, workspaceId) {
@@ -546,6 +553,39 @@ export function createCollab() {
         if (!target || target.kind === "ws" || !inTeamspace.has(target.id)) continue;
         for (const connection of doc.getConnections()) {
           if (matches(connection.context as Context)) connection.close({ code: 4403, reason: "Forbidden" });
+        }
+      }
+    },
+
+    async disconnectLostAccess(workspaceId, userIds) {
+      const who = new Set(userIds);
+      if (!who.size) return;
+      const open: { pageId: string; connections: ReturnType<Document["getConnections"]> }[] = [];
+      for (const doc of hocuspocus.documents.values()) {
+        const target = parseName(doc.name);
+        if (!target || target.kind === "ws") continue;
+        const connections = doc.getConnections().filter((c) => {
+          const userId = (c.context as Context).userId;
+          return userId !== undefined && who.has(userId);
+        });
+        if (connections.length) open.push({ pageId: target.id, connections });
+      }
+      if (!open.length) return;
+      const pairs = open.flatMap(({ pageId, connections }) =>
+        [...new Set(connections.map((c) => (c.context as Context).userId!))].map((userId) => ({ user_id: userId, page_id: pageId })),
+      );
+      const rows = await db.execute<{ user_id: string; page_id: string; level: number }>(sql`
+        select x.user_id, x.page_id, page_access_level(x.user_id, x.page_id)::int as level
+        from jsonb_to_recordset(${JSON.stringify(pairs)}::jsonb) as x(user_id text, page_id text)
+        join ${page} p on p.id = x.page_id and p.workspace_id = ${workspaceId}
+      `);
+      const levels = new Map(rows.map((r) => [`${r.user_id}:${r.page_id}`, Number(r.level)]));
+      for (const { pageId, connections } of open) {
+        for (const connection of connections) {
+          const level = levels.get(`${(connection.context as Context).userId}:${pageId}`);
+          if (level === undefined) continue; // another workspace's page
+          // 1 view, 2 comment, 3 edit (page_access_level): below edit, a writable connection is out of date.
+          if (level < 1 || (!connection.readOnly && level < 3)) connection.close({ code: 4403, reason: "Forbidden" });
         }
       }
     },

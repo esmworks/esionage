@@ -63,6 +63,9 @@ const teamspaces = vi.hoisted(() => ({
 }));
 vi.mock("@/server/teamspaces", () => teamspaces);
 
+const groups = vi.hoisted(() => ({ listGroups: vi.fn() }));
+vi.mock("@/server/groups", () => groups);
+
 const workspaces = vi.hoisted(() => ({ listMembers: vi.fn() }));
 vi.mock("@/server/workspaces", () => workspaces);
 
@@ -256,6 +259,47 @@ describe("move_page", () => {
     pages.getPage.mockResolvedValue({ ...page, teamspaceId: "ts-1" });
     await callTool(writer, "move_page", { page_id: "page-1", parent_id: null, teamspace_id: "ts-1" });
     expect(pages.movePage).not.toHaveBeenCalled();
+  });
+});
+
+describe("groups", () => {
+  it("lists a workspace's groups with who is in them and the teamspaces they joined", async () => {
+    groups.listGroups.mockResolvedValue([
+      {
+        id: "g-1",
+        name: "Design",
+        memberCount: 2,
+        members: [
+          { userId: "user-2", name: "Ada", email: "ada@example.com", image: null },
+          { userId: "user-3", name: "Linus", email: "linus@example.com", image: "/a.png" },
+        ],
+        teamspaces: [{ id: "ts-1", name: "Engineering", icon: null }],
+        createdAt: new Date(),
+      },
+    ]);
+    const r = await callTool(reader, "list_groups", { workspace_id: "ws-1" });
+    expect(groups.listGroups).toHaveBeenCalledWith("user-1", "ws-1");
+    expect(r.data).toEqual({
+      groups: [
+        {
+          id: "g-1",
+          name: "Design",
+          member_count: 2,
+          members: [
+            { id: "user-2", name: "Ada", email: "ada@example.com" },
+            { id: "user-3", name: "Linus", email: "linus@example.com" },
+          ],
+          teamspaces: [{ id: "ts-1", name: "Engineering" }],
+        },
+      ],
+    });
+  });
+
+  it("refuses guests and other workspaces the same way as a missing workspace", async () => {
+    groups.listGroups.mockRejectedValue(new AccessError());
+    const r = await callTool(reader, "list_groups", { workspace_id: "ws-2" });
+    expect(r.isError).toBe(true);
+    expect(r.text).toMatch(/Not found or access denied/);
   });
 });
 

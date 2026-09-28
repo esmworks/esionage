@@ -16,6 +16,7 @@ import * as comments from "@/server/comments";
 import * as databases from "@/server/databases";
 import { resolveEmbeds } from "@/server/embeds";
 import * as forms from "@/server/forms";
+import * as groups from "@/server/groups";
 import { labelPageLinks, listBacklinks } from "@/server/mentions";
 import * as pages from "@/server/pages";
 import * as teamspaces from "@/server/teamspaces";
@@ -127,6 +128,7 @@ export const inputs = {
     workspace_id: id("workspace"),
     include_archived: z.boolean().default(false).describe("Also list archived teamspaces."),
   }),
+  listGroups: z.object({ workspace_id: id("workspace") }),
   getPage: z.object({
     page_id: id("page"),
     offset: z.number().int().min(0).default(0).describe("Character offset into the Markdown body, for long pages."),
@@ -314,6 +316,19 @@ export async function listTeamspaces(ctx: OperationContext, { workspace_id, incl
       can_add_pages: t.joined && !t.archivedAt,
     })),
     note: 'Pages outside every teamspace are private: create_page / move_page with teamspace_id "private".',
+  };
+}
+
+export async function listGroups(ctx: OperationContext, { workspace_id }: Args<"listGroups">) {
+  const list = await groups.listGroups(ctx.userId, workspace_id);
+  return {
+    groups: list.map((g) => ({
+      id: g.id,
+      name: g.name,
+      member_count: g.memberCount,
+      members: g.members.map((m) => ({ id: m.userId, name: m.name, email: m.email })),
+      teamspaces: g.teamspaces.map((t) => ({ id: t.id, name: t.name })),
+    })),
   };
 }
 

@@ -93,7 +93,8 @@
       "beforeRestore": "Before restore",
       "manual": "Saved version",
       "beforeAiEdit": "Before AI edit",
-      "beforeAiEditBy": "Before edit by {client}"
+      "beforeAiEditBy": "Before edit by {client}",
+      "beforeAssistantEdit": "Before AI assistant edit"
     },
     "empty": "No versions yet. Versions are saved automatically while you edit and before any AI app changes this page.",
     "restore": "Restore this version",
@@ -129,8 +130,9 @@
   "share": {
     "tabShare": "Share",
     "tabPublish": "Publish",
-    "addPeople": "Add people by name or email",
-    "noMatches": "No matching members.",
+    "addPeople": "Add people, groups or emails",
+    "noMatches": "No matching members or groups.",
+    "groupMembers": "{count, plural, =0 {Group with no members} one {Group of # member} other {Group of # members}}",
     "membersOnly": "You can share with workspace members. This workspace doesn't let you share with people outside it.",
     "guestHint": "Type a full email address to share with someone outside the workspace. They join as a guest and see only the pages shared with them.",
     "shareWith": "Share with {email}",
@@ -142,6 +144,7 @@
     "copyInvite": "Copy invitation link",
     "you": "You",
     "inherited": "From {title}",
+    "groupInherited": "Group, from {title}",
     "viaGeneral": "{level} (from general access)",
     "overridden": "General access is higher ({level}), so this has no effect.",
     "remove": "Remove",

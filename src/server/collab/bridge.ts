@@ -37,6 +37,11 @@ export interface CollabService {
   appendBlocks(pageId: string, blocks: unknown[], actor: WriteActor, snapshot?: boolean): Promise<void>;
   setTitle(pageId: string, title: string, actor: WriteActor): Promise<void>;
   restoreSnapshot(snapshotId: string, actor: WriteActor): Promise<void>;
+  /**
+   * Saves the page as it is now (the live document when it is open) as a history version, e.g.
+   * before the editor's AI assistant applies a suggestion in the browser.
+   */
+  snapshot(pageId: string, reason: "before_ai_edit" | "manual", actor: WriteActor): Promise<void>;
   /** The page's comment threads, from the live document when it is open. */
   readThreads(pageId: string): Promise<PlainThread[]>;
   /**
@@ -66,6 +71,12 @@ export interface CollabService {
    * after its access narrowed or they left it. They reconnect with whatever access they have left.
    */
   disconnectTeamspace(teamspaceId: string, userIds?: string[]): Promise<void>;
+  /**
+   * Checks the open page and database connections of these users in the workspace again and drops
+   * those they may no longer open, or no longer edit through a connection that can (after a group
+   * lost a grant, a member, or a teamspace). They reconnect with whatever access they have left.
+   */
+  disconnectLostAccess(workspaceId: string, userIds: string[]): Promise<void>;
 }
 
 const KEY = "__esionageCollab";
