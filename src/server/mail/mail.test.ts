@@ -10,7 +10,7 @@ import {
   testEmail,
 } from "./templates";
 
-const FROM = "Esionage <no-reply@example.com>";
+const FROM = "Leafdesk <no-reply@example.com>";
 
 describe("readMailConfig", () => {
   it("is off without SMTP settings", () => {
@@ -84,9 +84,9 @@ describe("renderEmail", () => {
   });
 
   it("renders the test email in both languages", () => {
-    expect(testEmail("en").subject).toBe("Test email from Esionage");
+    expect(testEmail("en").subject).toBe("Test email from Leafdesk");
     const tr = testEmail("tr");
-    expect(tr.subject).toBe("Esionage test e-postası");
+    expect(tr.subject).toBe("Leafdesk test e-postası");
     expect(tr.html).toContain('<html lang="tr">');
     expect(tr.text).toContain("E-posta gönderimi çalışıyor");
   });
@@ -103,7 +103,7 @@ describe("invitationEmail", () => {
 
   it("puts the link and the invited email in both versions", () => {
     const mail = invitationEmail("en", invitation);
-    expect(mail.subject).toBe("Erhan invited you to “<Sales & Ops>” on Esionage");
+    expect(mail.subject).toBe("Erhan invited you to “<Sales & Ops>” on Leafdesk");
     expect(mail.text).toContain("Accept invitation: https://notes.example.com/invite/abc123");
     expect(mail.text).toContain("ayse@example.com");
     expect(mail.html).toContain('href="https://notes.example.com/invite/abc123"');
@@ -120,13 +120,13 @@ describe("invitationEmail", () => {
   it("renders the password reset email with its link and lifetime", () => {
     const url = "http://localhost:3000/api/auth/reset-password/abc?callbackURL=%2Freset-password";
     const en = passwordResetEmail("en", { name: "Ada", url });
-    expect(en.subject).toBe("Reset your Esionage password");
+    expect(en.subject).toBe("Reset your Leafdesk password");
     expect(en.text).toContain(`Choose a new password: ${url}`);
     expect(en.text).toContain(`${PASSWORD_RESET_MINUTES} minutes`);
     expect(en.html).toContain("Hi Ada,");
 
     const tr = passwordResetEmail("tr", { name: "Ayşe", url });
-    expect(tr.subject).toBe("Esionage şifrenizi sıfırlayın");
+    expect(tr.subject).toBe("Leafdesk şifrenizi sıfırlayın");
     expect(tr.text).toContain(`Yeni şifre belirle: ${url}`);
   });
 });

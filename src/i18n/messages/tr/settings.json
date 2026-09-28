@@ -290,11 +290,11 @@
   },
   "mcp": {
     "heading": "Yapay zekâ asistanı bağlayın",
-    "description": "Esionage'ın yerleşik bir MCP sunucusu var. Uzak MCP sunucularını destekleyen asistanlar, siz giriş yapıp erişimi onayladıktan sonra sayfalarınızda ve veritabanlarınızda arama yapabilir, bunları okuyup düzenleyebilir. Bir asistanın yaptığı her düzenleme önce sayfa geçmişine kaydedilir, böylece geri alabilirsiniz.",
+    "description": "Leafdesk'in yerleşik bir MCP sunucusu var. Uzak MCP sunucularını destekleyen asistanlar, siz giriş yapıp erişimi onayladıktan sonra sayfalarınızda ve veritabanlarınızda arama yapabilir, bunları okuyup düzenleyebilir. Bir asistanın yaptığı her düzenleme önce sayfa geçmişine kaydedilir, böylece geri alabilirsiniz.",
     "serverUrl": "Sunucu URL'si",
     "claude": {
       "title": "Claude",
-      "body": "Claude'da Settings > Connectors bölümünü açın, Add custom connector seçeneğini seçip sunucu URL'sini yapıştırın. Claude, giriş yapıp erişime izin verebilmeniz için Esionage'ı tarayıcınızda açar."
+      "body": "Claude'da Settings > Connectors bölümünü açın, Add custom connector seçeneğini seçip sunucu URL'sini yapıştırın. Claude, giriş yapıp erişime izin verebilmeniz için Leafdesk'i tarayıcınızda açar."
     },
     "claudeCode": {
       "title": "Claude Code",

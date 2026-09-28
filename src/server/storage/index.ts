@@ -59,7 +59,7 @@ export function driverFromEnv(env: Record<string, string | undefined> = process.
   });
 }
 
-const KEY = "__esionageStorage";
+const KEY = "__leafdeskStorage";
 
 /** The process-wide driver (shared by server.ts and Next's route bundles through a global). */
 export function getStorage(): StorageDriver {

@@ -194,7 +194,7 @@ export default function CollabEditor({
           editable={mountEditable}
           slashMenu={false}
           formattingToolbar={false}
-          className="esionage-editor"
+          className="leafdesk-editor"
         >
           <SlashMenu
             editor={editor}

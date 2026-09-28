@@ -67,7 +67,7 @@ function bearer(request: Request): string | null {
   return match ? match[1] : null;
 }
 
-const WWW_AUTHENTICATE = 'Bearer realm="esionage"';
+const WWW_AUTHENTICATE = 'Bearer realm="leafdesk"';
 
 function issues(error: z.ZodError) {
   return error.issues.map((i) => ({ path: i.path.join("."), message: i.message }));

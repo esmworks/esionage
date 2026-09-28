@@ -1,4 +1,4 @@
-# Esionage
+# Leafdesk
 
 An open-source, self-hostable Notion alternative with realtime collaboration and a built-in
 MCP server, so AI assistants such as Claude can search, read and edit your workspace after you
@@ -25,7 +25,7 @@ approve them over OAuth.
   the edits sync when it is back, merged with what others wrote meanwhile. The sidebar and
   recently opened databases stay readable. The page header shows offline, syncing and synced (see
   [Install and offline use](#install-and-offline-use)).
-- **Installable app**: install Esionage from the browser on desktop (Chrome, Edge) or add it to
+- **Installable app**: install Leafdesk from the browser on desktop (Chrome, Edge) or add it to
   the home screen on phones; it opens in its own window.
 - **Find and replace** in a page (Cmd/Ctrl+F): highlights every match, steps through them, and
   replaces one or all in a single undo step. Anyone who can open the page can search it.
@@ -96,7 +96,7 @@ approve them over OAuth.
   in place.
 - **Import**: bring in Markdown files, a folder or a ZIP as pages that keep their folder
   structure, with links between the files turned into page links and the images they show
-  uploaded, into the page or teamspace you start it from. An Esionage export comes back as it went,
+  uploaded, into the page or teamspace you start it from. An Leafdesk export comes back as it went,
   templates included. Import a CSV file as a new database with its column types guessed (and
   changeable before importing), or add its rows to an existing database by matching columns to
   properties.
@@ -147,13 +147,13 @@ approve them over OAuth.
 ## Quick start (Docker)
 
 Prebuilt images for amd64 and arm64 are published to
-[GitHub Container Registry](https://github.com/esmworks/esionage/pkgs/container/esionage) for every release.
+[GitHub Container Registry](https://github.com/esmworks/leafdesk/pkgs/container/leafdesk) for every release.
 You only need two files:
 
 ```bash
-mkdir esionage && cd esionage
-curl -fsSLO https://raw.githubusercontent.com/esmworks/esionage/main/docker-compose.yml
-curl -fsSL https://raw.githubusercontent.com/esmworks/esionage/main/.env.example -o .env
+mkdir leafdesk && cd leafdesk
+curl -fsSLO https://raw.githubusercontent.com/esmworks/leafdesk/main/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/esmworks/leafdesk/main/.env.example -o .env
 # set BETTER_AUTH_SECRET in .env to the output of: openssl rand -base64 32
 docker compose up -d
 ```
@@ -161,7 +161,7 @@ docker compose up -d
 Open http://localhost:3000 and create an account. Migrations run automatically when the app
 container starts.
 
-- **Pin a version:** set `ESIONAGE_VERSION=0.2.0` in `.env`. The default is `latest`.
+- **Pin a version:** set `LEAFDESK_VERSION=0.2.0` in `.env`. The default is `latest`.
 - **Upgrade:** run `docker compose pull && docker compose up -d`. Coming from 0.1.0, first add
   `COMPOSE_PROFILES=bundled-db` to `.env` (see [CHANGELOG.md](CHANGELOG.md)).
 - **Build from source:** clone the repository and run `docker compose up -d --build`.
@@ -273,7 +273,7 @@ in the print dialog.
 
 ## Install and offline use
 
-**Installing.** Esionage is a web app with a manifest, icons and a service worker, so browsers
+**Installing.** Leafdesk is a web app with a manifest, icons and a service worker, so browsers
 offer to install it: the install icon in Chrome's or Edge's address bar, "Install app" in the
 workspace menu (shown only while the browser offers it; nothing pops up on its own), or "Add to
 Home Screen" in Safari's share menu on iPhone and iPad. Installed, it opens in its own window and
@@ -327,7 +327,7 @@ Email is needed for invitations and password reset. Set these in `.env`:
 | --- | --- |
 | `SMTP_URL` | Connection URL, e.g. `smtp://user:password@smtp.example.com:587`. Use `smtps://` for implicit TLS on port 465. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` | Alternative to `SMTP_URL`. The port defaults to 587 (STARTTLS), or 465 with `SMTP_SECURE=true`. |
-| `MAIL_FROM` | Sender, e.g. `Esionage <no-reply@example.com>`. Required when SMTP is set. |
+| `MAIL_FROM` | Sender, e.g. `Leafdesk <no-reply@example.com>`. Required when SMTP is set. |
 
 Check the settings with `pnpm mail:test you@example.com`. In Docker, run
 `docker compose exec app tsx scripts/send-test-email.ts you@example.com`. The server also logs
@@ -479,7 +479,7 @@ Then fill in the provider's details:
   Single logout is not supported.
 - **Email domains** (`example.com, example.org`; subdomains included): the connection signs
   nobody in until they are verified. Add the TXT record it shows for each domain
-  (`_esionage-sso.<domain>` with the value `esionage-sso=<token>`) at your DNS provider and click
+  (`_leafdesk-sso.<domain>` with the value `leafdesk-sso=<token>`) at your DNS provider and click
   **Verify domains**. Public mail services (gmail.com, outlook.com…) can't be claimed, and a
   domain verified by one workspace (or listed in `OIDC_DOMAINS`) can't be verified by another.
   Changing the domains or the provider asks for verification again.
@@ -575,7 +575,7 @@ handles database backups on its own. No compose file is involved.
 
 ## AI features
 
-Esionage can use a language model for a writing assistant in pages, database properties that AI
+Leafdesk can use a language model for a writing assistant in pages, database properties that AI
 fills in, and a chat that answers questions from your pages; and an embeddings model for
 semantic search. All are **off** until the server has a provider: set `AI_PROVIDER` and
 `AI_MODEL` (plus a key for hosted providers) in `.env` and restart, and `AI_EMBEDDINGS_MODEL` for
@@ -710,7 +710,7 @@ The server URL is `<APP_URL>/mcp`. My account → *Connected apps* shows ready-t
 instructions. For example, with Claude Code:
 
 ```bash
-claude mcp add --transport http esionage http://localhost:3000/mcp
+claude mcp add --transport http leafdesk http://localhost:3000/mcp
 ```
 
 The client opens a browser window where you sign in and approve access. The tools cover:
@@ -750,15 +750,15 @@ token. The reference is at `<APP_URL>/docs/api`, generated from the OpenAPI 3.1 
 Create a token in My account → *Connected apps* → *Personal access tokens*: give it a name, choose
 **Read only** (`pages:read`) or **Read and write** (`pages:write` too), optionally limit it to one
 workspace, and pick when it expires (7, 30, 90 days, a year, or never). The token is shown once;
-Esionage keeps only its SHA-256 hash. Tokens look like `esi_` and 40 letters and digits, so secret
+Leafdesk keeps only its SHA-256 hash. Tokens look like `esi_` and 40 letters and digits, so secret
 scanners can match leaked ones with `esi_[A-Za-z0-9]{40}`. The list shows when each was last
 used; revoking one stops it at once.
 
 ```bash
-curl http://localhost:3000/api/v1/workspaces -H "Authorization: Bearer $ESIONAGE_TOKEN"
+curl http://localhost:3000/api/v1/workspaces -H "Authorization: Bearer $LEAFDESK_TOKEN"
 
 curl -X POST http://localhost:3000/api/v1/databases/<database_id>/query \
-  -H "Authorization: Bearer $ESIONAGE_TOKEN" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $LEAFDESK_TOKEN" -H "Content-Type: application/json" \
   -d '{"filters": [{"property": "Status", "op": "equals", "value": "Done"}], "limit": 20}'
 ```
 

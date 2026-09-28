@@ -6,20 +6,20 @@ services:
     profiles: [bundled-db]
     restart: unless-stopped
     environment:
-      POSTGRES_USER: esionage
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-esionage}
-      POSTGRES_DB: esionage
+      POSTGRES_USER: leafdesk
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-leafdesk}
+      POSTGRES_DB: leafdesk
     volumes:
       - pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U esionage"]
+      test: ["CMD-SHELL", "pg_isready -U leafdesk"]
       interval: 5s
       timeout: 3s
       retries: 10
 
   app:
     # Prebuilt image from GitHub Container Registry; `docker compose up --build` builds from source instead.
-    image: ghcr.io/esmworks/esionage:${ESIONAGE_VERSION:-latest}
+    image: ghcr.io/esmworks/leafdesk:${LEAFDESK_VERSION:-latest}
     build: .
     pull_policy: missing
     restart: unless-stopped
@@ -30,7 +30,7 @@ services:
     environment:
       APP_URL: ${APP_URL:-http://localhost:3000}
       # Not DATABASE_URL: in .env that one points at localhost for `pnpm dev`.
-      DATABASE_URL: ${EXTERNAL_DATABASE_URL:-postgres://esionage:${POSTGRES_PASSWORD:-esionage}@db:5432/esionage}
+      DATABASE_URL: ${EXTERNAL_DATABASE_URL:-postgres://leafdesk:${POSTGRES_PASSWORD:-leafdesk}@db:5432/leafdesk}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env (openssl rand -base64 32)}
       DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-1}

@@ -1,4 +1,4 @@
-export const SIDEBAR_COOKIE = "esionage-sidebar";
+export const SIDEBAR_COOKIE = "leafdesk-sidebar";
 export const SIDEBAR_WIDTH = { min: 200, default: 256, max: 420 } as const;
 
 /** Desktop sidebar layout, kept in a cookie so the server renders it the way it was left. */

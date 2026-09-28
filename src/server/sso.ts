@@ -470,7 +470,7 @@ export async function saveSsoConnection(
 type TxtResolver = (name: string) => Promise<string[][]>;
 
 /**
- * Verifies the connection's domains: each needs a TXT record `_esionage-sso.<domain>` with the
+ * Verifies the connection's domains: each needs a TXT record `_leafdesk-sso.<domain>` with the
  * connection's value, and none may already be verified by another connection (or be the
  * instance provider's). Owners only.
  */

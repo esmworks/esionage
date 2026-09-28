@@ -50,7 +50,7 @@ export default async function DuplicatePublishedRoute({ params, searchParams }: 
           ← {t("back")}
         </Link>
         <Link href="/" className="shrink-0 text-sm font-semibold tracking-tight text-fg-faint hover:text-fg-muted">
-          esionage
+          leafdesk
         </Link>
       </header>
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-10 pb-24 sm:pt-16">

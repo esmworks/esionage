@@ -1,6 +1,6 @@
 {
   "title": "Kontosicherheit",
-  "description": "Wie du dich bei Esionage anmeldest. Diese Einstellungen gelten für dein Konto und in allen Workspaces.",
+  "description": "Wie du dich bei Leafdesk anmeldest. Diese Einstellungen gelten für dein Konto und in allen Workspaces.",
   "connectedAppsNote": "Apps, die du über MCP verbunden hast, behalten ihren Zugriff, wenn du diese Einstellungen änderst; sie verwenden eigene Token. Trenne sie unter Verbundene Apps.",
   "fields": {
     "password": "Passwort"
@@ -53,7 +53,7 @@
     "newCodes": "Deine neuen Wiederherstellungscodes. Bewahre sie sicher auf; du wirst sie nicht noch einmal sehen.",
     "copy": "Codes kopieren",
     "download": "Herunterladen",
-    "fileHeading": "Esionage-Wiederherstellungscodes. Mit jedem Code kannst du dich einmal anmelden."
+    "fileHeading": "Leafdesk-Wiederherstellungscodes. Mit jedem Code kannst du dich einmal anmelden."
   },
   "passkeys": {
     "heading": "Passkeys",

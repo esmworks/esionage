@@ -90,7 +90,7 @@ export function parseCsv(text: string, delimiter = detectDelimiter(text.replace(
 }
 
 /**
- * Esionage's CSV export (lib/csv) puts an apostrophe before cells a spreadsheet would run as a
+ * Leafdesk's CSV export (lib/csv) puts an apostrophe before cells a spreadsheet would run as a
  * formula; importing takes it off again.
  */
 function unguard(cell: string) {
@@ -285,7 +285,7 @@ function distinct(values: string[]): string[] {
   return [...seen.values()];
 }
 
-/** Checklist cells as Esionage exports them: one item per line, `[x] Done` or `[ ] Open`. */
+/** Checklist cells as Leafdesk exports them: one item per line, `[x] Done` or `[ ] Open`. */
 export function parseChecklist(raw: string): { text: string; checked: boolean }[] {
   return raw
     .split(/\r?\n/)
@@ -294,7 +294,7 @@ export function parseChecklist(raw: string): { text: string; checked: boolean }[
     .map((m) => ({ text: m[2].trim(), checked: (m[1] ?? " ").toLowerCase() === "x" }));
 }
 
-/** Types a CSV column can be imported into; the rest are worked out by Esionage or hold uploads. */
+/** Types a CSV column can be imported into; the rest are worked out by Leafdesk or hold uploads. */
 export function isImportableType(type: PropertyType) {
   return !["created_by", "created_time", "last_edited_by", "last_edited_time", "formula", "rollup", "files"].includes(type);
 }

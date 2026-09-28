@@ -8,8 +8,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Esionage",
-    short_name: "Esionage",
+    name: "Leafdesk",
+    short_name: "Leafdesk",
     description: "Pages, databases and live collaboration in one self-hosted workspace.",
     start_url: "/",
     scope: "/",

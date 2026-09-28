@@ -12,7 +12,7 @@
  * The app must run with the mock provider trusted and configured as the instance provider:
  *
  *   SSO_TRUSTED_ORIGINS=http://127.0.0.1:5199 OIDC_ISSUER=http://127.0.0.1:5199/instance \
- *   OIDC_CLIENT_ID=esionage-instance OIDC_CLIENT_SECRET=instance-secret OIDC_NAME="Mock IdP" \
+ *   OIDC_CLIENT_ID=leafdesk-instance OIDC_CLIENT_SECRET=instance-secret OIDC_NAME="Mock IdP" \
  *   OIDC_DOMAINS=instance-sso.test PORT=5100 pnpm dev
  *
  *   APP_URL=http://localhost:5100 pnpm tsx scripts/sso-e2e.ts
@@ -34,7 +34,7 @@ const IDP = `http://127.0.0.1:${IDP_PORT}`;
 // This process saves connections (discovery) and checks domains like the app does.
 process.env.SSO_TRUSTED_ORIGINS ??= IDP;
 process.env.OIDC_ISSUER ??= `${IDP}/instance`;
-process.env.OIDC_CLIENT_ID ??= "esionage-instance";
+process.env.OIDC_CLIENT_ID ??= "leafdesk-instance";
 process.env.OIDC_CLIENT_SECRET ??= "instance-secret";
 process.env.OIDC_NAME ??= "Mock IdP";
 process.env.OIDC_DOMAINS ??= "instance-sso.test";
@@ -72,7 +72,7 @@ type Login = { email: string; name: string };
 type Grant = Login & { tenant: string; clientId: string; redirectUri: string; nonce?: string; challenge?: string };
 
 const TENANTS: Record<string, { clientId: string; clientSecret: string }> = {
-  acme: { clientId: "esionage-acme", clientSecret: "acme-secret" },
+  acme: { clientId: "leafdesk-acme", clientSecret: "acme-secret" },
   instance: { clientId: process.env.OIDC_CLIENT_ID!, clientSecret: process.env.OIDC_CLIENT_SECRET! },
 };
 const keys = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -380,12 +380,12 @@ async function main() {
   check(badIssuer.text.includes('"error":"discoveryFailed"'), "an issuer without a discovery document is refused", badIssuer.text);
   const publicDomain = await callAction(owner.jar, settingsPath, SSO_ACTIONS, "saveSsoConnectionAction", [
     workspaceId,
-    { protocol: "oidc", issuer: `${IDP}/acme`, clientId: "esionage-acme", clientSecret: "acme-secret", domains: "gmail.com" },
+    { protocol: "oidc", issuer: `${IDP}/acme`, clientId: "leafdesk-acme", clientSecret: "acme-secret", domains: "gmail.com" },
   ]);
   check(publicDomain.text.includes('"error":"invalidDomain"'), "a public mail domain can't be claimed", publicDomain.text);
   const saved = await callAction(owner.jar, settingsPath, SSO_ACTIONS, "saveSsoConnectionAction", [
     workspaceId,
-    { protocol: "oidc", issuer: `${IDP}/acme`, clientId: "esionage-acme", clientSecret: "acme-secret", domains: DOMAIN },
+    { protocol: "oidc", issuer: `${IDP}/acme`, clientId: "leafdesk-acme", clientSecret: "acme-secret", domains: DOMAIN },
   ]);
   check(saved.status === 200 && saved.text.includes('"ok":true') && saved.text.includes('"verified":false'), "the owner saves an OIDC connection", saved.text);
   check(!saved.text.includes("acme-secret"), "…whose secret never comes back to the browser");
@@ -411,21 +411,21 @@ async function main() {
   check(byMember instanceof AccessError, "members can't change the connection", String(byMember));
 
   const [row] = await db.select({ token: workspaceSso.verificationToken }).from(workspaceSso).where(eq(workspaceSso.workspaceId, workspaceId));
-  const wrongRecord = await verifySsoDomains(owner.id, workspaceId, async () => [["esionage-sso=wrong"]]).catch((e: unknown) => e);
+  const wrongRecord = await verifySsoDomains(owner.id, workspaceId, async () => [["leafdesk-sso=wrong"]]).catch((e: unknown) => e);
   check(wrongRecord instanceof SsoError && wrongRecord.code === "dnsMismatch", "a TXT record with another value doesn't verify", String(wrongRecord));
   const verified = await verifySsoDomains(owner.id, workspaceId, async (name) =>
-    name === domainRecordName(DOMAIN) ? [[`esionage-sso=`, row.token]] : [],
+    name === domainRecordName(DOMAIN) ? [[`leafdesk-sso=`, row.token]] : [],
   );
   check(verified?.verified === true, "the right TXT record verifies the domain (split TXT strings joined)", verified);
 
   const instanceDomain = await saveSsoConnection(member0.id, member0.workspaceId!, {
     protocol: "oidc",
     issuer: `${IDP}/acme`,
-    clientId: "esionage-acme",
+    clientId: "leafdesk-acme",
     clientSecret: "acme-secret",
     domains: `eu.${DOMAIN}`,
   });
-  const taken = await verifySsoDomains(member0.id, member0.workspaceId!, async () => [[`esionage-sso=${row.token}`]]).catch((e: unknown) => e);
+  const taken = await verifySsoDomains(member0.id, member0.workspaceId!, async () => [[`leafdesk-sso=${row.token}`]]).catch((e: unknown) => e);
   check(taken instanceof SsoError && taken.code === "domainTaken", "another workspace can't verify a domain already in use", String(taken));
   check(instanceDomain?.verified === false, "…and its connection stays unverified");
 
@@ -529,7 +529,7 @@ async function main() {
     "the next single sign-on asks for the code, keeping where it was headed",
     held,
   );
-  check((await sessionOf(daveAgain)) === null && daveAgain.has("esionage.sso_pending"), "…with no session yet, the provider remembered for the code step");
+  check((await sessionOf(daveAgain)) === null && daveAgain.has("leafdesk.sso_pending"), "…with no session yet, the provider remembered for the code step");
   const coded = await authPost("/two-factor/verify-totp", { code: await codeFor(key) }, daveAgain);
   const codedSession = await sessionOf(daveAgain);
   check(coded.status === 200 && codedSession?.session.authMethod === "totp", "the code signs in", coded.body);
@@ -587,5 +587,5 @@ try {
   const wsIds = [...new Set([...workspaceIds, ...owned.map((w) => w.id)])];
   if (wsIds.length) await db.delete(workspace).where(inArray(workspace.id, wsIds));
   if (ids.length) await db.delete(user).where(inArray(user.id, ids));
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }

@@ -270,9 +270,9 @@ class LegacySession {
       jsonrpc: "2.0",
       id: this.nextId++,
       method: "initialize",
-      params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "esionage-e2e", version: "1.0.0" } },
+      params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "leafdesk-e2e", version: "1.0.0" } },
     });
-    check(r.status === 200 && r.message?.result?.serverInfo?.name === "esionage", "legacy initialize succeeds", r);
+    check(r.status === 200 && r.message?.result?.serverInfo?.name === "leafdesk", "legacy initialize succeeds", r);
     const n = await rpc(this.token, { jsonrpc: "2.0", method: "notifications/initialized" }, { "mcp-protocol-version": "2025-11-25" });
     check(n.status === 202 || n.status === 200, "initialized notification accepted", n.status);
     return r.message.result;
@@ -675,7 +675,7 @@ async function main() {
   const modernMeta = {
     "io.modelcontextprotocol/protocolVersion": "2026-07-28",
     "io.modelcontextprotocol/clientCapabilities": {},
-    "io.modelcontextprotocol/clientInfo": { name: "esionage-e2e", version: "1.0.0" },
+    "io.modelcontextprotocol/clientInfo": { name: "leafdesk-e2e", version: "1.0.0" },
   };
   const modernHeaders = { "mcp-protocol-version": "2026-07-28" };
   const modernList = await rpc(

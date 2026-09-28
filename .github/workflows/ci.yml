@@ -21,13 +21,13 @@ jobs:
       postgres:
         image: postgres:18-alpine
         env:
-          POSTGRES_USER: esionage
-          POSTGRES_PASSWORD: esionage
-          POSTGRES_DB: esionage
+          POSTGRES_USER: leafdesk
+          POSTGRES_PASSWORD: leafdesk
+          POSTGRES_DB: leafdesk
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U esionage"
+          --health-cmd "pg_isready -U leafdesk"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
@@ -39,11 +39,11 @@ jobs:
           - 8025:8025
     env:
       APP_URL: http://localhost:3000
-      DATABASE_URL: postgres://esionage:esionage@localhost:5432/esionage
+      DATABASE_URL: postgres://leafdesk:leafdesk@localhost:5432/leafdesk
       BETTER_AUTH_SECRET: ci-only-secret-that-protects-nothing-000000000000
       NEXT_TELEMETRY_DISABLED: 1
       SMTP_URL: smtp://localhost:1025
-      MAIL_FROM: Esionage CI <ci@esionage.test>
+      MAIL_FROM: Leafdesk CI <ci@leafdesk.test>
       MAILPIT_URL: http://localhost:8025
     steps:
       - uses: actions/checkout@v7

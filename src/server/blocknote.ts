@@ -45,7 +45,7 @@ import { webBlockServerSpecs } from "./web-blocks";
 const marker = (type: string) => ({
   render: () => {
     const dom = document.createElement("div");
-    dom.setAttribute("data-esionage-embed", type);
+    dom.setAttribute("data-leafdesk-embed", type);
     return { dom };
   },
 });
@@ -57,7 +57,7 @@ const marker = (type: string) => ({
  */
 function mathElement(tag: "div" | "span", latex: string, displayMode: boolean) {
   const dom = document.createElement(tag);
-  dom.setAttribute("data-esionage-math", displayMode ? "block" : "inline");
+  dom.setAttribute("data-leafdesk-math", displayMode ? "block" : "inline");
   if (latex.trim()) katex.render(latex, dom, { ...KATEX_OPTIONS, displayMode, throwOnError: false });
   return dom;
 }
@@ -65,7 +65,7 @@ function mathElement(tag: "div" | "span", latex: string, displayMode: boolean) {
 /** A "plain" block's source, as the server editor lays it out. */
 function sourceElement(kind: string) {
   const dom = document.createElement("pre");
-  dom.setAttribute(`data-esionage-${kind}`, "");
+  dom.setAttribute(`data-leafdesk-${kind}`, "");
   const code = document.createElement("code");
   dom.appendChild(code);
   return { dom, contentDOM: code };
@@ -75,7 +75,7 @@ const contentBlockSpecs = {
   callout: createBlockSpec(calloutBlockConfig, {
     render: (block) => {
       const dom = document.createElement("div");
-      dom.setAttribute("data-esionage-callout", "");
+      dom.setAttribute("data-leafdesk-callout", "");
       if (block.props.icon) {
         const icon = document.createElement("span");
         icon.setAttribute("data-callout-icon", "");
@@ -112,7 +112,7 @@ const inlineMath = createInlineContentSpec(inlineMathConfig, {
   meta: { code: true },
   render: () => {
     const dom = document.createElement("span");
-    dom.setAttribute("data-esionage-math", "inline");
+    dom.setAttribute("data-leafdesk-math", "inline");
     return { dom, contentDOM: dom };
   },
   toExternalHTML: (inlineContent) => ({ dom: mathElement("span", plainText(inlineContent.content), false) }),
@@ -125,7 +125,7 @@ const inlineMath = createInlineContentSpec(inlineMathConfig, {
 const mention = createInlineContentSpec(mentionConfig, {
   render: (inlineContent) => {
     const dom = document.createElement("span");
-    dom.setAttribute("data-esionage-mention", inlineContent.props.kind);
+    dom.setAttribute("data-leafdesk-mention", inlineContent.props.kind);
     dom.textContent = mentionPlainText(inlineContent.props);
     return { dom };
   },
@@ -174,10 +174,10 @@ export async function blocksToMarkdown(blocks: PageBlock[], { workspaceId }: { w
       // Not pointed at a database yet: nothing to write.
       if (!databaseId) return children;
       lines.push(referenceLine(block.type, databaseId));
-      return [{ type: "paragraph", content: `esionage${nonce}embed${lines.length - 1}x`, children }];
+      return [{ type: "paragraph", content: `leafdesk${nonce}embed${lines.length - 1}x`, children }];
     });
   const markdown = content.finish(await serverEditor.blocksToMarkdownLossy(replace(content.blocks)));
-  return markdown.replace(new RegExp(`esionage${nonce}embed(\\d+)x`, "g"), (_, i: string) => lines[Number(i)] ?? "");
+  return markdown.replace(new RegExp(`leafdesk${nonce}embed(\\d+)x`, "g"), (_, i: string) => lines[Number(i)] ?? "");
 }
 
 export type MentionContext = {

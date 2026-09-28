@@ -264,7 +264,7 @@
     }
   },
   "preferences": {
-    "description": "Les préférences de votre compte : l’apparence d’Esionage dans ce navigateur et les e-mails que vous recevez."
+    "description": "Les préférences de votre compte : l’apparence de Leafdesk dans ce navigateur et les e-mails que vous recevez."
   },
   "language": {
     "heading": "Langue",
@@ -290,11 +290,11 @@
   },
   "mcp": {
     "heading": "Connecter un assistant IA",
-    "description": "Esionage intègre un serveur MCP. Les assistants compatibles avec les serveurs MCP distants peuvent rechercher, lire et modifier vos pages et bases de données une fois que vous vous êtes connecté et avez autorisé l’accès. Chaque modification d’un assistant est d’abord enregistrée dans l’historique de la page, vous pouvez donc l’annuler.",
+    "description": "Leafdesk intègre un serveur MCP. Les assistants compatibles avec les serveurs MCP distants peuvent rechercher, lire et modifier vos pages et bases de données une fois que vous vous êtes connecté et avez autorisé l’accès. Chaque modification d’un assistant est d’abord enregistrée dans l’historique de la page, vous pouvez donc l’annuler.",
     "serverUrl": "URL du serveur",
     "claude": {
       "title": "Claude",
-      "body": "Ouvrez Paramètres, puis Connecteurs, choisissez Ajouter un connecteur personnalisé et collez l’URL du serveur. Claude ouvre Esionage dans votre navigateur pour que vous puissiez vous connecter et autoriser l’accès."
+      "body": "Ouvrez Paramètres, puis Connecteurs, choisissez Ajouter un connecteur personnalisé et collez l’URL du serveur. Claude ouvre Leafdesk dans votre navigateur pour que vous puissiez vous connecter et autoriser l’accès."
     },
     "claudeCode": {
       "title": "Claude Code",

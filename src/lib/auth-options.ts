@@ -206,7 +206,7 @@ export function ssoPlugin(instance: InstanceOidc | null) {
           },
         ]
       : undefined,
-    domainVerification: { enabled: true, tokenPrefix: "esionage-sso" },
+    domainVerification: { enabled: true, tokenPrefix: "leafdesk-sso" },
     providersLimit: 0,
     saml: { requireTimestamps: true },
   });

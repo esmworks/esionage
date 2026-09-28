@@ -22,7 +22,7 @@ const { tmpdir } = await import("node:os");
 const { join } = await import("node:path");
 const { randomBytes } = await import("node:crypto");
 
-const uploadDir = await mkdtemp(join(tmpdir(), "esionage-import-e2e-"));
+const uploadDir = await mkdtemp(join(tmpdir(), "leafdesk-import-e2e-"));
 process.env.STORAGE_DRIVER = "local";
 process.env.UPLOAD_DIR = uploadDir;
 process.env.UPLOAD_MAX_FILE_MB = String(10_000 / 1024 / 1024); // 10,000 bytes
@@ -356,7 +356,7 @@ try {
       form.append("file", new Blob([typeof f.data === "string" ? f.data : Buffer.from(f.data)]), f.name);
       form.append("path", f.path ?? f.name);
     }
-    const request = new Request("http://localhost:3000/api/import", { method: "POST", body: form, headers: { cookie, "x-esionage-import": "1", ...headers } });
+    const request = new Request("http://localhost:3000/api/import", { method: "POST", body: form, headers: { cookie, "x-leafdesk-import": "1", ...headers } });
     const bodyBytes = await request.arrayBuffer();
     const sized = new Request(request.url, {
       method: "POST",
@@ -380,7 +380,7 @@ try {
     [{ name: "more.csv", data: "Name,Other\nC,x\n" }],
   );
   check(mergeRoute.status === 201 && mergeRoute.json.created.rows === 1, "…and rows into a database", mergeRoute);
-  check((await post({ mode: "pages", workspaceId, parentId: home.id }, md.map(() => ({ name: "x.md", data: "x" })), { "x-esionage-import": "" })).status === 403, "the route needs its header");
+  check((await post({ mode: "pages", workspaceId, parentId: home.id }, md.map(() => ({ name: "x.md", data: "x" })), { "x-leafdesk-import": "" })).status === 403, "the route needs its header");
   check((await post({ mode: "pages", workspaceId, parentId: home.id }, [{ name: "x.md", data: "x" }], { origin: "https://evil.example" })).status === 403, "…and refuses foreign origins");
   const noAccess = await post({ mode: "pages", workspaceId: otherWorkspace, parentId: "" }, [{ name: "x.md", data: "x" }]);
   check(noAccess.status === 404 && noAccess.json.code === "noAccess", "workspaces the user isn't in read as missing", noAccess);
@@ -393,5 +393,5 @@ try {
   await db.delete(user).where(inArray(user.id, userIds));
   await rm(uploadDir, { recursive: true, force: true });
   hocuspocus.closeConnections();
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }

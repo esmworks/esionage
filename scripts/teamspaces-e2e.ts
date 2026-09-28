@@ -540,5 +540,5 @@ try {
 } finally {
   await db.delete(workspace).where(inArray(workspace.id, [workspaceId, `${RUN}-ws2`]));
   await db.delete(user).where(inArray(user.id, userIds));
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }

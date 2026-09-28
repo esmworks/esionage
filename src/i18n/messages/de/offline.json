@@ -9,7 +9,7 @@
   "page": {
     "documentTitle": "Offline",
     "heading": "Du bist offline",
-    "body": "Esionage kann den Server gerade nicht erreichen. Die Seiten, die du auf diesem Gerät geöffnet hast, findest du unten; sie werden aus der Kopie in diesem Browser geöffnet.",
+    "body": "Leafdesk kann den Server gerade nicht erreichen. Die Seiten, die du auf diesem Gerät geöffnet hast, findest du unten; sie werden aus der Kopie in diesem Browser geöffnet.",
     "saved": "Auf diesem Gerät gespeichert",
     "unsynced": "Änderungen noch nicht synchronisiert",
     "empty": "Auf diesem Gerät sind noch keine Seiten gespeichert. Seiten, die du online öffnest, werden für die Offline-Nutzung aufbewahrt.",

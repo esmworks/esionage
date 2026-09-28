@@ -83,15 +83,15 @@ export const serializeLinkedView = (view: LinkedView) => JSON.stringify({ type: 
  * nothing and the database's title, which the page's readers may not be allowed to see, is never
  * part of the page body.
  *
- *   <!-- esionage:database 3f0c… -->
- *   <!-- esionage:linked-view 3f0c… -->
+ *   <!-- leafdesk:database 3f0c… -->
+ *   <!-- leafdesk:linked-view 3f0c… -->
  */
 const MARKDOWN_KIND: Record<EmbedBlockType, string> = { database: "database", linkedView: "linked-view" };
-const REFERENCE_LINE = /^ {0,3}<!--\s*esionage:(database|linked-view)\s+([\w-]{1,128})\s*-->\s*$/;
+const REFERENCE_LINE = /^ {0,3}<!--\s*leafdesk:(database|linked-view)\s+([\w-]{1,128})\s*-->\s*$/;
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
 export function referenceLine(type: EmbedBlockType, databaseId: string) {
-  return `<!-- esionage:${MARKDOWN_KIND[type]} ${databaseId} -->`;
+  return `<!-- leafdesk:${MARKDOWN_KIND[type]} ${databaseId} -->`;
 }
 
 export type EmbedReference = { type: EmbedBlockType; databaseId: string };

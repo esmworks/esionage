@@ -508,7 +508,7 @@ export async function handleScimRequest(request: Request): Promise<Response> {
   const principal = secret ? await verifyScimToken(secret) : null;
   if (!principal) {
     return errorResponse(new ScimError(401, "Send a SCIM token from Settings > Security: Authorization: Bearer scim_…"), {
-      "WWW-Authenticate": 'Bearer realm="esionage-scim"',
+      "WWW-Authenticate": 'Bearer realm="leafdesk-scim"',
     });
   }
   const limiter = sharedLimiter("scim", SCIM_RATE_LIMIT, 60_000);

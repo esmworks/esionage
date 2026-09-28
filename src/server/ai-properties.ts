@@ -103,7 +103,7 @@ type Queue = {
   debounce: Map<string, ReturnType<typeof setTimeout>>;
 };
 
-const KEY = "__esionageAiQueue";
+const KEY = "__leafdeskAiQueue";
 const queue = ((globalThis as Record<string, unknown>)[KEY] ??= {
   waiting: [],
   active: new Set(),

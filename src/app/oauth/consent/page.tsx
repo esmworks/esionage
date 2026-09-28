@@ -38,7 +38,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <div className="w-full max-w-md">
         <div className="mb-8 flex items-center justify-center gap-2 text-lg font-semibold">
           <span className="flex h-7 w-7 items-center justify-center rounded-md bg-fg text-sm text-bg">e</span>
-          Esionage
+          Leafdesk
         </div>
         <div className="rounded-xl border border-border bg-bg p-6 shadow-sm">{children}</div>
       </div>

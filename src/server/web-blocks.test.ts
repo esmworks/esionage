@@ -56,25 +56,25 @@ describe("web blocks in Markdown", () => {
     const markdown = await blocksToMarkdown(stored([bookmark, embed]));
     expect(markdown.trim().split(/\n+/)).toEqual([
       "[A \\[bracketed\\] \\*post\\*](https://example.com/post)",
-      "[https://www.youtube.com/watch?v=dQw4w9WgXcQ](https://www.youtube.com/watch?v=dQw4w9WgXcQ) <!-- esionage:embed -->",
+      "[https://www.youtube.com/watch?v=dQw4w9WgXcQ](https://www.youtube.com/watch?v=dQw4w9WgXcQ) <!-- leafdesk:embed -->",
     ]);
   });
 
   it("read an embed line back as an embed", async () => {
-    const blocks = stored(await markdownToBlocks("Intro\n\n[video](https://youtu.be/dQw4w9WgXcQ) <!-- esionage:embed -->\n\nhttps://vimeo.com/1 <!-- esionage:embed -->"));
+    const blocks = stored(await markdownToBlocks("Intro\n\n[video](https://youtu.be/dQw4w9WgXcQ) <!-- leafdesk:embed -->\n\nhttps://vimeo.com/1 <!-- leafdesk:embed -->"));
     expect(blocks.map((b) => b.type)).toEqual(["paragraph", "webEmbed", "webEmbed"]);
     expect(blocks[1].props).toEqual({ url: "https://youtu.be/dQw4w9WgXcQ" });
     expect(blocks[2].props).toEqual({ url: "https://vimeo.com/1" });
   });
 
   it("read a marked link as a new bookmark without details yet", async () => {
-    const blocks = stored(await markdownToBlocks("[Docs](https://example.com/docs) <!-- esionage:bookmark -->"));
+    const blocks = stored(await markdownToBlocks("[Docs](https://example.com/docs) <!-- leafdesk:bookmark -->"));
     expect(blocks[0].type).toBe("bookmark");
     expect(blocks[0].props).toMatchObject({ url: "https://example.com/docs", title: "Docs", fetchedAt: "" });
   });
 
   it("leave a marker with an unsafe URL as text, and markers inside code alone", async () => {
-    const blocks = stored(await markdownToBlocks("[x](javascript:alert(1)) <!-- esionage:embed -->\n\n```\n[a](https://a.example) <!-- esionage:embed -->\n```"));
+    const blocks = stored(await markdownToBlocks("[x](javascript:alert(1)) <!-- leafdesk:embed -->\n\n```\n[a](https://a.example) <!-- leafdesk:embed -->\n```"));
     expect(blocks.map((b) => b.type)).toEqual(["paragraph", "codeBlock"]);
   });
 

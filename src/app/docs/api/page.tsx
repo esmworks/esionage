@@ -136,7 +136,7 @@ export default async function ApiDocsPage() {
         <section className="mb-10 space-y-3">
           <h2 className="text-lg font-semibold">{t("quickStart")}</h2>
           <pre className="overflow-x-auto rounded-lg border border-border bg-bg-subtle p-4 text-xs leading-relaxed">
-            {`curl ${base}/workspaces \\\n  -H "Authorization: Bearer $ESIONAGE_TOKEN"\n\ncurl -X POST ${base}/pages \\\n  -H "Authorization: Bearer $ESIONAGE_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{"workspace_id": "…", "title": "Hello", "markdown": "Written through the API."}'`}
+            {`curl ${base}/workspaces \\\n  -H "Authorization: Bearer $LEAFDESK_TOKEN"\n\ncurl -X POST ${base}/pages \\\n  -H "Authorization: Bearer $LEAFDESK_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{"workspace_id": "…", "title": "Hello", "markdown": "Written through the API."}'`}
           </pre>
           <p className="text-sm text-fg-muted">
             {t("baseUrl")}: <code className="rounded bg-bg-hover px-1 py-px text-[0.85em]">{base}</code>

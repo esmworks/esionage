@@ -19,7 +19,7 @@
  * Notion adds a 32-character id to every name ("Project 1a2b….md"); titles leave it out. What else
  * is particular to Notion's export (callouts, row property lists, relations) is in lib/import/notion.
  *
- * Esionage's own export (lib/export-layout) adds `Templates/` folders: in a database's folder its
+ * Leafdesk's own export (lib/export-layout) adds `Templates/` folders: in a database's folder its
  * row templates, at the top the workspace's templates.
  */
 
@@ -98,7 +98,7 @@ export function withoutFrontMatter(markdown: string): string {
 
 /**
  * A Markdown file's title and body: a `title:` in YAML front matter, else a first-line `# Heading`
- * (which the body then leaves out, as Esionage's own export writes it), else `fallback`. Front
+ * (which the body then leaves out, as Leafdesk's own export writes it), else `fallback`. Front
  * matter is dropped from the body either way.
  */
 export function splitTitle(markdown: string, fallback: string): { title: string; body: string } {
@@ -122,7 +122,7 @@ export function splitTitle(markdown: string, fallback: string): { title: string;
 const oneLine = (value: string) => value.replace(/\s*\n\s*/g, ", ").trim();
 
 /**
- * A row page's body without the property list Esionage's export puts at its top (`- Status: Done`,
+ * A row page's body without the property list Leafdesk's export puts at its top (`- Status: Done`,
  * one line per filled cell in column order, the title's left out) when the list is what the export
  * writes for `cells`, the row's cells in the CSV: those values are in the row's properties already.
  * Any other body, a list the page itself starts with included, comes back as it is. Files are links
@@ -232,7 +232,7 @@ export function planImport(paths: string[], { topLevel = false }: { topLevel?: b
     if (pick) indexOf.set(folder, pick);
   }
 
-  // Templates/ folders as Esionage's export writes them (the name is only used by the layout when
+  // Templates/ folders as Leafdesk's export writes them (the name is only used by the layout when
   // no page of that name sits beside it): a database's row templates, and at the top the
   // workspace's templates, which only a top-level import makes templates again.
   const templateFolders = new Set<string>();

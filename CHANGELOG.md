@@ -36,7 +36,7 @@
   `OIDC_CLIENT_SECRET` (`OIDC_NAME`, `OIDC_DOMAINS`), and one OpenID Connect or SAML 2.0
   connection per workspace, set up by owners in Settings → Security. A workspace connection signs
   people in only for its email domains, once each is verified with a DNS TXT record
-  (`_esionage-sso.<domain>`); public mail domains can't be claimed and a domain belongs to one
+  (`_leafdesk-sso.<domain>`); public mail domains can't be claimed and a domain belongs to one
   connection. "Continue with SSO" on the sign-in page routes an email to its provider. The first
   sign-in creates the account (only in those domains) and joins the workspace as a member;
   two-step verification still asks for its code afterwards. New workspace setting *How members
@@ -163,7 +163,7 @@
   and dark theme colours, iOS home-screen meta tags, and a hand-written service worker
   (`public/sw.js`, production only; `pnpm dev` unregisters a leftover one). It caches the app's
   hashed scripts, the icons and an offline page, and keeps the HTML of the last 50 signed-in pages
-  per user (read from `<meta name="esionage-user">`) for use only when the network fails; a
+  per user (read from `<meta name="leafdesk-user">`) for use only when the network fails; a
   different user's page drops the previous user's copies, a 404 drops that page, and API
   responses, uploads, server actions and the websocket are never touched. Offline, pages never
   opened go to `/offline`, which lists the pages kept on the device, and the start URL goes to the
@@ -303,7 +303,7 @@
     relative path are uploaded to it and the links pointed at the uploads; images inside a line of
     text get lines of their own. CSV files in the upload become databases, and pages in their
     folder become the bodies of the rows with the same title (or new rows). Notion's layout is
-    understood (`Export-…` folder, split exports with ZIPs inside, `_all.csv`), and so is Esionage's
+    understood (`Export-…` folder, split exports with ZIPs inside, `_all.csv`), and so is Leafdesk's
     own export: its `Templates/` folders become the database's row templates and, when importing
     at the top level, workspace templates again (under a page they're pages of a "Templates"
     page), and the property list at the top of a row's page is left out of the row's body when it
@@ -314,7 +314,7 @@
     few repeating values, else text) and changeable in the dialog, or its rows are added to an
     existing database with a column → property mapping (options a select, multi-select or status
     column names are added; people and related rows are found by name or email). Comma, semicolon
-    and tab separators, UTF-8 or Windows-1254 text, and Esionage's own CSV export read back.
+    and tab separators, UTF-8 or Windows-1254 text, and Leafdesk's own CSV export read back.
   - All or nothing: limits (100 MB upload, 300 MB unpacked, 2,000 files, 500 pages, 5,000 rows,
     100 columns) are checked first, and a failure midway deletes what the import made. What it
     left out is reported in the dialog: cells that didn't fit their property (left empty),
@@ -371,8 +371,8 @@
   Google Maps in a sandboxed, lazy iframe whose address is always rebuilt from the pasted URL;
   other links become bookmarks. Both show on published pages. In Markdown (export, MCP) a bookmark
   is a `[Title](url)` line, which a rewrite of the page turns back into that bookmark (other link
-  lines stay links; `<!-- esionage:bookmark -->` after a link makes a new one), and an embed is
-  `[url](url) <!-- esionage:embed -->`. Uploaded PDFs show in place (see PDF preview).
+  lines stay links; `<!-- leafdesk:bookmark -->` after a link makes a new one), and an embed is
+  `[url](url) <!-- leafdesk:embed -->`. Uploaded PDFs show in place (see PDF preview).
 - **File uploads:** image, video, audio and file blocks now take files: drop, paste or pick one
   and it is uploaded instead of asking for a URL. Files are stored on a local volume by default or
   in S3-compatible storage (AWS S3, Cloudflare R2, MinIO) with `S3_BUCKET` and its credentials.
@@ -397,7 +397,7 @@
   finds new mentions, links and reminders when it saves a page, whoever made the change.
 - **Mentions in Markdown and MCP:** a page mention is a link to the page
   (`[Title](/w/<workspace>/p/<page>)`, any link to a page of the app becomes one), a Link to page
-  block is that link alone on its line followed by `<!-- esionage:page-link -->`, a person is
+  block is that link alone on its line followed by `<!-- leafdesk:page-link -->`, a person is
   `@Name` and a date `@2026-10-01`. Exports and MCP's `get_page` show each linked page's current
   title, or "No access"; writing the Markdown back keeps mentions (nobody is notified twice) and
   reminders. `get_page` lists the pages linking to a page under `linked_from`, and
@@ -428,8 +428,8 @@
   contents that follows the page's headings and scrolls to them, and a breadcrumb of the pages above.
   All are in the slash menu and show on published pages. In Markdown (export, MCP) a callout is a
   GitHub alert (`> [!NOTE]`), equations are `$…$` and `$$…$$`, a diagram is a ```` ```mermaid ````
-  fence, and the table of contents and breadcrumb are `<!-- esionage:toc -->` and
-  `<!-- esionage:breadcrumb -->` lines; all of them are read back into blocks.
+  fence, and the table of contents and breadcrumb are `<!-- leafdesk:toc -->` and
+  `<!-- leafdesk:breadcrumb -->` lines; all of them are read back into blocks.
 - **Columns** (#16): "2 columns" and "3 columns" in the slash menu place blocks side by side;
   inside a column the menu offers "Add column" instead (up to five). Blocks move into, out of and
   between columns with the side menu's drag handle; a column whose last block is dragged away or
@@ -438,8 +438,8 @@
   column's share, so it syncs, undoes and keeps its proportion at any width). On screens narrower
   than 640px they stack, in the editor and on published pages, where tables of contents, diagrams,
   embeds and databases inside columns show in place. In Markdown (export, MCP) columns are marker
-  lines around their blocks (`<!-- esionage:columns -->`, `<!-- esionage:column -->` before each
-  column, optionally `width=2`, and `<!-- esionage:/columns -->`), so plain Markdown readers see
+  lines around their blocks (`<!-- leafdesk:columns -->`, `<!-- leafdesk:column -->` before each
+  column, optionally `width=2`, and `<!-- leafdesk:/columns -->`), so plain Markdown readers see
   the blocks in order and writing a body back keeps its columns. Built on BlockNote's own column
   support in its core; its multi-column package (GPL-3.0 or commercial) is not used. No migration.
 - **"Can comment" access:** share a page so people can read and comment on it without editing it.
@@ -533,6 +533,13 @@
 
 ### Changed
 
+- **Renamed from Esionage to Leafdesk.** The repository is now `esmworks/leafdesk` and the image
+  `ghcr.io/esmworks/leafdesk`. Stored names changed too, with no fallback for the old ones:
+  `ESIONAGE_VERSION` is now `LEAFDESK_VERSION`; the bundled database user, password and name
+  default to `leafdesk`; markdown markers are `<!-- leafdesk:… -->`; SSO domains are verified
+  with a `_leafdesk-sso.<domain>` TXT record; offline edits, service worker caches and browser
+  settings use `leafdesk` keys. An existing installation needs a new database (or
+  `EXTERNAL_DATABASE_URL` pointing at the old one) and its SSO domains verified again.
 - ESLint 9 with Next.js's rules (`eslint-config-next`): `pnpm lint`, also a CI step, fails on
   warnings too. The React Compiler checks are off (the app doesn't use it), and so are the rules
   for `<img>` (images come from any origin) and for full page loads after signing in or out (on
@@ -578,8 +585,8 @@
 - **Migrations** (0001–0008) run automatically when the container starts. Existing pages,
   databases, members and connected AI apps keep working, and every member keeps full access to
   existing pages.
-- **Docker image:** releases are published to `ghcr.io/esmworks/esionage`. `docker-compose.yml`
-  runs that image. Set `ESIONAGE_VERSION` to pin a version.
+- **Docker image:** releases are published to `ghcr.io/esmworks/leafdesk`. `docker-compose.yml`
+  runs that image. Set `LEAFDESK_VERSION` to pin a version.
 
 ### Added
 

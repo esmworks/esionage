@@ -1,15 +1,15 @@
 {
-  "footer": "Diese E-Mail wurde von Esionage unter {appUrl} gesendet.",
+  "footer": "Diese E-Mail wurde von Leafdesk unter {appUrl} gesendet.",
   "actionFallback": "Falls die Schaltfläche nicht funktioniert, füge diesen Link in deinen Browser ein:",
   "test": {
-    "subject": "Test-E-Mail von Esionage",
+    "subject": "Test-E-Mail von Leafdesk",
     "heading": "Der E-Mail-Versand funktioniert",
-    "body": "Dies ist eine Testnachricht von deinem Esionage-Server unter {appUrl}. Wenn du sie lesen kannst, ist der E-Mail-Versand richtig eingerichtet."
+    "body": "Dies ist eine Testnachricht von deinem Leafdesk-Server unter {appUrl}. Wenn du sie lesen kannst, ist der E-Mail-Versand richtig eingerichtet."
   },
   "invitation": {
-    "subject": "{inviter} hat dich zu „{workspace}“ auf Esionage eingeladen",
+    "subject": "{inviter} hat dich zu „{workspace}“ auf Leafdesk eingeladen",
     "heading": "„{workspace}“ beitreten",
-    "body": "{inviter} hat dich eingeladen, „{workspace}“ auf Esionage als {role} beizutreten.",
+    "body": "{inviter} hat dich eingeladen, „{workspace}“ auf Leafdesk als {role} beizutreten.",
     "expires": "Der Link ist 7 Tage gültig. Registriere dich mit {email}, um die Einladung anzunehmen.",
     "action": "Einladung annehmen",
     "roles": {
@@ -19,9 +19,9 @@
     }
   },
   "passwordReset": {
-    "subject": "Setze dein Esionage-Passwort zurück",
+    "subject": "Setze dein Leafdesk-Passwort zurück",
     "heading": "Passwort zurücksetzen",
-    "body": "Hallo {name}, jemand hat angefordert, das Passwort deines Esionage-Kontos zurückzusetzen. Wenn du das warst, wähle über die Schaltfläche unten ein neues Passwort.",
+    "body": "Hallo {name}, jemand hat angefordert, das Passwort deines Leafdesk-Kontos zurückzusetzen. Wenn du das warst, wähle über die Schaltfläche unten ein neues Passwort.",
     "expires": "Der Link ist {minutes} Minuten gültig und funktioniert nur einmal. Wenn du das nicht angefordert hast, ignoriere diese E-Mail; dein Passwort bleibt unverändert.",
     "action": "Neues Passwort wählen"
   },
@@ -74,20 +74,20 @@
   "emailChange": {
     "subject": "Bestätige deine neue E-Mail-Adresse",
     "heading": "Bestätige deine neue E-Mail-Adresse",
-    "body": "Hallo {name}, du möchtest für dein Esionage-Konto diese Adresse statt {old} verwenden. Bestätige sie über die Schaltfläche unten.",
+    "body": "Hallo {name}, du möchtest für dein Leafdesk-Konto diese Adresse statt {old} verwenden. Bestätige sie über die Schaltfläche unten.",
     "expires": "Der Link ist {hours} Stunden gültig und funktioniert nur einmal. Wenn du das nicht angefordert hast, ignoriere diese E-Mail; es ändert sich nichts.",
     "action": "E-Mail-Adresse bestätigen"
   },
   "emailChanged": {
-    "subject": "Die E-Mail-Adresse deines Esionage-Kontos wurde geändert",
+    "subject": "Die E-Mail-Adresse deines Leafdesk-Kontos wurde geändert",
     "heading": "Deine E-Mail-Adresse wurde geändert",
-    "body": "Hallo {name}, die E-Mail-Adresse deines Esionage-Kontos wurde von {old} zu {new} geändert. Melde dich ab jetzt mit der neuen Adresse an.",
+    "body": "Hallo {name}, die E-Mail-Adresse deines Leafdesk-Kontos wurde von {old} zu {new} geändert. Melde dich ab jetzt mit der neuen Adresse an.",
     "warning": "Wenn du diese Änderung nicht vorgenommen hast, wende dich sofort an einen Inhaber deines Workspace."
   },
   "passwordChanged": {
-    "subject": "Dein Esionage-Passwort wurde geändert",
+    "subject": "Dein Leafdesk-Passwort wurde geändert",
     "heading": "Dein Passwort wurde geändert",
-    "body": "Hallo {name}, das Passwort deines Esionage-Kontos wurde gerade geändert.",
+    "body": "Hallo {name}, das Passwort deines Leafdesk-Kontos wurde gerade geändert.",
     "warning": "Wenn du diese Änderung nicht vorgenommen hast, setze dein Passwort über die Anmeldeseite zurück und wende dich an einen Inhaber deines Workspace."
   }
 }

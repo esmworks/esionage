@@ -6,11 +6,11 @@
   },
   "unknownClient": {
     "title": "Unknown app",
-    "body": "The app asking for access is not registered with Esionage or has been disabled. Go back and try connecting again."
+    "body": "The app asking for access is not registered with Leafdesk or has been disabled. Go back and try connecting again."
   },
-  "heading": "{client} wants to access your Esionage account",
+  "heading": "{client} wants to access your Leafdesk account",
   "identifiedBy": "This app is identified by {host}.",
-  "unverified": "This app registered itself automatically and has not been reviewed by Esionage. Only continue if you started this connection.",
+  "unverified": "This app registered itself automatically and has not been reviewed by Leafdesk. Only continue if you started this connection.",
   "notYou": "Not you?",
   "willAllow": "This will allow {client} to:",
   "readOnlyHint": "Uncheck to give read-only access. Every edit is saved to page history first, so you can undo it.",

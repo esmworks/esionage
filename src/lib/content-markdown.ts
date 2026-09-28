@@ -52,17 +52,17 @@ import {
  *   graph TD; A-->B
  *   ```
  *
- *   <!-- esionage:toc -->         a table of contents
- *   <!-- esionage:breadcrumb -->  a breadcrumb
+ *   <!-- leafdesk:toc -->         a table of contents
+ *   <!-- leafdesk:breadcrumb -->  a breadcrumb
  *
- *   <!-- esionage:columns -->     columns: each "column" line starts one, its blocks follow
- *   <!-- esionage:column -->      (see lib/columns; groupColumns builds the lists after parsing)
+ *   <!-- leafdesk:columns -->     columns: each "column" line starts one, its blocks follow
+ *   <!-- leafdesk:column -->      (see lib/columns; groupColumns builds the lists after parsing)
  *   …
- *   <!-- esionage:/columns -->
+ *   <!-- leafdesk:/columns -->
  *
  *   [Title](https://…)                              a bookmark (reads back as a link, see
  *                                                   lib/web-blocks restoreBookmarks)
- *   [https://…](https://…) <!-- esionage:embed -->  an embed
+ *   [https://…](https://…) <!-- leafdesk:embed -->  an embed
  * and mentions and page links (see lib/mentions for their forms).
  *
  * BlockNote would mangle the sources (Markdown escapes and emphasis inside LaTeX, KaTeX markup
@@ -89,7 +89,7 @@ export function plainText(content: unknown): string {
 // ---------------------------------------------------------------------------------------------
 // Export
 
-const TOKEN_LINE = (nonce: string) => new RegExp(`^([ \\t]*)esionage${nonce}b(\\d+)x[ \\t]*$`, "gm");
+const TOKEN_LINE = (nonce: string) => new RegExp(`^([ \\t]*)leafdesk${nonce}b(\\d+)x[ \\t]*$`, "gm");
 
 /**
  * Prepares blocks for BlockNote's Markdown serializer: returns blocks it can write and a function
@@ -104,8 +104,8 @@ export function prepareMarkdownExport<B extends MdBlock>(
   const blockMarkdown: string[] = [];
   const inlineMarkdown: string[] = [];
   const callouts: { kind: AlertKind; icon: string }[] = [];
-  const blockToken = (markdown: string) => `esionage${nonce}b${blockMarkdown.push(markdown) - 1}x`;
-  const dollarToken = `esionage${nonce}dx`;
+  const blockToken = (markdown: string) => `leafdesk${nonce}b${blockMarkdown.push(markdown) - 1}x`;
+  const dollarToken = `leafdesk${nonce}dx`;
 
   const inline = (content: unknown): unknown => {
     if (!Array.isArray(content)) {
@@ -134,12 +134,12 @@ export function prepareMarkdownExport<B extends MdBlock>(
         const props = mentionProps((node as { props?: unknown }).props);
         const markdown =
           props.kind === "page" ? (props.pageId ? pageLinkMarkdown("page", workspaceId, props.pageId) : "") : mentionText(props);
-        return { type: "text", text: `esionage${nonce}i${inlineMarkdown.push(markdown) - 1}x`, styles: {} };
+        return { type: "text", text: `leafdesk${nonce}i${inlineMarkdown.push(markdown) - 1}x`, styles: {} };
       }
       if (node?.type !== INLINE_MATH) return node;
       // $…$ can't span lines; an empty equation writes nothing.
       const latex = plainText(node.content).replace(/\s*\n\s*/g, " ").trim();
-      const token = `esionage${nonce}i${inlineMarkdown.push(latex ? `$${latex}$` : "") - 1}x`;
+      const token = `leafdesk${nonce}i${inlineMarkdown.push(latex ? `$${latex}$` : "") - 1}x`;
       return { type: "text", text: token, styles: {} };
     });
   };
@@ -170,9 +170,9 @@ export function prepareMarkdownExport<B extends MdBlock>(
           // A code block in the "mermaid" language is exactly its Markdown.
           return { type: "codeBlock", props: { language: "mermaid" }, content: plainText(block.content), children } as unknown as B;
         case TOC_BLOCK:
-          return paragraph(blockToken("<!-- esionage:toc -->"));
+          return paragraph(blockToken("<!-- leafdesk:toc -->"));
         case BREADCRUMB_BLOCK:
-          return paragraph(blockToken("<!-- esionage:breadcrumb -->"));
+          return paragraph(blockToken("<!-- leafdesk:breadcrumb -->"));
         case BOOKMARK_BLOCK:
         case WEB_EMBED_BLOCK: {
           // A bookmark or embed without a (valid) URL yet has nothing to write.
@@ -180,7 +180,7 @@ export function prepareMarkdownExport<B extends MdBlock>(
           if (!url) return paragraph("");
           const title = block.type === BOOKMARK_BLOCK ? String(block.props?.title ?? "").trim() : "";
           const link = `[${markdownLinkText(title || url)}](${markdownLinkDestination(url)})`;
-          return paragraph(blockToken(block.type === WEB_EMBED_BLOCK ? `${link} <!-- esionage:embed -->` : link));
+          return paragraph(blockToken(block.type === WEB_EMBED_BLOCK ? `${link} <!-- leafdesk:embed -->` : link));
         }
         case PAGE_LINK_BLOCK: {
           const pageId = String(block.props?.pageId ?? "");
@@ -195,9 +195,9 @@ export function prepareMarkdownExport<B extends MdBlock>(
           return {
             type: "paragraph",
             content: [
-              { type: "text", text: `esionage${nonce}c${i - 1}x`, styles: {} },
+              { type: "text", text: `leafdesk${nonce}c${i - 1}x`, styles: {} },
               ...(Array.isArray(content) ? content : []),
-              { type: "text", text: `esionage${nonce}e${i - 1}x`, styles: {} },
+              { type: "text", text: `leafdesk${nonce}e${i - 1}x`, styles: {} },
             ],
             children,
           } as unknown as B;
@@ -211,7 +211,7 @@ export function prepareMarkdownExport<B extends MdBlock>(
 
   const finish = (markdown: string) =>
     markdown
-      .replace(new RegExp(`^([ \\t]*)esionage${nonce}c(\\d+)x([\\s\\S]*?)esionage${nonce}e\\2x`, "gm"), (_, indent: string, i: string, text: string) => {
+      .replace(new RegExp(`^([ \\t]*)leafdesk${nonce}c(\\d+)x([\\s\\S]*?)leafdesk${nonce}e\\2x`, "gm"), (_, indent: string, i: string, text: string) => {
         const { kind, icon } = callouts[Number(i)];
         const lines = text.split("\n").map((line, n) => (n === 0 ? line : line.slice(indent.length)));
         if (icon) lines[0] = lines[0] ? `${icon} ${lines[0]}` : icon;
@@ -225,7 +225,7 @@ export function prepareMarkdownExport<B extends MdBlock>(
           .map((line) => (line ? indent + line : line))
           .join("\n"),
       )
-      .replace(new RegExp(`esionage${nonce}i(\\d+)x`, "g"), (_, i: string) => inlineMarkdown[Number(i)])
+      .replace(new RegExp(`leafdesk${nonce}i(\\d+)x`, "g"), (_, i: string) => inlineMarkdown[Number(i)])
       .replaceAll(dollarToken, () => "\\$");
 
   return { blocks: replace(blocks), finish };
@@ -248,12 +248,12 @@ const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})\s*$/;
 const CALLOUT_START = new RegExp(`^ {0,3}> ?\\[!(${ALERT_KINDS.join("|")})\\][ \\t]*(.*)$`, "i");
 const QUOTE_LINE = /^ {0,3}> ?(.*)$/;
 const MATH_OPEN = /^ {0,3}\$\$(.*)$/;
-const MARKER_LINE = /^ {0,3}<!--\s*esionage:(toc|breadcrumb)\s*-->\s*$/;
-/** `[text](url) <!-- esionage:embed -->` (or a bare URL before the marker); "bookmark" likewise. */
+const MARKER_LINE = /^ {0,3}<!--\s*leafdesk:(toc|breadcrumb)\s*-->\s*$/;
+/** `[text](url) <!-- leafdesk:embed -->` (or a bare URL before the marker); "bookmark" likewise. */
 const WEB_LINE =
-  /^ {0,3}(?:\[((?:\\.|[^\\\]])*)\]\((<[^<>\n]*>|[^\s()<>]+)\)|<?(https?:\/\/[^\s<>]+?)>?)\s*<!--\s*esionage:(embed|bookmark)\s*-->\s*$/i;
-/** A link alone on its line, then the page-link marker: `[Title](/w/…/p/…) <!-- esionage:page-link -->`. */
-const PAGE_LINK_LINE = /^ {0,3}\[(?:[^\]\\]|\\.)*\]\(\s*<?([^)\s>]+)>?\s*\)\s*<!--\s*esionage:page-link\s*-->\s*$/;
+  /^ {0,3}(?:\[((?:\\.|[^\\\]])*)\]\((<[^<>\n]*>|[^\s()<>]+)\)|<?(https?:\/\/[^\s<>]+?)>?)\s*<!--\s*leafdesk:(embed|bookmark)\s*-->\s*$/i;
+/** A link alone on its line, then the page-link marker: `[Title](/w/…/p/…) <!-- leafdesk:page-link -->`. */
+const PAGE_LINK_LINE = /^ {0,3}\[(?:[^\]\\]|\\.)*\]\(\s*<?([^)\s>]+)>?\s*\)\s*<!--\s*leafdesk:page-link\s*-->\s*$/;
 
 /**
  * Swaps the Markdown forms above for tokens BlockNote's parser keeps as plain text. Only lines of
@@ -265,7 +265,7 @@ export function prepareMarkdownImport(markdown: string, nonce: string, { appUrl 
   const out: string[] = [];
   const lines = markdown.split(/\r?\n/);
   const blockLine = (pending: Pending) => {
-    out.push("", `esionage${nonce}b${blocks.push(pending) - 1}x`, "");
+    out.push("", `leafdesk${nonce}b${blocks.push(pending) - 1}x`, "");
   };
   let fence: string | null = null;
   for (let i = 0; i < lines.length; i++) {
@@ -321,7 +321,7 @@ export function prepareMarkdownImport(markdown: string, nonce: string, { appUrl 
         continue;
       }
     }
-    out.push(inlineMath(line, (latex) => `esionage${nonce}i${inlines.push(latex) - 1}x`));
+    out.push(inlineMath(line, (latex) => `leafdesk${nonce}i${inlines.push(latex) - 1}x`));
   }
   return { markdown: out.join("\n"), blocks, inlines };
 }
@@ -411,11 +411,11 @@ export async function finishMarkdownImport<B extends MdBlock>(
   parse: (markdown: string) => Promise<B[]>,
   { people = [], appUrl }: { people?: MentionPerson[]; appUrl?: string } = {},
 ): Promise<B[]> {
-  const blockToken = new RegExp(`^esionage${nonce}b(\\d+)x$`);
-  const inlineToken = new RegExp(`esionage${nonce}i(\\d+)x`, "g");
+  const blockToken = new RegExp(`^leafdesk${nonce}b(\\d+)x$`);
+  const inlineToken = new RegExp(`leafdesk${nonce}i(\\d+)x`, "g");
 
   const splitText = (node: Inline): Inline[] => {
-    if (node?.type !== "text" || typeof node.text !== "string" || !node.text.includes(`esionage${nonce}i`)) return [node];
+    if (node?.type !== "text" || typeof node.text !== "string" || !node.text.includes(`leafdesk${nonce}i`)) return [node];
     const out: Inline[] = [];
     let last = 0;
     for (const match of node.text.matchAll(inlineToken)) {

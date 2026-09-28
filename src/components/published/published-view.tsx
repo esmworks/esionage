@@ -83,7 +83,7 @@ export async function PublishedView({ loaded }: { loaded: LoadedPage }) {
             </Link>
           )}
           <Link href="/" className="text-sm font-semibold tracking-tight text-fg-faint hover:text-fg-muted">
-            esionage
+            leafdesk
           </Link>
         </div>
       </header>

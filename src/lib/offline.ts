@@ -3,21 +3,21 @@
  * editable without a connection. Everything is stored per signed-in user and wiped on sign-out,
  * when someone else signs in on the same browser, and (per page) when the server refuses the page.
  *
- * - IndexedDB `esionage-<userId>-page-<pageId>`: the page's Yjs document (y-indexeddb).
- * - IndexedDB `esionage-<userId>-cache`: last loaded sidebar trees and database rows (read-only).
- * - localStorage `esionage:offline:<userId>`: recently opened pages and pages with unsent edits.
- * - Cache Storage `esionage-pages-<userId>`: the HTML of recently opened pages (public/sw.js).
+ * - IndexedDB `leafdesk-<userId>-page-<pageId>`: the page's Yjs document (y-indexeddb).
+ * - IndexedDB `leafdesk-<userId>-cache`: last loaded sidebar trees and database rows (read-only).
+ * - localStorage `leafdesk:offline:<userId>`: recently opened pages and pages with unsent edits.
+ * - Cache Storage `leafdesk-pages-<userId>`: the HTML of recently opened pages (public/sw.js).
  *
  * Pure helpers only; the browser side lives in components/offline.
  */
 
-export const OFFLINE_DB_PREFIX = "esionage-";
-export const PAGE_CACHE_PREFIX = "esionage-pages-";
-export const META_CACHE = "esionage-meta";
-export const OFFLINE_STATE_PREFIX = "esionage:offline:";
+export const OFFLINE_DB_PREFIX = "leafdesk-";
+export const PAGE_CACHE_PREFIX = "leafdesk-pages-";
+export const META_CACHE = "leafdesk-meta";
+export const OFFLINE_STATE_PREFIX = "leafdesk:offline:";
 
 /** Meta tag the signed-in app renders, so the service worker files a page under its user. */
-export const USER_MARKER = "esionage-user";
+export const USER_MARKER = "leafdesk-user";
 
 /** Reason the collab server gives when a page is gone or no longer shared with the user. */
 export const COLLAB_FORBIDDEN = "forbidden";
@@ -46,7 +46,7 @@ export function isOfflineStore(name: string) {
   return (
     name.startsWith(PAGE_CACHE_PREFIX) ||
     name.startsWith(OFFLINE_STATE_PREFIX) ||
-    /^esionage-.+-(?:page-.+|cache)$/.test(name)
+    /^leafdesk-.+-(?:page-.+|cache)$/.test(name)
   );
 }
 
@@ -75,9 +75,9 @@ export function isCacheablePagePath(pathname: string) {
   return PAGE_PATH.test(pathname);
 }
 
-/** The user id in a page's `<meta name="esionage-user">`, if it has one. Mirrored in public/sw.js. */
+/** The user id in a page's `<meta name="leafdesk-user">`, if it has one. Mirrored in public/sw.js. */
 export function readUserMarker(html: string): string | null {
-  const match = /<meta\s+name="esionage-user"\s+content="([\w-]+)"/.exec(html);
+  const match = /<meta\s+name="leafdesk-user"\s+content="([\w-]+)"/.exec(html);
   return match ? match[1] : null;
 }
 

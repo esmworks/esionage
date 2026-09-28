@@ -1,6 +1,6 @@
 {
   "title": "Seguridad de la cuenta",
-  "description": "Cómo inicias sesión en Esionage. Estos ajustes son de tu cuenta y se aplican en todos los espacios de trabajo.",
+  "description": "Cómo inicias sesión en Leafdesk. Estos ajustes son de tu cuenta y se aplican en todos los espacios de trabajo.",
   "connectedAppsNote": "Las apps que conectaste por MCP conservan su acceso cuando cambias estos ajustes, porque usan sus propios tokens. Desconéctalas en Apps conectadas.",
   "fields": {
     "password": "Contraseña"
@@ -53,7 +53,7 @@
     "newCodes": "Tus nuevos códigos de recuperación. Guárdalos en un lugar seguro; no volverás a verlos.",
     "copy": "Copiar códigos",
     "download": "Descargar",
-    "fileHeading": "Códigos de recuperación de Esionage. Cada código te permite iniciar sesión una vez."
+    "fileHeading": "Códigos de recuperación de Leafdesk. Cada código te permite iniciar sesión una vez."
   },
   "passkeys": {
     "heading": "Llaves de acceso",

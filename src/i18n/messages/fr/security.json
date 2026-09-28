@@ -1,6 +1,6 @@
 {
   "title": "Sécurité du compte",
-  "description": "Votre façon de vous connecter à Esionage. Ces paramètres concernent votre compte et s’appliquent dans tous les espaces de travail.",
+  "description": "Votre façon de vous connecter à Leafdesk. Ces paramètres concernent votre compte et s’appliquent dans tous les espaces de travail.",
   "connectedAppsNote": "Les applications connectées via MCP conservent leur accès lorsque vous modifiez ces paramètres ; elles utilisent leurs propres jetons. Déconnectez-les dans Applications connectées.",
   "fields": {
     "password": "Mot de passe"
@@ -53,7 +53,7 @@
     "newCodes": "Vos nouveaux codes de récupération. Conservez-les en lieu sûr ; vous ne les reverrez plus.",
     "copy": "Copier les codes",
     "download": "Télécharger",
-    "fileHeading": "Codes de récupération Esionage. Chaque code permet de se connecter une fois."
+    "fileHeading": "Codes de récupération Leafdesk. Chaque code permet de se connecter une fois."
   },
   "passkeys": {
     "heading": "Clés d’accès",

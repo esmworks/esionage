@@ -80,7 +80,7 @@ class LimitExceeded extends Error {}
 
 /** Writes `body` to a temporary file, failing as soon as it passes `limit` bytes. */
 async function spool(body: Readable, limit: number): Promise<{ path: string; size: number; dir: string }> {
-  const dir = await mkdtemp(join(tmpdir(), "esionage-upload-"));
+  const dir = await mkdtemp(join(tmpdir(), "leafdesk-upload-"));
   const path = join(dir, "body");
   let size = 0;
   const counter = new Transform({
@@ -150,7 +150,7 @@ export async function storeFile(
     const storageKey = `${workspaceId}/${id}`;
     await db.transaction(async (tx) => {
       // One upload at a time per workspace gets past this point, so the sum below is current.
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`esionage:file-quota:${workspaceId}`}))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`leafdesk:file-quota:${workspaceId}`}))`);
       const [row] = await tx
         .select({ used: sql<string>`coalesce(sum(${file.size}), 0)` })
         .from(file)

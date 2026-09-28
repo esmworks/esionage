@@ -62,11 +62,11 @@ import { ImportDialog } from "@/components/workspace/import-dialog";
 
 type Workspace = { id: string; name: string; icon: string | null; role: string };
 
-const EXPANDED_KEY = "esionage:expanded";
+const EXPANDED_KEY = "leafdesk:expanded";
 /** Sidebar headings the user folded: "private", "shared" and the teamspaces group (open until folded). */
-const FOLDED_KEY = "esionage:folded-sections";
+const FOLDED_KEY = "leafdesk:folded-sections";
 /** Teamspaces the user opened: like pages, and as in Notion, a teamspace stays closed until opened. */
-const OPEN_TEAMSPACES_KEY = "esionage:open-teamspaces";
+const OPEN_TEAMSPACES_KEY = "leafdesk:open-teamspaces";
 const TEAMSPACES_GROUP = "teamspaces";
 /** Top-level pages "Private" and "Shared" show before a "More" row, as Notion does. */
 const SECTION_LIMIT = 10;
@@ -1330,7 +1330,7 @@ function TreeLevel({ nodes, ...props }: TreeProps & { nodes: TreeNode[] }) {
   );
 }
 
-const DRAG_TYPE = "application/x-esionage-page";
+const DRAG_TYPE = "application/x-leafdesk-page";
 
 function TreeItem({
   node,

@@ -95,7 +95,7 @@ export class PropertyValueError extends Error {
 type PropertyDef = { id: string; name: string; type: PropertyType; options: PropertyOptions };
 
 /**
- * Written by Esionage itself (who created or last edited the row, and when) or worked out from
+ * Written by Leafdesk itself (who created or last edited the row, and when) or worked out from
  * other values (formulas), never by users or agents.
  */
 function readOnlyError(prop: PropertyDef) {
@@ -119,7 +119,7 @@ function isoTime(d: Date | string | null | undefined) {
 }
 
 /**
- * Values Esionage fills in instead of storing: who created and last edited the row (as person
+ * Values Leafdesk fills in instead of storing: who created and last edited the row (as person
  * values) and when (ISO timestamps). Rows read from the database get these merged into their
  * properties. "Last edited" follows the row's page, so property changes and body edits both count.
  */

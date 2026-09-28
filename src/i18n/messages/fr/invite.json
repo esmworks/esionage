@@ -3,7 +3,7 @@
   "title": "Rejoindre « {workspace} »",
   "invalidTitle": "Invitation introuvable",
   "invalidBody": "Ce lien d’invitation n’est pas valide, a expiré ou a été annulé. Demandez-en un nouveau à la personne qui vous a invité.",
-  "home": "Aller sur Esionage",
+  "home": "Aller sur Leafdesk",
   "wrongAccount": "Cette invitation est destinée à {email}, mais vous êtes connecté en tant que {current}. Déconnectez-vous et rouvrez le lien.",
   "acceptBody": "Vous êtes invité à rejoindre cet espace de travail avec le rôle {role}.",
   "signInBody": "Un compte utilise déjà {email}. Connectez-vous pour accepter l’invitation.",

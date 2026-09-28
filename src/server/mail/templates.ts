@@ -74,7 +74,7 @@ export function renderEmail(locale: Locale, content: EmailContent): RenderedEmai
 <tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;">
 <tr><td style="padding:32px;font-family:${FONT};font-size:15px;line-height:1.6;color:#1f2023;">
-<p style="margin:0 0 24px;font-size:14px;font-weight:600;color:#6b6d75;">Esionage</p>
+<p style="margin:0 0 24px;font-size:14px;font-weight:600;color:#6b6d75;">Leafdesk</p>
 <h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;font-weight:600;">${escapeHtml(content.heading)}</h1>
 ${paragraphs}
 ${button}

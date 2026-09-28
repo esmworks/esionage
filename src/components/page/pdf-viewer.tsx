@@ -37,7 +37,7 @@ export function PdfViewer({ fileId, name, caption }: { fileId: string; name: str
     </a>
   );
   return (
-    <div className="w-full min-w-0" contentEditable={false} data-esionage-pdf="">
+    <div className="w-full min-w-0" contentEditable={false} data-leafdesk-pdf="">
       <div className="flex min-w-0 items-center justify-between gap-2 pb-1.5">{link}</div>
       {viewer && (
         <object

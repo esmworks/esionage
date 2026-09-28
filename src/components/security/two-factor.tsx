@@ -69,7 +69,7 @@ export function RecoveryCodes({ codes }: { codes: string[] }) {
             const url = URL.createObjectURL(new Blob([`${t("fileHeading")}\n\n${text}\n`], { type: "text/plain" }));
             const link = document.createElement("a");
             link.href = url;
-            link.download = "esionage-recovery-codes.txt";
+            link.download = "leafdesk-recovery-codes.txt";
             link.click();
             URL.revokeObjectURL(url);
           }}

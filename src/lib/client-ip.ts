@@ -1,5 +1,5 @@
 /** Set by server.ts on every request from the socket and trusted proxies; never taken from the client. */
-export const CLIENT_IP_HEADER = "x-esionage-client-ip";
+export const CLIENT_IP_HEADER = "x-leafdesk-client-ip";
 
 /** TRUSTED_PROXIES: how many reverse proxies stand in front of the app (default 1). */
 export function trustedProxyCount(value = process.env.TRUSTED_PROXIES) {

@@ -39,23 +39,23 @@ const sample = [
 const SAMPLE_MARKDOWN = [
   "Intro",
   "",
-  "<!-- esionage:columns -->",
+  "<!-- leafdesk:columns -->",
   "",
-  "<!-- esionage:column -->",
+  "<!-- leafdesk:column -->",
   "",
   "## Left",
   "",
   "* one",
   "* two",
   "",
-  "<!-- esionage:column width=2 -->",
+  "<!-- leafdesk:column width=2 -->",
   "",
   "Right \\$5",
   "",
   "> [!NOTE]",
   "> 💡 Note",
   "",
-  "<!-- esionage:/columns -->",
+  "<!-- leafdesk:/columns -->",
   "",
   "After",
 ].join("\n");
@@ -106,47 +106,47 @@ describe("columns in Markdown", () => {
 
   it("keep an empty column, and a database block inside a column", async () => {
     const markdown = [
-      "<!-- esionage:columns -->",
-      "<!-- esionage:column -->",
+      "<!-- leafdesk:columns -->",
+      "<!-- leafdesk:column -->",
       referenceLine("database", "db-1"),
       "Below the database",
-      "<!-- esionage:column -->",
-      "<!-- esionage:/columns -->",
+      "<!-- leafdesk:column -->",
+      "<!-- leafdesk:/columns -->",
     ].join("\n");
     const blocks = stored(await markdownToBlocks(markdown));
     expect(shape(blocks)).toBe("columnList(column(database,paragraph),column(paragraph))");
     expect(blocks[0].children[0].children[0].props).toMatchObject({ databaseId: "db-1" });
     const again = (await blocksToMarkdown(blocks)).trim();
-    expect(again).toContain(`<!-- esionage:column -->\n\n${referenceLine("database", "db-1")}`);
+    expect(again).toContain(`<!-- leafdesk:column -->\n\n${referenceLine("database", "db-1")}`);
     expect(shape(stored(await markdownToBlocks(again)))).toBe(shape(blocks));
   });
 
   it("are read leniently", async () => {
     // No "/columns": the list runs to the end; blocks before the first "column" join the first.
-    let blocks = stored(await markdownToBlocks("<!-- esionage:columns -->\nA\n<!-- esionage:column -->\nB\n<!-- esionage:column -->\nC"));
+    let blocks = stored(await markdownToBlocks("<!-- leafdesk:columns -->\nA\n<!-- leafdesk:column -->\nB\n<!-- leafdesk:column -->\nC"));
     expect(shape(blocks)).toBe("columnList(column(paragraph,paragraph),column(paragraph))");
     // One column is no columns: just its blocks. Stray markers are dropped.
-    blocks = stored(await markdownToBlocks("<!-- esionage:column -->\nX\n<!-- esionage:columns -->\n<!-- esionage:column -->\nY\n<!-- esionage:/columns -->\nZ"));
+    blocks = stored(await markdownToBlocks("<!-- leafdesk:column -->\nX\n<!-- leafdesk:columns -->\n<!-- leafdesk:column -->\nY\n<!-- leafdesk:/columns -->\nZ"));
     expect(shape(blocks)).toBe("paragraph,paragraph,paragraph");
     expect(blocksToPlainText(blocks)).toBe("X\nY\nZ");
     // At most five columns: the rest joins the fifth.
-    const six = ["<!-- esionage:columns -->", ...[1, 2, 3, 4, 5, 6].flatMap((n) => ["<!-- esionage:column -->", `C${n}`]), "<!-- esionage:/columns -->"];
+    const six = ["<!-- leafdesk:columns -->", ...[1, 2, 3, 4, 5, 6].flatMap((n) => ["<!-- leafdesk:column -->", `C${n}`]), "<!-- leafdesk:/columns -->"];
     blocks = stored(await markdownToBlocks(six.join("\n")));
     expect(blocks[0].children).toHaveLength(5);
     expect(blocksToPlainText(blocks[0].children[4].children)).toBe("C5\nC6");
     // Inside fenced code the markers are just text.
-    blocks = stored(await markdownToBlocks("```\n<!-- esionage:columns -->\n```"));
+    blocks = stored(await markdownToBlocks("```\n<!-- leafdesk:columns -->\n```"));
     expect(shape(blocks)).toBe("codeBlock");
   });
 
   it("parse and write marker lines", () => {
-    expect(parseColumnMarker("<!-- esionage:columns -->")).toEqual({ kind: "columns" });
-    expect(parseColumnMarker("  <!--esionage:column width=1.5-->")).toEqual({ kind: "column", width: 1.5 });
-    expect(parseColumnMarker("<!-- esionage:/columns -->")).toEqual({ kind: "end" });
-    expect(parseColumnMarker("<!-- esionage:column width=abc -->")).toBeNull();
-    expect(parseColumnMarker("text <!-- esionage:columns -->")).toBeNull();
-    expect(columnMarkerLine({ kind: "column", width: 1 })).toBe("<!-- esionage:column -->");
-    expect(columnMarkerLine({ kind: "column", width: 0.004 })).toBe("<!-- esionage:column width=0.1 -->");
+    expect(parseColumnMarker("<!-- leafdesk:columns -->")).toEqual({ kind: "columns" });
+    expect(parseColumnMarker("  <!--leafdesk:column width=1.5-->")).toEqual({ kind: "column", width: 1.5 });
+    expect(parseColumnMarker("<!-- leafdesk:/columns -->")).toEqual({ kind: "end" });
+    expect(parseColumnMarker("<!-- leafdesk:column width=abc -->")).toBeNull();
+    expect(parseColumnMarker("text <!-- leafdesk:columns -->")).toBeNull();
+    expect(columnMarkerLine({ kind: "column", width: 1 })).toBe("<!-- leafdesk:column -->");
+    expect(columnMarkerLine({ kind: "column", width: 0.004 })).toBe("<!-- leafdesk:column width=0.1 -->");
     expect(columnWidth("junk")).toBe(1);
     expect(columnWidth(99)).toBe(10);
   });
@@ -186,7 +186,7 @@ describe("columns on published pages", () => {
     expect(right.kind === "html" && right.html).toContain('<h2 id="heading-3"');
     expect(segments[0].kind === "toc" && segments[0].headings.map((h) => h.text)).toEqual(["Top", "Left", "Right"]);
     // No column markup of the editor leaks into the published HTML.
-    expect(JSON.stringify(segments)).not.toMatch(/data-node-type=\\"column|esionage-column/);
+    expect(JSON.stringify(segments)).not.toMatch(/data-node-type=\\"column|leafdesk-column/);
   });
 
   it("clean links inside columns like everywhere else, and join their HTML for the plain body", async () => {

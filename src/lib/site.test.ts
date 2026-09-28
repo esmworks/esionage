@@ -22,7 +22,7 @@ describe("siteSlugProblem", () => {
   });
 
   it("keeps back names that would pass for the app", () => {
-    for (const slug of ["api", "admin", "sign-in", "settings", "esionage", "www"]) expect(siteSlugProblem(slug)).toBe("reserved");
+    for (const slug of ["api", "admin", "sign-in", "settings", "leafdesk", "www"]) expect(siteSlugProblem(slug)).toBe("reserved");
   });
 });
 

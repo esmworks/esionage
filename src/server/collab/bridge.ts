@@ -80,7 +80,7 @@ export interface CollabService {
   disconnectLostAccess(workspaceId: string, userIds?: string[]): Promise<void>;
 }
 
-const KEY = "__esionageCollab";
+const KEY = "__leafdeskCollab";
 
 export function registerCollab(service: CollabService) {
   (globalThis as Record<string, unknown>)[KEY] = service;

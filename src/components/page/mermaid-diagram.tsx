@@ -59,7 +59,7 @@ export function renderMermaid(source: string, dark: boolean): Promise<MermaidRes
     } catch (error) {
       return { ok: false, error: message(error) };
     }
-    const id = `esionage-mermaid-${++counter}`;
+    const id = `leafdesk-mermaid-${++counter}`;
     try {
       const { svg } = await mermaid.render(id, source);
       const image = toImage(svg);
@@ -143,7 +143,7 @@ export function MermaidImageView({ image, label }: { image: MermaidImage; label:
 /**
  * A diagram on a published page: its source as a code block until the diagram is drawn, and when
  * it can't be (no JavaScript, a mistake in the source). `light` for print (see useMermaid);
- * `data-esionage-mermaid` is "pending" until it is drawn or has failed, so the print view knows
+ * `data-leafdesk-mermaid` is "pending" until it is drawn or has failed, so the print view knows
  * when everything is ready.
  */
 export function PublishedMermaid({ source, label, light = false }: { source: string; label: string; light?: boolean }) {
@@ -151,13 +151,13 @@ export function PublishedMermaid({ source, label, light = false }: { source: str
   const state = pending ? "pending" : "done";
   if (image && !error) {
     return (
-      <figure className="my-2 overflow-x-auto" data-esionage-mermaid={state}>
+      <figure className="my-2 overflow-x-auto" data-leafdesk-mermaid={state}>
         <MermaidImageView image={image} label={label} />
       </figure>
     );
   }
   return (
-    <pre data-esionage-mermaid={state}>
+    <pre data-leafdesk-mermaid={state}>
       <code className="language-mermaid">{source}</code>
     </pre>
   );

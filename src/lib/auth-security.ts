@@ -10,7 +10,7 @@ import { verifyTotp } from "@/lib/totp";
  * Database-independent like the rest of baseAuthOptions, so the schema generator sees the tables.
  */
 
-export const APP_NAME = "Esionage";
+export const APP_NAME = "Leafdesk";
 
 /** How a session was signed in, kept on the session row (`session.auth_method`). */
 export type AuthMethod = "password" | "social" | "sso" | "passkey" | "totp" | "recovery-code";
@@ -52,7 +52,7 @@ type SessionHookContext =
  * sign-in held back for a code, so the session the code creates still counts as that single
  * sign-on (a workspace's "SSO only" policy asks for it). Signed, short-lived like the code step.
  */
-export const SSO_PENDING_COOKIE = "esionage.sso_pending";
+export const SSO_PENDING_COOKIE = "leafdesk.sso_pending";
 export const SSO_PENDING_MAX_AGE = 600;
 
 const CODE_STEP_PATHS = new Set(["/two-factor/verify-totp", "/two-factor/verify-backup-code"]);
@@ -158,7 +158,7 @@ export function twoFactorStepUrl(next: string | null, oauthQuery?: string | null
 }
 
 /** Key of the signed authorization query in the social sign-in's OAuth state (server-trusted). */
-const OAUTH_QUERY_KEY = "esionageOAuthQuery";
+const OAUTH_QUERY_KEY = "leafdeskOAuthQuery";
 
 type AfterHook = NonNullable<NonNullable<BetterAuthPlugin["hooks"]>["after"]>[number];
 
@@ -208,7 +208,7 @@ export function twoFactorPlugin() {
  */
 export function socialTwoFactorRedirect(appUrl: string) {
   return {
-    id: "esionage-social-two-factor",
+    id: "leafdesk-social-two-factor",
     hooks: {
       before: [
         {

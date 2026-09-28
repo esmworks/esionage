@@ -627,5 +627,5 @@ try {
   if (workspaceIds.length) await db.delete(workspace).where(inArray(workspace.id, workspaceIds));
   if (userIds.length) await db.delete(user).where(inArray(user.id, userIds));
   if (clientIds.length) await db.delete(oauthClient).where(inArray(oauthClient.clientId, clientIds));
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }

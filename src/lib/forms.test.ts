@@ -39,7 +39,7 @@ const props = [
 ];
 
 describe("askable properties", () => {
-  it("leaves out values Esionage fills in, and relations and people from public forms", () => {
+  it("leaves out values Leafdesk fills in, and relations and people from public forms", () => {
     expect(isAskable("text")).toBe(true);
     expect(isAskable("created_by")).toBe(false);
     expect(isAskable("last_edited_time")).toBe(false);

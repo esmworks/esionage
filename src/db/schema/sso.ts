@@ -18,7 +18,7 @@ export const workspaceSso = pgTable("workspace_sso", {
     .unique()
     .references(() => ssoProvider.providerId, { onDelete: "cascade" }),
   protocol: text("protocol").$type<"oidc" | "saml">().notNull(),
-  /** Goes into the `_esionage-sso.<domain>` TXT record; a new one when the domains change. */
+  /** Goes into the `_leafdesk-sso.<domain>` TXT record; a new one when the domains change. */
   verificationToken: text("verification_token").notNull(),
   createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

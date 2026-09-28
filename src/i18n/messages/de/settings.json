@@ -264,7 +264,7 @@
     }
   },
   "preferences": {
-    "description": "Die Präferenzen deines Kontos: wie Esionage in diesem Browser aussieht und welche E-Mails du erhältst."
+    "description": "Die Präferenzen deines Kontos: wie Leafdesk in diesem Browser aussieht und welche E-Mails du erhältst."
   },
   "language": {
     "heading": "Sprache",
@@ -290,11 +290,11 @@
   },
   "mcp": {
     "heading": "KI-Assistenten verbinden",
-    "description": "Esionage hat einen integrierten MCP-Server. Assistenten, die Remote-MCP-Server unterstützen, können deine Seiten und Datenbanken durchsuchen, lesen und bearbeiten, nachdem du dich angemeldet und den Zugriff genehmigt hast. Jede Änderung eines Assistenten wird vorher im Seitenverlauf gespeichert, sodass du sie rückgängig machen kannst.",
+    "description": "Leafdesk hat einen integrierten MCP-Server. Assistenten, die Remote-MCP-Server unterstützen, können deine Seiten und Datenbanken durchsuchen, lesen und bearbeiten, nachdem du dich angemeldet und den Zugriff genehmigt hast. Jede Änderung eines Assistenten wird vorher im Seitenverlauf gespeichert, sodass du sie rückgängig machen kannst.",
     "serverUrl": "Server-URL",
     "claude": {
       "title": "Claude",
-      "body": "Öffne die Einstellungen, dann Connectors, wähle „Add custom connector“ und füge die Server-URL ein. Claude öffnet Esionage in deinem Browser, damit du dich anmelden und den Zugriff erlauben kannst."
+      "body": "Öffne die Einstellungen, dann Connectors, wähle „Add custom connector“ und füge die Server-URL ein. Claude öffnet Leafdesk in deinem Browser, damit du dich anmelden und den Zugriff erlauben kannst."
     },
     "claudeCode": {
       "title": "Claude Code",

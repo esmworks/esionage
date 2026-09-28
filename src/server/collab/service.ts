@@ -233,7 +233,7 @@ export function createCollab() {
   };
 
   const extension: Extension<Context> = {
-    extensionName: "esionage",
+    extensionName: "leafdesk",
 
     async onAuthenticate({ token, documentName, connectionConfig, requestHeaders }) {
       const user = verifyCollabToken(token);
@@ -306,7 +306,7 @@ export function createCollab() {
   };
 
   const hocuspocus = new Hocuspocus<Context>({
-    name: "esionage",
+    name: "leafdesk",
     quiet: true,
     debounce: 2000,
     maxDebounce: 10000,

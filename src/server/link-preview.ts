@@ -23,7 +23,7 @@ export const PREVIEW_TIMEOUT_MS = 5_000;
 export const PREVIEW_MAX_BYTES = 1024 * 1024;
 export const PREVIEW_MAX_REDIRECTS = 3;
 
-const USER_AGENT = "Mozilla/5.0 (compatible; EsionageBot/1.0; link preview)";
+const USER_AGENT = "Mozilla/5.0 (compatible; LeafdeskBot/1.0; link preview)";
 
 export class LinkPreviewError extends Error {
   constructor(

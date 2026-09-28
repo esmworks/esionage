@@ -72,7 +72,7 @@ export type DatabaseRow = {
 };
 
 /**
- * Rows as read from the database, with values Esionage fills in (who created and last edited
+ * Rows as read from the database, with values Leafdesk fills in (who created and last edited
  * them, and when) merged in.
  */
 function withComputed<T extends StoredRow>(

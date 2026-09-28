@@ -264,7 +264,7 @@
     }
   },
   "preferences": {
-    "description": "Your account's preferences: how Esionage looks in this browser and which emails you get."
+    "description": "Your account's preferences: how Leafdesk looks in this browser and which emails you get."
   },
   "language": {
     "heading": "Language",
@@ -290,11 +290,11 @@
   },
   "mcp": {
     "heading": "Connect an AI assistant",
-    "description": "Esionage has a built-in MCP server. Assistants that support remote MCP servers can search, read and edit your pages and databases after you sign in and approve access. Every edit an assistant makes is saved to page history first, so you can undo it.",
+    "description": "Leafdesk has a built-in MCP server. Assistants that support remote MCP servers can search, read and edit your pages and databases after you sign in and approve access. Every edit an assistant makes is saved to page history first, so you can undo it.",
     "serverUrl": "Server URL",
     "claude": {
       "title": "Claude",
-      "body": "Open Settings, then Connectors, choose Add custom connector and paste the server URL. Claude opens Esionage in your browser so you can sign in and allow access."
+      "body": "Open Settings, then Connectors, choose Add custom connector and paste the server URL. Claude opens Leafdesk in your browser so you can sign in and allow access."
     },
     "claudeCode": {
       "title": "Claude Code",

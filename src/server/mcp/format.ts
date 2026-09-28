@@ -43,7 +43,7 @@ export function toolErrorFor(error: unknown): CallToolResult {
     return errorResult(`${error.message}. Call get_database to see property names, types and select options.`);
   }
   console.error("[mcp] tool failed", error);
-  return errorResult("Something went wrong on the Esionage server while running this tool. Try again later.");
+  return errorResult("Something went wrong on the Leafdesk server while running this tool. Try again later.");
 }
 
 export async function runTool(fn: () => Promise<unknown>): Promise<CallToolResult> {

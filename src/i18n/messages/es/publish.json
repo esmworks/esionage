@@ -24,7 +24,7 @@
   "name": "Nombre",
   "noRows": "No hay filas que mostrar.",
   "readOnly": "Solo lectura",
-  "home": "Ir a Esionage",
+  "home": "Ir a Leafdesk",
   "embedUnavailable": "Esta base de datos no se publica con esta página.",
   "indexable": "Permitir motores de búsqueda",
   "indexableHint": "Los motores de búsqueda pueden mostrar esta página y sus subpáginas. Desactivado de forma predeterminada: así solo se llega a ella a través del enlace.",

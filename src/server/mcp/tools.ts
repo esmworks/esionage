@@ -76,13 +76,13 @@ import {
   type SortInput,
 } from "./query";
 
-const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
+const INSTRUCTIONS = `Leafdesk is a Notion-like workspace. Each user belongs to one or more workspaces.
 Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, status, date, checkbox, url, email, phone, checklist, files, relation, person, created_by, created_time, last_edited_by, last_edited_time, formula, rollup). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A status is a select whose options belong to the groups todo, in_progress and done. A checklist holds items that can be ticked off. A files property holds files uploaded to the workspace (images show as thumbnails); its values read as [{name, url}]. created_by, created_time, last_edited_by and last_edited_time show who created or last edited each row and when; they are filled in automatically and can't be written. A formula property computes its value from the row's other properties, and a rollup calculates over the rows a relation links to (see add_database_property); neither can be written.
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
 Teamspaces group a workspace's pages and people (list_teamspaces). A teamspace is default (everyone is in it), open (anyone can join; others can read), closed (only its members open its pages) or private (only its members know it). A top-level page belongs to a teamspace, or is private to the user who made it; pages under it follow it. create_page, create_database and move_page take a teamspace_id for top-level pages ("private" for the user's private pages); without one, new top-level pages are private. Member groups (list_groups) are named sets of owners and members that pages are shared with and teamspaces joined by; someone gets the highest access they have from anywhere (their own, a group, the teamspace).
-Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / diff_page_version / restore_page_version).
-Beyond plain Markdown, page bodies know a few block forms: a callout is a GitHub alert (\`> [!NOTE]\`, TIP, IMPORTANT, WARNING or CAUTION on its own line, then the \`> \` text; a leading emoji becomes its icon), \`$…$\` is an inline equation and a \`$$\` line pair wraps a block equation (LaTeX), a \`\`\`mermaid fence is a diagram, and the lines \`<!-- esionage:toc -->\` and \`<!-- esionage:breadcrumb -->\` are a table of contents and the page's breadcrumb. Columns (2 to 5, side by side) are written between marker lines: \`<!-- esionage:columns -->\`, then \`<!-- esionage:column -->\` before each column's blocks (\`<!-- esionage:column width=2 -->\` makes a column twice as wide as a width-1 one), then \`<!-- esionage:/columns -->\`; keep the markers when you write a body back, or the blocks leave their columns. A web bookmark (a link card) reads as a link on a line of its own, \`[Title](url)\`, and stays a bookmark when you write the body back; to add a new one write \`[Title](url) <!-- esionage:bookmark -->\`. An embed (YouTube, Vimeo, Loom, Figma, published Google Docs/Sheets/Slides, CodePen, Spotify, Google Maps) is \`[url](url) <!-- esionage:embed -->\`. A dollar sign of the text itself is written \`\\$\`.
-Mentions: a link to a page of this app (\`[Roadmap](/w/<workspace_id>/p/<page_id>)\`) is a page mention, which shows the page's live title (the link text you write is ignored; get_page shows the current title, or "No access" / "Deleted page"); that link alone on its line followed by \`<!-- esionage:page-link -->\` is a "Link to page" block. \`@Name\` with a person's name as list_users shows it mentions them (they are notified if they can open the page), and \`@YYYY-MM-DD\` is a date. Keep mentions as they are when you rewrite a page: people aren't notified twice and reminders set on dates stay. get_page lists the pages linking to a page under linked_from.
+Page bodies are read and written as Markdown. Before every content change Leafdesk saves a history snapshot, so the user can undo your edits from the page history (list_page_history / diff_page_version / restore_page_version).
+Beyond plain Markdown, page bodies know a few block forms: a callout is a GitHub alert (\`> [!NOTE]\`, TIP, IMPORTANT, WARNING or CAUTION on its own line, then the \`> \` text; a leading emoji becomes its icon), \`$…$\` is an inline equation and a \`$$\` line pair wraps a block equation (LaTeX), a \`\`\`mermaid fence is a diagram, and the lines \`<!-- leafdesk:toc -->\` and \`<!-- leafdesk:breadcrumb -->\` are a table of contents and the page's breadcrumb. Columns (2 to 5, side by side) are written between marker lines: \`<!-- leafdesk:columns -->\`, then \`<!-- leafdesk:column -->\` before each column's blocks (\`<!-- leafdesk:column width=2 -->\` makes a column twice as wide as a width-1 one), then \`<!-- leafdesk:/columns -->\`; keep the markers when you write a body back, or the blocks leave their columns. A web bookmark (a link card) reads as a link on a line of its own, \`[Title](url)\`, and stays a bookmark when you write the body back; to add a new one write \`[Title](url) <!-- leafdesk:bookmark -->\`. An embed (YouTube, Vimeo, Loom, Figma, published Google Docs/Sheets/Slides, CodePen, Spotify, Google Maps) is \`[url](url) <!-- leafdesk:embed -->\`. A dollar sign of the text itself is written \`\\$\`.
+Mentions: a link to a page of this app (\`[Roadmap](/w/<workspace_id>/p/<page_id>)\`) is a page mention, which shows the page's live title (the link text you write is ignored; get_page shows the current title, or "No access" / "Deleted page"); that link alone on its line followed by \`<!-- leafdesk:page-link -->\` is a "Link to page" block. \`@Name\` with a person's name as list_users shows it mentions them (they are notified if they can open the page), and \`@YYYY-MM-DD\` is a date. Keep mentions as they are when you rewrite a page: people aren't notified twice and reminders set on dates stay. get_page lists the pages linking to a page under linked_from.
 People discuss pages in comment threads anchored to text of the page: list_comments reads them, add_comment starts a thread on quoted text or replies to one.
 list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them, new comments in their threads, mentions of them and reminders they set on dates.
 attach_file adds an image, video, audio or other file to a page, from a URL or base64 data, or (with property) to a row's files property. Files in page bodies show up in the Markdown with paths like /api/files/<id>.
@@ -90,7 +90,7 @@ Templates are starting points for new pages and rows: list_templates lists a wor
 Always share the returned url with the user when you create or change something.`;
 
 const EMBED_NOTE =
-  "Databases shown inside a page body appear in its Markdown as their own lines, `<!-- esionage:database <id> -->` (an inline database) or `<!-- esionage:linked-view <id> -->` (a linked view of a database); get_page lists them under embedded_databases.";
+  "Databases shown inside a page body appear in its Markdown as their own lines, `<!-- leafdesk:database <id> -->` (an inline database) or `<!-- leafdesk:linked-view <id> -->` (a linked view of a database); get_page lists them under embedded_databases.";
 
 /** How formulas are written, for tool descriptions. */
 const FORMULA_HELP =
@@ -622,14 +622,14 @@ function decodeBase64(input: string): { bytes: Buffer; contentType: string | nul
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
 
 export function createMcpServer(principal: McpPrincipal) {
-  const server = new McpServer({ name: "esionage", title: "Esionage", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "leafdesk", title: "Leafdesk", version: "0.2.0" }, { instructions: INSTRUCTIONS });
   const { userId } = principal;
   const actor: WriteActor = { userId, oauthClientId: principal.clientId };
 
   const assertWrite = () => {
     if (!principal.scopes.includes(WRITE_SCOPE)) {
       throw new ToolInputError(
-        "This connection is read-only: the user did not grant the pages:write permission. Ask the user to reconnect Esionage and allow editing.",
+        "This connection is read-only: the user did not grant the pages:write permission. Ask the user to reconnect Leafdesk and allow editing.",
       );
     }
   };
@@ -698,7 +698,7 @@ export function createMcpServer(principal: McpPrincipal) {
       runTool(async () => {
         if (!principal.scopes.includes(NOTIFICATIONS_SCOPE)) {
           throw new ToolInputError(
-            "This connection can't read notifications: the user did not grant the notifications:read permission. Ask the user to reconnect Esionage and allow it.",
+            "This connection can't read notifications: the user did not grant the notifications:read permission. Ask the user to reconnect Leafdesk and allow it.",
           );
         }
         const items = await notifications.listNotifications(userId, { workspaceId: workspace_id, unreadOnly: unread_only, limit });
@@ -843,7 +843,7 @@ export function createMcpServer(principal: McpPrincipal) {
     "attach_file",
     {
       title: "Attach a file to a page",
-      description: `Upload a file (image, video, audio, PDF or any other file) to a page, either from a public http(s) URL, which Esionage downloads, or from base64 data. By default it is added to the end of the page body as an image, video, audio or file block, chosen by its type; a history snapshot is saved first. With append false it is only stored: put the returned path into the body yourself (e.g. \`![caption](/api/files/…)\` with update_page) within a day, or the unused upload is removed. With property (a files property of the row the page is), the file is added to that property's value instead of the body. Files can be at most ${formatBytes(maxFile)}, and URLs must point at a public address. Only people who can see the page can open the file.`,
+      description: `Upload a file (image, video, audio, PDF or any other file) to a page, either from a public http(s) URL, which Leafdesk downloads, or from base64 data. By default it is added to the end of the page body as an image, video, audio or file block, chosen by its type; a history snapshot is saved first. With append false it is only stored: put the returned path into the body yourself (e.g. \`![caption](/api/files/…)\` with update_page) within a day, or the unused upload is removed. With property (a files property of the row the page is), the file is added to that property's value instead of the body. Files can be at most ${formatBytes(maxFile)}, and URLs must point at a public address. Only people who can see the page can open the file.`,
       inputSchema: z.object({
         page_id: id("page"),
         url: z.string().max(4000).optional().describe("A public http(s) URL to download the file from. Give url or base64."),
@@ -869,12 +869,12 @@ export function createMcpServer(principal: McpPrincipal) {
         assertWrite();
         if (!principal.scopes.includes(FILES_SCOPE)) {
           throw new ToolInputError(
-            "This connection can't upload files: the user did not grant the files:write permission. Ask the user to reconnect Esionage and allow it.",
+            "This connection can't upload files: the user did not grant the files:write permission. Ask the user to reconnect Leafdesk and allow it.",
           );
         }
         if ((url === undefined) === (base64 === undefined)) throw new ToolInputError("Give either url or base64, not both.");
         const { page, parentDatabase } = await ops.loadPage(ctx, page_id);
-        if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in Esionage before adding files.");
+        if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in Leafdesk before adding files.");
         if (page.kind === "database") throw new ToolInputError("Databases have no body. Attach the file to one of its rows.");
         let filesProp: PropertyDef | null = null;
         if (property !== undefined) {
@@ -947,7 +947,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Move a page to the trash",
       description:
-        "Move a page (with all its sub-pages, or a database with its rows) to the trash. This is reversible: the user can restore it from the trash in Esionage.",
+        "Move a page (with all its sub-pages, or a database with its rows) to the trash. This is reversible: the user can restore it from the trash in Leafdesk.",
       inputSchema: ops.inputs.pageId,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,

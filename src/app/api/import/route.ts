@@ -22,7 +22,7 @@ import { TeamspaceError } from "@/server/teamspaces";
  *   mode=csv-merge  One CSV `file`'s rows added to the database `databaseId`; `mapping` (JSON) says
  *                   where each column goes: "title", a property id, or null.
  *
- * Requests need the `X-Esionage-Import` header: a cross-site form can't send it, and a cross-site
+ * Requests need the `X-Leafdesk-Import` header: a cross-site form can't send it, and a cross-site
  * fetch with it needs a CORS preflight this route doesn't answer. A foreign Origin is refused too.
  */
 export async function POST(request: Request) {
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   if (!session) return fail(401, "noAccess", "Sign in to import");
   const origin = request.headers.get("origin");
   const hosts = [new URL(env.appUrl).host, request.headers.get("x-forwarded-host"), request.headers.get("host")];
-  if (!request.headers.get("x-esionage-import") || (origin && !hosts.includes(URL.parse(origin)?.host ?? ""))) {
+  if (!request.headers.get("x-leafdesk-import") || (origin && !hosts.includes(URL.parse(origin)?.host ?? ""))) {
     return fail(403, "badRequest", "Cross-site imports aren't allowed");
   }
   const length = Number(request.headers.get("content-length") ?? NaN);

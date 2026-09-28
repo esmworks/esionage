@@ -8,7 +8,7 @@ import { policyHoldFor, type PolicyHold } from "@/server/access";
 export const getSession = cache(async () => auth.api.getSession({ headers: await headers() }));
 
 /** Set by src/proxy.ts on app routes: the path being requested, to come back to after signing in. */
-const PATH_HEADER = "x-esionage-path";
+const PATH_HEADER = "x-leafdesk-path";
 
 /** For pages and layouts: redirects to sign-in when there is no session. */
 export async function requireSession() {

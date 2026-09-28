@@ -114,41 +114,41 @@ function PageMentionChip({ pageId }: { pageId: string }) {
   const ref = usePageRef(pageId);
   if (!ref) {
     return (
-      <span className="esionage-mention esionage-mention-page esionage-mention-muted">
-        <Link2 className="esionage-mention-icon" aria-hidden />
-        <span className="esionage-mention-label">{t("loading")}</span>
+      <span className="leafdesk-mention leafdesk-mention-page leafdesk-mention-muted">
+        <Link2 className="leafdesk-mention-icon" aria-hidden />
+        <span className="leafdesk-mention-label">{t("loading")}</span>
       </span>
     );
   }
   if (ref.status !== "ok") {
     const Icon = ref.status === "noAccess" ? Lock : FileX2;
     return (
-      <span className="esionage-mention esionage-mention-page esionage-mention-muted" data-mention-status={ref.status}>
-        <Icon className="esionage-mention-icon" aria-hidden />
-        <span className="esionage-mention-label">{t(ref.status === "noAccess" ? "noAccess" : "deleted")}</span>
+      <span className="leafdesk-mention leafdesk-mention-page leafdesk-mention-muted" data-mention-status={ref.status}>
+        <Icon className="leafdesk-mention-icon" aria-hidden />
+        <span className="leafdesk-mention-label">{t(ref.status === "noAccess" ? "noAccess" : "deleted")}</span>
       </span>
     );
   }
   const href = pagePath(ref.workspaceId, ref.id);
   return (
-    <a href={href} className="esionage-mention esionage-mention-page" onClick={(e) => openPage(e, href, router.push)} data-mention-status="ok">
+    <a href={href} className="leafdesk-mention leafdesk-mention-page" onClick={(e) => openPage(e, href, router.push)} data-mention-status="ok">
       {ref.icon ? (
-        <span className="esionage-mention-emoji" aria-hidden>
+        <span className="leafdesk-mention-emoji" aria-hidden>
           {ref.icon}
         </span>
       ) : (
-        <PageIcon icon={null} kind={ref.kind} className="esionage-mention-icon" />
+        <PageIcon icon={null} kind={ref.kind} className="leafdesk-mention-icon" />
       )}
-      <span className="esionage-mention-label">{pageLabel(ref.title, tc("untitled"))}</span>
+      <span className="leafdesk-mention-label">{pageLabel(ref.title, tc("untitled"))}</span>
     </a>
   );
 }
 
 function PersonMentionChip({ name }: { name: string }) {
   return (
-    <span className="esionage-mention esionage-mention-user">
-      <CircleUser className="esionage-mention-icon" aria-hidden />
-      <span className="esionage-mention-label">{name || "…"}</span>
+    <span className="leafdesk-mention leafdesk-mention-user">
+      <CircleUser className="leafdesk-mention-icon" aria-hidden />
+      <span className="leafdesk-mention-label">{name || "…"}</span>
     </span>
   );
 }
@@ -172,14 +172,14 @@ function DateMentionChip({ props, onChange }: { props: MentionProps; onChange: (
     <>
       <span
         ref={anchor}
-        className="esionage-mention esionage-mention-date"
+        className="leafdesk-mention leafdesk-mention-date"
         title={when ? t("reminderSet", { when }) : undefined}
         onClick={onChange ? () => setOpen((v) => !v) : undefined}
         style={onChange ? undefined : { cursor: "default" }}
       >
-        <CalendarDays className="esionage-mention-icon" aria-hidden />
-        <span className="esionage-mention-label">{formatIsoDate(props.date, locale)}</span>
-        {props.remindAt && <Bell className="esionage-mention-icon" style={{ marginLeft: "0.25em", marginRight: 0 }} aria-label={t("reminder")} />}
+        <CalendarDays className="leafdesk-mention-icon" aria-hidden />
+        <span className="leafdesk-mention-label">{formatIsoDate(props.date, locale)}</span>
+        {props.remindAt && <Bell className="leafdesk-mention-icon" style={{ marginLeft: "0.25em", marginRight: 0 }} aria-label={t("reminder")} />}
       </span>
       {open && onChange && anchor.current && (
         <DatePopover anchor={anchor.current} props={props} onChange={onChange} onClose={() => setOpen(false)} />

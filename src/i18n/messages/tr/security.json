@@ -1,6 +1,6 @@
 {
   "title": "Hesap güvenliği",
-  "description": "Esionage'a nasıl giriş yaptığınız. Bu ayarlar hesabınıza aittir ve her çalışma alanında geçerlidir.",
+  "description": "Leafdesk'e nasıl giriş yaptığınız. Bu ayarlar hesabınıza aittir ve her çalışma alanında geçerlidir.",
   "connectedAppsNote": "MCP ile bağladığınız uygulamalar bu ayarları değiştirdiğinizde erişimlerini korur; kendi anahtarlarını kullanırlar. Bağlı uygulamalar bölümünden bağlantılarını kesebilirsiniz.",
   "fields": {
     "password": "Şifre"
@@ -53,7 +53,7 @@
     "newCodes": "Yeni kurtarma kodlarınız. Güvenli bir yerde saklayın; onları bir daha göremeyeceksiniz.",
     "copy": "Kodları kopyala",
     "download": "İndir",
-    "fileHeading": "Esionage kurtarma kodları. Her kod bir kez giriş yapmanızı sağlar."
+    "fileHeading": "Leafdesk kurtarma kodları. Her kod bir kez giriş yapmanızı sağlar."
   },
   "passkeys": {
     "heading": "Passkey'ler",

@@ -23,7 +23,7 @@ const { Readable } = await import("node:stream");
 const { randomBytes } = await import("node:crypto");
 
 // Small limits, so they can be hit with small files; a scratch directory for the bytes.
-const uploadDir = await mkdtemp(join(tmpdir(), "esionage-uploads-e2e-"));
+const uploadDir = await mkdtemp(join(tmpdir(), "leafdesk-uploads-e2e-"));
 process.env.STORAGE_DRIVER = "local";
 process.env.UPLOAD_DIR = uploadDir;
 process.env.UPLOAD_MAX_FILE_MB = String(10_000 / 1024 / 1024); // 10,000 bytes
@@ -194,7 +194,7 @@ try {
   );
   check((await files.workspaceUsage(workspaceId)) === 22_005, "refused uploads take no space", await files.workspaceUsage(workspaceId));
   check((await db.select({ id: file.id }).from(file).where(eq(file.workspaceId, workspaceId))).length === before + 2, "…and leave no rows");
-  const leftovers = (await readdir(tmpdir())).filter((name) => name.startsWith("esionage-upload-"));
+  const leftovers = (await readdir(tmpdir())).filter((name) => name.startsWith("leafdesk-upload-"));
   check(leftovers.length === 0, "…and no temporary files", leftovers);
   const parallel = await Promise.allSettled([
     upload(ids.owner, doc.id, "p1.bin", bytes(5_000)),
@@ -388,5 +388,5 @@ try {
   await db.delete(user).where(inArray(user.id, userIds));
   await rm(uploadDir, { recursive: true, force: true });
   hocuspocus.closeConnections();
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }

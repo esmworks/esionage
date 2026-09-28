@@ -12,7 +12,7 @@ on:
         required: true
 
 env:
-  REGISTRY_IMAGE: ghcr.io/esmworks/esionage
+  REGISTRY_IMAGE: ghcr.io/esmworks/leafdesk
   RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
   PRERELEASE: ${{ github.event.release.prerelease || false }}
 

@@ -230,7 +230,7 @@ async function main() {
   const [sso] = await db.execute<{ token: string }>(
     (await import("drizzle-orm")).sql`select verification_token as token from workspace_sso where workspace_id = ${workspaceId}`,
   );
-  await verifySsoDomains(owner.id, workspaceId, async (name) => (name === domainRecordName(DOMAIN) ? [[`esionage-sso=${sso.token}`]] : []));
+  await verifySsoDomains(owner.id, workspaceId, async (name) => (name === domainRecordName(DOMAIN) ? [[`leafdesk-sso=${sso.token}`]] : []));
 
   // ── Tokens ────────────────────────────────────────────────────────────────────────────────
   const page = await fetch(`${BASE}${settingsPath}?tab=security`, { headers: { cookie: owner.jar.header() } });
@@ -565,5 +565,5 @@ try {
   const ids = [...new Set([...userIds, ...byRun.map((u) => u.id)])];
   if (workspaceIds.length) await db.delete(workspace).where(inArray(workspace.id, workspaceIds));
   if (ids.length) await db.delete(user).where(inArray(user.id, ids));
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }

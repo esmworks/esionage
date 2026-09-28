@@ -42,7 +42,7 @@ export type SemanticHit = {
 };
 
 type Cache = Map<string, number[]>;
-const CACHE_KEY = "__esionageQueryVectors";
+const CACHE_KEY = "__leafdeskQueryVectors";
 const cache = ((globalThis as Record<string, unknown>)[CACHE_KEY] ??= new Map()) as Cache;
 
 /** The query's embedding, or null when it can't be had now (limit, provider trouble). */

@@ -277,15 +277,15 @@
 }
 
 /* Callouts: see server/blocknote.ts. The color comes from data-background-color above. */
-.body [data-esionage-callout] {
+.body [data-leafdesk-callout] {
   display: flex;
   align-items: flex-start;
   gap: 0.5em;
   padding: 0.65em 0.8em;
   border-radius: 6px;
 }
-.body [data-esionage-callout]:not([data-background-color]),
-.body [data-esionage-callout][data-background-color="default"] {
+.body [data-leafdesk-callout]:not([data-background-color]),
+.body [data-leafdesk-callout][data-background-color="default"] {
   box-shadow: inset 0 0 0 1px var(--border);
 }
 .body [data-callout-icon] {
@@ -299,7 +299,7 @@
 }
 
 /* Equations rendered by KaTeX on the server. */
-.body [data-esionage-math="block"] {
+.body [data-leafdesk-math="block"] {
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -344,7 +344,7 @@
   overflow-wrap: break-word;
 }
 
-.body.print [data-esionage-math="block"] {
+.body.print [data-leafdesk-math="block"] {
   overflow: visible;
 }
 
@@ -380,8 +380,8 @@
 .body.print video,
 .body.print figure,
 .body.print blockquote,
-.body.print [data-esionage-callout],
-.body.print [data-esionage-math="block"],
+.body.print [data-leafdesk-callout],
+.body.print [data-leafdesk-math="block"],
 .keep {
   break-inside: avoid;
 }

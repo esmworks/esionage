@@ -3,7 +3,7 @@
   "title": "Davet: “{workspace}”",
   "invalidTitle": "Davet bulunamadı",
   "invalidBody": "Bu davet bağlantısı geçersiz, süresi dolmuş ya da iptal edilmiş. Sizi davet eden kişiden yeni bir bağlantı isteyin.",
-  "home": "Esionage'a git",
+  "home": "Leafdesk'e git",
   "wrongAccount": "Bu davet {email} için, ancak {current} olarak giriş yaptınız. Çıkış yapıp bağlantıyı yeniden açın.",
   "acceptBody": "{role} olarak katılmaya davet edildiniz.",
   "signInBody": "{email} adresiyle bir hesap zaten var. Daveti kabul etmek için giriş yapın.",
