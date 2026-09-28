@@ -441,6 +441,17 @@
         "limit": "Un espacio de trabajo puede tener como máximo 20 tokens SCIM. Revoca uno primero.",
         "generic": "Algo salió mal. Inténtalo de nuevo."
       }
+    },
+    "retentionHeading": "Retención de datos",
+    "trashRetention": {
+      "title": "Eliminar las páginas de la papelera después de",
+      "description": "Las páginas que llevan este tiempo en la papelera se eliminan definitivamente, con sus subpáginas y archivos. La papelera muestra cuántos días le quedan a cada página.",
+      "never": "Nunca",
+      "days": "{count, plural, one {# día} other {# días}}"
+    },
+    "historyRetention": {
+      "title": "Historial de páginas",
+      "description": "Las versiones anteriores de una página se conservan {days} días, hasta {count} por página. Las versiones guardadas y las anteriores a una restauración se conservan {keptDays} días, y la versión más reciente de una página siempre se mantiene."
     }
   },
   "notifications": {

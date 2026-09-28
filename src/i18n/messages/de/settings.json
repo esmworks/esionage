@@ -441,6 +441,17 @@
         "limit": "Ein Workspace kann höchstens 20 SCIM-Tokens haben. Widerrufe zuerst eines.",
         "generic": "Etwas ist schiefgelaufen. Bitte versuche es noch einmal."
       }
+    },
+    "retentionHeading": "Datenaufbewahrung",
+    "trashRetention": {
+      "title": "Seiten im Papierkorb löschen nach",
+      "description": "Seiten, die so lange im Papierkorb liegen, werden mit ihren Unterseiten und Dateien endgültig gelöscht. Der Papierkorb zeigt, wie viele Tage jeder Seite noch bleiben.",
+      "never": "Nie",
+      "days": "{count, plural, one {# Tag} other {# Tagen}}"
+    },
+    "historyRetention": {
+      "title": "Seitenverlauf",
+      "description": "Frühere Versionen einer Seite werden {days} Tage lang aufbewahrt, höchstens {count} pro Seite. Gespeicherte Versionen und Versionen von vor einer Wiederherstellung bleiben {keptDays} Tage erhalten, und die neueste Version einer Seite bleibt immer."
     }
   },
   "notifications": {

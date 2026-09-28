@@ -6,6 +6,7 @@ import { useState } from "react";
 import { updateWorkspaceSettingsAction } from "@/app/actions/workspaces";
 import { Switch } from "@/components/ui";
 import type { WorkspaceSettings } from "@/db/schema";
+import { HISTORY_RETENTION, TRASH_RETENTION_CHOICES } from "@/lib/retention";
 import { SettingsRow } from "./section";
 import { selectClass, useAction } from "./workspace-settings";
 
@@ -184,6 +185,78 @@ export function RequireTwoFactorSetting({
           }}
         />
       }
+    />
+  );
+}
+
+/** Settings > Security: how long pages stay in the trash before the daily cleanup deletes them. */
+export function TrashRetentionSetting({
+  workspaceId,
+  settings,
+  canEdit,
+}: {
+  workspaceId: string;
+  settings: WorkspaceSettings;
+  canEdit: boolean;
+}) {
+  const t = useTranslations("settings.security.trashRetention");
+  const ts = useTranslations("settings.security");
+  const [value, setValue] = useState(settings.trashRetentionDays);
+  const { pending, error, run } = useAction();
+
+  return (
+    <SettingsRow
+      title={t("title")}
+      htmlFor="trash-retention"
+      description={
+        error ? (
+          <span className="text-danger">{error}</span>
+        ) : (
+          <>
+            {t("description")}
+            {!canEdit && <> {ts("ownersOnly")}</>}
+          </>
+        )
+      }
+      control={
+        <select
+          id="trash-retention"
+          className={selectClass}
+          value={value}
+          disabled={!canEdit || pending}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            const previous = value;
+            setValue(next);
+            run(async () => {
+              const result = await updateWorkspaceSettingsAction(workspaceId, { trashRetentionDays: next });
+              if (!result.ok) setValue(previous);
+              return result;
+            });
+          }}
+        >
+          {TRASH_RETENTION_CHOICES.map((days) => (
+            <option key={days} value={days}>
+              {days === 0 ? t("never") : t("days", { count: days })}
+            </option>
+          ))}
+        </select>
+      }
+    />
+  );
+}
+
+/** Settings > Security: the page history rules, the same for every workspace. */
+export function HistoryRetentionNote() {
+  const t = useTranslations("settings.security.historyRetention");
+  return (
+    <SettingsRow
+      title={t("title")}
+      description={t("description", {
+        days: HISTORY_RETENTION.maxAgeDays,
+        count: HISTORY_RETENTION.maxPerPage,
+        keptDays: HISTORY_RETENTION.keptAgeDays,
+      })}
     />
   );
 }

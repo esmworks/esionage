@@ -50,7 +50,9 @@
     "title": "Trash",
     "empty": "Trash is empty",
     "deletePermanently": "Delete permanently",
-    "confirmDelete": "Delete permanently? This cannot be undone."
+    "confirmDelete": "Delete permanently? This cannot be undone.",
+    "deletesIn": "Deleted in {count, plural, one {# day} other {# days}}",
+    "deletesSoon": "Deleted soon"
   },
   "newWorkspace": {
     "title": "New workspace",

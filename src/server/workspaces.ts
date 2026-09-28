@@ -25,6 +25,7 @@ import {
 import { isLocale, type Locale } from "@/i18n/config";
 import { type DeletionPlan, planAccountDeletion, type WorkspaceStanding } from "@/lib/account";
 import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
+import { TRASH_RETENTION_CHOICES } from "@/lib/retention";
 import { env } from "@/lib/env";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
 import { AccessError, findMembership, FULL_RANK, getMembership, isGuest, requireMember, requireMembership } from "@/server/access";
@@ -783,6 +784,7 @@ const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettin
   teamspaceCreation: ["owners", "members"],
   loginMethod: ["any", "sso"],
   ai: [true, false],
+  trashRetentionDays: TRASH_RETENTION_CHOICES,
 };
 
 /**

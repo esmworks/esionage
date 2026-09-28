@@ -50,7 +50,9 @@
     "title": "Papierkorb",
     "empty": "Der Papierkorb ist leer",
     "deletePermanently": "Endgültig löschen",
-    "confirmDelete": "Endgültig löschen? Das kann nicht rückgängig gemacht werden."
+    "confirmDelete": "Endgültig löschen? Das kann nicht rückgängig gemacht werden.",
+    "deletesIn": "Wird in {count, plural, one {# Tag} other {# Tagen}} gelöscht",
+    "deletesSoon": "Wird bald gelöscht"
   },
   "newWorkspace": {
     "title": "Neuer Workspace",

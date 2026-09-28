@@ -67,6 +67,11 @@ export type WorkspaceSettings = {
    * server/ai). Owners can turn them off so no page content of the workspace goes to the provider.
    */
   ai: boolean;
+  /**
+   * Days a page stays in the trash before the daily cleanup deletes it for good, with its files
+   * (see server/retention.ts); 0 keeps it until someone deletes it. One of TRASH_RETENTION_CHOICES.
+   */
+  trashRetentionDays: number;
 };
 
 export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
@@ -77,6 +82,7 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   teamspaceCreation: "members",
   loginMethod: "any",
   ai: true,
+  trashRetentionDays: 30,
 };
 
 export const workspace = pgTable("workspace", {

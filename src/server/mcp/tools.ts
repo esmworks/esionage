@@ -1453,7 +1453,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "List trashed pages",
       description:
-        "List the pages in a workspace's trash, most recently trashed first. Only the top page of each trashed tree is listed; restoring it brings its sub-pages back too.",
+        "List the pages in a workspace's trash, most recently trashed first. Only the top page of each trashed tree is listed; restoring it brings its sub-pages back too. deletes_at is when the workspace's retention setting deletes the page for good (null: kept until someone deletes it).",
       inputSchema: z.object({ workspace_id: id("workspace") }),
       annotations: READ,
     },
@@ -1467,6 +1467,7 @@ export function createMcpServer(principal: McpPrincipal) {
             kind: p.kind,
             icon: p.icon,
             trashed_at: new Date(p.archived_at).toISOString(),
+            deletes_at: p.deletesAt?.toISOString() ?? null,
           })),
         };
       }),

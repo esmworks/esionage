@@ -2,10 +2,11 @@
 
 import { RotateCcw, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useState, useTransition } from "react";
 import { deletePagePermanentlyAction, listTrashAction, restorePageAction } from "@/app/actions/pages";
 import { Dialog, IconButton, PageIcon, pageLabel } from "@/components/ui";
+import { daysUntil } from "@/lib/retention";
 
 type TrashItem = Awaited<ReturnType<typeof listTrashAction>>[number];
 
@@ -23,11 +24,21 @@ export function TrashDialog({
   const router = useRouter();
   const t = useTranslations("sidebar.trash");
   const tc = useTranslations("common");
+  const format = useFormatter();
   const [items, setItems] = useState<TrashItem[] | null>(null);
+  // When the list was loaded: days left count from there rather than from each render.
+  const [loadedAt, setLoadedAt] = useState(() => new Date());
   const [error, setError] = useState(false);
   const [, startTransition] = useTransition();
 
-  const load = () => listTrashAction(workspaceId).then(setItems, () => setError(true));
+  const load = () =>
+    listTrashAction(workspaceId).then(
+      (list) => {
+        setItems(list);
+        setLoadedAt(new Date());
+      },
+      () => setError(true),
+    );
   useEffect(() => {
     if (!open) return;
     setError(false);
@@ -47,6 +58,12 @@ export function TrashDialog({
       }
       await load();
     });
+  }
+
+  /** "Deleted in N days"; once due, the page waits for the next daily cleanup. */
+  function deletionLabel(deletesAt: Date) {
+    const days = daysUntil(deletesAt, loadedAt);
+    return days > 0 ? t("deletesIn", { count: days }) : t("deletesSoon");
   }
 
   function restore(id: string) {
@@ -81,6 +98,11 @@ export function TrashDialog({
               <PageIcon icon={item.icon} kind={item.kind} className="text-sm" />
               <span className="truncate">{pageLabel(item.title, tc("untitled"))}</span>
             </button>
+            {item.deletesAt && (
+              <span className="shrink-0 text-xs text-fg-muted" title={format.dateTime(item.deletesAt, { dateStyle: "medium" })}>
+                {deletionLabel(item.deletesAt)}
+              </span>
+            )}
             {item.canRestore && (
               <IconButton label={tc("restore")} onClick={() => restore(item.id)}>
                 <RotateCcw className="h-3.5 w-3.5" />

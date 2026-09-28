@@ -31,6 +31,8 @@ console.log(`file storage: ${getStorage().kind}`);
 const { startReminders } = await import("./src/server/mentions");
 const { startAiProperties } = await import("./src/server/ai-properties");
 const { startSemanticIndex } = await import("./src/server/semantic-index");
+const { startRetention } = await import("./src/server/retention");
+const { retentionJobEnabled } = await import("./src/lib/retention");
 
 const { hocuspocus, service } = createCollab();
 registerCollab(service);
@@ -99,6 +101,9 @@ server.listen(port, hostname, () => {
   // Logs the AI provider (or that AI is off) and follows row changes for auto-updating AI values.
   startAiProperties();
   startSemanticIndex();
+  // Deletes pages whose time in the trash is up, and old page history, once a day. Only in
+  // production unless asked for: a dev server shouldn't quietly delete a developer's data.
+  if (retentionJobEnabled(process.env.RETENTION_JOB, dev)) startRetention();
 });
 
 let shuttingDown = false;

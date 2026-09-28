@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { makeStatusOptions } from "@/lib/properties";
+import { trashDeletionDate } from "@/lib/retention";
 import {
   databaseProperty,
   databaseView,
@@ -41,7 +42,7 @@ import { inSubtree, semanticSearch } from "@/server/semantic-search";
 import { reciprocalRankFusion, snippetOf } from "@/server/semantic-text";
 import { followNewSpace, freezeInheritedEntries, makePagePrivate } from "@/server/permissions";
 import { placeTopLevel, requireTeamspaceForPages, sidebarTeamspaces, type TeamspaceSummary } from "@/server/teamspaces";
-import { requireTopLevel } from "@/server/workspaces";
+import { requireTopLevel, workspaceSettings } from "@/server/workspaces";
 
 import { placeInSections, PRIVATE_SECTION, SHARED_SECTION, type TreeSection } from "@/lib/tree-sections";
 
@@ -415,9 +416,25 @@ export async function restorePage(userId: string, pageId: string) {
 export async function deletePagePermanently(userId: string, pageId: string) {
   const p = await requirePageAccess(userId, pageId, "full");
   if (!p.archivedAt) throw new Error("Move the page to the trash before deleting it");
-  await db.delete(page).where(eq(page.id, pageId));
-  getCollab().broadcast(`ws:${p.workspaceId}`, "tree");
-  await removeOrphanFiles(p.workspaceId);
+  await deleteTrashedPages(p.workspaceId, [pageId]);
+}
+
+/**
+ * Deletes pages of the trash for good, with their subpages (and their history, comments and so on,
+ * which go with the page), then the uploads no other page shows. Pages taken out of the trash in
+ * the meantime are left alone. Returns the ids deleted. No access check: deletePagePermanently
+ * checks the person, the retention cleanup (server/retention.ts) acts for the workspace.
+ */
+export async function deleteTrashedPages(workspaceId: string, pageIds: string[]) {
+  if (!pageIds.length) return [];
+  const deleted = await db
+    .delete(page)
+    .where(and(eq(page.workspaceId, workspaceId), inArray(page.id, pageIds), isNotNull(page.archivedAt)))
+    .returning({ id: page.id });
+  if (!deleted.length) return [];
+  getCollab().broadcast(`ws:${workspaceId}`, "tree");
+  await removeOrphanFiles(workspaceId);
+  return deleted.map((d) => d.id);
 }
 
 /**
@@ -433,8 +450,13 @@ export async function removeOrphanFiles(workspaceId: string) {
   }
 }
 
+/**
+ * The trash: each entry carries the user's access level and, under the workspace's retention
+ * setting, when it will be deleted for good (null when the workspace keeps it).
+ */
 export async function listTrash(userId: string, workspaceId: string) {
   await requireMembership(userId, workspaceId);
+  const { trashRetentionDays } = await workspaceSettings(workspaceId);
   // Only roots of archived subtrees; their descendants come back with them. The access level says
   // whether the user may restore (edit) or delete for good (full).
   const rows = await db.execute<{
@@ -460,7 +482,11 @@ export async function listTrash(userId: string, workspaceId: string) {
     order by archived_at desc
     limit 100
   `);
-  return rows.map(({ level, ...r }) => ({ ...r, level: levelFromRank(level) }));
+  return rows.map(({ level, ...r }) => ({
+    ...r,
+    level: levelFromRank(level),
+    deletesAt: trashDeletionDate(new Date(r.archived_at), trashRetentionDays),
+  }));
 }
 
 /**

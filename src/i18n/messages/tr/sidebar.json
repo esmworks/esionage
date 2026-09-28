@@ -50,7 +50,9 @@
     "title": "Çöp kutusu",
     "empty": "Çöp kutusu boş",
     "deletePermanently": "Kalıcı olarak sil",
-    "confirmDelete": "Kalıcı olarak silinsin mi? Bu işlem geri alınamaz."
+    "confirmDelete": "Kalıcı olarak silinsin mi? Bu işlem geri alınamaz.",
+    "deletesIn": "{count, plural, other {# gün}} sonra silinecek",
+    "deletesSoon": "Yakında silinecek"
   },
   "newWorkspace": {
     "title": "Yeni çalışma alanı",

@@ -441,6 +441,17 @@
         "limit": "Un espace de travail peut avoir au plus 20 jetons SCIM. Révoquez-en un d'abord.",
         "generic": "Une erreur s'est produite. Veuillez réessayer."
       }
+    },
+    "retentionHeading": "Conservation des données",
+    "trashRetention": {
+      "title": "Supprimer les pages de la corbeille après",
+      "description": "Les pages restées aussi longtemps dans la corbeille sont supprimées définitivement, avec leurs sous-pages et leurs fichiers. La corbeille indique combien de jours il reste à chaque page.",
+      "never": "Jamais",
+      "days": "{count, plural, one {# jour} other {# jours}}"
+    },
+    "historyRetention": {
+      "title": "Historique des pages",
+      "description": "Les versions précédentes d’une page sont conservées {days} jours, jusqu’à {count} par page. Les versions enregistrées et celles d’avant une restauration sont conservées {keptDays} jours, et la dernière version d’une page est toujours gardée."
     }
   },
   "notifications": {
