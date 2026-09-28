@@ -42,7 +42,9 @@
   "search": {
     "placeholder": "Sayfalarda ve içerikte ara…",
     "label": "Ara",
-    "noResults": "Sonuç bulunamadı"
+    "noResults": "Sonuç bulunamadı",
+    "semantic": "Benzer anlam",
+    "semanticHint": "Anlamına göre bulundu: kelimeler aramandakilerden farklı."
   },
   "trash": {
     "title": "Çöp kutusu",

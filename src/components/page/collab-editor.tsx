@@ -19,6 +19,7 @@ import {
 import { X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useBlockFocus } from "./block-focus";
 import { commentUsersAction } from "@/app/actions/comments";
 import { AskAiToolbarButton, useAiAssist, useAiSlashItems, type AiAssist } from "./ai-assist";
 import { yUndoPluginKey } from "y-prosemirror";
@@ -176,6 +177,8 @@ export default function CollabEditor({
   }, [threadStore, editor]);
 
   const assistant = useAiAssist(editor, pageId, ai && editable && !offline);
+  // Links to a passage (the AI chat's citations) scroll to its block.
+  useBlockFocus();
 
   // Keyed by language so the new editor mounts into a fresh element.
   return (

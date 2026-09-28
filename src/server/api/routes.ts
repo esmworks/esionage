@@ -195,7 +195,8 @@ export const API_ROUTES: ApiRoute[] = [
     operationId: "search",
     tag: "Pages",
     summary: "Search pages",
-    description: "Full-text search over page titles and bodies (database rows included), best matches first.",
+    description:
+      "Search over page titles and bodies (database rows included), best matches first: full-text, merged with semantic search (by meaning) when the server has an embeddings model. `match` says how each result was found.",
     scope: "pages:read",
     query: z.object({
       query: z.string().min(1).describe("Words to look for."),

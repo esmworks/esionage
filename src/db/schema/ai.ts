@@ -1,5 +1,5 @@
-import { index, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
-import { databaseProperty, page } from "./app";
+import { index, integer, jsonb, pgTable, primaryKey, real, text, timestamp } from "drizzle-orm/pg-core";
+import { databaseProperty, page, workspace } from "./app";
 import { user } from "./auth";
 
 /**
@@ -28,4 +28,97 @@ export const aiPropertyState = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.rowId, t.propertyId] }), index("ai_property_state_property_idx").on(t.propertyId)],
+);
+
+/**
+ * Semantic search (#43): a page's text in chunks, each with its embedding (see
+ * server/semantic-index.ts). Vectors are plain `real[]` so any PostgreSQL works without the
+ * pgvector extension; `embedding_cosine` (drizzle/*_semantic_search.sql) ranks them. One row per
+ * distinct chunk text of a page (`contentHash`), so chunks that didn't change keep their vector.
+ * Chunks of another model than the configured one are ignored and replaced when the page is
+ * indexed again.
+ */
+export const pageChunk = pgTable(
+  "page_chunk",
+  {
+    pageId: text("page_id")
+      .notNull()
+      .references(() => page.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    /** sha256 of the chunk's text as embedded. */
+    contentHash: text("content_hash").notNull(),
+    /** Order within the page. */
+    position: integer("position").notNull(),
+    /** The block the chunk starts at, for links to the passage; null for title and properties. */
+    blockId: text("block_id"),
+    text: text("text").notNull(),
+    model: text("model").notNull(),
+    dimensions: integer("dimensions").notNull(),
+    embedding: real("embedding").array().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.pageId, t.contentHash] }), index("page_chunk_workspace_model_idx").on(t.workspaceId, t.model)],
+);
+
+/**
+ * When a page was last indexed for semantic search, and from what: `sourceHash` fingerprints its
+ * chunks and the model, `sourceUpdatedAt` is the page's `updated_at` then. Pages changed since
+ * (or never indexed, or indexed with another model) are picked up by the background sweep.
+ */
+export const pageIndexState = pgTable(
+  "page_index_state",
+  {
+    pageId: text("page_id")
+      .primaryKey()
+      .references(() => page.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    model: text("model").notNull(),
+    sourceHash: text("source_hash").notNull(),
+    sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }).notNull(),
+    indexedAt: timestamp("indexed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("page_index_state_workspace_idx").on(t.workspaceId)],
+);
+
+/** A source an answer of the AI chat cites: a page (and the block the passage starts at). */
+export type ChatSourceRef = { n: number; pageId: string; blockId: string | null };
+
+/** One message of an AI chat conversation, as stored. */
+export type ChatMessageRecord = {
+  role: "user" | "assistant";
+  content: string;
+  /** Assistant answers: the sources the answer cites as [n]. */
+  sources?: ChatSourceRef[];
+  /** Answers that didn't finish: stopped by the person, or cut off at the length limit. */
+  note?: "stopped" | "cutOff";
+  at: string;
+};
+
+/**
+ * AI chat conversations (#41), private to the person who had them: only they can list, read or
+ * delete them. Deleted with their account, when they leave the workspace and with the workspace.
+ * Cited pages are looked up again with the reader's current access whenever they are shown.
+ */
+export const aiConversation = pgTable(
+  "ai_conversation",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    title: text("title").notNull().default(""),
+    messages: jsonb("messages").$type<ChatMessageRecord[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ai_conversation_user_idx").on(t.userId, t.workspaceId, t.updatedAt)],
 );

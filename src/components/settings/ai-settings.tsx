@@ -9,25 +9,29 @@ import { useAction } from "./workspace-settings";
 
 /**
  * Settings > General > AI: owners turn the workspace's AI features on or off; everyone sees which
- * provider and model the server uses. Without a provider on the server there is nothing to turn on.
+ * provider and models the server uses. Without a provider or an embeddings model on the server
+ * there is nothing to turn on.
  */
 export function AiSettings({
   workspaceId,
   enabled,
   canEdit,
   provider,
+  embeddings,
 }: {
   workspaceId: string;
   enabled: boolean;
   canEdit: boolean;
   /** The server's AI provider and model; null when none is set up. */
   provider: { provider: string; model: string } | null;
+  /** The server's embeddings model (semantic search); null when none is set up. */
+  embeddings: string | null;
 }) {
   const t = useTranslations("ai.settings");
   const [value, setValue] = useState(enabled);
   const { pending, error, run } = useAction();
 
-  if (!provider) {
+  if (!provider && !embeddings) {
     return <SettingsRow title={t("enabled")} description={t("notConfigured")} />;
   }
   return (
@@ -60,7 +64,11 @@ export function AiSettings({
           />
         }
       />
-      <SettingsRow title={t("provider")} description={t("providerValue", { provider: provider.provider, model: provider.model })} />
+      <SettingsRow
+        title={t("provider")}
+        description={provider ? t("providerValue", { provider: provider.provider, model: provider.model }) : t("noProvider")}
+      />
+      <SettingsRow title={t("semanticSearch")} description={embeddings ? t("semanticValue", { model: embeddings }) : t("semanticOff")} />
     </>
   );
 }

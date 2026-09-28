@@ -740,7 +740,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Search pages",
       description:
-        "Full-text search over page titles and bodies (including database rows) across the user's workspaces, best matches first. Returns ids, titles, a text snippet and a link.",
+        "Search over page titles and bodies (including database rows) across the user's workspaces, best matches first: full-text, plus semantic search (by meaning) when the server has an embeddings model. Returns ids, titles, a text snippet, how each result matched (\"text\" or \"semantic\") and a link.",
       inputSchema: ops.inputs.search,
       annotations: READ,
     },

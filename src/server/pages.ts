@@ -36,6 +36,9 @@ import {
   withCode,
   type BulkResult,
 } from "@/server/databases";
+import { pageChanged } from "@/server/page-events";
+import { inSubtree, semanticSearch } from "@/server/semantic-search";
+import { reciprocalRankFusion, snippetOf } from "@/server/semantic-text";
 import { followNewSpace, freezeInheritedEntries, makePagePrivate } from "@/server/permissions";
 import { placeTopLevel, requireTeamspaceForPages, sidebarTeamspaces, type TeamspaceSummary } from "@/server/teamspaces";
 import { requireTopLevel } from "@/server/workspaces";
@@ -302,6 +305,7 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
 
   const collab = getCollab();
   if (input.markdown?.trim()) await collab.replaceContent(created.id, input.markdown, actor);
+  pageChanged({ pageId: created.id });
   collab.broadcast(`ws:${workspaceId}`, "tree");
   if (parentKind === "database") collab.broadcast(`db:${input.parentId}`, "rows");
   return created;
@@ -402,6 +406,8 @@ export async function restorePage(userId: string, pageId: string) {
       await tx.update(page).set({ parentId }).where(eq(page.id, pageId));
     });
   }
+  // Back in search; the index catches up if it was left behind meanwhile.
+  pageChanged({ pageId });
   getCollab().broadcast(`ws:${p.workspaceId}`, "tree");
   if (parentId) getCollab().broadcast(`db:${parentId}`, "rows");
 }
@@ -529,14 +535,69 @@ export type SearchHit = {
   icon: string | null;
   snippet: string;
   updatedAt: Date;
+  /** "semantic": found by meaning only (its words don't match the query). */
+  match?: "semantic";
+  /** With semantic search: the passage that matched best, and the block it starts at. */
+  passage?: string;
+  blockId?: string | null;
 };
 
-/** Title + body search across the user's workspaces (or one workspace), newest first on ties. */
-export async function searchPages(
-  userId: string,
-  query: string,
-  { workspaceId, limit = 20 }: { workspaceId?: string; limit?: number } = {},
-): Promise<SearchHit[]> {
+export type SearchOptions = {
+  workspaceId?: string;
+  limit?: number;
+  /** Only this page and the pages under it. */
+  withinPageId?: string;
+};
+
+/**
+ * Search across the user's workspaces (or one workspace): full-text search over titles and bodies,
+ * merged with semantic search (reciprocal rank fusion) where the server has an embeddings model
+ * and the workspace has AI on. Without one, exactly the full-text results.
+ */
+export async function searchPages(userId: string, query: string, options: SearchOptions = {}): Promise<SearchHit[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const limit = options.limit ?? 20;
+  if (options.workspaceId) await enforceTwoFactorPolicy(userId, options.workspaceId);
+  const [text, meaning] = await Promise.all([
+    fullTextSearch(userId, q, { ...options, limit }),
+    semanticSearch(userId, q, { ...options, limit }).catch((error) => {
+      console.error("[search] semantic search failed", error);
+      return [];
+    }),
+  ]);
+  if (!meaning.length) return text;
+  const byId = new Map<string, SearchHit>(text.map((h) => [h.id, h]));
+  for (const m of meaning) {
+    const found = byId.get(m.id);
+    const snippet = snippetOf(m.passage) || found?.snippet || "";
+    byId.set(
+      m.id,
+      found
+        ? { ...found, passage: m.passage, blockId: m.blockId }
+        : {
+            id: m.id,
+            workspaceId: m.workspaceId,
+            teamspaceId: m.teamspaceId,
+            parentId: m.parentId,
+            kind: m.kind,
+            title: m.title,
+            icon: m.icon,
+            snippet,
+            updatedAt: m.updatedAt,
+            match: "semantic",
+            passage: m.passage,
+            blockId: m.blockId,
+          },
+    );
+  }
+  return reciprocalRankFusion([text.map((h) => h.id), meaning.map((m) => m.id)])
+    .slice(0, limit)
+    .map(({ id }) => byId.get(id)!);
+}
+
+/** Title + body full-text search across the user's workspaces (or one workspace), newest first on ties. */
+export async function fullTextSearch(userId: string, query: string, { workspaceId, limit = 20, withinPageId }: SearchOptions = {}): Promise<SearchHit[]> {
   const q = query.trim();
   if (!q) return [];
   if (workspaceId) await enforceTwoFactorPolicy(userId, workspaceId);
@@ -566,6 +627,7 @@ export async function searchPages(
       and not p.in_template
       and ${pageVisibleTo(userId, "p")}
       ${workspaceId ? sql`and p.workspace_id = ${workspaceId}` : sql``}
+      ${withinPageId ? sql`and ${inSubtree(withinPageId)}` : sql``}
       and (
         p.title ilike ${like} or p.content_text ilike ${like}
         or to_tsvector('simple', coalesce(p.title, '') || ' ' || coalesce(p.content_text, ''))

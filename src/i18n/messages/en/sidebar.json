@@ -42,7 +42,9 @@
   "search": {
     "placeholder": "Search pages and content…",
     "label": "Search",
-    "noResults": "No results"
+    "noResults": "No results",
+    "semantic": "Similar meaning",
+    "semanticHint": "Found by meaning: the words differ from your search."
   },
   "trash": {
     "title": "Trash",

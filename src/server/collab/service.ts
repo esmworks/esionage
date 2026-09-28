@@ -18,6 +18,7 @@ import { AccessError, TwoFactorRequiredError } from "@/server/access";
 import { sessionPassesTwoFactor } from "@/server/account-security";
 import { blocksToMarkdown, markdownToBlocks, serverEditor as editor } from "@/server/blocknote";
 import { mentionablePeople, syncPageReferences } from "@/server/mentions";
+import { pageChanged } from "@/server/page-events";
 import { rowChanged } from "@/server/row-events";
 import { authorizeCollab, parseDocName as parseName } from "./authorize";
 import type { Channel, CollabService, CommentActor, CommentOpResult, PageContent, WriteActor } from "./bridge";
@@ -214,6 +215,8 @@ export function createCollab() {
     // Every save, not only edits: a reminder changes the document but not its Markdown.
     await syncPageReferences(pageId, row.workspaceId, blocks, userId ?? null, context?.locale ?? null);
     if (!edited) return;
+    // Semantic search indexes the page again (debounced, in the background).
+    pageChanged({ pageId });
     // A database row's title or content changed: AI autofill values that follow it may update.
     if (row.parentId) rowChanged({ rowId: pageId, databaseId: row.parentId, userId: userId ?? null });
     if (title !== row.title) {

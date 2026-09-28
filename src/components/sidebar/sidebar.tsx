@@ -17,6 +17,7 @@ import {
   Plus,
   Search,
   Settings,
+  Sparkles,
   Trash2,
   Upload,
   UserRound,
@@ -48,6 +49,7 @@ import type { TreeNode } from "@/server/pages";
 import type { TeamspaceSummary } from "@/server/teamspaces";
 import { PRIVATE_SECTION, SHARED_SECTION, type TreeSection } from "@/lib/tree-sections";
 import { TeamspaceDialog } from "@/components/teamspaces/teamspace-dialog";
+import { useAiChat } from "@/components/ai-chat/chat-panel";
 import { InboxDialog } from "./inbox-dialog";
 import { NewWorkspaceDialog } from "./new-workspace-dialog";
 import { SearchDialog } from "./search-dialog";
@@ -138,6 +140,8 @@ export function Sidebar({
   const guest = workspace?.role === "guest";
 
   const offline = useIsOffline();
+  const aiChat = useAiChat();
+  const tAi = useTranslations("ai.chat");
   const tOffline = useTranslations("offline");
   /** Tooltip for a control that needs the server while it can't be reached. */
   const needsServer = (label: string) => (offline ? tOffline("needsConnection", { action: label }) : undefined);
@@ -602,6 +606,16 @@ export function Sidebar({
             >
               {t("nav.search")}
             </SidebarButton>
+            {aiChat && (
+              <SidebarButton
+                icon={<Sparkles className="h-4 w-4" />}
+                onClick={() => aiChat.setOpen(!aiChat.open)}
+                active={aiChat.open}
+                title={offline ? needsServer(tAi("open")) : !aiChat.available ? tAi("disabled") : undefined}
+              >
+                {tAi("open")}
+              </SidebarButton>
+            )}
             <SidebarButton icon={<House className="h-4 w-4" />} href={`/w/${workspaceId}`} active={pathname === `/w/${workspaceId}`}>
               {t("nav.home")}
             </SidebarButton>

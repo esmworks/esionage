@@ -42,7 +42,9 @@
   "search": {
     "placeholder": "Buscar páginas y contenido…",
     "label": "Buscar",
-    "noResults": "Sin resultados"
+    "noResults": "Sin resultados",
+    "semantic": "Significado parecido",
+    "semanticHint": "Encontrada por su significado: las palabras no coinciden con tu búsqueda."
   },
   "trash": {
     "title": "Papelera",

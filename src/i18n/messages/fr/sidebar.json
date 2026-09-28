@@ -42,7 +42,9 @@
   "search": {
     "placeholder": "Rechercher dans les pages et leur contenu…",
     "label": "Rechercher",
-    "noResults": "Aucun résultat"
+    "noResults": "Aucun résultat",
+    "semantic": "Sens proche",
+    "semanticHint": "Trouvée par son sens : les mots diffèrent de votre recherche."
   },
   "trash": {
     "title": "Corbeille",

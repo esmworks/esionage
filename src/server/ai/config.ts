@@ -40,7 +40,14 @@ export type AiEmbeddingsConfig = {
   apiKey: string | null;
   /** Asks the model for vectors of this size, where it supports that. */
   dimensions: number | null;
+  /**
+   * Semantic search leaves out passages less similar to the query than this (cosine, 0-1). What
+   * counts as similar depends on the model; see AI_EMBEDDINGS_MIN_SIMILARITY in the README.
+   */
+  minSimilarity: number;
 };
+
+export const DEFAULT_MIN_SIMILARITY = 0.3;
 
 export type AiLimits = {
   /** Characters of prompt (instructions plus content) one request may send. */
@@ -142,12 +149,24 @@ export function readAiConfig(env: Env = process.env): AiConfig {
     const sameEndpoint = baseUrl !== null && baseUrl === inherited;
     const apiKey = clean(env.AI_EMBEDDINGS_API_KEY) ?? (sameEndpoint ? (chat?.apiKey ?? null) : null);
     const dimensions = clean(env.AI_EMBEDDINGS_DIMENSIONS) ? positive(env, "AI_EMBEDDINGS_DIMENSIONS", 0, problems) || null : null;
+    const minSimilarity = similarity(env, problems);
     if (!baseUrl) {
       if (explicit !== undefined) problems.push("AI_EMBEDDINGS_BASE_URL is required for embeddings with this AI_PROVIDER");
-    } else embeddings = { model: embeddingModel, baseUrl, apiKey, dimensions };
+    } else embeddings = { model: embeddingModel, baseUrl, apiKey, dimensions, minSimilarity };
   }
 
   return { chat, embeddings, limits, problems };
+}
+
+function similarity(env: Env, problems: string[]) {
+  const raw = clean(env.AI_EMBEDDINGS_MIN_SIMILARITY);
+  if (raw === null) return DEFAULT_MIN_SIMILARITY;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n >= 1) {
+    problems.push(`AI_EMBEDDINGS_MIN_SIMILARITY must be a number from 0 to below 1 (using ${DEFAULT_MIN_SIMILARITY})`);
+    return DEFAULT_MIN_SIMILARITY;
+  }
+  return n;
 }
 
 /**
