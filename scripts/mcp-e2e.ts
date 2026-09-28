@@ -2,11 +2,12 @@
  * End-to-end check of the remote MCP server against a running app (`pnpm dev`):
  * discovery, DCR, sign-in continuation, consent (deny, read-only, full), authorization
  * code + PKCE with `resource`, refresh, MCP tool calls on both protocol eras, scope
- * step-up for writes, and revocation.
+ * step-up for writes, and revocation. Signs up its own @example.test user and deletes it
+ * afterwards, with its workspace (and everything the run created in it) and the OAuth clients.
  *
  *   pnpm tsx scripts/mcp-e2e.ts
  *
- * Env: APP_URL (default http://localhost:3000), E2E_EMAIL / E2E_PASSWORD (default test user).
+ * Env: APP_URL (default http://localhost:3000), DATABASE_URL (read from .env when present).
  */
 import { createHash, randomBytes } from "node:crypto";
 
@@ -15,11 +16,16 @@ try {
 } catch {}
 
 const BASE = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
-const EMAIL = process.env.E2E_EMAIL ?? "test@example.com";
-const PASSWORD = process.env.E2E_PASSWORD ?? "password123";
 const REDIRECT_URI = "http://127.0.0.1:33418/callback";
 const RESOURCE = `${BASE}/mcp`;
 const RUN = Date.now().toString(36);
+const EMAIL = `mcp-e2e-${RUN}@example.test`;
+const PASSWORD = "mcp-e2e-password-123";
+
+// What the run creates, so the cleanup can delete it even when a check fails.
+const userIds: string[] = [];
+const workspaceIds: string[] = [];
+const clientIds: string[] = [];
 
 let passed = 0;
 function check(condition: unknown, label: string, detail?: unknown): asserts condition {
@@ -98,6 +104,7 @@ async function register(as: Awaited<ReturnType<typeof discover>>, name: string):
   });
   const body = await json(res);
   check(res.status === 201 || res.status === 200, `DCR registers public client "${name}"`, body);
+  if (body.client_id) clientIds.push(body.client_id);
   check(!body.client_secret, "public client gets no secret");
   return body;
 }
@@ -293,8 +300,39 @@ class LegacySession {
 
 // ---------------------------------------------------------------------------- run
 
+/** Signs up the run's user in a browser of its own; the OAuth flow then signs in afresh. */
+async function signUp() {
+  const jar = new Jar();
+  const res = await authPost(jar, "/sign-up/email", { name: `MCP e2e ${RUN}`, email: EMAIL, password: PASSWORD });
+  const body = await json(res);
+  if (body?.user?.id) userIds.push(body.user.id);
+  check(res.ok && body?.user?.id, "sign up the e2e user", body);
+  const { db } = await import("@/db");
+  const { workspaceMember } = await import("@/db/schema");
+  const { eq } = await import("drizzle-orm");
+  const own = await db.select({ id: workspaceMember.workspaceId }).from(workspaceMember).where(eq(workspaceMember.userId, body.user.id));
+  workspaceIds.push(...own.map((w) => w.id));
+  check(own.length === 1, "sign-up made a personal workspace", own);
+}
+
+async function cleanup() {
+  const { db } = await import("@/db");
+  const { file, oauthClient, user, workspace } = await import("@/db/schema");
+  const { removeStored } = await import("@/server/files");
+  const { inArray } = await import("drizzle-orm");
+  if (workspaceIds.length) {
+    // Deleting the workspace drops its file rows; the bytes in storage go separately.
+    const stored = await db.select({ key: file.storageKey }).from(file).where(inArray(file.workspaceId, workspaceIds));
+    await db.delete(workspace).where(inArray(workspace.id, workspaceIds));
+    await removeStored(stored.map((f) => f.key));
+  }
+  if (userIds.length) await db.delete(user).where(inArray(user.id, userIds));
+  if (clientIds.length) await db.delete(oauthClient).where(inArray(oauthClient.clientId, clientIds));
+}
+
 async function main() {
   console.log(`MCP e2e against ${BASE} (run ${RUN})\n`);
+  await signUp();
 
   // Unauthenticated access is challenged with a pointer to the resource metadata.
   const unauth = await rpc(null, { jsonrpc: "2.0", id: 1, method: "tools/list" });
@@ -361,7 +399,7 @@ async function main() {
   check(getPageTool.annotations?.readOnlyHint === true, "read tools are annotated readOnlyHint");
 
   const { workspaces } = await mcp.ok("list_workspaces", {});
-  check(workspaces.length > 0, "user has at least one workspace");
+  check(workspaces.length === 1 && workspaceIds.includes(workspaces[0].id), "list_workspaces lists the user's own workspace", workspaces);
   const ws = workspaces[0].id as string;
   const inbox = await mcp.ok("list_notifications", { workspace_id: ws, unread_only: true });
   check(Array.isArray(inbox.notifications), "list_notifications reads the inbox with notifications:read", inbox);
@@ -727,18 +765,22 @@ async function main() {
   const appsAfter = await listConnectedApps(me.id);
   check(!appsAfter.some((x) => x.clientId === full.client_id || x.clientId === ro.client_id), "revoked apps disappear from connected apps");
 
-  // The e2e clients are throwaway; drop them so they do not pile up.
-  const { oauthClient } = await import("@/db/schema");
-  const { inArray } = await import("drizzle-orm");
-  await db.delete(oauthClient).where(inArray(oauthClient.clientId, [full.client_id, ro.client_id]));
-
   console.log(`\nAll ${passed} checks passed.`);
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(`\n${passed} checks passed before the failure.`);
-    console.error(error);
-    process.exit(1);
-  });
+let failed = false;
+try {
+  await main();
+} catch (error) {
+  failed = true;
+  console.error(`\n${passed} checks passed before the failure.`);
+  console.error(error);
+} finally {
+  try {
+    await cleanup();
+  } catch (error) {
+    failed = true;
+    console.error("Cleanup failed:", error);
+  }
+}
+process.exit(failed ? 1 : 0);
