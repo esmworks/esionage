@@ -56,6 +56,7 @@ import {
   ACCOUNT_SETTINGS_TABS,
   accountTabForSettings,
   type AccountSettingsTab,
+  isSettingsTab,
   type SettingsTab,
   visibleSettingsTabs,
 } from "@/lib/settings-tabs";
@@ -125,6 +126,9 @@ export default async function SettingsPage({
   const tabs = visibleSettingsTabs({ guest, managesGuests, owner: isOwner });
   // The person's own settings come first, then the workspace's (the workspace sidebar is hidden here).
   const accountTab = ACCOUNT_SETTINGS_TABS.find((name) => name === query.tab);
+  // A workspace tab this person may not open is not found, the way its data routes answer, rather
+  // than quietly showing General: the link isn't broken for them, the tab isn't theirs.
+  if (isSettingsTab(query.tab) && !tabs.includes(query.tab)) notFound();
   const tab: SettingsTab | AccountSettingsTab = accountTab ?? tabs.find((name) => name === query.tab) ?? "general";
   const [t, ta] = await Promise.all([getTranslations("settings"), getTranslations("account")]);
   const href = (name: string) => `/w/${workspaceId}/settings?tab=${name}`;

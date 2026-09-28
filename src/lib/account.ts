@@ -81,8 +81,11 @@ export type DeletionPlan = {
   blockers: { id: string; name: string }[];
   /** Workspaces nobody else is in: deleted along with the account. */
   deleted: { id: string; name: string }[];
-  /** Workspaces shared with others: the person leaves, and an owner takes over pages only they managed. */
-  left: { id: string; name: string }[];
+  /**
+   * Workspaces shared with others: the person leaves, and an owner takes over pages only they
+   * managed. With the role they leave, for the workspace's audit log.
+   */
+  left: { id: string; name: string; role: WorkspaceStanding["role"] }[];
 };
 
 /**
@@ -95,7 +98,7 @@ export function planAccountDeletion(standings: WorkspaceStanding[]): DeletionPla
     const entry = { id: w.id, name: w.name };
     if (w.people <= 1) plan.deleted.push(entry);
     else if (w.role === "owner" && w.owners <= 1) plan.blockers.push(entry);
-    else plan.left.push(entry);
+    else plan.left.push({ ...entry, role: w.role });
   }
   return plan;
 }

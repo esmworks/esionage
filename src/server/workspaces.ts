@@ -926,10 +926,10 @@ export async function withdrawFromWorkspaces(tx: Tx, userId: string): Promise<{ 
     fileKeys.push(...files.map((f) => f.key));
     await tx.delete(workspace).where(inArray(workspace.id, deleted));
   }
-  for (const { id } of plan.left) {
+  for (const { id, role } of plan.left) {
     // Recorded while the account is still there: the event keeps their name, the id is cleared.
     await recordAudit(
-      { workspaceId: id, actorId: userId, action: "member.left", target: { type: "user", id: userId }, details: { via: "account_deleted" } },
+      { workspaceId: id, actorId: userId, action: "member.left", target: { type: "user", id: userId }, details: { role, via: "account_deleted" } },
       tx,
     );
     await tx.delete(workspaceMember).where(and(eq(workspaceMember.workspaceId, id), eq(workspaceMember.userId, userId)));

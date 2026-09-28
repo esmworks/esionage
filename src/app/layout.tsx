@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
-import { getLocale, getTranslations } from "next-intl/server";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { AppShellSetup } from "@/components/offline/install-app";
 import { StaleDeploymentReload } from "@/components/stale-deployment";
 import { TimeZoneCookie } from "@/components/time-zone-cookie";
+import { clientMessages } from "@/i18n/messages";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -27,11 +28,11 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const locale = await getLocale();
+  const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   return (
     <html lang={locale} suppressHydrationWarning>
       <body>
-        <NextIntlClientProvider>
+        <NextIntlClientProvider messages={clientMessages(messages)}>
           {children}
           <TimeZoneCookie />
           <StaleDeploymentReload />

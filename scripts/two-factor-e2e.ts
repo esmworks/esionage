@@ -424,6 +424,10 @@ async function main() {
   await enableTwoFactor(member.jar);
   const inside = await open(`/w/${workspaceId}`, member.jar);
   check(inside.status === 200, "once set up, the member gets in", inside);
+  const membersTab = await open(`/w/${workspaceId}/settings?tab=members`, member.jar);
+  check(membersTab.status === 200, "…opens Settings' members tab", membersTab.status);
+  const ownersTab = await open(`/w/${workspaceId}/settings?tab=audit`, member.jar);
+  check(ownersTab.status === 404, "…but not the owners' audit log, which isn't found rather than showing General", ownersTab.status);
   const treeAfter = await callAction(member.jar, settingsPath, PAGES_ACTIONS, "getSidebarAction", [workspaceId]);
   check(treeAfter.status === 200 && treeAfter.text.includes("Plan"), "…server actions answer them", treeAfter.status);
   const fileAfter = await fetch(`${BASE}/api/files/${uploaded.id}`, { headers: { cookie: member.jar.header() } });

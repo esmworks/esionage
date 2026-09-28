@@ -111,6 +111,12 @@ async function open(path: string, jar: Jar) {
   return { status: res.status, location: res.headers.get("location"), text: res.status === 200 ? await res.text() : "" };
 }
 
+/** `/account…`, which sends someone who can open a workspace on to the same tab under its Settings. */
+async function openAccount(path: string, jar: Jar) {
+  const page = await open(path, jar);
+  return page.status === 307 && page.location?.includes("/settings?tab=") ? open(page.location, jar) : page;
+}
+
 /** A code the app would show right now; waits out the last seconds of a period so it stays valid. */
 async function codeFor(key: Uint8Array) {
   if (Date.now() % 30_000 > 27_000) await new Promise((r) => setTimeout(r, 3_500));
@@ -231,25 +237,29 @@ async function stored(key: string) {
 async function main() {
   // ── The page and the old addresses ──────────────────────────────────────────────────────
   const ada = await signUp("ada");
-  const page = await open("/account", ada.jar);
-  check(page.status === 200 && page.text.includes(emailOf("ada")), "the account page opens with the account's email", page.status);
+  const moved = await open("/account", ada.jar);
+  check(
+    moved.status === 307 && moved.location === `/w/${ada.workspaceId}/settings?tab=profile`,
+    "the account page moves to the workspace's Settings",
+    moved,
+  );
+  const page = await open(moved.location!, ada.jar);
+  check(page.status === 200 && page.text.includes(emailOf("ada")), "…where it opens with the account's email", page.status);
   const anonymous = await open("/account", new Jar());
   check(anonymous.status === 307 && anonymous.location?.includes("/sign-in"), "signed out, it sends to sign-in", anonymous);
-  for (const [old, tab] of [
+  for (const [tab, under] of [
+    ["security", "accountSecurity"],
     ["preferences", "preferences"],
-    ["accountSecurity", "security"],
     ["apps", "apps"],
   ]) {
-    const moved = await open(`/w/${ada.workspaceId}/settings?tab=${old}`, ada.jar);
+    const sent = await open(`/account?tab=${tab}&from=${ada.workspaceId}`, ada.jar);
     check(
-      moved.status === 307 && moved.location === `/account?tab=${tab}&from=${ada.workspaceId}`,
-      `the old settings tab "${old}" redirects to the account page`,
-      moved,
+      sent.status === 307 && sent.location === `/w/${ada.workspaceId}/settings?tab=${under}`,
+      `the account's ${tab} tab moves to Settings as "${under}"`,
+      sent,
     );
-  }
-  for (const tab of ["security", "preferences", "apps"]) {
-    const opened = await open(`/account?tab=${tab}&from=${ada.workspaceId}`, ada.jar);
-    check(opened.status === 200, `the ${tab} tab opens`, opened.status);
+    const opened = await open(sent.location!, ada.jar);
+    check(opened.status === 200, `…and opens`, opened.status);
   }
 
   // ── Name ────────────────────────────────────────────────────────────────────────────────
@@ -327,7 +337,7 @@ async function main() {
   const laptop = await signIn(emailOf("ada"), PASSWORD);
   check(phone.status === 200 && laptop.status === 200, "two more devices sign in");
   const phoneSession = (await sessionOf(phone.jar))!.session.id;
-  const overview = await open("/account?tab=security", ada.jar);
+  const overview = await openAccount("/account?tab=security", ada.jar);
   check(overview.status === 200 && overview.text.includes(phoneSession), "the security tab lists the other devices", overview.status);
   // (In development React's debug info repeats this browser's own session and cookie in the page;
   // the other devices' tokens must never be there.)
@@ -381,7 +391,7 @@ async function main() {
   // Recently signed in, without two-step verification: the recent sign-in is the proof.
   const sam = await signUp("sam");
   await makeSocialOnly(sam.id);
-  const samPage = await open("/account?tab=security", sam.jar);
+  const samPage = await openAccount("/account?tab=security", sam.jar);
   check(samPage.status === 200 && samPage.text.includes("GitHub"), "an account without a password opens its security tab", samPage.status);
   const noChange = await account_(sam.jar, "changePasswordAction", [{ currentPassword: "x", newPassword: NEW_PASSWORD, revokeOthers: false }]);
   check(!noChange.ok && noChange.code === "noPassword", "…it has no password to change", noChange);
@@ -434,7 +444,7 @@ async function main() {
   const rows = await pendingRows();
   check(requested.ok && rows.length === 1 && rows[0].value.includes(newEmail), "a link is made for the new address", { requested, rows });
   check(!rows[0].identifier.includes(newEmail), "…stored as a hash, not the token itself", rows[0].identifier);
-  const pendingPage = await open("/account", emily.jar);
+  const pendingPage = await openAccount("/account", emily.jar);
   check(pendingPage.text.includes(newEmail), "the profile shows the address waiting for confirmation");
   check((await sessionOf(emily.jar))?.user.email === emailOf("emily"), "…the email hasn't changed yet");
   const cancelled = await callAction(emily.jar, "/account", ACTIONS, "cancelEmailChangeAction", []);
@@ -553,7 +563,7 @@ async function main() {
     updatedAt: now,
   });
 
-  const accountPage = await open("/account", ada.jar);
+  const accountPage = await openAccount("/account", ada.jar);
   check(accountPage.text.includes(`Shared ${RUN}`), "the delete section names the workspace that blocks it");
   const mismatch = await account_(ada.jar, "deleteAccountAction", [{ confirmation: "someone@example.test", proof: { password: PASSWORD } }]);
   check(!mismatch.ok && mismatch.code === "confirmationMismatch", "deleting asks to type the account's email", mismatch);

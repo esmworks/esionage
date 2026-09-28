@@ -34,6 +34,8 @@ describe("planAccountDeletion", () => {
   it("leaves shared workspaces with another owner, and ones it doesn't own", () => {
     const plan = planAccountDeletion([ws("co", "owner", 4, 2), ws("m", "member", 5, 1), ws("g", "guest", 3, 1)]);
     expect(plan.left.map((w) => w.id)).toEqual(["co", "m", "g"]);
+    // The role they leave with goes to each workspace's audit log.
+    expect(plan.left.map((w) => w.role)).toEqual(["owner", "member", "guest"]);
     expect(plan.blockers).toEqual([]);
     expect(plan.deleted).toEqual([]);
   });

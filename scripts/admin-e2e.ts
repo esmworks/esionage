@@ -111,7 +111,7 @@ async function sessionOf(jar: Jar) {
 /** An app page as a browser would open it, without following redirects. */
 async function open(path: string, jar: Jar) {
   const res = await fetch(`${BASE}${path}`, { headers: { cookie: jar.header(), accept: "text/html" }, redirect: "manual" });
-  return { status: res.status, text: await res.text() };
+  return { status: res.status, location: res.headers.get("location"), text: await res.text() };
 }
 
 /** The id of a server action, from the running app's server reference manifests. */
@@ -460,7 +460,10 @@ async function main() {
   // Any password change clears it: from a session signed in some other way (GitHub, a passkey).
   const bobIn = await signIn(bob.email, PASSWORD);
   await db.update(user).set({ passwordResetRequired: true }).where(eq(user.id, bob.id));
-  check((await open("/account?tab=security", bobIn.jar)).status === 200, "Bob opens his account page");
+  // Someone with a workspace is sent on to its Settings, where the account's tabs live.
+  const bobPage = await open("/account?tab=security", bobIn.jar);
+  const bobOpened = bobPage.status === 307 && bobPage.location?.includes("/settings?tab=accountSecurity") ? await open(bobPage.location, bobIn.jar) : bobPage;
+  check(bobOpened.status === 200, "Bob opens his account page", bobPage.status);
   const changed = await action(bobIn.jar, "/account", ACCOUNT_ACTIONS, "changePasswordAction", [
     { currentPassword: PASSWORD, newPassword: NEW_PASSWORD, revokeOthers: false },
   ]);

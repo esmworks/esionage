@@ -51,21 +51,36 @@ export async function accessRequestsOffered(workspaceId: string) {
  * request was stored, so nobody learns from it whether the page exists, and "rateLimited" once the
  * person asked too often (every call counts, for the same reason). Asking again while a request is
  * pending keeps the first one, message included.
+ *
+ * The lookups and writes run through `defer`: the "You don't have access" screen passes Next's
+ * `after`, so they happen once the answer is on its way and its timing can't tell an existing page
+ * from a missing one either. Without it (tests, scripts) they run before answering.
  */
-export async function requestPageAccess(userId: string, pageId: string, message?: unknown): Promise<AccessRequestOutcome> {
+export async function requestPageAccess(
+  userId: string,
+  pageId: string,
+  message?: unknown,
+  defer: (work: () => Promise<void>) => void | Promise<void> = (work) => work(),
+): Promise<AccessRequestOutcome> {
   if (takeAll([[limiter(), userId]]) > 0) return "rateLimited";
+  // Read while the request is still there: deferred work runs without it.
+  const locale = await requestLocale();
+  await defer(() => storeAccessRequest(userId, pageId, cleanRequestMessage(message), locale));
+  return "sent";
+}
+
+/** Stores the request and tells the people who can answer it, when there is anything to ask for. */
+async function storeAccessRequest(userId: string, pageId: string, message: string | null, locale: string) {
   // Without the sign-in policies: a policy holding back their session doesn't give them access.
   const { page: target, level } = await pageAccessOf(userId, pageId);
-  if (!target || target.archivedAt || level !== "none") return "sent";
-  if (!(await workspaceSettings(target.workspaceId)).accessRequests) return "sent";
-  const locale = await requestLocale();
+  if (!target || target.archivedAt || level !== "none") return;
+  if (!(await workspaceSettings(target.workspaceId)).accessRequests) return;
   const [created] = await db
     .insert(accessRequest)
-    .values({ pageId, workspaceId: target.workspaceId, requesterId: userId, message: cleanRequestMessage(message), locale })
+    .values({ pageId, workspaceId: target.workspaceId, requesterId: userId, message, locale })
     .onConflictDoNothing()
     .returning({ id: accessRequest.id });
   if (created) await recordAccessRequest(target.workspaceId, pageId, created.id, userId, locale);
-  return "sent";
 }
 
 export type PendingAccessRequest = {

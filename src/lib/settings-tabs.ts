@@ -2,6 +2,9 @@
 export const SETTINGS_TABS = ["general", "members", "guests", "teamspaces", "groups", "analytics", "security", "audit", "site"] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
+export const isSettingsTab = (value: unknown): value is SettingsTab =>
+  typeof value === "string" && (SETTINGS_TABS as readonly string[]).includes(value);
+
 /** Tabs only the workspace's owners get. */
 const OWNER_TABS: readonly SettingsTab[] = ["analytics", "audit"];
 

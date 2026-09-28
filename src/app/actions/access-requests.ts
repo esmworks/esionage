@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import type { SharingErrorCode, SharingResult } from "@/app/actions/sharing";
 import { isApprovalLevel } from "@/lib/access-requests";
 import { AccessError } from "@/server/access";
@@ -18,7 +19,13 @@ import { requireUserId } from "@/server/session";
 export async function requestAccessAction(pageId: string, message: string): Promise<AccessRequestOutcome> {
   const userId = await requireUserId();
   if (typeof pageId !== "string" || !pageId) return "sent";
-  return requestPageAccess(userId, pageId, message);
+  return requestPageAccess(userId, pageId, message, (work) =>
+    after(() =>
+      work().catch((error) => {
+        console.error("[access request]", error);
+      }),
+    ),
+  );
 }
 
 async function answer(run: (userId: string) => Promise<{ workspaceId: string }>): Promise<SharingResult> {

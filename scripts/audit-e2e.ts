@@ -87,6 +87,7 @@ const {
   setMemberRole,
   transferOwnership,
   updateWorkspaceSettings,
+  withdrawFromWorkspaces,
 } = await import("@/server/workspaces");
 
 const RUN = `audit-e2e-${Date.now().toString(36)}`;
@@ -136,7 +137,9 @@ const ids = {
 };
 // Signs up once invited, below.
 const accepter = `${RUN}-accepter`;
-const userIds = [...Object.values(ids), accepter];
+// Deletes their account (the workspace part of it), below.
+const leaver = `${RUN}-leaver`;
+const userIds = [...Object.values(ids), accepter, leaver];
 const names: Record<string, string> = {
   [ids.owner]: "Olivia Owner",
   [ids.bob]: "Bora Member",
@@ -220,6 +223,17 @@ try {
   await removeMember(nora, ws.other, nora);
   row = await latest(ws.other, "member.left");
   check(row.actorUserId === nora && row.targetId === nora, "leaving is recorded as the person who left", row);
+  await db.insert(user).values({ id: leaver, name: "Leaver", email: email(leaver), emailVerified: true });
+  await db.insert(workspaceMember).values({ workspaceId: ws.other, userId: leaver, role: "member" });
+  await db.transaction((tx) => withdrawFromWorkspaces(tx, leaver));
+  row = await latest(ws.other, "member.left");
+  check(
+    row.targetId === leaver &&
+      (row.details as { role?: string; via?: string }).role === "member" &&
+      (row.details as { via?: string }).via === "account_deleted",
+    "leaving by deleting the account is recorded with the role they had",
+    row,
+  );
 
   // ── Invitations, the join link, join requests ────────────────────────────────────────────────
   const invitee = `invitee-${RUN}@example.test`;

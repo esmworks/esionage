@@ -514,7 +514,7 @@ removes their passkeys):
 
 ```bash
 pnpm auth:reset-2fa person@example.com
-# Docker: docker compose exec app pnpm auth:reset-2fa person@example.com
+# Docker: docker compose exec app tsx scripts/reset-two-factor.ts person@example.com
 ```
 
 ## Instance administrators

@@ -1,4 +1,6 @@
 import { en as editorEn } from "@blocknote/core/locales";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { EDITOR_DICTIONARIES } from "./blocknote";
@@ -6,10 +8,11 @@ import { tr as editorTr } from "./blocknote/tr";
 import { checkTranslations, compareFile, formatIssues } from "./check";
 import { DEFAULT_LOCALE, LOCALES, negotiateLocale, requestLocale } from "./config";
 import { emailMessages } from "./messages/email";
-import { loadMessages, withFallback } from "./messages";
+import { clientMessages, loadMessages, withFallback } from "./messages";
 import en from "./messages/en";
 
 const MESSAGES_DIR = fileURLToPath(new URL("./messages", import.meta.url));
+const SRC_DIR = fileURLToPath(new URL("..", import.meta.url));
 
 /** Leaf key paths of a dictionary (BlockNote's alias lists count as one leaf: each language has its own). */
 function keys(tree: unknown, prefix = ""): string[] {
@@ -73,5 +76,23 @@ describe("translations", () => {
     expect(requestLocale(headers({ cookie: "NEXT_LOCALE=fr", "accept-language": "tr" }))).toBe("fr");
     expect(requestLocale(headers({ cookie: "NEXT_LOCALE=xx", "accept-language": "tr" }))).toBe("tr");
     expect(requestLocale(headers({}))).toBe("en");
+  });
+});
+
+describe("clientMessages", () => {
+  it("leaves out the audit log texts and keeps the rest of Settings", () => {
+    const sent = clientMessages(en);
+    expect(sent.settings).not.toHaveProperty("audit");
+    expect(sent.settings.members).toBe(en.settings.members);
+    expect(Object.keys(sent)).toEqual(Object.keys(en));
+  });
+
+  it("no client component reads the texts the browser doesn't get", () => {
+    const clientFiles = readdirSync(SRC_DIR, { recursive: true, encoding: "utf8" })
+      .filter((file) => /\.tsx?$/.test(file))
+      .map((file) => readFileSync(join(SRC_DIR, file), "utf8"))
+      .filter((source) => /^["']use client["']/m.test(source));
+    expect(clientFiles.length).toBeGreaterThan(0);
+    expect(clientFiles.filter((source) => /settings\.audit|["']audit\./.test(source))).toEqual([]);
   });
 });

@@ -53,3 +53,13 @@ export function loadMessages(locale: Locale): Promise<Messages> {
   if (!messages) cache.set(locale, (messages = load(locale)));
   return messages;
 }
+
+/**
+ * The messages the browser gets (app/layout): all of them but those only server components render,
+ * so every page doesn't carry them. The audit log (settings.audit) is one; a client component
+ * that needs its texts would get raw keys, which messages.test.ts guards against.
+ */
+export function clientMessages(messages: Messages) {
+  const { audit: _audit, ...settings } = messages.settings;
+  return { ...messages, settings };
+}
