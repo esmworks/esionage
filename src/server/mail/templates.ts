@@ -54,12 +54,12 @@ export function renderEmail(locale: Locale, content: EmailContent): RenderedEmai
     .join("\n");
   const button = action
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;">
-<tr><td style="border-radius:6px;background:#2f6fed;">
+<tr><td style="border-radius:6px;background:#2f7d4f;">
 <a href="${escapeHtml(action.url)}" style="display:inline-block;padding:10px 18px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">${escapeHtml(action.label)}</a>
 </td></tr>
 </table>
 <p style="margin:0;font-size:13px;color:#6b6d75;">${escapeHtml(t("actionFallback"))}<br>
-<a href="${escapeHtml(action.url)}" style="color:#2f6fed;word-break:break-all;">${escapeHtml(action.url)}</a></p>`
+<a href="${escapeHtml(action.url)}" style="color:#2f7d4f;word-break:break-all;">${escapeHtml(action.url)}</a></p>`
     : "";
 
   const html = `<!doctype html>

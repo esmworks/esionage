@@ -7,6 +7,7 @@ import { listWorkspaces } from "@/server/pages";
 import { blockedByWorkspacePolicy, policyGatePath, requireSession } from "@/server/session";
 import { workspaceSignInProvider } from "@/server/sso";
 import { SsoGate } from "./sso-gate";
+import { Logo } from "@/components/brand/logo";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("security.ssoGate");
@@ -36,9 +37,8 @@ export default async function SsoRequiredPage({ params }: { params: Promise<{ wo
   return (
     <main className="flex min-h-full items-center justify-center bg-bg-subtle px-4 py-16">
       <div className="w-full max-w-md">
-        <div className="mb-8 flex items-center justify-center gap-2 text-lg font-semibold">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-fg text-sm text-bg">e</span>
-          Leafdesk
+        <div className="mb-8 flex justify-center">
+          <Logo className="h-7 w-auto" />
         </div>
         <div className="rounded-xl border border-border bg-bg p-6 shadow-sm">
           <SsoGate

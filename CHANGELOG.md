@@ -562,6 +562,11 @@
 
 ### Changed
 
+- **New logo and colors.** The block-leaf mark and the leafdesk wordmark replace the letter badge
+  on the sign-in, consent, offline and workspace security pages, in light and dark versions; the
+  favicon, app icons (including the maskable one) and the README use them too. The accent color
+  is now green (`#2f7d4f`, `#6cc38a` in dark mode), in emails as well. The source SVGs are in
+  `brand/`.
 - **Renamed the project to Leafdesk.** The repository is now `esmworks/leafdesk` and the image
   `ghcr.io/esmworks/leafdesk`. Stored names changed too, with no fallback for the old ones: the
   compose image tag variable is now `LEAFDESK_VERSION`; the bundled database user, password and name
