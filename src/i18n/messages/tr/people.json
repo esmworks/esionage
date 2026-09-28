@@ -1,0 +1,14 @@
+{
+  "metaTitle": "Kişiler",
+  "heading": "Kişiler",
+  "description": "Bu çalışma alanının sahipleri ve üyeleri; teamspace'leri, grupları ve son düzenledikleri sayfalarla. Misafirler listelenmez.",
+  "search": "Ad, e-posta, teamspace veya grupla ara",
+  "count": "{count, plural, one {# kişi} other {# kişi}}",
+  "noMatches": "Aramanızla eşleşen kimse yok.",
+  "you": "(siz)",
+  "teamspaces": "Teamspace'ler",
+  "groups": "Gruplar",
+  "recentPages": "Son düzenledikleri",
+  "none": "Yok",
+  "noRecentPages": "Açabileceğiniz yeni bir düzenleme yok."
+}

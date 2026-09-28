@@ -9,6 +9,7 @@
     "guests": "Invitados",
     "teamspaces": "Espacios de equipo",
     "groups": "Grupos",
+    "analytics": "Analíticas",
     "security": "Seguridad",
     "site": "Sitio",
     "myAccount": "Mi cuenta"
@@ -261,6 +262,34 @@
       "nameTaken": "Otro grupo ya tiene este nombre.",
       "notMember": "Solo los propietarios y miembros del espacio de trabajo pueden estar en sus grupos.",
       "accessDenied": "Solo los propietarios del espacio de trabajo pueden cambiar los grupos."
+    }
+  },
+  "analytics": {
+    "description": "Cuánto se editó en este espacio de trabajo, contado a partir del historial de páginas y del último cambio de cada página. No se registra nada adicional. Solo lo ven los propietarios.",
+    "periods": "Periodo",
+    "period": "Últimos {days} días",
+    "activeMembers": "Miembros activos",
+    "activeOf": "{active} de {total}",
+    "edits": "Ediciones",
+    "pagesEdited": "Páginas editadas",
+    "howCounted": "Una edición es una versión guardada de una página (como mucho una cada 10 minutos mientras alguien escribe, y una antes de cada cambio de una app, la IA o una restauración) o un cambio que el historial no guarda, como los valores de una fila.",
+    "peopleHeading": "Ediciones por persona",
+    "peopleDescription": "Los invitados aparecen con sus ediciones, pero no cuentan como miembros activos.",
+    "pagesHeading": "Páginas más editadas",
+    "pagesDescription": "Las páginas que no puedes abrir se cuentan, pero no se nombran.",
+    "privatePage": "Página privada",
+    "noEdits": "No hay ediciones en este periodo.",
+    "neverEdited": "Sin ediciones",
+    "exportPeople": "Descargar ediciones por persona en CSV",
+    "exportPages": "Descargar las páginas más editadas en CSV",
+    "columns": {
+      "person": "Persona",
+      "role": "Rol",
+      "edits": "Ediciones",
+      "pages": "Páginas",
+      "lastEdit": "Última edición",
+      "page": "Página",
+      "editors": "Editores"
     }
   },
   "preferences": {

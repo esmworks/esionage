@@ -1,0 +1,14 @@
+{
+  "metaTitle": "Personen",
+  "heading": "Personen",
+  "description": "Die Inhaber und Mitglieder dieses Arbeitsbereichs mit ihren Teamspaces, Gruppen und zuletzt bearbeiteten Seiten. Gäste werden nicht aufgeführt.",
+  "search": "Nach Name, E-Mail, Teamspace oder Gruppe suchen",
+  "count": "{count, plural, one {# Person} other {# Personen}}",
+  "noMatches": "Niemand passt zu deiner Suche.",
+  "you": "(du)",
+  "teamspaces": "Teamspaces",
+  "groups": "Gruppen",
+  "recentPages": "Zuletzt bearbeitet",
+  "none": "Keine",
+  "noRecentPages": "Keine neuen Änderungen, die du öffnen kannst."
+}

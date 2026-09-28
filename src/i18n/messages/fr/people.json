@@ -1,0 +1,14 @@
+{
+  "metaTitle": "Personnes",
+  "heading": "Personnes",
+  "description": "Les propriétaires et membres de cet espace de travail, avec leurs espaces d’équipe, leurs groupes et les pages qu’ils ont modifiées récemment. Les invités n’y figurent pas.",
+  "search": "Rechercher par nom, e-mail, espace d’équipe ou groupe",
+  "count": "{count, plural, one {# personne} other {# personnes}}",
+  "noMatches": "Personne ne correspond à votre recherche.",
+  "you": "(vous)",
+  "teamspaces": "Espaces d’équipe",
+  "groups": "Groupes",
+  "recentPages": "Modifié récemment",
+  "none": "Aucun",
+  "noRecentPages": "Aucune modification récente que vous pouvez ouvrir."
+}

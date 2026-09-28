@@ -9,6 +9,7 @@
     "guests": "Invités",
     "teamspaces": "Espaces d’équipe",
     "groups": "Groupes",
+    "analytics": "Statistiques",
     "security": "Sécurité",
     "site": "Site",
     "myAccount": "Mon compte"
@@ -261,6 +262,34 @@
       "nameTaken": "Un autre groupe porte déjà ce nom.",
       "notMember": "Seuls les propriétaires et les membres de l’espace de travail peuvent faire partie de ses groupes.",
       "accessDenied": "Seuls les propriétaires de l’espace de travail peuvent modifier les groupes."
+    }
+  },
+  "analytics": {
+    "description": "Le volume de modifications dans cet espace de travail, compté à partir de l’historique des pages et de la dernière modification de chaque page. Rien de plus n’est enregistré. Seuls les propriétaires le voient.",
+    "periods": "Période",
+    "period": "{days} derniers jours",
+    "activeMembers": "Membres actifs",
+    "activeOf": "{active} sur {total}",
+    "edits": "Modifications",
+    "pagesEdited": "Pages modifiées",
+    "howCounted": "Une modification est une version enregistrée d’une page (au plus une toutes les 10 minutes pendant la saisie, et une avant chaque changement par une application, l’IA ou une restauration) ou un changement que l’historique ne conserve pas, comme les valeurs d’une ligne.",
+    "peopleHeading": "Modifications par personne",
+    "peopleDescription": "Les invités figurent avec leurs modifications, mais ne comptent pas comme membres actifs.",
+    "pagesHeading": "Pages les plus modifiées",
+    "pagesDescription": "Les pages que vous ne pouvez pas ouvrir sont comptées, mais pas nommées.",
+    "privatePage": "Page privée",
+    "noEdits": "Aucune modification sur cette période.",
+    "neverEdited": "Aucune modification",
+    "exportPeople": "Télécharger les modifications par personne en CSV",
+    "exportPages": "Télécharger les pages les plus modifiées en CSV",
+    "columns": {
+      "person": "Personne",
+      "role": "Rôle",
+      "edits": "Modifications",
+      "pages": "Pages",
+      "lastEdit": "Dernière modification",
+      "page": "Page",
+      "editors": "Contributeurs"
     }
   },
   "preferences": {

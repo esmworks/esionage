@@ -681,6 +681,16 @@ export function Sidebar({
             >
               {t("nav.inbox")}
             </SidebarButton>
+            {/* The people directory, like the members list, isn't for guests. */}
+            {!guest && (
+              <SidebarButton
+                icon={<Users className="h-4 w-4" />}
+                href={`/w/${workspaceId}/people`}
+                active={pathname === `/w/${workspaceId}/people`}
+              >
+                {t("nav.people")}
+              </SidebarButton>
+            )}
             <SidebarButton
               icon={<Settings className="h-4 w-4" />}
               href={`/w/${workspaceId}/settings`}

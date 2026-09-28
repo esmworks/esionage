@@ -9,6 +9,7 @@
     "guests": "Misafirler",
     "teamspaces": "Teamspace'ler",
     "groups": "Gruplar",
+    "analytics": "Analitik",
     "security": "Güvenlik",
     "site": "Site",
     "myAccount": "Hesabım"
@@ -261,6 +262,34 @@
       "nameTaken": "Bu adda başka bir grup var.",
       "notMember": "Gruplarda yalnızca çalışma alanının sahipleri ve üyeleri olabilir.",
       "accessDenied": "Grupları yalnızca çalışma alanı sahipleri değiştirebilir."
+    }
+  },
+  "analytics": {
+    "description": "Bu çalışma alanında kimin ne kadar düzenleme yaptığı; sayfa geçmişinden ve her sayfanın son değişikliğinden sayılır. Bunun için ayrıca bir şey kaydedilmez. Yalnızca sahipler görür.",
+    "periods": "Dönem",
+    "period": "Son {days} gün",
+    "activeMembers": "Etkin üyeler",
+    "activeOf": "{total} üyeden {active}",
+    "edits": "Düzenlemeler",
+    "pagesEdited": "Düzenlenen sayfalar",
+    "howCounted": "Bir düzenleme, sayfanın kaydedilmiş bir sürümü (biri yazarken en çok 10 dakikada bir, ayrıca her uygulama, yapay zekâ veya geri yükleme değişikliğinden önce bir tane) ya da sayfa geçmişinin tutmadığı bir değişikliktir; örneğin bir satırın değerleri.",
+    "peopleHeading": "Kişi başına düzenlemeler",
+    "peopleDescription": "Misafirler düzenlemeleriyle listelenir ama etkin üye sayılmaz.",
+    "pagesHeading": "En çok düzenlenen sayfalar",
+    "pagesDescription": "Açamadığınız sayfalar sayılır ama adları gösterilmez.",
+    "privatePage": "Özel sayfa",
+    "noEdits": "Bu dönemde düzenleme yok.",
+    "neverEdited": "Düzenleme yok",
+    "exportPeople": "Kişi başına düzenlemeleri CSV olarak indir",
+    "exportPages": "En çok düzenlenen sayfaları CSV olarak indir",
+    "columns": {
+      "person": "Kişi",
+      "role": "Rol",
+      "edits": "Düzenleme",
+      "pages": "Sayfa",
+      "lastEdit": "Son düzenleme",
+      "page": "Sayfa",
+      "editors": "Düzenleyen"
     }
   },
   "preferences": {

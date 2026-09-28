@@ -530,6 +530,18 @@
   The cleanup runs on production servers; `RETENTION_JOB=on|off` overrides that (a dev server
   leaves the data alone unless it is `on`).
   New checks: `scripts/retention-e2e.ts` (35), `src/lib/retention.test.ts`.
+- **People directory and analytics** (#62): *People* in the sidebar (`/w/[id]/people`) shows the
+  workspace's owners and members as cards with their role, email, teamspaces, groups and up to
+  three pages they edited in the last 90 days, searchable by any of those. Each card shows only
+  what the viewer may see: private teamspaces they aren't in stay off it, like in the members
+  list, and so do pages they can't open. Guests aren't listed and get a 404. Owners get
+  Settings > Analytics: active members, edits per person and the 20 most edited pages over the
+  last 7, 30 or 90 days, each table downloadable as CSV. Edits are counted from what is already
+  stored, page history versions (at most one per page every 10 minutes of typing, not versions
+  saved by hand) and each page's latest change for what history doesn't keep, such as row values;
+  nothing new is recorded and no migration is needed. Pages the owner can't open are counted as
+  *Private page*, without their title. New checks: `scripts/people-e2e.ts` (32),
+  `src/lib/analytics.test.ts`, `src/lib/people.test.ts`.
 
 ### Changed
 
