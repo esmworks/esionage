@@ -109,6 +109,8 @@
     "heading": "Teamspaces",
     "description": "Teamspaces bündeln Seiten und die Personen, die daran arbeiten. Alle sehen die Teamspaces, in denen sie sind, in ihrer Seitenleiste. Gäste sind nie in Teamspaces; sie sehen nur Seiten, die mit ihnen geteilt wurden.",
     "newButton": "Neuer Teamspace",
+    "listHeading": "Teamspaces",
+    "listDescription": "Verwalte hier alle Teamspaces, auf die du Zugriff hast.",
     "search": "Teamspaces suchen",
     "status": {
       "active": "Aktiv",
@@ -120,13 +122,13 @@
     "anyAccess": "Jeder Zugriff",
     "columns": {
       "teamspace": "Teamspace",
-      "members": "Mitglieder",
       "owners": "Inhaber",
       "access": "Zugriff",
       "updated": "Aktualisiert",
       "actions": "Aktionen"
     },
     "joined": "Beigetreten",
+    "memberCount": "{count, plural, one {# Mitglied} other {# Mitglieder}}",
     "noOwners": "Kein Inhaber",
     "empty": "Noch keine Teamspaces.",
     "emptyArchived": "Keine archivierten Teamspaces.",
@@ -146,24 +148,25 @@
     "defaults": {
       "heading": "Standard-Teamspaces",
       "description": "Alle im Workspace sind in diesen Teamspaces und können sie nicht verlassen, auch Personen, die später beitreten. Wenn jemand beitritt, musst du nichts anpassen. Neue Seiten auf oberster Ebene landen im ältesten davon.",
-      "add": "Standard-Teamspace hinzufügen",
-      "addPlaceholder": "Teamspace auswählen…",
+      "addPlaceholder": "Teamspaces hinzufügen…",
       "empty": "Keine Standard-Teamspaces. Neue Seiten auf oberster Ebene landen bei den privaten Seiten der jeweiligen Person.",
-      "remove": "Entfernen",
       "removeFor": "{name} nicht mehr als Standard-Teamspace verwenden",
-      "makeTitle": "{name} zum Standard-Teamspace machen?",
       "makeBody": "Alle im Workspace, jetzt und künftig, sind darin und können ihn nicht verlassen. Seine Seiten erscheinen in der Seitenleiste aller Personen.",
-      "makeConfirm": "Zum Standard machen",
-      "removeTitle": "{name} zu einem offenen Teamspace machen?",
       "removeBody": "Alle bleiben vorerst darin, können ihn aber verlassen, und Personen, die dem Workspace später beitreten, werden nicht hinzugefügt.",
-      "removeConfirm": "Öffnen"
+      "update": "Aktualisieren",
+      "confirmTitle": "Standard-Teamspaces aktualisieren?",
+      "confirmAdd": "Wird Standard: {names}.",
+      "confirmRemove": "Wird offen: {names}."
     },
-    "policyHeading": "Berechtigungen",
     "creation": {
       "title": "Nur Workspace-Inhaber können Teamspaces erstellen",
       "description": "Aus: Inhaber und Mitglieder können Teamspaces erstellen. Gäste können das nie.",
       "ownersOnly": "Nur Workspace-Inhaber können das ändern."
-    }
+    },
+    "statusFilter": "Status",
+    "accessFor": "Zugriff auf {name}",
+    "accessConfirmTitle": "Zugriff auf {name} in „{access}“ ändern?",
+    "accessConfirm": "Zugriff ändern"
   },
   "groups": {
     "heading": "Gruppen",

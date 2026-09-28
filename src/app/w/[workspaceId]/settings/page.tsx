@@ -343,7 +343,6 @@ async function TeamspacesTab({ workspaceId, userId, isOwner }: { workspaceId: st
       canCreate={canCreate}
       teamspaceCreation={settings.teamspaceCreation}
       members={members.map(({ userId: id, name, email, role }) => ({ userId: id, name, email, role }))}
-      now={new Date()}
     />
   );
 }

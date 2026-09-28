@@ -109,6 +109,8 @@
     "heading": "Teamspace'ler",
     "description": "Teamspace'ler sayfaları ve onlar üzerinde çalışan kişileri bir araya getirir. Herkes içinde olduğu teamspace'leri kenar çubuğunda görür. Misafirler hiçbir teamspace'te olmaz; yalnızca kendileriyle paylaşılan sayfaları görürler.",
     "newButton": "Yeni teamspace",
+    "listHeading": "Teamspace'ler",
+    "listDescription": "Erişiminiz olan tüm teamspace'leri buradan yönetin.",
     "search": "Teamspace ara",
     "status": {
       "active": "Etkin",
@@ -120,13 +122,13 @@
     "anyAccess": "Tüm erişimler",
     "columns": {
       "teamspace": "Teamspace",
-      "members": "Üyeler",
       "owners": "Sahipler",
       "access": "Erişim",
       "updated": "Güncelleme",
       "actions": "İşlemler"
     },
     "joined": "Katıldınız",
+    "memberCount": "{count, plural, one {# üye} other {# üye}}",
     "noOwners": "Sahip yok",
     "empty": "Henüz teamspace yok.",
     "emptyArchived": "Arşivlenmiş teamspace yok.",
@@ -146,24 +148,25 @@
     "defaults": {
       "heading": "Varsayılan teamspace'ler",
       "description": "Çalışma alanındaki herkes, sonradan katılanlar da dahil, bu teamspace'lerdedir ve ayrılamaz. Biri katıldığında güncellenecek bir şey yoktur. Yeni üst düzey sayfalar en eskisine eklenir.",
-      "add": "Varsayılan teamspace ekle",
-      "addPlaceholder": "Teamspace seçin…",
+      "addPlaceholder": "Teamspace ekle…",
       "empty": "Varsayılan teamspace yok. Yeni üst düzey sayfalar kişilerin özel sayfalarına eklenir.",
-      "remove": "Kaldır",
       "removeFor": "{name} varsayılan teamspace olmasın",
-      "makeTitle": "{name} varsayılan teamspace olsun mu?",
       "makeBody": "Çalışma alanındaki herkes, şimdi ve sonradan katılanlar, bu teamspace'te olur ve ayrılamaz. Sayfaları herkesin kenar çubuğunda görünür.",
-      "makeConfirm": "Varsayılan yap",
-      "removeTitle": "{name} açık teamspace olsun mu?",
       "removeBody": "Şimdilik herkes içinde kalır ama ayrılabilir; çalışma alanına sonradan katılanlar eklenmez.",
-      "removeConfirm": "Açık yap"
+      "update": "Güncelle",
+      "confirmTitle": "Varsayılan teamspace'ler güncellensin mi?",
+      "confirmAdd": "Varsayılan olacak: {names}.",
+      "confirmRemove": "Açık olacak: {names}."
     },
-    "policyHeading": "İzinler",
     "creation": {
       "title": "Teamspace'leri yalnızca çalışma alanı sahipleri oluşturabilir",
       "description": "Kapalıyken sahipler ve üyeler teamspace oluşturabilir. Misafirler hiçbir zaman oluşturamaz.",
       "ownersOnly": "Bunu yalnızca çalışma alanı sahipleri değiştirebilir."
-    }
+    },
+    "statusFilter": "Durum",
+    "accessFor": "{name} erişimi",
+    "accessConfirmTitle": "{name} erişimi “{access}” olarak değiştirilsin mi?",
+    "accessConfirm": "Erişimi değiştir"
   },
   "groups": {
     "heading": "Gruplar",

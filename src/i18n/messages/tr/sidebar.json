@@ -89,6 +89,7 @@
     "heading": "Teamspace'ler",
     "options": "Teamspace seçenekleri",
     "new": "Yeni teamspace",
+    "addNew": "Yeni ekle",
     "browse": "Teamspace'lere göz at",
     "none": "Henüz hiçbir teamspace'te değilsiniz. Teamspace'lere göz atın",
     "actions": "{name} için işlemler",
@@ -103,6 +104,8 @@
   "sections": {
     "shared": "Paylaşılanlar",
     "private": "Özel",
-    "newPrivate": "Yeni özel sayfa"
+    "newPrivate": "Yeni özel sayfa",
+    "more": "{count} sayfa daha",
+    "less": "Daha az göster"
   }
 }

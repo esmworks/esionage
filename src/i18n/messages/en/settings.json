@@ -109,6 +109,8 @@
     "heading": "Teamspaces",
     "description": "Teamspaces group pages and the people working on them. Everyone sees the teamspaces they are in in their sidebar. Guests are never in teamspaces; they only see pages shared with them.",
     "newButton": "New teamspace",
+    "listHeading": "Teamspaces",
+    "listDescription": "Manage all the teamspaces you have access to here.",
     "search": "Search teamspaces",
     "status": {
       "active": "Active",
@@ -120,13 +122,13 @@
     "anyAccess": "All access",
     "columns": {
       "teamspace": "Teamspace",
-      "members": "Members",
       "owners": "Owners",
       "access": "Access",
       "updated": "Updated",
       "actions": "Actions"
     },
     "joined": "Joined",
+    "memberCount": "{count, plural, one {# member} other {# members}}",
     "noOwners": "No owner",
     "empty": "No teamspaces yet.",
     "emptyArchived": "No archived teamspaces.",
@@ -146,24 +148,25 @@
     "defaults": {
       "heading": "Default teamspaces",
       "description": "Everyone in the workspace is in these teamspaces and can't leave them, including people who join later. There is nothing to update when someone joins. New top-level pages go to the oldest one.",
-      "add": "Add a default teamspace",
-      "addPlaceholder": "Choose a teamspace…",
+      "addPlaceholder": "Add teamspaces…",
       "empty": "No default teamspaces. New top-level pages go to people's private pages.",
-      "remove": "Remove",
       "removeFor": "Stop making {name} a default teamspace",
-      "makeTitle": "Make {name} a default teamspace?",
       "makeBody": "Everyone in the workspace, now and later, is in it and can't leave it. Its pages appear in everyone's sidebar.",
-      "makeConfirm": "Make default",
-      "removeTitle": "Make {name} an open teamspace?",
       "removeBody": "Everyone stays in it for now but can leave it, and people who join the workspace later aren't added.",
-      "removeConfirm": "Make open"
+      "update": "Update",
+      "confirmTitle": "Update the default teamspaces?",
+      "confirmAdd": "Becoming default: {names}.",
+      "confirmRemove": "Becoming open: {names}."
     },
-    "policyHeading": "Permissions",
     "creation": {
       "title": "Only workspace owners can create teamspaces",
       "description": "Off: owners and members can create teamspaces. Guests never can.",
       "ownersOnly": "Only workspace owners can change this."
-    }
+    },
+    "statusFilter": "Status",
+    "accessFor": "Access of {name}",
+    "accessConfirmTitle": "Change the access of {name} to “{access}”?",
+    "accessConfirm": "Change access"
   },
   "groups": {
     "heading": "Groups",

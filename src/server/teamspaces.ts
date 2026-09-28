@@ -128,7 +128,7 @@ export type TeamspaceSummary = {
   archivedAt: Date | null;
   updatedAt: Date;
   memberCount: number;
-  owners: { id: string; name: string }[];
+  owners: { id: string; name: string; image?: string | null }[];
   /** The viewer is in it. */
   joined: boolean;
   /** The viewer's role in it, when they are in it. */
@@ -187,7 +187,7 @@ export async function listTeamspaces(
   const ids = rows.map((r) => r.id);
   const owners = ids.length
     ? await db
-        .select({ teamspaceId: teamspaceMember.teamspaceId, id: user.id, name: user.name })
+        .select({ teamspaceId: teamspaceMember.teamspaceId, id: user.id, name: user.name, image: user.image })
         .from(teamspaceMember)
         .innerJoin(user, eq(user.id, teamspaceMember.userId))
         .innerJoin(
@@ -201,7 +201,7 @@ export async function listTeamspaces(
     const row = r.own_role ? { role: r.own_role } : r.via_group ? { role: "member" as const } : undefined;
     const t = { access: r.access, archivedAt: r.archived_at } as Row;
     const joined = joinedTeamspace(r, row);
-    const ownersOf = owners.filter((o) => o.teamspaceId === r.id).map(({ id, name }) => ({ id, name }));
+    const ownersOf = owners.filter((o) => o.teamspaceId === r.id).map(({ id, name, image }) => ({ id, name, image }));
     return {
       id: r.id,
       name: r.name,

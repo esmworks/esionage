@@ -5,6 +5,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ChevronUp,
   CloudOff,
   Database,
   FileText,
@@ -62,9 +63,13 @@ import { ImportDialog } from "@/components/workspace/import-dialog";
 type Workspace = { id: string; name: string; icon: string | null; role: string };
 
 const EXPANDED_KEY = "esionage:expanded";
-/** Sidebar sections the user folded: teamspace ids, "private", "shared" and the teamspaces group. */
+/** Sidebar headings the user folded: "private", "shared" and the teamspaces group (open until folded). */
 const FOLDED_KEY = "esionage:folded-sections";
+/** Teamspaces the user opened: like pages, and as in Notion, a teamspace stays closed until opened. */
+const OPEN_TEAMSPACES_KEY = "esionage:open-teamspaces";
 const TEAMSPACES_GROUP = "teamspaces";
+/** Top-level pages "Private" and "Shared" show before a "More" row, as Notion does. */
+const SECTION_LIMIT = 10;
 
 const canEdit = (node: TreeNode) => node.level === "edit" || node.level === "full";
 
@@ -116,6 +121,9 @@ export function Sidebar({
   const [tree, setTree] = useState(initialTree);
   const [teamspaces, setTeamspaces] = useState(initialTeamspaces);
   const [folded, setFolded] = useState<Set<string>>(() => new Set());
+  const [openSpaces, setOpenSpaces] = useState<Set<string>>(() => new Set());
+  // Sections showing all their top-level pages rather than the first SECTION_LIMIT.
+  const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
   const [teamspaceDialog, setTeamspaceDialog] = useState<{ teamspace?: TeamspaceSummary } | null>(null);
   const [favorites, setFavorites] = useState(initialFavorites);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -149,6 +157,7 @@ export function Sidebar({
   useEffect(() => {
     setExpanded(loadSet(EXPANDED_KEY));
     setFolded(loadSet(FOLDED_KEY));
+    setOpenSpaces(loadSet(OPEN_TEAMSPACES_KEY));
   }, []);
   useEffect(() => setTree(initialTree), [initialTree]);
   useEffect(() => setTeamspaces(initialTeamspaces), [initialTeamspaces]);
@@ -295,13 +304,56 @@ export function Sidebar({
     });
   }
 
+  function toggleSpace(id: string, open?: boolean) {
+    setOpenSpaces((prev) => {
+      const next = new Set(prev);
+      if (open ?? !next.has(id)) next.add(id);
+      else next.delete(id);
+      saveSet(OPEN_TEAMSPACES_KEY, next);
+      return next;
+    });
+  }
+
+  // Opening a page (a link, search, a new page) unfolds the way to it, once per page, so the
+  // sidebar shows where it is; folding it again afterwards is left alone.
+  const revealed = useRef<string | null>(null);
+  useEffect(() => {
+    const node = activeId ? byId.get(activeId) : undefined;
+    if (!node || revealed.current === activeId) return;
+    revealed.current = activeId;
+    const ancestors: string[] = [];
+    for (let id = node.parentId; id; id = byId.get(id)?.parentId ?? null) {
+      if (ancestors.includes(id)) break;
+      ancestors.push(id);
+    }
+    if (ancestors.some((id) => !expanded.has(id))) {
+      setExpanded((prev) => {
+        const next = new Set([...prev, ...ancestors]);
+        saveSet(EXPANDED_KEY, next);
+        return next;
+      });
+    }
+    const section = node.section;
+    if (section === PRIVATE_SECTION || section === SHARED_SECTION) fold(section, true);
+    else {
+      fold(TEAMSPACES_GROUP, true);
+      toggleSpace(section, true);
+    }
+    requestAnimationFrame(() =>
+      document.querySelector(`[data-sidebar-page="${CSS.escape(node.id)}"]`)?.scrollIntoView({ block: "nearest" }),
+    );
+    // Only when another page opens (or the tree first holds it), not on every fold.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, byId]);
+
   function create(parentId: string | null, kind: PageKind = "page", target?: Target) {
     setActionError(null);
     startTransition(async () => {
       try {
         const { id } = await createPageAction({ workspaceId, parentId, kind, ...(parentId ? {} : { teamspaceId: target }) });
         if (parentId) toggle(parentId, true);
-        else if (target !== undefined) fold(target ?? PRIVATE_SECTION, true);
+        else if (target) toggleSpace(target, true);
+        else if (target === null) fold(PRIVATE_SECTION, true);
         markNewPage(id);
         router.push(`/w/${workspaceId}/p/${id}`);
       } catch {
@@ -729,8 +781,8 @@ export function Sidebar({
                   <TeamspaceSection
                     key={ts.id}
                     teamspace={ts}
-                    open={!folded.has(ts.id)}
-                    onToggle={() => fold(ts.id)}
+                    open={openSpaces.has(ts.id)}
+                    onToggle={() => toggleSpace(ts.id)}
                     roots={rootsOf(ts.id)}
                     newMenu={newMenu(ts.id)}
                     onCreate={() => create(null, "page", ts.id)}
@@ -740,11 +792,31 @@ export function Sidebar({
                   />
                 ))}
               </ul>
+              {/* Like Notion's "Add new": a new teamspace, or the list to join one from. */}
+              <button
+                type="button"
+                onClick={() =>
+                  canCreateTeamspace ? setTeamspaceDialog({}) : router.push(`/w/${workspaceId}/settings?tab=teamspaces`)
+                }
+                disabled={canCreateTeamspace && offline}
+                title={canCreateTeamspace ? needsServer(t("teamspaces.new")) : undefined}
+                className="flex h-7 w-full items-center gap-0.5 rounded-md pl-1 text-left text-fg-muted hover:bg-bg-hover hover:text-fg disabled:opacity-50 disabled:hover:bg-transparent"
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+                  <Plus className="h-3.5 w-3.5" />
+                </span>
+                <span className="truncate pl-1.5">{canCreateTeamspace ? t("teamspaces.addNew") : t("teamspaces.browse")}</span>
+              </button>
             </SectionGroup>
           )}
           {rootsOf(SHARED_SECTION).length > 0 && (
             <SectionGroup label={t("sections.shared")} open={!folded.has(SHARED_SECTION)} onToggle={() => fold(SHARED_SECTION)}>
-              <TreeLevel nodes={rootsOf(SHARED_SECTION)} depth={0} {...treeProps} />
+              <LimitedRoots
+                nodes={rootsOf(SHARED_SECTION)}
+                all={showAll.has(SHARED_SECTION)}
+                onAll={(all) => setShowAll((prev) => withMember(prev, SHARED_SECTION, all))}
+                {...treeProps}
+              />
             </SectionGroup>
           )}
           {(topLevel || rootsOf(PRIVATE_SECTION).length > 0) && (
@@ -779,7 +851,12 @@ export function Sidebar({
                   {t("pages.createFirst")}
                 </button>
               )}
-              <TreeLevel nodes={rootsOf(PRIVATE_SECTION)} depth={0} {...treeProps} />
+              <LimitedRoots
+                nodes={rootsOf(PRIVATE_SECTION)}
+                all={showAll.has(PRIVATE_SECTION)}
+                onAll={(all) => setShowAll((prev) => withMember(prev, PRIVATE_SECTION, all))}
+                {...treeProps}
+              />
             </SectionGroup>
           )}
           {guest && tree.length === 0 && !topLevel && <p className="px-2 py-1.5 text-fg-muted">{t("pages.nothingShared")}</p>}
@@ -845,7 +922,7 @@ export function Sidebar({
         teamspace={teamspaceDialog?.teamspace}
         isWorkspaceOwner={workspace?.role === "owner"}
         onSaved={(id) => {
-          if (!teamspaceDialog?.teamspace) fold(id, true);
+          if (!teamspaceDialog?.teamspace) toggleSpace(id, true);
           setTeamspaceDialog(null);
           refresh();
         }}
@@ -888,6 +965,57 @@ function useRootDrop(drop: RootDrop | undefined) {
     },
   };
   return { over, handlers };
+}
+
+function withMember(set: Set<string>, value: string, member: boolean) {
+  const next = new Set(set);
+  if (member) next.add(value);
+  else next.delete(value);
+  return next;
+}
+
+/**
+ * The top-level pages of "Private" or "Shared": the first SECTION_LIMIT, then a row showing the
+ * rest. The open page stays in sight among the first ones.
+ */
+function LimitedRoots({
+  nodes,
+  all,
+  onAll,
+  ...tree
+}: TreeContext & { nodes: TreeNode[]; all: boolean; onAll: (all: boolean) => void }) {
+  const t = useTranslations("sidebar.sections");
+  const over = nodes.length > SECTION_LIMIT;
+  let shown = nodes;
+  if (over && !all) {
+    shown = nodes.slice(0, SECTION_LIMIT);
+    // The open page, or the top of the branch it is in.
+    let top = tree.activeId;
+    const parents = new Map<string, string | null>();
+    for (const [key, list] of tree.childrenOf) for (const n of list) parents.set(n.id, key.startsWith("@") ? null : key);
+    for (let up = top ? parents.get(top) : null; up; up = parents.get(up) ?? null) top = up;
+    const active = nodes.find((n) => n.id === top);
+    if (active && !shown.includes(active)) shown = [...shown, active];
+  }
+  const hidden = nodes.length - shown.length;
+  return (
+    <>
+      <TreeLevel nodes={shown} depth={0} {...tree} />
+      {(all ? over : hidden > 0) && (
+        <button
+          type="button"
+          aria-expanded={all}
+          onClick={() => onAll(!all)}
+          className="flex h-7 w-full items-center gap-0.5 rounded-md pl-1 text-left text-fg-muted hover:bg-bg-hover hover:text-fg"
+        >
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+            {all ? <ChevronUp className="h-3.5 w-3.5" /> : <MoreHorizontal className="h-3.5 w-3.5" />}
+          </span>
+          <span className="pl-0.5">{all ? t("less") : t("more", { count: hidden })}</span>
+        </button>
+      )}
+    </>
+  );
 }
 
 /** A heading ("Teamspaces", "Shared", "Private") that folds what is under it. */
@@ -995,7 +1123,7 @@ function TeamspaceSection({
               <ChevronRight className="hidden h-3.5 w-3.5 text-fg-faint group-hover:block pointer-coarse:block" />
             )}
           </span>
-          <span className="truncate font-medium">{teamspace.name}</span>
+          <span className="truncate">{teamspace.name}</span>
         </button>
         <div className="hidden items-center group-hover:flex focus-within:flex pointer-coarse:flex">
           <Popover
@@ -1257,6 +1385,7 @@ function TreeItem({
   return (
     <li>
       <div
+        data-sidebar-page={node.id}
         draggable={editable}
         onDragStart={(e) => {
           e.dataTransfer.setData(DRAG_TYPE, node.id);

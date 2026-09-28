@@ -89,6 +89,7 @@
     "heading": "Teamspaces",
     "options": "Teamspace-Optionen",
     "new": "Neuer Teamspace",
+    "addNew": "Neu hinzufügen",
     "browse": "Teamspaces durchsuchen",
     "none": "Du bist noch in keinem Teamspace. Teamspaces durchsuchen",
     "actions": "Aktionen für {name}",
@@ -103,6 +104,8 @@
   "sections": {
     "shared": "Geteilt",
     "private": "Privat",
-    "newPrivate": "Neue private Seite"
+    "newPrivate": "Neue private Seite",
+    "more": "{count} weitere",
+    "less": "Weniger anzeigen"
   }
 }

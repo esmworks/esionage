@@ -109,6 +109,8 @@
     "heading": "Espaces d’équipe",
     "description": "Les espaces d’équipe regroupent des pages et les personnes qui y travaillent. Chacun voit dans sa barre latérale les espaces d’équipe dont il fait partie. Les invités ne font jamais partie d’un espace d’équipe ; ils ne voient que les pages partagées avec eux.",
     "newButton": "Nouvel espace d’équipe",
+    "listHeading": "Espaces d’équipe",
+    "listDescription": "Gérez ici tous les espaces d’équipe auxquels vous avez accès.",
     "search": "Rechercher des espaces d’équipe",
     "status": {
       "active": "Actifs",
@@ -120,13 +122,13 @@
     "anyAccess": "Tous les accès",
     "columns": {
       "teamspace": "Espace d’équipe",
-      "members": "Membres",
       "owners": "Propriétaires",
       "access": "Accès",
       "updated": "Mis à jour",
       "actions": "Actions"
     },
     "joined": "Membre",
+    "memberCount": "{count, plural, one {# membre} other {# membres}}",
     "noOwners": "Aucun propriétaire",
     "empty": "Aucun espace d’équipe pour l’instant.",
     "emptyArchived": "Aucun espace d’équipe archivé.",
@@ -146,24 +148,25 @@
     "defaults": {
       "heading": "Espaces d’équipe par défaut",
       "description": "Tous les membres de l’espace de travail font partie de ces espaces d’équipe et ne peuvent pas les quitter, y compris les personnes qui arrivent plus tard. Il n’y a rien à faire lorsque quelqu’un arrive. Les nouvelles pages de premier niveau vont dans le plus ancien.",
-      "add": "Ajouter un espace d’équipe par défaut",
-      "addPlaceholder": "Choisissez un espace d’équipe…",
+      "addPlaceholder": "Ajouter des espaces d’équipe…",
       "empty": "Aucun espace d’équipe par défaut. Les nouvelles pages de premier niveau vont dans les pages privées de chacun.",
-      "remove": "Retirer",
       "removeFor": "Ne plus faire de {name} un espace d’équipe par défaut",
-      "makeTitle": "Faire de {name} un espace d’équipe par défaut ?",
       "makeBody": "Tous les membres de l’espace de travail, actuels et futurs, en font partie et ne peuvent pas le quitter. Ses pages apparaissent dans la barre latérale de tout le monde.",
-      "makeConfirm": "Définir par défaut",
-      "removeTitle": "Faire de {name} un espace d’équipe ouvert ?",
       "removeBody": "Tout le monde en fait partie pour l’instant mais peut le quitter, et les personnes qui rejoindront l’espace de travail plus tard n’y seront pas ajoutées.",
-      "removeConfirm": "Rendre ouvert"
+      "update": "Mettre à jour",
+      "confirmTitle": "Mettre à jour les espaces d’équipe par défaut ?",
+      "confirmAdd": "Deviennent par défaut : {names}.",
+      "confirmRemove": "Deviennent ouverts : {names}."
     },
-    "policyHeading": "Autorisations",
     "creation": {
       "title": "Seuls les propriétaires de l’espace de travail peuvent créer des espaces d’équipe",
       "description": "Désactivé : les propriétaires et les membres peuvent créer des espaces d’équipe. Les invités ne le peuvent jamais.",
       "ownersOnly": "Seuls les propriétaires de l’espace de travail peuvent modifier ce paramètre."
-    }
+    },
+    "statusFilter": "Statut",
+    "accessFor": "Accès de {name}",
+    "accessConfirmTitle": "Changer l’accès de {name} en « {access} » ?",
+    "accessConfirm": "Changer l’accès"
   },
   "groups": {
     "heading": "Groupes",

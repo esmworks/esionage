@@ -109,6 +109,8 @@
     "heading": "Espacios de equipo",
     "description": "Los espacios de equipo agrupan páginas y a las personas que trabajan en ellas. Cada persona ve en su barra lateral los espacios de equipo de los que forma parte. Los invitados nunca están en espacios de equipo; solo ven las páginas compartidas con ellos.",
     "newButton": "Nuevo espacio de equipo",
+    "listHeading": "Espacios de equipo",
+    "listDescription": "Gestiona aquí todos los espacios de equipo a los que tienes acceso.",
     "search": "Buscar espacios de equipo",
     "status": {
       "active": "Activos",
@@ -120,13 +122,13 @@
     "anyAccess": "Todos los accesos",
     "columns": {
       "teamspace": "Espacio de equipo",
-      "members": "Miembros",
       "owners": "Propietarios",
       "access": "Acceso",
       "updated": "Actualizado",
       "actions": "Acciones"
     },
     "joined": "Unido",
+    "memberCount": "{count, plural, one {# miembro} other {# miembros}}",
     "noOwners": "Sin propietario",
     "empty": "Todavía no hay espacios de equipo.",
     "emptyArchived": "No hay espacios de equipo archivados.",
@@ -146,24 +148,25 @@
     "defaults": {
       "heading": "Espacios de equipo predeterminados",
       "description": "Todos los miembros del espacio de trabajo están en estos espacios de equipo y no pueden salir de ellos, incluidas las personas que se unan más adelante. No hay que actualizar nada cuando alguien se une. Las nuevas páginas de nivel superior van al más antiguo.",
-      "add": "Añadir un espacio de equipo predeterminado",
-      "addPlaceholder": "Elige un espacio de equipo…",
+      "addPlaceholder": "Añadir espacios de equipo…",
       "empty": "No hay espacios de equipo predeterminados. Las nuevas páginas de nivel superior van a las páginas privadas de cada persona.",
-      "remove": "Quitar",
       "removeFor": "Dejar de usar {name} como espacio de equipo predeterminado",
-      "makeTitle": "¿Hacer de {name} un espacio de equipo predeterminado?",
       "makeBody": "Todos los miembros del espacio de trabajo, actuales y futuros, estarán en él y no podrán salir. Sus páginas aparecerán en la barra lateral de todos.",
-      "makeConfirm": "Hacer predeterminado",
-      "removeTitle": "¿Hacer de {name} un espacio de equipo abierto?",
       "removeBody": "Por ahora todos siguen en él, pero pueden salir, y las personas que se unan más adelante al espacio de trabajo no se añadirán.",
-      "removeConfirm": "Hacer abierto"
+      "update": "Actualizar",
+      "confirmTitle": "¿Actualizar los espacios de equipo predeterminados?",
+      "confirmAdd": "Pasan a ser predeterminados: {names}.",
+      "confirmRemove": "Pasan a ser abiertos: {names}."
     },
-    "policyHeading": "Permisos",
     "creation": {
       "title": "Solo los propietarios del espacio de trabajo pueden crear espacios de equipo",
       "description": "Desactivado: los propietarios y los miembros pueden crear espacios de equipo. Los invitados nunca pueden.",
       "ownersOnly": "Solo los propietarios del espacio de trabajo pueden cambiar esto."
-    }
+    },
+    "statusFilter": "Estado",
+    "accessFor": "Acceso de {name}",
+    "accessConfirmTitle": "¿Cambiar el acceso de {name} a «{access}»?",
+    "accessConfirm": "Cambiar acceso"
   },
   "groups": {
     "heading": "Grupos",

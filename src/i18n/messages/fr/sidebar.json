@@ -89,6 +89,7 @@
     "heading": "Espaces d’équipe",
     "options": "Options des espaces d’équipe",
     "new": "Nouvel espace d’équipe",
+    "addNew": "Ajouter",
     "browse": "Parcourir les espaces d’équipe",
     "none": "Vous ne faites encore partie d’aucun espace d’équipe. Parcourir les espaces d’équipe",
     "actions": "Actions pour {name}",
@@ -103,6 +104,8 @@
   "sections": {
     "shared": "Partagé",
     "private": "Privé",
-    "newPrivate": "Nouvelle page privée"
+    "newPrivate": "Nouvelle page privée",
+    "more": "{count} de plus",
+    "less": "Afficher moins"
   }
 }

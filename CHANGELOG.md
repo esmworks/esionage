@@ -534,6 +534,15 @@
   the text and number properties it hides on its cards.
 - **New databases** start with a Status property of the status type (to do, in progress, done)
   instead of a select.
+- **Teamspaces, laid out like Notion's.** Settings > Teamspaces starts with the default teamspaces
+  (picked in one field, applied with *Update* after a confirmation) and who may create teamspaces,
+  then lists the teamspaces with status, owner and access menus, a search button, "N members ·
+  Joined" under each name, the owners' pictures, an access menu in each row (changes to and from
+  *Default* ask first) and sorting by last update. In the sidebar a teamspace stays closed until
+  opened (the open ones are remembered per browser), opening a page unfolds the way to it and
+  scrolls it into view, the Teamspaces section ends with *Add new* (or *Browse teamspaces* for
+  those who can't create one), and Private and Shared show their first ten pages with a row for
+  the rest.
 
 ### Fixed
 
