@@ -61,7 +61,9 @@ describe("pageVisibleTo", () => {
 describe("access checks stay in one place", () => {
   const root = join(__dirname, "..");
   // server/scim.ts is member management too: an identity provider adding and removing members.
+  // server/guests.ts lists the guests; the pages it names are filtered with page_access_level.
   const ALLOWED = new Set([
+    "server/guests.ts",
     "server/access.ts",
     "server/permissions.ts",
     "server/workspaces.ts",

@@ -1,9 +1,10 @@
-import { Boxes, Globe, Settings, Shield, UserRound, Users, UsersRound, type LucideIcon } from "lucide-react";
+import { Boxes, ContactRound, Globe, Settings, Shield, UserRound, Users, UsersRound, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { GroupsPanel } from "@/components/settings/groups-panel";
+import { GuestsPanel } from "@/components/settings/guests-panel";
 import { AiSettings } from "@/components/settings/ai-settings";
 import { LeaveWorkspaceRow } from "@/components/settings/leave-workspace";
 import { MembersPanel } from "@/components/settings/members-panel";
@@ -27,10 +28,12 @@ import { TeamspacesPanel } from "@/components/settings/teamspaces-panel";
 import { WorkspaceExport } from "@/components/settings/workspace-export";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isStrongSession } from "@/lib/auth-security";
+import { type SettingsTab, visibleSettingsTabs } from "@/lib/settings-tabs";
 import { AccessError, isGuest } from "@/server/access";
 import { aiInfo, embeddingModel } from "@/server/ai";
 import { listWorkspaceFormPublications } from "@/server/forms";
 import { groupsByMember, listGroups } from "@/server/groups";
+import { listGuests } from "@/server/guests";
 import { listWorkspacePublications } from "@/server/publication";
 import { listScimTokens, scimManagedCount } from "@/server/scim";
 import { getSsoConnection, ssoSetupInfo } from "@/server/sso";
@@ -38,6 +41,7 @@ import { getSession, requireWorkspaceSession } from "@/server/session";
 import { getSite } from "@/server/site";
 import { canCreateTeamspace, listTeamspaces, teamspacesByMember } from "@/server/teamspaces";
 import {
+  canInviteGuests,
   countMembersWithoutTwoFactor,
   getJoinLink,
   getWorkspace,
@@ -53,13 +57,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("metaTitle") };
 }
 
-const TABS = ["general", "members", "teamspaces", "groups", "security", "site"] as const;
-type Tab = (typeof TABS)[number];
 /** Tabs that were here before the account page existed, and where they are now. */
 const ACCOUNT_TABS: Record<string, string> = { preferences: "preferences", accountSecurity: "security", apps: "apps" };
-const ICONS: Record<Tab, LucideIcon> = {
+const ICONS: Record<SettingsTab, LucideIcon> = {
   general: Settings,
   members: Users,
+  guests: ContactRound,
   teamspaces: Boxes,
   groups: UsersRound,
   security: Shield,
@@ -85,9 +88,9 @@ export default async function SettingsPage({
   if (!workspace) notFound();
   const isOwner = workspace.role === "owner";
   const guest = isGuest(workspace.role);
-  // Guests don't see the workspace's members or policies: only its name, and leaving it.
-  const tabs: Tab[] = guest ? ["general"] : [...TABS];
-  const tab: Tab = tabs.find((name) => name === query.tab) ?? "general";
+  const managesGuests = !guest && (await canInviteGuests(user.id, workspaceId));
+  const tabs = visibleSettingsTabs({ guest, managesGuests });
+  const tab: SettingsTab = tabs.find((name) => name === query.tab) ?? "general";
   const t = await getTranslations("settings");
   const navLink = (active: boolean) =>
     `flex h-7 items-center gap-2 rounded-md px-2 whitespace-nowrap ${
@@ -152,6 +155,7 @@ export default async function SettingsPage({
             </>
           )}
           {tab === "members" && <MembersTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
+          {tab === "guests" && <GuestsTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "teamspaces" && <TeamspacesTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "groups" && <GroupsTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "security" && <SecurityTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
@@ -313,6 +317,11 @@ async function MembersTab({ workspaceId, userId, isOwner }: { workspaceId: strin
       now={new Date()}
     />
   );
+}
+
+async function GuestsTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
+  const guests = await listGuests(userId, workspaceId);
+  return <GuestsPanel workspaceId={workspaceId} isOwner={isOwner} guests={guests} now={new Date()} />;
 }
 
 async function GroupsTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
