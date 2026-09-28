@@ -17,7 +17,7 @@ import {
   AccessError,
   type AccessLevel,
   accessRank,
-  enforceTwoFactorPolicy,
+  enforceWorkspacePolicy,
   levelFromRank,
   pageIdColumn,
   pageVisibleTo,
@@ -558,7 +558,7 @@ export async function searchPages(userId: string, query: string, options: Search
   const q = query.trim();
   if (!q) return [];
   const limit = options.limit ?? 20;
-  if (options.workspaceId) await enforceTwoFactorPolicy(userId, options.workspaceId);
+  if (options.workspaceId) await enforceWorkspacePolicy(userId, options.workspaceId);
   const [text, meaning] = await Promise.all([
     fullTextSearch(userId, q, { ...options, limit }),
     semanticSearch(userId, q, { ...options, limit }).catch((error) => {
@@ -600,7 +600,7 @@ export async function searchPages(userId: string, query: string, options: Search
 export async function fullTextSearch(userId: string, query: string, { workspaceId, limit = 20, withinPageId }: SearchOptions = {}): Promise<SearchHit[]> {
   const q = query.trim();
   if (!q) return [];
-  if (workspaceId) await enforceTwoFactorPolicy(userId, workspaceId);
+  if (workspaceId) await enforceWorkspacePolicy(userId, workspaceId);
   const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   const rows = await db.execute<{
     id: string;

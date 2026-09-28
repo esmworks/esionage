@@ -82,5 +82,14 @@
     "signedInAs": "Connecté en tant que {email}.",
     "signOut": "Se déconnecter",
     "otherWorkspaces": "Vos autres espaces de travail"
+  },
+  "ssoGate": {
+    "metaTitle": "Authentification unique requise",
+    "title": "{workspace} exige l'authentification unique",
+    "body": "Les membres de cet espace de travail se connectent via le fournisseur d'identité de leur organisation. Continuez avec lui pour ouvrir l'espace de travail.",
+    "continue": "Continuer avec le SSO",
+    "signedInAs": "Connecté en tant que {email}.",
+    "signOut": "Se déconnecter",
+    "otherWorkspaces": "Vos autres espaces de travail"
   }
 }

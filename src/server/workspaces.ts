@@ -13,10 +13,12 @@ import {
   pageGroupPermission,
   pageIndexState,
   pagePermission,
+  ssoProvider,
   user,
   workspace,
   workspaceInvitation,
   workspaceMember,
+  workspaceSso,
   type WorkspaceRole,
   type WorkspaceSettings,
 } from "@/db/schema";
@@ -67,6 +69,7 @@ export async function createPersonalWorkspace(userId: string, userName: string) 
 export type WorkspaceErrorCode =
   | "nameRequired"
   | "twoFactorFirst"
+  | "ssoFirst"
   | "alreadyMember"
   | "notMember"
   | "lastOwner"
@@ -684,6 +687,14 @@ export async function withdrawFromWorkspaces(tx: Tx, userId: string): Promise<{ 
     await tx.delete(workspaceMember).where(and(eq(workspaceMember.workspaceId, id), eq(workspaceMember.userId, userId)));
     const heir = await oldestOwner(tx, id);
     if (heir) await handOverOrphanedPages(tx, id, heir);
+    // The SSO plugin's provider row belongs to the owner who set it up, and goes with their
+    // account; the workspace's connection should not, so an owner who stays takes it over.
+    if (heir) {
+      await tx
+        .update(ssoProvider)
+        .set({ userId: heir })
+        .where(and(eq(ssoProvider.userId, userId), sql`${ssoProvider.providerId} in (select provider_id from ${workspaceSso} where workspace_id = ${id})`));
+    }
   }
   return { plan, fileKeys };
 }
@@ -766,6 +777,7 @@ const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettin
   publishing: ["owners", "members"],
   requireTwoFactor: [false, true],
   teamspaceCreation: ["owners", "members"],
+  loginMethod: ["any", "sso"],
   ai: [true, false],
 };
 
@@ -783,6 +795,9 @@ export async function updateWorkspaceSettings(
   await requireMembership(actorId, workspaceId, "owner");
   if (patch.requireTwoFactor === true && !strongSession) {
     throw new WorkspaceError("twoFactorFirst", "Turn on two-step verification for your own account first");
+  }
+  if (patch.loginMethod === "sso" && !(await ssoAvailable(workspaceId))) {
+    throw new WorkspaceError("ssoFirst", "Set up single sign-on and verify its domains first");
   }
   const clean: Partial<WorkspaceSettings> = {};
   for (const [key, value] of Object.entries(patch)) {
@@ -802,7 +817,71 @@ export async function updateWorkspaceSettings(
     await db.delete(pageIndexState).where(eq(pageIndexState.workspaceId, workspaceId));
   }
   // Open editors were let in before; the ones the policy now holds back reconnect and are refused.
-  if (clean.requireTwoFactor === true) await getCollab().disconnectHeldBack(workspaceId);
+  if (clean.requireTwoFactor === true || clean.loginMethod === "sso") await getCollab().disconnectHeldBack(workspaceId);
+}
+
+/**
+ * Whether members of the workspace can sign in with single sign-on: it has a connection with
+ * verified domains, or the instance has its own provider. "SSO only" needs one of them.
+ */
+export async function ssoAvailable(workspaceId: string) {
+  if (env.instanceOidc) return true;
+  const [row] = await db
+    .select({ one: sql<number>`1` })
+    .from(workspaceSso)
+    .innerJoin(ssoProvider, eq(ssoProvider.providerId, workspaceSso.providerId))
+    .where(and(eq(workspaceSso.workspaceId, workspaceId), eq(ssoProvider.domainVerified, true)))
+    .limit(1);
+  return row !== undefined;
+}
+
+/**
+ * Adds someone to the workspace as a member on their own behalf (single sign-on through the
+ * workspace's connection, or its identity provider over SCIM). Someone already in the workspace
+ * keeps their role. Pending page invitations for their address come along, as when an owner adds
+ * them. Returns whether they were added.
+ */
+export async function joinAsMember(workspaceId: string, userId: string, email: string) {
+  const clean = normalizeEmail(email);
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .insert(workspaceMember)
+      .values({ workspaceId, userId, role: "member" })
+      .onConflictDoNothing()
+      .returning({ userId: workspaceMember.userId });
+    if (!rows.length) return false;
+    await tx
+      .delete(workspaceInvitation)
+      .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.email, clean)));
+    await claimPageInvitations(tx, workspaceId, userId, clean);
+    return true;
+  });
+}
+
+/**
+ * Takes someone out of the workspace without an owner doing it (their identity provider over
+ * SCIM): what an owner removing them does, with the oldest owner taking over what only they could
+ * manage. Owners can't be removed this way. Returns false when they weren't in the workspace.
+ */
+export async function removeMemberByProvider(workspaceId: string, userId: string) {
+  const removed = await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({ role: workspaceMember.role })
+      .from(workspaceMember)
+      .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, userId)))
+      .for("update");
+    if (!current) return false;
+    if (current.role === "owner") throw new WorkspaceError("lastOwnerRemove", "Owners are managed in the app");
+    await tx.delete(workspaceMember).where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, userId)));
+    // Their AI chat conversations quote the workspace's pages: they go with the membership.
+    await tx.delete(aiConversation).where(and(eq(aiConversation.workspaceId, workspaceId), eq(aiConversation.userId, userId)));
+    const heir = await oldestOwner(tx, workspaceId);
+    await dropFromTeamspaces(tx, workspaceId, userId, heir);
+    if (heir) await handOverOrphanedPages(tx, workspaceId, heir);
+    return true;
+  });
+  if (removed) await getCollab().disconnectUser(userId, workspaceId);
+  return removed;
 }
 
 /**

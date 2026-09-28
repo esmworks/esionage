@@ -41,5 +41,6 @@ describe("collectFiles", () => {
     const big = new Uint8Array(301 * 1024 * 1024);
     const data = zipSync({ "big.md": big }, { level: 1 });
     expect(() => collectFiles([{ path: "bomb.zip", data }])).toThrow(/too large/);
-  });
+    // Packing 301 MB takes a few seconds, more while the other test files run alongside.
+  }, 60_000);
 });

@@ -19,12 +19,13 @@ import { TeamspaceMembersDialog } from "@/components/teamspaces/teamspace-member
 import { Button, cn, Dialog, IconButton, Input, MenuItem, MenuSeparator, Switch } from "@/components/ui";
 import type { TeamspaceAccess } from "@/db/schema/app";
 import type { TeamspaceSummary } from "@/server/teamspaces";
+import { searchFold } from "@/lib/search-fold";
 
 type Person = { userId: string; name: string; email: string; role: "owner" | "member" | "guest" };
 
 function matches(query: string, ...values: string[]) {
-  const q = query.trim().toLocaleLowerCase();
-  return !q || values.some((v) => v.toLocaleLowerCase().includes(q));
+  const q = searchFold(query.trim());
+  return !q || values.some((v) => searchFold(v).includes(q));
 }
 
 /** Settings > Teamspaces: every teamspace the viewer can see, the default ones and who may create them. */

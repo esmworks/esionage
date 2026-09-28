@@ -14,6 +14,8 @@ import {
   requireCodeToDisable,
   sameOriginPath,
   socialTwoFactorRedirect,
+  SSO_PENDING_COOKIE,
+  ssoPendingProvider,
   twoFactorPlugin,
   twoFactorStepUrl,
 } from "./auth-security";
@@ -46,6 +48,54 @@ describe("authMethodOf / recordAuthMethod", () => {
     // A sign-in names its own method, whatever session the browser had before.
     const signIn = { path: "/sign-in/email", context: { session: { session: { authMethod: "passkey" } } } };
     expect((await recordAuthMethod({ userId: "u" }, signIn)).data.authMethod).toBe("password");
+  });
+});
+
+describe("single sign-on in the session", () => {
+  const signed = (value: string | null) => async (name: string) => (name === SSO_PENDING_COOKIE ? value : null);
+
+  it("records the provider of an SSO sign-in", async () => {
+    const oidc = await recordAuthMethod({ userId: "u" }, { path: "/sso/callback/:providerId", params: { providerId: "ws-w1" } });
+    expect(oidc.data).toMatchObject({ authMethod: "sso", ssoProviderId: "ws-w1" });
+    const saml = await recordAuthMethod({ userId: "u" }, { path: "/sso/saml2/sp/acs/:providerId", params: { providerId: "ws-w2" } });
+    expect(saml.data).toMatchObject({ authMethod: "sso", ssoProviderId: "ws-w2" });
+    expect((await recordAuthMethod({ userId: "u" }, { path: "/sign-in/email" })).data.ssoProviderId).toBeNull();
+  });
+
+  it("keeps it through the code step, for the same user only", async () => {
+    const ctx = (value: string | null) => ({
+      path: "/two-factor/verify-totp",
+      context: { secret: SECRET },
+      getSignedCookie: signed(value),
+    });
+    expect((await recordAuthMethod({ userId: "u" }, ctx("ws-w1!u"))).data).toMatchObject({ authMethod: "totp", ssoProviderId: "ws-w1" });
+    expect((await recordAuthMethod({ userId: "u" }, ctx("ws-w1!someone-else"))).data.ssoProviderId).toBeNull();
+    expect((await recordAuthMethod({ userId: "u" }, ctx(null))).data.ssoProviderId).toBeNull();
+    // A password sign-in never reads the cookie.
+    const password = { path: "/sign-in/email", context: { secret: SECRET }, getSignedCookie: signed("ws-w1!u") };
+    expect((await recordAuthMethod({ userId: "u" }, password)).data.ssoProviderId).toBeNull();
+  });
+
+  it("carries it over when a request replaces its own session, not on a new sign-in", async () => {
+    const current = { session: { session: { authMethod: "sso", ssoProviderId: "oidc" } } };
+    expect((await recordAuthMethod({ userId: "u" }, { path: "/change-password", context: current })).data).toMatchObject({
+      authMethod: "sso",
+      ssoProviderId: "oidc",
+    });
+    expect((await recordAuthMethod({ userId: "u" }, { path: "/passkey/verify-authentication", context: current })).data).toMatchObject({
+      authMethod: "passkey",
+      ssoProviderId: null,
+    });
+    expect((await recordAuthMethod({ authMethod: "sso", ssoProviderId: "ws-w1" }, { path: "/two-factor/enable" })).data.ssoProviderId).toBe(
+      "ws-w1",
+    );
+  });
+
+  it("parses the pending cookie", () => {
+    expect(ssoPendingProvider("ws-w1!u1", "u1")).toBe("ws-w1");
+    expect(ssoPendingProvider("ws-w1!u1", "u2")).toBeNull();
+    expect(ssoPendingProvider("!u1", "u1")).toBeNull();
+    expect(ssoPendingProvider("ws-w1!u1", undefined)).toBeNull();
   });
 });
 

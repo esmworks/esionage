@@ -31,7 +31,7 @@ import {
   type ConversationSummary,
 } from "@/lib/ai-chat";
 import { pageLabel } from "@/lib/labels";
-import { AccessError, pageAccessOf, requireMembership, requirePageAccess } from "@/server/access";
+import { AccessError, pageAccessOf, requireMembership, requirePageAccess, WorkspacePolicyError } from "@/server/access";
 import { aiConfig, AiError, isAiError, stream, takeRateLimit, takeWorkspaceCapacity, type AiMessage, type AiTool } from "@/server/ai";
 import { chatHistory, chatQuestionPrompt, chatSystemPrompt, formatSources, truncateText, type ChatSourceText } from "@/server/ai/prompts";
 import { aiAvailable } from "@/server/ai-writing";
@@ -88,7 +88,7 @@ function refuse(code: AiErrorCode, message: string): never {
 async function scopePage(userId: string, workspaceId: string, scope: ChatScope | undefined) {
   if (!scope) return null;
   const found = await requirePageAccess(userId, scope.pageId, "view").catch((error) => {
-    if (error instanceof AccessError && error.name !== "TwoFactorRequiredError") refuse("noAccess", "Page not found");
+    if (error instanceof AccessError && !(error instanceof WorkspacePolicyError)) refuse("noAccess", "Page not found");
     throw error;
   });
   if (found.workspaceId !== workspaceId || found.archivedAt || found.inTemplate) refuse("noAccess", "Page not found");
@@ -119,7 +119,7 @@ export async function startChat(userId: string, input: ChatInput, signal?: Abort
   if (!message) refuse("invalid", "Ask a question");
   if (message.length > MAX_CHAT_MESSAGE) refuse("tooLarge", `A question may have at most ${MAX_CHAT_MESSAGE} characters`);
   await requireMembership(userId, input.workspaceId).catch((error) => {
-    if (error instanceof AccessError && error.name !== "TwoFactorRequiredError") refuse("noAccess", "Workspace not found");
+    if (error instanceof AccessError && !(error instanceof WorkspacePolicyError)) refuse("noAccess", "Workspace not found");
     throw error;
   });
   if (!(await aiAvailable(input.workspaceId))) refuse("disabled", "AI is off for this workspace");

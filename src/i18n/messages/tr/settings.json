@@ -273,7 +273,8 @@
     "joinLinkInvalid": "Bu katılma bağlantısı geçersiz veya kapatılmış.",
     "transferToSelf": "Sahip yapmak için başka birini seçin.",
     "transferToGuest": "Sahip yapmadan önce üye yapın.",
-    "twoFactorFirst": "Önce kendi hesabınız için iki adımlı doğrulamayı açın veya passkey ile giriş yapın."
+    "twoFactorFirst": "Önce kendi hesabınız için iki adımlı doğrulamayı açın veya passkey ile giriş yapın.",
+    "ssoFirst": "Önce çoklu oturum açmayı kurun ve alan adlarını doğrulayın."
   },
   "security": {
     "description": "İnsanların nasıl giriş yapacağını, bu çalışma alanına kimlerin kişi getirebileceğini, misafirlerin neler yapabileceğini ve kimlerin sayfaları web'de yayınlayabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
@@ -330,7 +331,112 @@
       "confirm": "Bu formun herkese açık bağlantısı kapatılsın mı? Bağlantı herkes için çalışmayı bırakır.",
       "stale": "Yanıt almıyor: açan kişinin erişimi kalmadı"
     },
-    "ownersOnly": "Bunu yalnızca sahipler değiştirebilir."
+    "ownersOnly": "Bunu yalnızca sahipler değiştirebilir.",
+    "loginMethod": {
+      "title": "Üyeler nasıl giriş yapar",
+      "description": "Yalnızca çoklu oturum açma seçiliyken üyeler bu çalışma alanını açmak için kimlik sağlayıcı üzerinden giriş yapmak zorundadır. Sahipler ve misafirler her yöntemi kullanmaya devam eder; böylece bozulan bir kimlik sağlayıcı sizi dışarıda bırakamaz.",
+      "setUpFirst": "Önce aşağıdan çoklu oturum açmayı kurun.",
+      "any": "Her yöntem",
+      "sso": "Yalnızca çoklu oturum açma"
+    },
+    "sso": {
+      "title": "Çoklu oturum açma (SSO)",
+      "description": "Kuruluşunuzun kimlik sağlayıcısını OpenID Connect veya SAML ile bağlayın. Doğrulanmış alan adlarında adresi olanlar onunla giriş yapabilir; ilk seferde hesapları açılır ve üye olarak katılırlar.",
+      "setup": {
+        "workspaceId": "Çalışma alanı kimliği",
+        "oidcRedirectUri": "OIDC yönlendirme URI'si",
+        "oidcRedirectUriHint": "Bunu kimlik sağlayıcınızdaki istemcinin izin verilen yönlendirme (callback) adreslerine ekleyin.",
+        "samlEntityId": "SAML entity ID (audience)",
+        "samlAcsUrl": "SAML ACS URL'si",
+        "samlMetadataUrl": "SAML servis sağlayıcı metadata'sı"
+      },
+      "connection": {
+        "oidc": "OpenID Connect",
+        "saml": "SAML 2.0",
+        "active": "Etkin",
+        "unverified": "Alan adları henüz doğrulanmadı",
+        "domains": "Alan adları: {domains}"
+      },
+      "dns": {
+        "body": "Bu alan adlarının size ait olduğunu göstermek için DNS sağlayıcınızda her biri için bir TXT kaydı ekleyin, sonra doğrulayın. O zamana kadar bu bağlantıyla kimse giriş yapamaz.",
+        "name": "Ad",
+        "value": "Değer",
+        "verify": "Alan adlarını doğrula",
+        "verifying": "DNS kontrol ediliyor…",
+        "verified": "Alan adları doğrulandı. Çoklu oturum açma açık."
+      },
+      "form": {
+        "protocol": "Protokol",
+        "issuer": "Issuer URL'si",
+        "issuerHint": "OpenID yapılandırmasının sunulduğu adres (…/.well-known/openid-configuration).",
+        "clientId": "Client ID",
+        "clientSecret": "Client secret",
+        "secretKept": "Değişmedi",
+        "samlSource": "Kimlik sağlayıcı bilgileri",
+        "metadata": "Metadata XML",
+        "manual": "Elle gir",
+        "metadataXml": "Kimlik sağlayıcı metadata XML'i",
+        "metadataKept": "Kayıtlı metadata'yı korumak için boş bırakın",
+        "entryPoint": "SSO URL'si",
+        "idpEntityId": "Kimlik sağlayıcı entity ID'si",
+        "certificate": "İmzalama sertifikası",
+        "certificateKept": "Kayıtlı sertifikayı korumak için boş bırakın",
+        "domains": "E-posta alan adları",
+        "domainsHint": "Virgülle ayırın, örneğin example.com, example.org. Alt alan adları da dahildir.",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor…"
+      },
+      "saved": "Kaydedildi.",
+      "edit": "Düzenle",
+      "remove": "Kaldır",
+      "confirmRemove": "Çoklu oturum açmayı kaldır",
+      "errors": {
+        "invalidDomain": "{detail} kullanılamaz: kuruluşunuzun kendi e-posta alan adlarını girin (gmail.com gibi genel e-posta servisleri olmaz).",
+        "noDomains": "En az bir e-posta alan adı ekleyin.",
+        "invalidIssuer": "Issuer bir https adresi olmalı.",
+        "discoveryFailed": "Sağlayıcının OpenID yapılandırması {detail} adresinden okunamadı. Issuer adresini kontrol edin.",
+        "clientIdRequired": "Client ID girin.",
+        "secretRequired": "Client secret girin.",
+        "invalidSaml": "Kimlik sağlayıcının metadata XML'ini yapıştırın ya da SSO URL'sini, entity ID'sini ve imzalama sertifikasını girin.",
+        "noConnection": "Önce çoklu oturum açmayı kurun.",
+        "dnsMismatch": "{detail} için TXT kaydı bulunamadı ya da değeri farklı. DNS değişikliklerinin görünmesi biraz sürebilir.",
+        "domainTaken": "{detail} bu sunucuda zaten başka bir yerde çoklu oturum açma için kullanılıyor.",
+        "name": "Token'a en fazla 100 karakterlik bir ad verin.",
+        "limit": "Bir çalışma alanında en fazla 20 SCIM token'ı olabilir. Önce birini iptal edin.",
+        "ownersOnly": "Bunu yalnızca çalışma alanı sahipleri yapabilir.",
+        "generic": "Bir şeyler ters gitti. Lütfen tekrar deneyin."
+      }
+    },
+    "scim": {
+      "title": "Kullanıcı hazırlama (SCIM)",
+      "description": "Kimlik sağlayıcınızın SCIM 2.0 ile üye eklemesine, güncellemesine ve çıkarmasına izin verin. Gruplar henüz desteklenmiyor.",
+      "baseUrl": "SCIM temel URL'si",
+      "managed": "{count, plural, =0 {Henüz kimse SCIM ile yönetilmiyor.} one {# kişi SCIM ile yönetiliyor.} other {# kişi SCIM ile yönetiliyor.}}",
+      "tokens": "Token'lar",
+      "tokensDescription": "Kimlik sağlayıcı bunu bearer token olarak gönderir. Her biri yalnızca bu çalışma alanında geçer.",
+      "empty": "Henüz token yok.",
+      "lastUsed": "Son kullanım {date, date, medium}",
+      "neverUsed": "Hiç kullanılmadı",
+      "create": "Yeni token",
+      "revoke": "İptal et",
+      "confirmRevoke": "{name} iptal edilsin",
+      "form": {
+        "title": "Yeni SCIM token'ı",
+        "name": "Ad",
+        "namePlaceholder": "Örneğin: Okta",
+        "submit": "Token oluştur"
+      },
+      "created": {
+        "title": "Token'ınızı kopyalayın",
+        "body": "Şimdi kimlik sağlayıcınıza yapıştırın. Bir daha gösterilmeyecek.",
+        "done": "Tamam"
+      },
+      "errors": {
+        "name": "Token'a en fazla 100 karakterlik bir ad verin.",
+        "limit": "Bir çalışma alanında en fazla 20 SCIM token'ı olabilir. Önce birini iptal edin.",
+        "generic": "Bir şeyler ters gitti. Lütfen tekrar deneyin."
+      }
+    }
   },
   "notifications": {
     "heading": "Bildirimler",

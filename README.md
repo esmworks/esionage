@@ -123,6 +123,9 @@ approve them over OAuth.
 - **Two-step verification and passkeys**: an authenticator app with one-time recovery codes,
   passkeys, and a workspace policy that requires one of them (see
   [Two-step verification and passkeys](#two-step-verification-and-passkeys)).
+- **Single sign-on and provisioning**: OpenID Connect for the whole server, OpenID Connect or SAML
+  per workspace with DNS-verified email domains, a "single sign-on only" policy, and SCIM 2.0 user
+  provisioning (see [Single sign-on (OIDC, SAML) and SCIM](#single-sign-on-oidc-saml-and-scim)).
 - **AI writing assistant, AI properties and AI chat** (optional, off until a provider is set up):
   improve, shorten, fix, translate or rewrite selected text as you ask, continue writing, and
   summarize a page, as a suggestion you accept or discard; database text properties that AI fills
@@ -416,6 +419,115 @@ removes their passkeys):
 pnpm auth:reset-2fa person@example.com
 # Docker: docker compose exec app pnpm auth:reset-2fa person@example.com
 ```
+
+## Single sign-on (OIDC, SAML) and SCIM
+
+Organizations can sign people in through their own identity provider (Keycloak, Authentik, Okta,
+Microsoft Entra ID, Google Workspace…) in two ways, which can be combined:
+
+- **For the whole server** (the operator's provider, OpenID Connect): set the variables below and
+  restart. The sign-in page gets a "Continue with `OIDC_NAME`" button.
+- **Per workspace** (OpenID Connect or SAML 2.0): an owner sets it up in **Settings → Security →
+  Single sign-on**. People sign in with it through **Continue with SSO** on the sign-in page,
+  where they type their email and are sent to their organization's provider.
+
+| Variable | Meaning |
+| --- | --- |
+| `OIDC_ISSUER` | Issuer URL; its discovery document must be at `<issuer>/.well-known/openid-configuration` |
+| `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | The client registered at the provider (confidential, authorization code flow) |
+| `OIDC_NAME` | Button label (default `SSO`) |
+| `OIDC_DOMAINS` | Comma-separated email domains the provider is authoritative for (optional, see below) |
+| `SSO_TRUSTED_ORIGINS` | Comma-separated origins of workspace providers on a private network (the instance issuer's is trusted already) |
+
+The instance provider's redirect URI is `${APP_URL}/api/auth/sso/callback/oidc`. The scopes asked
+for are `openid email profile`, with PKCE.
+
+**What single sign-on does**
+
+- **First sign-in creates the account.** Through a workspace connection, only for addresses in
+  its verified domains; the person also joins that workspace as a member. So does an existing
+  account on its first sign-in through the connection. Only then: someone an owner removes later
+  stays out (their provider can bring them back over SCIM). Through the instance provider, for anyone it signs in, or only
+  for `OIDC_DOMAINS` when those are set; it creates accounts even with `DISABLE_SIGNUP=true`,
+  since the operator configured it. Set `OIDC_DOMAINS` for a provider that signs in people outside
+  your organization (Google does).
+- **Existing accounts** with the same email are signed in only when the provider is authoritative
+  for the address: a workspace connection for its verified domains, the instance provider for
+  `OIDC_DOMAINS`. Like social login, an account whose email was never verified loses its password
+  and its earlier sessions when this happens (see [Social login](#social-login)).
+- **Two-step verification still applies:** someone with an authenticator app is asked for a code
+  after the provider, as with a password.
+
+**Setting up a workspace connection** (owners): the SSO box shows what to enter at the provider,
+each with a copy button: the workspace ID, the **OIDC redirect URI**
+(`${APP_URL}/api/auth/sso/callback/ws-<workspace id>`), the **SAML entity ID** (audience), the
+**ACS URL** (`${APP_URL}/api/auth/sso/saml2/sp/acs/ws-<workspace id>`) and the SAML metadata URL.
+Then fill in the provider's details:
+
+- **OpenID Connect:** issuer URL, client ID and client secret. The issuer's discovery document is
+  read when saving (it must name the same issuer, and its endpoints must be https unless the
+  origin is in `SSO_TRUSTED_ORIGINS`). Addresses on private networks are refused unless trusted.
+- **SAML 2.0:** paste the provider's metadata XML, or enter its SSO URL, entity ID and signing
+  certificate. Assertions must be signed; the NameID format asked for is the email address.
+  Single logout is not supported.
+- **Email domains** (`example.com, example.org`; subdomains included): the connection signs
+  nobody in until they are verified. Add the TXT record it shows for each domain
+  (`_esionage-sso.<domain>` with the value `esionage-sso=<token>`) at your DNS provider and click
+  **Verify domains**. Public mail services (gmail.com, outlook.com…) can't be claimed, and a
+  domain verified by one workspace (or listed in `OIDC_DOMAINS`) can't be verified by another.
+  Changing the domains or the provider asks for verification again.
+
+A workspace has one connection. Removing it (or the workspace) removes its provider; sessions that
+came through it no longer count for "Single sign-on only".
+
+**How members sign in** (Settings → Security): *Any method* (default) or *Single sign-on only*.
+With single sign-on only, members whose session didn't come through the workspace's connection
+(or the instance provider) are sent to a page that signs them in with it, and like two-step
+verification the policy covers the app's pages, exports, server actions, API routes and live
+collaboration, and closes open connections when turned on. **Owners and guests are exempt**, so a
+broken identity provider can't lock a workspace: owners keep their password or passkey. It can be
+turned on only once a verified connection (or the instance provider) exists. Apps connected over
+MCP and REST API tokens are not affected.
+
+**SCIM 2.0 provisioning.** Owners create SCIM tokens in Settings → Security (shown once, stored
+as a SHA-256 hash, at most 20 per workspace, 600 requests a minute each) and give the provider the
+base URL `${APP_URL}/scim/v2` with the token as a bearer token. Supported:
+
+- `/Users`: list (with `startIndex`/`count` and one `eq` filter on `userName`, `externalId`,
+  `emails.value` or `id`), get, create (`POST`), replace (`PUT`), `PATCH` (`active`,
+  `externalId`, `displayName`, `name`; `userName` and `emails` are ignored: an account's address
+  is its owner's) and delete.
+- Users are the workspace's owners and members, plus people the provider deactivated. Creating a
+  user makes them a member (a guest is promoted); a new account is created only for addresses in
+  the workspace's verified SSO domains, anyone else must have an account already. Names are
+  changed only for addresses in those domains.
+- `active: false` removes the person from the workspace (what an owner removing them does) and
+  keeps them listed as inactive; they can't come back through single sign-on until reactivated.
+  `DELETE` removes them and forgets them. Owners can't be deactivated or deleted over SCIM.
+- `/ServiceProviderConfig`, `/ResourceTypes` and `/Schemas` for discovery. `/Groups` lists no
+  groups and answers changes with 501: member groups are managed in the app for now.
+
+**Examples**
+
+- **Keycloak** (OIDC): create a client with *Client authentication* on and the standard flow,
+  add the redirect URI from the SSO box (or `…/sso/callback/oidc` for the instance provider). The
+  issuer is `https://keycloak.example.com/realms/<realm>`. Keycloak in the same Docker network:
+  `SSO_TRUSTED_ORIGINS=http://keycloak:8080`. For SAML, import the SSO box's metadata URL as a
+  SAML client and paste the realm's descriptor
+  (`…/realms/<realm>/protocol/saml/descriptor`) as the metadata XML.
+- **Authentik** (OIDC): create an *OAuth2/OpenID Provider* (confidential client, redirect URI from
+  the SSO box) and an application using it; the issuer is
+  `https://authentik.example.com/application/o/<application slug>/`. SCIM: add a *SCIM Provider*
+  with the base URL and a SCIM token, and attach it to the application as a backchannel provider.
+- **Google Workspace**: as the instance provider (OIDC), create an OAuth client of type *Web
+  application* in Google Cloud with the redirect URI `${APP_URL}/api/auth/sso/callback/oidc`, set
+  `OIDC_ISSUER=https://accounts.google.com` and `OIDC_DOMAINS=<your domain>` (Google signs in any
+  Google account otherwise). Per workspace, use SAML: add a *custom SAML app* in the Admin console
+  with the ACS URL and entity ID from the SSO box, *Name ID format* EMAIL with the primary email,
+  and paste the IdP metadata it offers. Google Workspace doesn't send SCIM to custom apps.
+
+Tested here against a mock OpenID Connect provider (`scripts/sso-e2e.ts`) and over HTTP for SCIM
+(`scripts/scim-e2e.ts`); SAML and the providers above have not been tried against the real thing.
 
 ## Deploy on Dokploy
 

@@ -1,11 +1,4 @@
-import {
-  AccessError,
-  findMembership,
-  hasLevel,
-  pageAccessOf,
-  twoFactorPolicyApplies,
-  TwoFactorRequiredError,
-} from "@/server/access";
+import { AccessError, findMembership, hasLevel, pageAccessOf, policyError, policyHoldFor, type SessionFacts } from "@/server/access";
 
 export type DocTarget = { kind: "page" | "ws" | "db"; id: string };
 
@@ -17,27 +10,28 @@ export function parseDocName(name: string): DocTarget | null {
 
 /**
  * Whether the user may open a collab document: a workspace's signals need membership, a page or
- * database needs view access, and without edit access that connection is read-only. A workspace
- * that requires two-step verification also needs a session that passes it (`strong`, see
- * sessionPassesTwoFactor). Throws AccessError otherwise (TwoFactorRequiredError for the policy).
- * Checked when the connection opens; turning the policy on closes the others (disconnectHeldBack).
+ * database needs view access, and without edit access that connection is read-only. The
+ * workspace's sign-in policies apply to the session the token was issued to (`facts`, see
+ * collabSessionFacts). Throws AccessError otherwise (a WorkspacePolicyError for the policies).
+ * Checked when the connection opens; turning a policy on closes the others (disconnectHeldBack).
  */
 export async function authorizeCollab(
   userId: string,
   target: DocTarget,
-  { strong = false }: { strong?: boolean } = {},
+  facts: SessionFacts = { strong: false, ssoProviderId: null },
 ): Promise<{ readOnly: boolean }> {
   if (target.kind === "ws") {
     if (!(await findMembership(userId, target.id))) throw new AccessError();
-    await holdBack(userId, target.id, strong);
+    await holdBack(userId, target.id, facts);
     return { readOnly: false };
   }
   const { page, level } = await pageAccessOf(userId, target.id);
   if (!page || !hasLevel(level, "view")) throw new AccessError();
-  await holdBack(userId, page.workspaceId, strong);
+  await holdBack(userId, page.workspaceId, facts);
   return { readOnly: !hasLevel(level, "edit") };
 }
 
-async function holdBack(userId: string, workspaceId: string, strong: boolean) {
-  if (!strong && (await twoFactorPolicyApplies(userId, workspaceId))) throw new TwoFactorRequiredError(workspaceId);
+async function holdBack(userId: string, workspaceId: string, facts: SessionFacts) {
+  const hold = await policyHoldFor(userId, workspaceId, facts);
+  if (hold) throw policyError(workspaceId, hold);
 }

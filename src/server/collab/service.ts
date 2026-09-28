@@ -13,9 +13,9 @@ import { markdownImageHint, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { migrateDocTitle, readDocTitle, writeDocTitle } from "@/lib/collab-title";
 import { requestLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
-import { COLLAB_FORBIDDEN, COLLAB_TWO_STEP, COLLAB_UNAUTHORIZED } from "@/lib/offline";
-import { AccessError, TwoFactorRequiredError } from "@/server/access";
-import { sessionPassesTwoFactor } from "@/server/account-security";
+import { COLLAB_FORBIDDEN, COLLAB_SSO, COLLAB_TWO_STEP, COLLAB_UNAUTHORIZED } from "@/lib/offline";
+import { AccessError, policyHoldFor, WorkspacePolicyError } from "@/server/access";
+import { collabSessionFacts } from "@/server/account-security";
 import { blocksToMarkdown, markdownToBlocks, serverEditor as editor } from "@/server/blocknote";
 import { mentionablePeople, syncPageReferences } from "@/server/mentions";
 import { pageChanged } from "@/server/page-events";
@@ -39,6 +39,8 @@ type Context = {
   locale?: string;
   /** The session passes a "require two-step verification" policy (see authorizeCollab). */
   strong?: boolean;
+  /** The SSO provider the session came through, for "SSO only" workspaces. */
+  ssoProviderId?: string | null;
 };
 
 const AUTO_SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
@@ -241,9 +243,9 @@ export function createCollab() {
       if (!user) throw refusal(COLLAB_UNAUTHORIZED);
       if (!target) throw refusal(COLLAB_FORBIDDEN);
       try {
-        const strong = await sessionPassesTwoFactor(user.sessionId, user.userId);
+        const facts = await collabSessionFacts(user.sessionId, user.userId);
         // People who may only read get the live document but their edits are dropped.
-        const { readOnly } = await authorizeCollab(user.userId, target, { strong });
+        const { readOnly } = await authorizeCollab(user.userId, target, facts);
         if (readOnly) connectionConfig.readOnly = true;
         return {
           userId: user.userId,
@@ -251,11 +253,12 @@ export function createCollab() {
           userImage: user.userImage,
           sessionId: user.sessionId,
           locale: requestLocale(requestHeaders),
-          strong,
+          strong: facts.strong,
+          ssoProviderId: facts.ssoProviderId,
         } satisfies Context;
       } catch (error) {
         // Browsers drop their offline copy of a page only for "forbidden" (see components/collab/socket).
-        if (error instanceof TwoFactorRequiredError) throw refusal(COLLAB_TWO_STEP);
+        if (error instanceof WorkspacePolicyError) throw refusal(error.hold === "sso" ? COLLAB_SSO : COLLAB_TWO_STEP);
         if (error instanceof AccessError) throw refusal(COLLAB_FORBIDDEN);
         throw error;
       }
@@ -501,8 +504,23 @@ export function createCollab() {
     },
 
     async disconnectHeldBack(workspaceId) {
-      // Browser connections only (they carry a user); the server's own have no session.
-      await closeConnections(workspaceId, (context) => context.userId !== undefined && context.strong !== true);
+      // Browser connections only (they carry a user); the server's own have no session. Each kind
+      // of session (user, two-step, SSO provider) is asked about once.
+      const verdicts = new Map<string, boolean>();
+      const keyOf = (c: Context) => `${c.userId}|${c.strong === true}|${c.ssoProviderId ?? ""}`;
+      for (const doc of hocuspocus.documents.values()) {
+        for (const connection of doc.getConnections()) {
+          const context = connection.context as Context;
+          if (context.userId === undefined || verdicts.has(keyOf(context))) continue;
+          verdicts.set(keyOf(context), false);
+          const hold = await policyHoldFor(context.userId, workspaceId, {
+            strong: context.strong === true,
+            ssoProviderId: context.ssoProviderId ?? null,
+          });
+          verdicts.set(keyOf(context), hold !== null);
+        }
+      }
+      await closeConnections(workspaceId, (context) => context.userId !== undefined && verdicts.get(keyOf(context)) === true);
     },
 
     async disconnectSessions(userId, keep) {

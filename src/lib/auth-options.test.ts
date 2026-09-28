@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { closedSignUpAdmits, guardUpdateUser, inviteTokenOf, joinTokenOf, socialTokenOf } from "./auth-options";
+import {
+  closedSignUpAdmits,
+  guardUpdateUser,
+  inviteTokenOf,
+  joinTokenOf,
+  routeSsoSignIn,
+  socialTokenOf,
+  SSO_DISABLED_ENDPOINTS,
+  SSO_DISABLED_PATHS,
+} from "./auth-options";
 
 describe("guardUpdateUser", () => {
   it("lets a valid name through, and removing the picture", () => {
@@ -75,5 +84,41 @@ describe("closedSignUpAdmits", () => {
     expect(await closedSignUpAdmits(null, "a@example.com", check)).toBe(false);
     expect(await closedSignUpAdmits("t", undefined, check)).toBe(false);
     expect(await closedSignUpAdmits("t", "a@example.com")).toBe(false);
+  });
+});
+
+describe("routeSsoSignIn", () => {
+  const resolve = async (email: string) => (email.endsWith("@example.com") ? "ws-w1" : null);
+  const codeOf = async (promise: Promise<unknown>) => ((await promise.catch((e: unknown) => e)) as { body?: { code?: string } }).body?.code;
+
+  it("picks the provider from the email typed on the sign-in page", async () => {
+    expect(await routeSsoSignIn({ email: " ada@example.com ", callbackURL: "/w" }, resolve)).toEqual({
+      email: "ada@example.com",
+      callbackURL: "/w",
+      providerId: "ws-w1",
+    });
+  });
+
+  it("leaves a sign-in with a provider id to the plugin (the gate page and the instance button)", async () => {
+    expect(await routeSsoSignIn({ providerId: "oidc" }, resolve)).toBeNull();
+  });
+
+  it("answers SSO_NOT_FOUND when nothing matches, and refuses the plugin's own routing", async () => {
+    expect(await codeOf(routeSsoSignIn({ email: "ada@other.com" }, resolve))).toBe("SSO_NOT_FOUND");
+    expect(await codeOf(routeSsoSignIn({}, resolve))).toBe("SSO_NOT_FOUND");
+    expect(await codeOf(routeSsoSignIn({ email: "ada@example.com" }, undefined))).toBe("SSO_NOT_FOUND");
+    expect(await codeOf(routeSsoSignIn({ domain: "example.com" }, resolve))).toBe("SSO_NOT_FOUND");
+    expect(await codeOf(routeSsoSignIn({ organizationSlug: "acme" }, resolve))).toBe("SSO_NOT_FOUND");
+  });
+});
+
+describe("SSO endpoints that are off", () => {
+  it("covers provider management, the shared callback and single logout", () => {
+    for (const path of ["/sso/register", "/sso/verify-domain", "/sso/callback", "/sso/saml2/sp/slo/:providerId"]) {
+      expect(SSO_DISABLED_ENDPOINTS.has(path)).toBe(true);
+    }
+    expect(SSO_DISABLED_ENDPOINTS.has("/sso/callback/:providerId")).toBe(false);
+    expect(SSO_DISABLED_ENDPOINTS.has("/sso/saml2/sp/acs/:providerId")).toBe(false);
+    expect(SSO_DISABLED_PATHS.every((path) => !path.includes(":"))).toBe(true);
   });
 });

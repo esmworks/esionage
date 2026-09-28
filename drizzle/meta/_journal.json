@@ -173,15 +173,22 @@
     {
       "idx": 24,
       "version": "7",
-      "when": 1790554351452,
-      "tag": "0024_semantic_search",
+      "when": 1790552151910,
+      "tag": "0024_sso",
       "breakpoints": true
     },
     {
       "idx": 25,
       "version": "7",
+      "when": 1790554351452,
+      "tag": "0025_semantic_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
       "when": 1790554393148,
-      "tag": "0025_ai_chat",
+      "tag": "0026_ai_chat",
       "breakpoints": true
     }
   ]

@@ -1,11 +1,12 @@
 "use client";
 
 import { Check, X } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { cn } from "@/components/ui";
 import { UserAvatar } from "@/components/user-avatar";
 import type { PersonRef, Property } from "./types";
+import { searchFold } from "@/lib/search-fold";
 
 export type PeopleContextValue = {
   /** The signed-in user: "me" in person filters, "(you)" in the picker. */
@@ -83,7 +84,6 @@ export function PersonPicker({
   onChange: (value: unknown) => void;
 }) {
   const t = useTranslations("database.person");
-  const locale = useLocale();
   const { people, viewerId } = usePeople();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -94,7 +94,8 @@ export function PersonPicker({
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
 
-  const lower = (s: string) => s.toLocaleLowerCase(locale);
+  // Case-insensitive, with the dotted and dotless i alike (see searchFold).
+  const lower = searchFold;
   const q = lower(query.trim());
   const candidates = people.filter((p) => p.active);
   const items = q

@@ -17,7 +17,7 @@
   checked when the query runs, before ranking, never stored in the index. Trashed pages drop out
   at once; turning AI off for a workspace deletes its index. New setting
   `AI_EMBEDDINGS_MIN_SIMILARITY` (default 0.3). Without an embeddings model search is exactly the
-  full-text search it was. Migration `0024_semantic_search`. New checks:
+  full-text search it was. Migration `0025_semantic_search`. New checks:
   `scripts/semantic-search-e2e.ts` (64, against a stand-in OpenAI-compatible server),
   `src/server/semantic-text.test.ts`.
 - **AI chat** (#41): *Ask AI* in the sidebar opens a panel that answers questions from the pages
@@ -26,11 +26,30 @@
   run through `operations.ts` as the person with their access checked on every call; answers
   stream (`POST /api/ai/chat`, NDJSON) and can be stopped. Questions can be kept to the current
   page and its subpages. Conversations are private, kept per person and workspace
-  (`ai_conversation`, migration `0025_ai_chat`; 50 per workspace, 40 questions each, 4000
+  (`ai_conversation`, migration `0026_ai_chat`; 50 per workspace, 40 questions each, 4000
   characters a question), listed and deletable in the panel, and deleted when the person leaves
   the workspace or deletes their account; cited pages they can no longer open lose their title.
   Off while offline and when AI is off, with the reason shown. Links to `#block-<id>` scroll to
   and highlight the block. New checks: `scripts/ai-chat-e2e.ts` (62), `src/server/ai/chat.test.ts`.
+- **Single sign-on and SCIM** (#38), with Better Auth's SSO plugin (`@better-auth/sso` 1.7.6):
+  an instance-wide OpenID Connect provider from `OIDC_ISSUER`, `OIDC_CLIENT_ID`,
+  `OIDC_CLIENT_SECRET` (`OIDC_NAME`, `OIDC_DOMAINS`), and one OpenID Connect or SAML 2.0
+  connection per workspace, set up by owners in Settings → Security. A workspace connection signs
+  people in only for its email domains, once each is verified with a DNS TXT record
+  (`_esionage-sso.<domain>`); public mail domains can't be claimed and a domain belongs to one
+  connection. "Continue with SSO" on the sign-in page routes an email to its provider. The first
+  sign-in creates the account (only in those domains) and joins the workspace as a member;
+  two-step verification still asks for its code afterwards. New workspace setting *How members
+  sign in*: *Any method* or *Single sign-on only*, enforced like "require two-step verification"
+  (pages, exports, actions, API routes, live collaboration; a new `/sso-required/<id>` page), with
+  owners and guests exempt. SCIM 2.0 at `/scim/v2` with workspace SCIM tokens (hashed, revocable):
+  `Users` list/filter/get/create/replace/patch/delete, where `active: false` removes someone from
+  the workspace and owners can't be deactivated; `Groups` lists none and answers changes with 501.
+  The SSO box lists the workspace ID, OIDC redirect URI, SAML entity ID, ACS and metadata URLs to
+  copy. The plugin's own provider management, its shared callback and SAML single logout are off.
+  Migration `0024_sso`. New checks: `scripts/sso-e2e.ts` (69, against a mock OIDC provider it
+  runs itself), `scripts/scim-e2e.ts` (59), `src/lib/sso-config.test.ts`, `src/lib/scim.test.ts`,
+  `src/server/sso.test.ts`. Not tried against real identity providers; SAML only in unit tests.
 - **Member groups** (#37): workspace owners create groups in Settings → Groups (rename, add and
   remove members, delete); everyone sees the list and who is in each group. A page can be shared
   with a group from the share panel like a person (`page_group_permission`, inherited by subpages
@@ -497,8 +516,10 @@
 
 ### Fixed
 
-- Search in the share panel and the groups pickers no longer misses names with "I" in a
-  Turkish-locale browser (typed "I" could fold to "ı" while the names folded to "i").
+- Searching in the share panel, the groups, members and teamspace lists, the @-mention menu, the
+  person, relation and select pickers and the move and link-to-page dialogs no longer misses
+  names with "I" in a Turkish-locale browser (typed "I" could fold to "ı" while the names folded
+  to "i").
 - Empty lines on published pages no longer show as a box.
 - Typing right after pressing New in a database keeps the first letters, including accented
   letters, other keyboards and pasted text, and Enter no longer adds a second empty row.

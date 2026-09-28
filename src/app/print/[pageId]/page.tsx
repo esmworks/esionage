@@ -4,10 +4,10 @@ import { getTranslations } from "next-intl/server";
 import { cache } from "react";
 import { PrintView } from "@/components/print/print-view";
 import { pageLabel } from "@/lib/labels";
-import { AccessError, TwoFactorRequiredError } from "@/server/access";
+import { AccessError, WorkspacePolicyError } from "@/server/access";
 import { getPage } from "@/server/pages";
 import { printDocument } from "@/server/print";
-import { blockedByTwoFactorPolicy, requireSession, twoStepPath } from "@/server/session";
+import { blockedByWorkspacePolicy, policyGatePath, requireSession } from "@/server/session";
 
 /**
  * The print view of a page (`/print/<pageId>`, the page menu's "Export as PDF"), outside the
@@ -22,11 +22,12 @@ const load = cache(async (pageId: string, subpages: boolean) => {
   const session = await requireSession();
   try {
     const target = await getPage(session.user.id, pageId);
-    // The access checks hold the session to the policy too (TwoFactorRequiredError, below).
-    if (await blockedByTwoFactorPolicy(session, target.workspaceId)) redirect(twoStepPath(target.workspaceId));
+    // The access checks hold the session to the policies too (WorkspacePolicyError, below).
+    const hold = await blockedByWorkspacePolicy(session, target.workspaceId);
+    if (hold) redirect(policyGatePath(target.workspaceId, hold));
     return await printDocument(session.user.id, pageId, { subpages });
   } catch (error) {
-    if (error instanceof TwoFactorRequiredError) redirect(twoStepPath(error.workspaceId));
+    if (error instanceof WorkspacePolicyError) redirect(policyGatePath(error.workspaceId, error.hold));
     if (error instanceof AccessError) notFound();
     throw error;
   }

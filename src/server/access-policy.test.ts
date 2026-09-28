@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RequestSession } from "./request-session";
 
 /**
- * The two-step policy in the access checks: which sessions it holds back, and that it asks the
- * database once per request and workspace. The database answers from a queue, one result per query.
+ * The workspace sign-in policies in the access checks (two-step verification, single sign-on only):
+ * which sessions they hold back, and that they ask the database once per request and workspace.
+ * The database answers from a queue, one result per query.
  */
 const results: unknown[][] = [];
 let queries = 0;
@@ -23,13 +24,24 @@ vi.mock("@/db", () => ({ db: { select: () => (chain() as { select: () => unknown
 let current: RequestSession | null = null;
 vi.mock("./request-session", () => ({ requestSession: async () => current }));
 
-const { getMembership, findMembership, resolvePageAccess, requireMembership, TwoFactorRequiredError, workspacesHeldBack } =
+const { getMembership, findMembership, resolvePageAccess, requireMembership, TwoFactorRequiredError, SsoRequiredError, workspacesHeldBack } =
   await import("./access");
 const { authorizeCollab } = await import("./collab/authorize");
 
-const session = (userId: string, strong: boolean): RequestSession => ({ userId, strong, heldBack: new Map() });
+const session = (userId: string, strong: boolean, ssoProviderId: string | null = null): RequestSession => ({
+  userId,
+  strong,
+  ssoProviderId,
+  heldBack: new Map(),
+});
 const member = [{ role: "member" }];
-const applies = [{ one: 1 }];
+/** The policy lookup's row (see policyStateOf). */
+const policy = (state: { role?: string; requireTwoFactor?: boolean; loginMethod?: string | null; hasConnection?: boolean }) => [
+  { role: "member", requireTwoFactor: false, loginMethod: null, hasConnection: false, ...state },
+];
+const applies = policy({ requireTwoFactor: true });
+const relaxed = policy({});
+const ssoOnly = policy({ loginMethod: "sso", hasConnection: true });
 const visiblePage = [{ id: "p1", workspaceId: "ws1", title: "Plan", level: 1 }];
 
 beforeEach(() => {
@@ -51,16 +63,16 @@ describe("the two-step policy in access checks", () => {
     await expect(getMembership("u1", "ws1")).rejects.toBeInstanceOf(TwoFactorRequiredError);
     results.push(member);
     const error = await requireMembership("u1", "ws1").catch((e: unknown) => e);
-    expect(error).toMatchObject({ name: "TwoFactorRequiredError", workspaceId: "ws1" });
+    expect(error).toMatchObject({ name: "TwoFactorRequiredError", workspaceId: "ws1", hold: "two-factor" });
     expect(queries).toBe(3); // two memberships, one policy lookup
   });
 
   it("lets sessions through that pass, or where the workspace doesn't require it", async () => {
     current = session("u1", true);
-    results.push(member);
+    results.push(member, applies);
     expect(await getMembership("u1", "ws1")).toEqual({ role: "member" });
     current = session("u1", false);
-    results.push(member, []);
+    results.push(member, relaxed);
     expect(await getMembership("u1", "ws1")).toEqual({ role: "member" });
   });
 
@@ -87,8 +99,48 @@ describe("the two-step policy in access checks", () => {
 
   it("names the workspaces a list has to leave out", async () => {
     current = session("u1", false);
-    results.push(applies, []);
+    results.push(applies, relaxed);
     expect([...(await workspacesHeldBack("u1", ["ws1", "ws2", "ws1"]))]).toEqual(["ws1"]);
+  });
+});
+
+describe("the single sign-on policy in access checks", () => {
+  it("holds back a member who didn't sign in through the workspace's identity provider", async () => {
+    current = session("u1", true);
+    results.push(member, ssoOnly);
+    const error = await getMembership("u1", "ws1").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SsoRequiredError);
+    expect(error).toMatchObject({ workspaceId: "ws1", hold: "sso" });
+  });
+
+  it("lets through a session from the workspace's own connection, not another's", async () => {
+    current = session("u1", false, "ws-ws1");
+    results.push(member, ssoOnly);
+    expect(await getMembership("u1", "ws1")).toEqual({ role: "member" });
+    current = session("u1", false, "ws-ws2");
+    results.push(member, ssoOnly);
+    await expect(getMembership("u1", "ws1")).rejects.toBeInstanceOf(SsoRequiredError);
+  });
+
+  it("exempts owners and guests", async () => {
+    current = session("u1", false);
+    results.push([{ role: "owner" }], policy({ role: "owner", loginMethod: "sso", hasConnection: true }));
+    expect(await getMembership("u1", "ws1")).toEqual({ role: "owner" });
+    current = session("u1", false);
+    results.push([{ role: "guest" }], policy({ role: "guest", loginMethod: "sso", hasConnection: true }));
+    expect(await getMembership("u1", "ws1")).toEqual({ role: "guest" });
+  });
+
+  it("does nothing while no identity provider can sign members in", async () => {
+    current = session("u1", false);
+    results.push(member, policy({ loginMethod: "sso", hasConnection: false }));
+    expect(await getMembership("u1", "ws1")).toEqual({ role: "member" });
+  });
+
+  it("asks for two-step verification first when both apply", async () => {
+    current = session("u1", false);
+    results.push(member, policy({ requireTwoFactor: true, loginMethod: "sso", hasConnection: true }));
+    await expect(getMembership("u1", "ws1")).rejects.toBeInstanceOf(TwoFactorRequiredError);
   });
 });
 
@@ -96,11 +148,24 @@ describe("collab connections", () => {
   it("need a session that passes when the workspace requires it", async () => {
     results.push(visiblePage, applies);
     await expect(authorizeCollab("u1", { kind: "page", id: "p1" })).rejects.toBeInstanceOf(TwoFactorRequiredError);
-    results.push(visiblePage);
-    expect(await authorizeCollab("u1", { kind: "page", id: "p1" }, { strong: true })).toEqual({ readOnly: true });
+    results.push(visiblePage, applies);
+    expect(await authorizeCollab("u1", { kind: "page", id: "p1" }, { strong: true, ssoProviderId: null })).toEqual({
+      readOnly: true,
+    });
     results.push(member, applies);
     await expect(authorizeCollab("u1", { kind: "ws", id: "ws1" })).rejects.toBeInstanceOf(TwoFactorRequiredError);
-    results.push(member, []);
+    results.push(member, relaxed);
     expect(await authorizeCollab("u1", { kind: "ws", id: "ws1" })).toEqual({ readOnly: false });
+  });
+
+  it("need a single sign-on session in an SSO-only workspace", async () => {
+    results.push(member, ssoOnly);
+    await expect(authorizeCollab("u1", { kind: "ws", id: "ws1" }, { strong: true, ssoProviderId: null })).rejects.toBeInstanceOf(
+      SsoRequiredError,
+    );
+    results.push(member, ssoOnly);
+    expect(await authorizeCollab("u1", { kind: "ws", id: "ws1" }, { strong: false, ssoProviderId: "ws-ws1" })).toEqual({
+      readOnly: false,
+    });
   });
 });
