@@ -10,5 +10,11 @@
   "alreadyMember": "Vous êtes déjà membre de cet espace de travail.",
   "open": "Ouvrir l’espace de travail",
   "signInBody": "Connectez-vous avec votre compte pour rejoindre l’espace. Ce serveur n’accepte pas de nouveaux comptes.",
-  "signIn": "Se connecter"
+  "signIn": "Se connecter",
+  "requestBody": "Un propriétaire valide les nouveaux membres de cet espace de travail. Envoyez une demande : vous recevrez la réponse par e-mail.",
+  "request": "Demander à rejoindre",
+  "requesting": "Envoi…",
+  "requestedTitle": "Demande envoyée",
+  "requestedBody": "Un propriétaire de l'espace de travail va examiner votre demande. Vous recevrez un e-mail dès qu'il aura décidé.",
+  "pendingBody": "Vous avez déjà demandé à rejoindre cet espace de travail. Un propriétaire va s'en occuper ; vous recevrez un e-mail dès qu'il aura décidé."
 }

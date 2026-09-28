@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { updateWorkspaceSettingsAction } from "@/app/actions/workspaces";
-import { Switch } from "@/components/ui";
+import { Button, Input, Switch } from "@/components/ui";
 import type { WorkspaceSettings } from "@/db/schema";
 import { HISTORY_RETENTION, TRASH_RETENTION_CHOICES } from "@/lib/retention";
 import { SettingsRow } from "./section";
@@ -186,6 +186,269 @@ export function RequireTwoFactorSetting({
         />
       }
     />
+  );
+}
+
+type ChoiceKey = "memberInvites" | "domainJoin" | "joinRequests";
+const CHOICES: { [K in ChoiceKey]: readonly WorkspaceSettings[K][] } = {
+  memberInvites: ["owners", "members_with_approval", "any_member"],
+  domainJoin: ["join", "request"],
+  joinRequests: ["nobody", "allowed_domains", "anyone_with_link"],
+};
+
+/** Settings > Security > Members: one policy with a few choices, as a select. */
+function ChoiceSetting<K extends ChoiceKey>({
+  workspaceId,
+  settings,
+  canEdit,
+  setting,
+  disabled = false,
+  hint,
+}: {
+  workspaceId: string;
+  settings: WorkspaceSettings;
+  canEdit: boolean;
+  setting: K;
+  /** Shown but not changeable (it has no effect right now). */
+  disabled?: boolean;
+  hint?: string;
+}) {
+  const t = useTranslations("settings.security");
+  const [value, setValue] = useState<WorkspaceSettings[K]>(settings[setting]);
+  const { pending, error, run } = useAction();
+  const id = `setting-${setting}`;
+  const choices = CHOICES[setting] as readonly string[];
+  // Widened from K so the message keys below resolve to a plain union.
+  const key: ChoiceKey = setting;
+
+  return (
+    <SettingsRow
+      title={t(`${key}.title`)}
+      htmlFor={id}
+      description={
+        error ? (
+          <span className="text-danger">{error}</span>
+        ) : (
+          <>
+            {t(`${key}.description`)}
+            {hint && <> {hint}</>}
+            {!canEdit && <> {t("ownersOnly")}</>}
+          </>
+        )
+      }
+      control={
+        <select
+          id={id}
+          className={selectClass}
+          value={value as string}
+          disabled={!canEdit || pending || disabled}
+          onChange={(e) => {
+            const next = e.target.value as WorkspaceSettings[K];
+            const previous = value;
+            setValue(next);
+            run(async () => {
+              const result = await updateWorkspaceSettingsAction(workspaceId, { [setting]: next });
+              if (!result.ok) setValue(previous);
+              return result;
+            });
+          }}
+        >
+          {choices.map((choice) => (
+            // Keys like `memberInvites.any_member`; every choice has its label.
+            <option key={choice} value={choice}>
+              {t(`${key}.${choice}` as Parameters<typeof t>[0])}
+            </option>
+          ))}
+        </select>
+      }
+    />
+  );
+}
+
+/**
+ * Settings > Security > Members: who may add members, which email domains may come in on their own
+ * and how, and who may ask to join. The server enforces all of it (server/join-requests.ts).
+ */
+export function MembershipSettings({
+  workspaceId,
+  settings,
+  canEdit,
+  mailEnabled,
+}: {
+  workspaceId: string;
+  settings: WorkspaceSettings;
+  canEdit: boolean;
+  /** Whether the server sends email, so password accounts can verify their address. */
+  mailEnabled: boolean;
+}) {
+  const t = useTranslations("settings.security");
+  const [domains, setDomains] = useState(settings.allowedDomains);
+  const [joinRequests, setJoinRequests] = useState(settings.joinRequests);
+
+  return (
+    <>
+      <ChoiceSetting workspaceId={workspaceId} settings={settings} canEdit={canEdit} setting="memberInvites" />
+      <AllowedDomainsSetting
+        workspaceId={workspaceId}
+        domains={domains}
+        canEdit={canEdit}
+        mailEnabled={mailEnabled}
+        onSaved={setDomains}
+      />
+      <ChoiceSetting
+        workspaceId={workspaceId}
+        settings={settings}
+        canEdit={canEdit}
+        setting="domainJoin"
+        disabled={domains.length === 0}
+        hint={domains.length === 0 ? t("domainJoin.noDomains") : undefined}
+      />
+      <JoinRequestsChoice
+        workspaceId={workspaceId}
+        settings={{ ...settings, joinRequests }}
+        canEdit={canEdit}
+        onChange={setJoinRequests}
+      />
+    </>
+  );
+}
+
+/** "Who can ask to join", explaining what "anyone with the join link" does to the link. */
+function JoinRequestsChoice({
+  workspaceId,
+  settings,
+  canEdit,
+  onChange,
+}: {
+  workspaceId: string;
+  settings: WorkspaceSettings;
+  canEdit: boolean;
+  onChange: (value: WorkspaceSettings["joinRequests"]) => void;
+}) {
+  const t = useTranslations("settings.security.joinRequests");
+  const ts = useTranslations("settings.security");
+  const [value, setValue] = useState(settings.joinRequests);
+  const { pending, error, run } = useAction();
+
+  return (
+    <SettingsRow
+      title={t("title")}
+      htmlFor="setting-joinRequests"
+      description={
+        error ? (
+          <span className="text-danger">{error}</span>
+        ) : (
+          <>
+            {t("description")}
+            {value === "anyone_with_link" && <> {t("linkHint")}</>}
+            {!canEdit && <> {ts("ownersOnly")}</>}
+          </>
+        )
+      }
+      control={
+        <select
+          id="setting-joinRequests"
+          className={selectClass}
+          value={value}
+          disabled={!canEdit || pending}
+          onChange={(e) => {
+            const next = e.target.value as WorkspaceSettings["joinRequests"];
+            const previous = value;
+            setValue(next);
+            run(async () => {
+              const result = await updateWorkspaceSettingsAction(workspaceId, { joinRequests: next });
+              if (result.ok) onChange(next);
+              else setValue(previous);
+              return result;
+            });
+          }}
+        >
+          {CHOICES.joinRequests.map((choice) => (
+            <option key={choice} value={choice}>
+              {t(choice)}
+            </option>
+          ))}
+        </select>
+      }
+    />
+  );
+}
+
+/** The allowed email domains, typed as a list; the server cleans them up and refuses public mail services. */
+function AllowedDomainsSetting({
+  workspaceId,
+  domains,
+  canEdit,
+  mailEnabled,
+  onSaved,
+}: {
+  workspaceId: string;
+  domains: string[];
+  canEdit: boolean;
+  mailEnabled: boolean;
+  onSaved: (domains: string[]) => void;
+}) {
+  const t = useTranslations("settings.security.allowedDomains");
+  const ts = useTranslations("settings.security");
+  const tc = useTranslations("common");
+  const [text, setText] = useState(domains.join(", "));
+  const [saved, setSaved] = useState(false);
+  const { pending, error, run } = useAction();
+  const typed = text
+    .split(/[\s,;]+/)
+    .map((d) => d.trim().toLowerCase().replace(/^@/, ""))
+    .filter(Boolean);
+  const dirty = typed.join(",") !== domains.join(",");
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!dirty) return;
+        setSaved(false);
+        run(
+          () => updateWorkspaceSettingsAction(workspaceId, { allowedDomains: typed }),
+          () => {
+            setSaved(true);
+            onSaved(typed);
+          },
+        );
+      }}
+    >
+      <SettingsRow
+        title={t("title")}
+        htmlFor="allowed-domains"
+        description={
+          error ? (
+            <span className="text-danger">{error}</span>
+          ) : (
+            <>
+              {saved ? tc("saved") : t("description")} {mailEnabled ? t("verifiedByEmail") : t("verifiedByProvider")}
+              {!canEdit && <> {ts("ownersOnly")}</>}
+            </>
+          )
+        }
+      >
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            id="allowed-domains"
+            value={text}
+            placeholder={t("placeholder")}
+            disabled={!canEdit}
+            className="w-full"
+            onChange={(e) => {
+              setText(e.target.value);
+              setSaved(false);
+            }}
+          />
+          {canEdit && (
+            <Button type="submit" variant="primary" disabled={!dirty || pending}>
+              {pending ? tc("saving") : tc("save")}
+            </Button>
+          )}
+        </div>
+      </SettingsRow>
+    </form>
   );
 }
 

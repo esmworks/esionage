@@ -10,5 +10,11 @@
   "alreadyMember": "Du bist bereits Mitglied dieses Workspace.",
   "open": "Workspace öffnen",
   "signInBody": "Melde dich mit deinem Konto an, um beizutreten. Auf diesem Server können keine neuen Konten erstellt werden.",
-  "signIn": "Anmelden"
+  "signIn": "Anmelden",
+  "requestBody": "Neue Mitglieder dieses Workspace werden von einem Eigentümer bestätigt. Sende eine Anfrage, die Antwort kommt per E-Mail.",
+  "request": "Beitritt anfragen",
+  "requesting": "Wird gesendet…",
+  "requestedTitle": "Anfrage gesendet",
+  "requestedBody": "Ein Eigentümer des Workspace sieht sich deine Anfrage an. Du bekommst eine E-Mail, sobald entschieden ist.",
+  "pendingBody": "Du hast bereits um Beitritt zu diesem Workspace gebeten. Ein Eigentümer kümmert sich darum; du bekommst eine E-Mail, sobald entschieden ist."
 }

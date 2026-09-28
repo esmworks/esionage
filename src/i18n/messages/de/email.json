@@ -89,5 +89,49 @@
     "heading": "Dein Passwort wurde geändert",
     "body": "Hallo {name}, das Passwort deines Esionage-Kontos wurde gerade geändert.",
     "warning": "Wenn du diese Änderung nicht vorgenommen hast, setze dein Passwort über die Anmeldeseite zurück und wende dich an einen Inhaber deines Workspace."
+  },
+  "joinRequest": {
+    "join": {
+      "subject": "{asker} möchte „{workspace}“ beitreten",
+      "heading": "{asker} möchte beitreten",
+      "body": "{asker} ({email}) möchte „{workspace}“ auf Leafdesk beitreten. Nimm die Anfrage unter Einstellungen > Mitglieder an oder lehne sie ab."
+    },
+    "invite": {
+      "subject": "{asker} möchte {email} zu „{workspace}“ einladen",
+      "heading": "Ein Mitglied möchte jemanden einladen",
+      "body": "{asker} möchte {email} zu „{workspace}“ auf Leafdesk einladen. Die Einladung geht raus, sobald ein Eigentümer zustimmt."
+    },
+    "action": "Anfragen ansehen",
+    "optOut": "Du kannst diese E-Mails unter Mein Konto > Einstellungen abschalten."
+  },
+  "joinDecision": {
+    "joinApproved": {
+      "subject": "Du bist „{workspace}“ beigetreten",
+      "heading": "Willkommen in „{workspace}“",
+      "body": "Ein Eigentümer hat deine Anfrage angenommen, „{workspace}“ auf Leafdesk beizutreten."
+    },
+    "joinDeclined": {
+      "subject": "Deine Anfrage, „{workspace}“ beizutreten",
+      "heading": "Deine Anfrage wurde nicht angenommen",
+      "body": "Ein Eigentümer von „{workspace}“ hat deine Beitrittsanfrage abgelehnt. Du kannst einen der Eigentümer um eine Einladung bitten."
+    },
+    "inviteApproved": {
+      "subject": "{email} wurde zu „{workspace}“ eingeladen",
+      "heading": "Deine Einladung ist raus",
+      "body": "Ein Eigentümer hat deine Anfrage angenommen, und {email} wurde zu „{workspace}“ auf Leafdesk eingeladen."
+    },
+    "inviteDeclined": {
+      "subject": "Deine Anfrage, {email} einzuladen",
+      "heading": "Deine Anfrage wurde nicht angenommen",
+      "body": "Ein Eigentümer von „{workspace}“ hat deine Anfrage abgelehnt, {email} einzuladen."
+    },
+    "action": "Leafdesk öffnen"
+  },
+  "verification": {
+    "subject": "Bestätige deine E-Mail-Adresse für Leafdesk",
+    "heading": "Bestätige deine E-Mail-Adresse",
+    "body": "Hallo {name}, bestätige mit dem Button unten, dass diese Adresse dir gehört.",
+    "ignore": "Wenn du kein Leafdesk-Konto erstellt hast, kannst du diese E-Mail ignorieren.",
+    "action": "E-Mail-Adresse bestätigen"
   }
 }

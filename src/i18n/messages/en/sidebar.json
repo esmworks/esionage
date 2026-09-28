@@ -72,7 +72,10 @@
     "reminder": "Reminder: {date}",
     "someone": "Someone",
     "unread": "Unread",
-    "unreadCount": "{count, plural, one {# unread notification} other {# unread notifications}}"
+    "unreadCount": "{count, plural, one {# unread notification} other {# unread notifications}}",
+    "joinRequestTitle": "Join request",
+    "joinRequest": "{actor} asked to join",
+    "inviteRequest": "{actor} asked to invite {email}"
   },
   "templates": {
     "title": "Templates",
@@ -109,5 +112,11 @@
     "newPrivate": "New private page",
     "more": "{count} more",
     "less": "Show less"
+  },
+  "joinable": {
+    "heading": "Workspaces you can join",
+    "join": "Join",
+    "request": "Request to join",
+    "requested": "Requested"
   }
 }

@@ -72,6 +72,24 @@ export type WorkspaceSettings = {
    * (see server/retention.ts); 0 keeps it until someone deletes it. One of TRASH_RETENTION_CHOICES.
    */
   trashRetentionDays: number;
+  /**
+   * Who may add members: owners only, members too but through a request an owner approves (see
+   * server/join-requests.ts), or any member. Members add people as members, never as owners.
+   */
+  memberInvites: "owners" | "members_with_approval" | "any_member";
+  /**
+   * Email domains (subdomains included) whose people may come in on their own: someone who signs
+   * up or in with a *verified* address on one of them joins as a member (`domainJoin: "join"`) or
+   * sends a join request (`"request"`), once; after that the workspace waits in their switcher.
+   */
+  allowedDomains: string[];
+  domainJoin: "join" | "request";
+  /**
+   * Who may ask to join when they can't join directly: nobody, people with an address on an
+   * allowed domain (verified or not), or also anyone with the join link, which then asks an owner
+   * instead of adding them right away.
+   */
+  joinRequests: "nobody" | "allowed_domains" | "anyone_with_link";
 };
 
 export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
@@ -83,6 +101,10 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   loginMethod: "any",
   ai: true,
   trashRetentionDays: 30,
+  memberInvites: "owners",
+  allowedDomains: [],
+  domainJoin: "join",
+  joinRequests: "nobody",
 };
 
 export const workspace = pgTable("workspace", {
@@ -137,6 +159,55 @@ export const workspaceInvitation = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (t) => [uniqueIndex("workspace_invitation_email_idx").on(t.workspaceId, t.email)],
+);
+
+/**
+ * Asking to be let into a workspace, decided by an owner (see server/join-requests.ts).
+ * - `join`: `userId` asks to join as a member (through an allowed email domain, the join link or
+ *   the workspace switcher). One row per person and workspace, kept after the decision: an
+ *   `accepted` or `declined` row remembers that the domain rule already ran for them, so signing in
+ *   again doesn't join or ask again. An owner removing someone leaves a `declined` row too, and
+ *   someone leaving an `accepted` one.
+ * - `invite`: `requestedBy`, a member, asks to invite `email` while the workspace wants members'
+ *   invitations approved. Deleted once decided; approving sends the invitation.
+ */
+export type JoinRequestKind = "join" | "invite";
+export type JoinRequestStatus = "pending" | "accepted" | "declined";
+/** Where a request came from: an allowed email domain, the join link, the workspace switcher, a member. */
+export type JoinRequestSource = "domain" | "link" | "switcher" | "member";
+
+export const workspaceJoinRequest = pgTable(
+  "workspace_join_request",
+  {
+    id: id(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<JoinRequestKind>().notNull(),
+    /** `join`: who asks to join. */
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    /** `join`: the requester's address when they asked; `invite`: who to invite. Lowercased. */
+    email: text("email").notNull(),
+    role: text("role").$type<WorkspaceRole>().notNull().default("member"),
+    /** Who asked: the requester themselves, or the member who wants to invite someone. */
+    requestedBy: text("requested_by").references(() => user.id, { onDelete: "cascade" }),
+    /** Null for the rows left by someone leaving or being removed without having asked. */
+    source: text("source").$type<JoinRequestSource>(),
+    status: text("status").$type<JoinRequestStatus>().notNull().default("pending"),
+    /** The asker's interface language when they asked, for the email about the decision. */
+    locale: text("locale"),
+    decidedBy: text("decided_by").references(() => user.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("workspace_join_request_user_idx").on(t.workspaceId, t.userId).where(sql`${t.kind} = 'join'`),
+    uniqueIndex("workspace_join_request_invite_idx").on(t.workspaceId, t.email).where(sql`${t.kind} = 'invite'`),
+    index("workspace_join_request_status_idx").on(t.workspaceId, t.status),
+    check("workspace_join_request_kind_check", sql`${t.kind} in ('join', 'invite')`),
+    check("workspace_join_request_status_check", sql`${t.status} in ('pending', 'accepted', 'declined')`),
+    check("workspace_join_request_user_check", sql`${t.kind} <> 'join' or ${t.userId} is not null`),
+  ],
 );
 
 /**

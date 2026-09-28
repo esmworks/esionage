@@ -194,6 +194,52 @@ export function reminderEmail(
   });
 }
 
+/** To a workspace's owners: someone asks to join it, or a member asks to invite someone. */
+export function joinRequestEmail(
+  locale: Locale,
+  request: { kind: "join" | "invite"; askerName: string; email: string; workspaceName: string; link: string },
+): RenderedEmail {
+  const t = emailTranslator(locale);
+  const names = { asker: request.askerName || request.email, email: request.email, workspace: request.workspaceName };
+  const key = request.kind === "invite" ? "joinRequest.invite" : "joinRequest.join";
+  return renderEmail(locale, {
+    subject: t(`${key}.subject`, names),
+    heading: t(`${key}.heading`, names),
+    paragraphs: [t(`${key}.body`, names), t("joinRequest.optOut")],
+    action: { label: t("joinRequest.action"), url: request.link },
+  });
+}
+
+/**
+ * To whoever asked, once an owner decided: they joined (or were turned down), or the person they
+ * wanted to invite was invited (or not).
+ */
+export function joinRequestDecidedEmail(
+  locale: Locale,
+  decision: { kind: "join" | "invite"; approved: boolean; email: string; workspaceName: string; link: string },
+): RenderedEmail {
+  const t = emailTranslator(locale);
+  const names = { email: decision.email, workspace: decision.workspaceName };
+  const key = `joinDecision.${decision.kind}${decision.approved ? "Approved" : "Declined"}` as const;
+  return renderEmail(locale, {
+    subject: t(`${key}.subject`, names),
+    heading: t(`${key}.heading`, names),
+    paragraphs: [t(`${key}.body`, names)],
+    action: decision.approved ? { label: t("joinDecision.action"), url: decision.link } : undefined,
+  });
+}
+
+/** The link that proves an address belongs to its account (Better Auth's email verification). */
+export function verificationEmail(locale: Locale, verification: { name: string; url: string }): RenderedEmail {
+  const t = emailTranslator(locale);
+  return renderEmail(locale, {
+    subject: t("verification.subject"),
+    heading: t("verification.heading"),
+    paragraphs: [t("verification.body", { name: verification.name }), t("verification.ignore")],
+    action: { label: t("verification.action"), url: verification.url },
+  });
+}
+
 /** Minutes a password reset link stays valid; also the Better Auth token lifetime. */
 export const PASSWORD_RESET_MINUTES = 60;
 

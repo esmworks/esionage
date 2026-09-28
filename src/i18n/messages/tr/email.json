@@ -89,5 +89,49 @@
     "heading": "Şifreniz değişti",
     "body": "Merhaba {name}, Esionage hesabınızın şifresi az önce değiştirildi.",
     "warning": "Bu değişikliği siz yapmadıysanız giriş sayfasından şifrenizi sıfırlayın ve çalışma alanınızın bir sahibine haber verin."
+  },
+  "joinRequest": {
+    "join": {
+      "subject": "{asker}, “{workspace}” çalışma alanına katılmak istedi",
+      "heading": "{asker} katılmak istedi",
+      "body": "{asker} ({email}), Leafdesk'teki “{workspace}” çalışma alanına katılmak istedi. İsteği Ayarlar > Üyeler'de onaylayabilir veya reddedebilirsiniz."
+    },
+    "invite": {
+      "subject": "{asker}, {email} adresini “{workspace}” çalışma alanına davet etmek istedi",
+      "heading": "Bir üye birini davet etmek istedi",
+      "body": "{asker}, {email} adresini Leafdesk'teki “{workspace}” çalışma alanına davet etmek istiyor. Davet, bir sahip onayladığında gönderilir."
+    },
+    "action": "İstekleri gözden geçir",
+    "optOut": "Bu e-postaları Hesabım > Tercihler'den kapatabilirsiniz."
+  },
+  "joinDecision": {
+    "joinApproved": {
+      "subject": "“{workspace}” çalışma alanına katıldınız",
+      "heading": "“{workspace}” çalışma alanına hoş geldiniz",
+      "body": "Bir sahip, Leafdesk'teki “{workspace}” çalışma alanına katılma isteğinizi onayladı."
+    },
+    "joinDeclined": {
+      "subject": "“{workspace}” çalışma alanına katılma isteğiniz",
+      "heading": "İsteğiniz onaylanmadı",
+      "body": "“{workspace}” çalışma alanının bir sahibi katılma isteğinizi reddetti. Sahiplerinden birinden davet isteyebilirsiniz."
+    },
+    "inviteApproved": {
+      "subject": "{email}, “{workspace}” çalışma alanına davet edildi",
+      "heading": "Davetiniz gönderildi",
+      "body": "Bir sahip isteğinizi onayladı ve {email}, Leafdesk'teki “{workspace}” çalışma alanına davet edildi."
+    },
+    "inviteDeclined": {
+      "subject": "{email} adresini davet etme isteğiniz",
+      "heading": "İsteğiniz onaylanmadı",
+      "body": "“{workspace}” çalışma alanının bir sahibi {email} adresini davet etme isteğinizi reddetti."
+    },
+    "action": "Leafdesk'i aç"
+  },
+  "verification": {
+    "subject": "Leafdesk e-posta adresinizi doğrulayın",
+    "heading": "E-posta adresinizi doğrulayın",
+    "body": "Merhaba {name}, bu adresin size ait olduğunu aşağıdaki düğmeyle onaylayın.",
+    "ignore": "Bir Leafdesk hesabı oluşturmadıysanız bu e-postayı yok sayabilirsiniz.",
+    "action": "E-posta adresini doğrula"
   }
 }

@@ -99,6 +99,11 @@ function resetLinkIn(text: string) {
 async function main() {
   const signUp = await authPost("/sign-up/email", { name: "Reset Tester", email: EMAIL, password: OLD_PASSWORD }, { jar: new Jar() });
   check(signUp.status === 200, "sign up a fresh account", signUp.body);
+  // Signing up with a password emails the link that verifies the address (allowed email domains
+  // only let verified addresses in); it is not the email this script follows.
+  const verification = await latestEmailTo(EMAIL);
+  check(/\/api\/auth\/verify-email\?token=/.test(verification.Text), "sign-up emails a verification link", verification.Subject);
+  const seen = new Set([verification.ID]);
   const first = await signIn(OLD_PASSWORD);
   check(first.status === 200 && (await sessionOf(first.jar))?.user?.email === EMAIL, "an existing session is signed in");
 
@@ -115,7 +120,7 @@ async function main() {
     { unknown, known },
   );
 
-  const email = await latestEmailTo(EMAIL);
+  const email = await latestEmailTo(EMAIL, seen);
   check(email.Subject === "Esionage şifrenizi sıfırlayın", "reset email is in the requester's language", email.Subject);
   const link = resetLinkIn(email.Text);
   check(link && link.startsWith(`${BASE}/api/auth/reset-password/`), "reset email carries the link", email.Text);

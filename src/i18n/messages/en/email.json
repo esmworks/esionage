@@ -89,5 +89,49 @@
     "heading": "Your password changed",
     "body": "Hi {name}, the password of your Esionage account was just changed.",
     "warning": "If you didn’t make this change, reset your password from the sign-in page and contact an owner of your workspace."
+  },
+  "joinRequest": {
+    "join": {
+      "subject": "{asker} asked to join “{workspace}”",
+      "heading": "{asker} asked to join",
+      "body": "{asker} ({email}) asked to join “{workspace}” on Leafdesk. Approve or decline the request in Settings > Members."
+    },
+    "invite": {
+      "subject": "{asker} asked to invite {email} to “{workspace}”",
+      "heading": "A member asked to invite someone",
+      "body": "{asker} would like to invite {email} to “{workspace}” on Leafdesk. The invitation goes out once an owner approves it."
+    },
+    "action": "Review requests",
+    "optOut": "You can turn these emails off in My account > Preferences."
+  },
+  "joinDecision": {
+    "joinApproved": {
+      "subject": "You joined “{workspace}”",
+      "heading": "Welcome to “{workspace}”",
+      "body": "An owner approved your request to join “{workspace}” on Leafdesk."
+    },
+    "joinDeclined": {
+      "subject": "Your request to join “{workspace}”",
+      "heading": "Your request wasn't approved",
+      "body": "An owner of “{workspace}” declined your request to join. You can ask one of its owners for an invitation."
+    },
+    "inviteApproved": {
+      "subject": "{email} was invited to “{workspace}”",
+      "heading": "Your invitation went out",
+      "body": "An owner approved your request, and {email} was invited to “{workspace}” on Leafdesk."
+    },
+    "inviteDeclined": {
+      "subject": "Your request to invite {email}",
+      "heading": "Your request wasn't approved",
+      "body": "An owner of “{workspace}” declined your request to invite {email}."
+    },
+    "action": "Open Leafdesk"
+  },
+  "verification": {
+    "subject": "Verify your Leafdesk email address",
+    "heading": "Verify your email address",
+    "body": "Hi {name}, confirm that this address is yours with the button below.",
+    "ignore": "If you didn't create a Leafdesk account, you can ignore this email.",
+    "action": "Verify email address"
   }
 }

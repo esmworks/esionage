@@ -32,7 +32,8 @@
     "description": "Members can see and edit every page unless its sharing is restricted; guests see only pages shared with them. Owners can also manage members.",
     "tabs": {
       "members": "Members",
-      "invitations": "Pending invitations"
+      "invitations": "Pending invitations",
+      "requests": "Requests"
     },
     "search": "Search",
     "exportCsv": "Download members as CSV",
@@ -48,7 +49,8 @@
       "toggle": "Join link",
       "regenerateTitle": "Create a new link?",
       "regenerateBody": "The current link stops working right away. People who already joined keep their access.",
-      "regenerateConfirm": "Create new link"
+      "regenerateConfirm": "Create new link",
+      "descriptionAsks": "Anyone who opens this link and signs in asks to join, and an owner approves each request. People with a pending invitation join right away. Only owners can see it."
     },
     "columns": {
       "user": "User",
@@ -59,7 +61,9 @@
       "lastEdited": "Last edit",
       "actions": "Actions",
       "email": "Email",
-      "status": "Status"
+      "status": "Status",
+      "request": "Request",
+      "asked": "Asked"
     },
     "you": "(you)",
     "roleOf": "Role of {name}",
@@ -103,7 +107,25 @@
       "emailFailed": "Email failed, share the link",
       "linkOnly": "Share this invitation link",
       "linkValidity": "Invitation links work for 7 days and only for the invited email address.",
-      "addMore": "Add more"
+      "addMore": "Add more",
+      "descriptionAsks": "An owner approves each address before anyone is added or invited.",
+      "submitAsk": "Ask an owner",
+      "requested": "Waiting for an owner",
+      "requestedNote": "Owners see your request in Settings > Members. Invitations go out once they approve."
+    },
+    "noRequests": "No requests waiting.",
+    "requests": {
+      "join": "Asks to join ({source})",
+      "sources": {
+        "domain": "allowed email domain",
+        "link": "join link",
+        "switcher": "workspace list",
+        "member": "member"
+      },
+      "invite": "{name} wants to invite them",
+      "someone": "A member",
+      "approve": "Approve",
+      "decline": "Decline"
     }
   },
   "guests": {
@@ -323,7 +345,10 @@
     "transferToSelf": "Choose someone else to make owner.",
     "transferToGuest": "Make them a member before making them owner.",
     "twoFactorFirst": "Turn on two-step verification for your own account first, or sign in with a passkey.",
-    "ssoFirst": "Set up single sign-on and verify its domains first."
+    "ssoFirst": "Set up single sign-on and verify its domains first.",
+    "invalidDomain": "{detail} can't be allowed: enter your organization's own email domains (not public mail services like gmail.com).",
+    "requestHandled": "This request was already handled.",
+    "tooManyRequests": "Too many requests. Try again later."
   },
   "security": {
     "description": "Decide how people sign in, who can bring people into this workspace, what guests can do and who can publish pages to the web. Only owners can change these settings.",
@@ -496,6 +521,36 @@
     "historyRetention": {
       "title": "Page history",
       "description": "Earlier versions of a page are kept for {days} days, up to {count} per page. Saved versions and versions from before a restore are kept for {keptDays} days, and the latest version of a page always stays."
+    },
+    "membersHeading": "Members",
+    "memberInvites": {
+      "title": "Who can add members",
+      "description": "Owners can always add people. Members add people as members, never as owners.",
+      "owners": "Owners only",
+      "members_with_approval": "Members, with an owner's approval",
+      "any_member": "Owners and members"
+    },
+    "allowedDomains": {
+      "title": "Allowed email domains",
+      "description": "People with an address on these domains, subdomains included, can join without an invitation. Public mail services like gmail.com can't be added.",
+      "placeholder": "example.com, example.org",
+      "verifiedByEmail": "Only verified addresses join on their own: new accounts get a verification link by email.",
+      "verifiedByProvider": "Only verified addresses join on their own. This server doesn't send email, so only accounts from Google, GitHub or single sign-on count as verified."
+    },
+    "domainJoin": {
+      "title": "When someone from these domains signs in",
+      "description": "This happens once per person: someone who left or was removed doesn't come back on their own.",
+      "join": "They join as members",
+      "request": "They ask to join",
+      "noDomains": "Add a domain first."
+    },
+    "joinRequests": {
+      "title": "Who can ask to join",
+      "description": "Requests wait in Settings > Members for an owner to approve or decline.",
+      "nobody": "Nobody",
+      "allowed_domains": "People with an allowed email domain",
+      "anyone_with_link": "Anyone with the join link",
+      "linkHint": "The join link then asks an owner instead of adding people right away."
     }
   },
   "notifications": {
@@ -518,7 +573,10 @@
     "reminderTitle": "Reminders",
     "reminderDescription": "A reminder you set on a date in a page is due.",
     "reminderChannel": "Reminders: {channel}",
-    "mailOff": "This server can't send email right now, so none go out."
+    "mailOff": "This server can't send email right now, so none go out.",
+    "joinRequestTitle": "Join requests",
+    "joinRequestDescription": "Someone asks to join a workspace you own, or a member asks to invite someone.",
+    "joinRequestChannel": "Join requests: {channel}"
   },
   "site": {
     "description": "Give this workspace's published pages one readable address, a home page and navigation between them.",

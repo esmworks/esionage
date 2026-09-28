@@ -1,4 +1,4 @@
-import { and, eq, getTableColumns, sql, type SQL } from "drizzle-orm";
+import { and, eq, getTableColumns, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   page,
@@ -237,6 +237,19 @@ export async function requireMembership(userId: string, workspaceId: string, rol
 }
 
 export const isGuest = (role: WorkspaceRole) => role === "guest";
+
+/** The workspace's owners: who decides join requests (server/join-requests.ts) and hears about them. */
+export async function workspaceOwnerIds(workspaceId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: workspaceMember.userId })
+    .from(workspaceMember)
+    .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.role, "owner")));
+  return rows.map((row) => row.id);
+}
+
+/** SQL: whether the user owns the workspace (an id expression), for filters inside larger queries. */
+export const ownsWorkspace = (userId: string, workspaceId: SQL | AnyColumn) =>
+  sql<boolean>`exists (select 1 from ${workspaceMember} wm where wm.workspace_id = ${workspaceId} and wm.user_id = ${userId} and wm.role = 'owner')`;
 
 /**
  * An owner or member, not a guest: for creating top-level pages and for seeing who is in the

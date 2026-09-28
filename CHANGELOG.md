@@ -4,6 +4,27 @@
 
 ### Added
 
+- **Membership policies and join requests** (#56), in Settings → Security → Members: *who can
+  add members* (owners only, the default; members with an owner's approval; owners and members,
+  members adding members only), *allowed email domains* (subdomains included, public mail domains
+  refused) that *join as members* or *ask to join*, and *who can ask to join* (nobody, the allowed
+  domains, or anyone with the join link, which then asks instead of admitting). The domain rule
+  runs for verified addresses on sign-up, sign-in, email verification and email change, once per
+  person and workspace: leaving, removal (by an owner or SCIM) and declined requests are
+  remembered, so nobody is pulled back in. Someone who joins through a domain on sign-up gets no
+  personal workspace. The workspace switcher lists workspaces a person's domain lets them join or
+  ask to join. Owners approve or decline in Settings → Members → Requests; each request is in
+  every owner's inbox (new notification kind `join_request`, with its own inbox and email
+  preferences, also in MCP `list_notifications`) and emailed to them; the person who asked gets
+  the decision by email in their language. A member's approved request goes out as their
+  invitation. One pending request per person (or invited address) and workspace; 10 requests an
+  hour per person, 100 invitation requests an hour per member. **Email verification:** with email
+  available, email and password sign-ups get a verification link (resend it in My account →
+  Profile); without SMTP in production, only provider-vouched addresses (GitHub, Google, SSO,
+  SCIM) count as verified. `scripts/auth-e2e.ts` and `scripts/account-e2e.ts` expect the
+  verification email. Migration `0028_membership_policies` (`workspace_join_request`, notification
+  `join_request_id`, `page_id` nullable for join requests). New checks:
+  `scripts/membership-e2e.ts` (106), `src/lib/membership-policy.test.ts`.
 - **Semantic search** (#43; optional, on with `AI_EMBEDDINGS_MODEL`): search also finds pages by
   meaning, merged with full-text results by reciprocal rank fusion, in the search dialog (marked
   *Similar meaning*), MCP `search` and REST `GET /search` (each result has `match: "text"` or

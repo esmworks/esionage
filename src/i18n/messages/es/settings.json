@@ -32,7 +32,8 @@
     "description": "Los miembros pueden ver y editar todas las páginas, salvo las que tengan el uso compartido restringido; los invitados solo ven las páginas compartidas con ellos. Los propietarios también pueden gestionar a los miembros.",
     "tabs": {
       "members": "Miembros",
-      "invitations": "Invitaciones pendientes"
+      "invitations": "Invitaciones pendientes",
+      "requests": "Solicitudes"
     },
     "search": "Buscar",
     "exportCsv": "Descargar miembros como CSV",
@@ -48,7 +49,8 @@
       "toggle": "Enlace para unirse",
       "regenerateTitle": "¿Crear un enlace nuevo?",
       "regenerateBody": "El enlace actual deja de funcionar de inmediato. Las personas que ya se unieron conservan su acceso.",
-      "regenerateConfirm": "Crear enlace nuevo"
+      "regenerateConfirm": "Crear enlace nuevo",
+      "descriptionAsks": "Quien abra este enlace e inicie sesión pide unirse, y un propietario aprueba cada solicitud. Quien tenga una invitación pendiente se une al momento. Solo los propietarios pueden verlo."
     },
     "columns": {
       "user": "Usuario",
@@ -59,7 +61,9 @@
       "lastEdited": "Última edición",
       "actions": "Acciones",
       "email": "Correo electrónico",
-      "status": "Estado"
+      "status": "Estado",
+      "request": "Solicitud",
+      "asked": "Pedido"
     },
     "you": "(tú)",
     "roleOf": "Rol de {name}",
@@ -103,7 +107,25 @@
       "emailFailed": "Falló el correo, comparte el enlace",
       "linkOnly": "Comparte este enlace de invitación",
       "linkValidity": "Los enlaces de invitación son válidos durante 7 días y solo para la dirección de correo invitada.",
-      "addMore": "Añadir más"
+      "addMore": "Añadir más",
+      "descriptionAsks": "Un propietario aprueba cada dirección antes de que se añada o invite a nadie.",
+      "submitAsk": "Pedir a un propietario",
+      "requested": "Esperando a un propietario",
+      "requestedNote": "Los propietarios ven tu solicitud en Configuración > Miembros. Las invitaciones se envían cuando la aprueban."
+    },
+    "noRequests": "No hay solicitudes pendientes.",
+    "requests": {
+      "join": "Pide unirse ({source})",
+      "sources": {
+        "domain": "dominio permitido",
+        "link": "enlace para unirse",
+        "switcher": "lista de espacios",
+        "member": "miembro"
+      },
+      "invite": "{name} quiere invitar a esta persona",
+      "someone": "Un miembro",
+      "approve": "Aprobar",
+      "decline": "Rechazar"
     }
   },
   "guests": {
@@ -323,7 +345,10 @@
     "transferToSelf": "Elige a otra persona para hacerla propietaria.",
     "transferToGuest": "Hazla miembro antes de hacerla propietaria.",
     "twoFactorFirst": "Primero activa la verificación en dos pasos en tu propia cuenta o inicia sesión con una llave de acceso.",
-    "ssoFirst": "Primero configura el inicio de sesión único y verifica sus dominios."
+    "ssoFirst": "Primero configura el inicio de sesión único y verifica sus dominios.",
+    "invalidDomain": "No se puede permitir {detail}: introduce los dominios de correo propios de tu organización (no servicios públicos como gmail.com).",
+    "requestHandled": "Esta solicitud ya se gestionó.",
+    "tooManyRequests": "Demasiadas solicitudes. Inténtalo más tarde."
   },
   "security": {
     "description": "Decide cómo inician sesión las personas, quién puede traer personas a este espacio de trabajo, qué pueden hacer los invitados y quién puede publicar páginas en la web. Solo los propietarios pueden cambiar estos ajustes.",
@@ -496,6 +521,36 @@
     "historyRetention": {
       "title": "Historial de páginas",
       "description": "Las versiones anteriores de una página se conservan {days} días, hasta {count} por página. Las versiones guardadas y las anteriores a una restauración se conservan {keptDays} días, y la versión más reciente de una página siempre se mantiene."
+    },
+    "membersHeading": "Miembros",
+    "memberInvites": {
+      "title": "Quién puede añadir miembros",
+      "description": "Los propietarios siempre pueden añadir personas. Los miembros añaden personas solo como miembros, nunca como propietarios.",
+      "owners": "Solo propietarios",
+      "members_with_approval": "Miembros, con la aprobación de un propietario",
+      "any_member": "Propietarios y miembros"
+    },
+    "allowedDomains": {
+      "title": "Dominios de correo permitidos",
+      "description": "Las personas con una dirección en estos dominios, subdominios incluidos, pueden unirse sin invitación. No se pueden añadir servicios públicos como gmail.com.",
+      "placeholder": "ejemplo.com, ejemplo.org",
+      "verifiedByEmail": "Solo las direcciones verificadas se unen por su cuenta: las cuentas nuevas reciben un enlace de verificación por correo.",
+      "verifiedByProvider": "Solo las direcciones verificadas se unen por su cuenta. Este servidor no envía correos, así que solo las cuentas de Google, GitHub o inicio de sesión único cuentan como verificadas."
+    },
+    "domainJoin": {
+      "title": "Cuando alguien de estos dominios inicia sesión",
+      "description": "Ocurre una vez por persona: quien se fue o fue eliminado no vuelve por su cuenta.",
+      "join": "Se une como miembro",
+      "request": "Pide unirse",
+      "noDomains": "Añade primero un dominio."
+    },
+    "joinRequests": {
+      "title": "Quién puede pedir unirse",
+      "description": "Las solicitudes esperan en Configuración > Miembros a que un propietario las apruebe o rechace.",
+      "nobody": "Nadie",
+      "allowed_domains": "Personas con un dominio de correo permitido",
+      "anyone_with_link": "Cualquiera con el enlace para unirse",
+      "linkHint": "El enlace para unirse pregunta entonces a un propietario en vez de añadir a las personas al momento."
     }
   },
   "notifications": {
@@ -518,7 +573,10 @@
     "reminderTitle": "Recordatorios",
     "reminderDescription": "Vence un recordatorio que configuraste en una fecha de una página.",
     "reminderChannel": "Recordatorios: {channel}",
-    "mailOff": "Este servidor no puede enviar correos en este momento, así que no se envía ninguno."
+    "mailOff": "Este servidor no puede enviar correos en este momento, así que no se envía ninguno.",
+    "joinRequestTitle": "Solicitudes de acceso",
+    "joinRequestDescription": "Alguien pide unirse a un espacio de trabajo tuyo, o un miembro pide invitar a alguien.",
+    "joinRequestChannel": "Solicitudes de acceso: {channel}"
   },
   "site": {
     "description": "Dale a las páginas publicadas de este espacio de trabajo una dirección legible, una página de inicio y navegación entre ellas.",

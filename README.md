@@ -115,7 +115,8 @@ approve them over OAuth.
 - **Workspaces and members**: add people by email (several at once) as owners or members, send
   an invitation link to people who don't have an account yet, or turn on a join link anyone can
   use. Owners can export the member list as CSV, hand ownership to someone else, and decide who
-  may invite guests.
+  may invite guests and add members, which email domains may join on their own, and who may ask
+  to join (see [Who can join a workspace](#who-can-join-a-workspace)).
 - **Email**: invitations, password reset, assignment and share notifications over SMTP (see [Email](#email)).
 - **Sign in with GitHub or Google**, optional (see [Social login](#social-login)).
 - **My account**: name and picture, password, email address, signed-in devices, connected apps,
@@ -170,8 +171,9 @@ To stop new sign-ups after creating your own account, set `DISABLE_SIGNUP=true` 
 You can still bring people in: in Settings → Members, add their email. If they have no account
 yet, you get an invitation link to send them. The link works for 7 days and lets only that email
 sign up, even while sign-up is closed. The workspace join link (Settings → Members → Add members
-with a link) is different: anyone holding it can join as a member, so it never opens closed
-sign-up. People without an account can use it only while sign-up is open.
+with a link) is different: anyone holding it can join as a member (or ask an owner to let them
+in, see [Who can join a workspace](#who-can-join-a-workspace)), so it never opens closed sign-up.
+People without an account can use it only while sign-up is open.
 
 If the app is reachable under another URL (a domain behind a reverse proxy, another port), set
 `APP_URL` to that public origin. It is the OAuth issuer and the MCP resource identifier, so it
@@ -336,6 +338,12 @@ its mail setup at startup.
 Without SMTP, development prints emails to the server log. In production, features that need
 email say that it is not configured.
 
+With email available (SMTP, or the development log), new email and password accounts get a link
+that verifies their address, and My account → Profile can send it again. Verified addresses matter
+for workspaces that let their [email domains](#who-can-join-a-workspace) in. In production
+without SMTP no link is sent, and only accounts whose provider vouches for the address (GitHub,
+Google, single sign-on, SCIM) count as verified.
+
 ## Social login
 
 People can also sign in with GitHub or Google. Each provider is off until you set both of its
@@ -393,6 +401,36 @@ Changing the email or password and deleting the account ask for the password aga
 two-step code (or recovery code) on accounts without one. An account with neither needs a
 sign-in from the last 10 minutes. These checks are rate-limited per person (10 tries per 15
 minutes), as are email changes (5 an hour), picture uploads (20 an hour) and signing out devices.
+
+## Who can join a workspace
+
+Owners decide in the workspace's **Settings → Security → Members**:
+
+- **Who can add members:** *Owners only* (default), *Members, with an owner's approval*, or
+  *Owners and members*. Members add people as members only, never as owners or guests. With
+  approval, what a member adds (one address or several) becomes a request, and the invitation
+  (with its email) goes out in the member's name once an owner approves it. Guests never add
+  anyone. The same rule applies wherever members are added; the REST API and MCP only list
+  members.
+- **Allowed email domains** (`example.com, example.org`, subdomains included, up to 20; public
+  mail services such as gmail.com can't be added) and what happens **when someone from these
+  domains signs in**: they *join as members* (default) or *ask to join*. This runs on sign-up,
+  on every sign-in and when an address is verified or changed, once per person and workspace:
+  someone who left, or whom an owner removed or declined, doesn't come back on their own. Only
+  verified addresses count (see [Email](#email) for how an address is verified, with and without
+  SMTP). The workspace switcher also lists the workspaces a person's domain lets them join or ask
+  to join, with a Join or Request to join button: people who left may rejoin there, people who
+  were removed or declined may only ask.
+- **Who can ask to join:** *Nobody* (default), *People with an allowed email domain* (including
+  unverified addresses and people removed or declined before), or *Anyone with the join link*.
+  With the last one the join link asks an owner instead of adding people right away, except for
+  people with a pending invitation or a verified address on an allowed domain that joins directly.
+
+Requests wait in **Settings → Members → Requests**, where owners approve or decline them; every
+owner also gets one in their inbox (and by email, unless they turned join request emails off in My
+account → Preferences). The person who asked hears the decision by email, in the language they
+asked in. There is one pending request per person and workspace (and per invited address), and
+people may send 10 requests an hour, members 100 invitation requests an hour.
 
 ## Two-step verification and passkeys
 
@@ -809,7 +847,7 @@ Useful scripts:
 | `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
 | `pnpm search:index [workspace-id…]` | Builds or catches up the semantic search index (see [Semantic search](#semantic-search)) |
-| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (teamspaces, databases, filters, bulk actions, AI features, semantic search and AI chat (with a stand-in OpenAI-compatible server), property types, people, trash and its retention, views, formulas, charts, forms, inline databases, publishing options, sites and duplicating published pages, presence, offline editing, uploads, import, Notion import, export, and `roundtrip-e2e.ts` for an export imported again); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
+| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (teamspaces, membership policies and join requests, databases, filters, bulk actions, AI features, semantic search and AI chat (with a stand-in OpenAI-compatible server), property types, people, trash and its retention, views, formulas, charts, forms, inline databases, publishing options, sites and duplicating published pages, presence, offline editing, uploads, import, Notion import, export, and `roundtrip-e2e.ts` for an export imported again); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
 | `pnpm tsx scripts/sw-e2e.ts` | Checks the service worker (`public/sw.js`) in headless Chrome against a stand-in server: offline pages, per-user copies, the offline page (set `CHROME_PATH` outside macOS) |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/api-e2e.ts` | End-to-end REST API check (tokens, every endpoint, access, rate limits, OpenAPI) against a running server |

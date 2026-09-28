@@ -1,9 +1,19 @@
-import { and, count, desc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { databaseProperty, notification, page, pageReminder, user, workspace, type NotificationKind } from "@/db/schema";
+import {
+  databaseProperty,
+  notification,
+  page,
+  pageReminder,
+  user,
+  workspace,
+  workspaceJoinRequest,
+  type JoinRequestKind,
+  type NotificationKind,
+} from "@/db/schema";
 import { newAssignees } from "@/lib/properties";
-import { pageVisibleTo, requireMembership } from "@/server/access";
+import { ownsWorkspace, pageVisibleTo, requireMembership, workspaceOwnerIds } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 import { mailStatus } from "@/server/mail";
 import { requestLocale } from "@/server/mail/locale";
@@ -269,6 +279,46 @@ export async function recordReminder(userId: string, pageId: string, mentionId: 
   signal(target.workspaceId);
 }
 
+/**
+ * Tells the workspace's owners (but the one who asked) that someone asks to join it or to invite
+ * someone (see server/join-requests.ts), and queues the email about it. Never throws: the request
+ * was filed, and the owners see it in Settings > Members either way.
+ */
+export async function recordJoinRequest(workspaceId: string, joinRequestId: string, actorId: string | null, locale: string | null) {
+  try {
+    const recipients = (await workspaceOwnerIds(workspaceId)).filter((id) => id !== actorId);
+    if (!recipients.length) return;
+    const emailDueAt = mailStatus() === "disabled" ? null : new Date();
+    await db.insert(notification).values(
+      recipients.map((userId) => ({
+        userId,
+        workspaceId,
+        kind: "join_request" as const,
+        actorId,
+        joinRequestId,
+        emailDueAt,
+        emailLocale: locale,
+      })),
+    );
+    signal(workspaceId);
+  } catch (error) {
+    console.error("could not record join request notifications", error);
+  }
+}
+
+/** Takes back the owners' unread notifications (and emails) about a request once it is decided; never throws. */
+export async function withdrawJoinRequest(workspaceId: string, joinRequestId: string) {
+  try {
+    const dropped = await db
+      .delete(notification)
+      .where(and(eq(notification.joinRequestId, joinRequestId), isNull(notification.readAt)))
+      .returning({ id: notification.id });
+    if (dropped.length) signal(workspaceId);
+  } catch (error) {
+    console.error("could not withdraw join request notifications", error);
+  }
+}
+
 const unreadShare = (userId: string, pageId: string) =>
   and(
     eq(notification.kind, "page_shared"),
@@ -285,13 +335,17 @@ export type InboxItem = {
   createdAt: Date;
   read: boolean;
   actorName: string | null;
-  pageId: string;
-  pageTitle: string;
+  /** Null for join requests only. */
+  pageId: string | null;
+  pageTitle: string | null;
   pageIcon: string | null;
   databaseTitle: string | null;
   propertyName: string | null;
   /** Reminders: the date they were set on (YYYY-MM-DD). */
   reminderDate: string | null;
+  /** Join requests: someone asking to join, or a member asking to invite `requestEmail`. */
+  requestKind: JoinRequestKind | null;
+  requestEmail: string | null;
 };
 
 const databasePage = alias(page, "database_page");
@@ -299,7 +353,8 @@ const actor = alias(user, "actor");
 
 /**
  * Notifications about pages the user can still open, of the kinds they keep in their inbox; ones
- * for trashed or unshared pages stay hidden. Null when every kind is turned off.
+ * for trashed or unshared pages stay hidden, and join requests once the user is no longer an owner
+ * of the workspace. Null when every kind is turned off. Expects `page` left-joined.
  */
 async function inboxFilter(userId: string, workspaceId?: string): Promise<SQL | null> {
   const kinds = await inboxKinds(userId);
@@ -308,8 +363,13 @@ async function inboxFilter(userId: string, workspaceId?: string): Promise<SQL | 
     eq(notification.userId, userId),
     workspaceId ? eq(notification.workspaceId, workspaceId) : undefined,
     inArray(notification.kind, kinds),
-    isNull(page.archivedAt),
-    pageVisibleTo(userId),
+    or(
+      and(isNotNull(page.id), isNull(page.archivedAt), pageVisibleTo(userId)),
+      and(
+        eq(notification.kind, "join_request"),
+        ownsWorkspace(userId, notification.workspaceId),
+      ),
+    ),
   )!;
 }
 
@@ -339,10 +399,13 @@ export async function listNotifications(
       databaseTitle: databasePage.title,
       propertyName: databaseProperty.name,
       reminderDate: pageReminder.date,
+      requestKind: workspaceJoinRequest.kind,
+      requestEmail: workspaceJoinRequest.email,
     })
     .from(notification)
-    .innerJoin(page, eq(page.id, notification.pageId))
+    .leftJoin(page, eq(page.id, notification.pageId))
     .innerJoin(workspace, eq(workspace.id, notification.workspaceId))
+    .leftJoin(workspaceJoinRequest, eq(workspaceJoinRequest.id, notification.joinRequestId))
     .leftJoin(databasePage, and(eq(databasePage.id, page.parentId), eq(databasePage.kind, "database")))
     .leftJoin(actor, eq(actor.id, notification.actorId))
     .leftJoin(databaseProperty, eq(databaseProperty.id, notification.propertyId))
@@ -367,7 +430,7 @@ export async function unreadCount(userId: string, workspaceId: string) {
   const [row] = await db
     .select({ n: count() })
     .from(notification)
-    .innerJoin(page, eq(page.id, notification.pageId))
+    .leftJoin(page, eq(page.id, notification.pageId))
     .where(and(filter, isNull(notification.readAt)));
   return row?.n ?? 0;
 }

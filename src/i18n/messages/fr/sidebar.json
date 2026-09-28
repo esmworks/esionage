@@ -72,7 +72,10 @@
     "reminder": "Rappel : {date}",
     "someone": "Quelqu’un",
     "unread": "Non lue",
-    "unreadCount": "{count, plural, one {# notification non lue} other {# notifications non lues}}"
+    "unreadCount": "{count, plural, one {# notification non lue} other {# notifications non lues}}",
+    "joinRequestTitle": "Demande d'accès",
+    "joinRequest": "{actor} a demandé à rejoindre l'espace",
+    "inviteRequest": "{actor} a demandé à inviter {email}"
   },
   "templates": {
     "title": "Modèles",
@@ -109,5 +112,11 @@
     "newPrivate": "Nouvelle page privée",
     "more": "{count} de plus",
     "less": "Afficher moins"
+  },
+  "joinable": {
+    "heading": "Espaces que vous pouvez rejoindre",
+    "join": "Rejoindre",
+    "request": "Demander à rejoindre",
+    "requested": "Demandé"
   }
 }

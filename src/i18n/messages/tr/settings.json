@@ -32,7 +32,8 @@
     "description": "Üyeler, paylaşımı kısıtlanmamış tüm sayfaları görür ve düzenler; misafirler yalnızca kendileriyle paylaşılan sayfaları görür. Sahipler ayrıca üyeleri yönetebilir.",
     "tabs": {
       "members": "Üyeler",
-      "invitations": "Bekleyen davetler"
+      "invitations": "Bekleyen davetler",
+      "requests": "İstekler"
     },
     "search": "Ara",
     "exportCsv": "Üyeleri CSV olarak indir",
@@ -48,7 +49,8 @@
       "toggle": "Katılma bağlantısı",
       "regenerateTitle": "Yeni bağlantı oluşturulsun mu?",
       "regenerateBody": "Mevcut bağlantı hemen geçersiz olur. Daha önce katılanların erişimi sürer.",
-      "regenerateConfirm": "Yeni bağlantı oluştur"
+      "regenerateConfirm": "Yeni bağlantı oluştur",
+      "descriptionAsks": "Bu bağlantıyı açıp giriş yapan herkes katılmak için istek gönderir ve her isteği bir sahip onaylar. Bekleyen daveti olanlar hemen katılır. Yalnızca sahipler görebilir."
     },
     "columns": {
       "user": "Kullanıcı",
@@ -59,7 +61,9 @@
       "lastEdited": "Son düzenleme",
       "actions": "İşlemler",
       "email": "E-posta",
-      "status": "Durum"
+      "status": "Durum",
+      "request": "İstek",
+      "asked": "İstendi"
     },
     "you": "(siz)",
     "roleOf": "{name} adlı üyenin rolü",
@@ -103,7 +107,25 @@
       "emailFailed": "E-posta gönderilemedi, bağlantıyı paylaşın",
       "linkOnly": "Bu davet bağlantısını paylaşın",
       "linkValidity": "Davet bağlantıları 7 gün ve yalnızca davet edilen e-posta adresi için geçerlidir.",
-      "addMore": "Başka ekle"
+      "addMore": "Başka ekle",
+      "descriptionAsks": "Kimse eklenmeden veya davet edilmeden önce her adresi bir sahip onaylar.",
+      "submitAsk": "Sahibe sor",
+      "requested": "Bir sahibin onayı bekleniyor",
+      "requestedNote": "Sahipler isteğinizi Ayarlar > Üyeler'de görür. Davetler onayladıklarında gönderilir."
+    },
+    "noRequests": "Bekleyen istek yok.",
+    "requests": {
+      "join": "Katılmak istiyor ({source})",
+      "sources": {
+        "domain": "izin verilen alan adı",
+        "link": "katılma bağlantısı",
+        "switcher": "çalışma alanı listesi",
+        "member": "üye"
+      },
+      "invite": "{name} bu kişiyi davet etmek istiyor",
+      "someone": "Bir üye",
+      "approve": "Onayla",
+      "decline": "Reddet"
     }
   },
   "guests": {
@@ -323,7 +345,10 @@
     "transferToSelf": "Sahip yapmak için başka birini seçin.",
     "transferToGuest": "Sahip yapmadan önce üye yapın.",
     "twoFactorFirst": "Önce kendi hesabınız için iki adımlı doğrulamayı açın veya passkey ile giriş yapın.",
-    "ssoFirst": "Önce çoklu oturum açmayı kurun ve alan adlarını doğrulayın."
+    "ssoFirst": "Önce çoklu oturum açmayı kurun ve alan adlarını doğrulayın.",
+    "invalidDomain": "{detail} izin verilemez: kuruluşunuzun kendi e-posta alan adlarını girin (gmail.com gibi genel e-posta servislerini değil).",
+    "requestHandled": "Bu istek zaten sonuçlandırıldı.",
+    "tooManyRequests": "Çok fazla istek gönderildi. Daha sonra tekrar deneyin."
   },
   "security": {
     "description": "İnsanların nasıl giriş yapacağını, bu çalışma alanına kimlerin kişi getirebileceğini, misafirlerin neler yapabileceğini ve kimlerin sayfaları web'de yayınlayabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
@@ -496,6 +521,36 @@
     "historyRetention": {
       "title": "Sayfa geçmişi",
       "description": "Bir sayfanın önceki sürümleri {days} gün, sayfa başına en fazla {count} adet saklanır. Kaydedilen sürümler ve geri yüklemeden önceki sürümler {keptDays} gün saklanır; sayfanın en son sürümü her zaman kalır."
+    },
+    "membersHeading": "Üyeler",
+    "memberInvites": {
+      "title": "Kimler üye ekleyebilir",
+      "description": "Sahipler her zaman kişi ekleyebilir. Üyeler kişileri yalnızca üye olarak ekler, sahip olarak asla.",
+      "owners": "Yalnızca sahipler",
+      "members_with_approval": "Üyeler, bir sahibin onayıyla",
+      "any_member": "Sahipler ve üyeler"
+    },
+    "allowedDomains": {
+      "title": "İzin verilen e-posta alan adları",
+      "description": "Bu alan adlarında (alt alan adları dahil) adresi olan kişiler davet olmadan katılabilir. gmail.com gibi genel e-posta servisleri eklenemez.",
+      "placeholder": "ornek.com, ornek.org",
+      "verifiedByEmail": "Yalnızca doğrulanmış adresler kendiliğinden katılır: yeni hesaplara e-postayla bir doğrulama bağlantısı gider.",
+      "verifiedByProvider": "Yalnızca doğrulanmış adresler kendiliğinden katılır. Bu sunucu e-posta göndermediği için yalnızca Google, GitHub veya çoklu oturum açma hesapları doğrulanmış sayılır."
+    },
+    "domainJoin": {
+      "title": "Bu alan adlarından biri giriş yaptığında",
+      "description": "Bu, kişi başına bir kez olur: ayrılan veya çıkarılan biri kendiliğinden geri gelmez.",
+      "join": "Üye olarak katılır",
+      "request": "Katılmak için istek gönderir",
+      "noDomains": "Önce bir alan adı ekleyin."
+    },
+    "joinRequests": {
+      "title": "Kimler katılmak için istek gönderebilir",
+      "description": "İstekler, bir sahibin onaylaması veya reddetmesi için Ayarlar > Üyeler'de bekler.",
+      "nobody": "Hiç kimse",
+      "allowed_domains": "İzin verilen e-posta alan adına sahip kişiler",
+      "anyone_with_link": "Katılma bağlantısına sahip herkes",
+      "linkHint": "Katılma bağlantısı bu durumda kişileri hemen eklemek yerine bir sahibe sorar."
     }
   },
   "notifications": {
@@ -518,7 +573,10 @@
     "reminderTitle": "Hatırlatmalar",
     "reminderDescription": "Bir sayfadaki tarihe kurduğunuz hatırlatmanın zamanı gelir.",
     "reminderChannel": "Hatırlatmalar: {channel}",
-    "mailOff": "Bu sunucuda e-posta gönderimi kapalı olduğu için şu an e-posta gitmiyor."
+    "mailOff": "Bu sunucuda e-posta gönderimi kapalı olduğu için şu an e-posta gitmiyor.",
+    "joinRequestTitle": "Katılma istekleri",
+    "joinRequestDescription": "Biri sahibi olduğunuz bir çalışma alanına katılmak ister ya da bir üye birini davet etmek ister.",
+    "joinRequestChannel": "Katılma istekleri: {channel}"
   },
   "site": {
     "description": "Bu çalışma alanının yayındaki sayfalarına okunabilir tek bir adres, bir ana sayfa ve aralarında gezinme menüsü verin.",

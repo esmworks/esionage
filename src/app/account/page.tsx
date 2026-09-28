@@ -139,6 +139,7 @@ async function ProfileTab({ session }: { session: Session }) {
         <SettingsGroup title={t("email.heading")}>
           <AccountEmailSettings
             email={overview.email}
+            emailVerified={overview.emailVerified}
             pendingEmail={overview.pendingEmail}
             enabled={emailChangeEnabled()}
             proof={proof}

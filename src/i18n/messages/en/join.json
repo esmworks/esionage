@@ -10,5 +10,11 @@
   "alreadyMember": "You're already a member of this workspace.",
   "open": "Open workspace",
   "signInBody": "Sign in with your account to join. This server doesn't allow new accounts.",
-  "signIn": "Sign in"
+  "signIn": "Sign in",
+  "requestBody": "An owner approves new members of this workspace. Send a request, and you'll hear back by email.",
+  "request": "Request to join",
+  "requesting": "Sending…",
+  "requestedTitle": "Request sent",
+  "requestedBody": "An owner of the workspace will look at your request. You'll get an email when they decide.",
+  "pendingBody": "You already asked to join this workspace. An owner will get to it; you'll get an email when they decide."
 }

@@ -116,6 +116,10 @@ jobs:
       - name: Comments end-to-end
         run: pnpm tsx scripts/comments-e2e.ts
 
+      # Join request emails are captured by the script, never sent.
+      - name: Membership policies end-to-end
+        run: pnpm tsx scripts/membership-e2e.ts
+
       - name: Start the server
         run: |
           pnpm start > "$RUNNER_TEMP/server.log" 2>&1 &

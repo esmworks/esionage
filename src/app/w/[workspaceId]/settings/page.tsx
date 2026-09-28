@@ -14,6 +14,7 @@ import {
   GuestInviteSetting,
   GuestPrivatePagesSetting,
   HistoryRetentionNote,
+  MembershipSettings,
   PublishingSetting,
   RequireTwoFactorSetting,
   TrashRetentionSetting,
@@ -34,6 +35,8 @@ import { type SettingsTab, visibleSettingsTabs } from "@/lib/settings-tabs";
 import { AccessError, isGuest } from "@/server/access";
 import { aiInfo, embeddingModel } from "@/server/ai";
 import { listWorkspaceFormPublications } from "@/server/forms";
+import { listJoinRequests } from "@/server/join-requests";
+import { mailStatus } from "@/server/mail";
 import { groupsByMember, listGroups } from "@/server/groups";
 import { listGuests } from "@/server/guests";
 import { listWorkspacePublications } from "@/server/publication";
@@ -51,6 +54,7 @@ import {
   lastEdits,
   listInvitations,
   listMembers,
+  memberInviteAccess,
   ssoAvailable,
 } from "@/server/workspaces";
 
@@ -156,7 +160,14 @@ export default async function SettingsPage({
               )}
             </>
           )}
-          {tab === "members" && <MembersTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
+          {tab === "members" && (
+            <MembersTab
+              workspaceId={workspaceId}
+              userId={user.id}
+              isOwner={isOwner}
+              view={typeof query.view === "string" ? query.view : undefined}
+            />
+          )}
           {tab === "guests" && <GuestsTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "teamspaces" && <TeamspacesTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "groups" && <GroupsTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
@@ -210,6 +221,9 @@ async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: stri
           <LoginMethodSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} available={canUseSso} />
         </SettingsGroup>
       </div>
+      <SettingsGroup title={t("security.membersHeading")}>
+        <MembershipSettings workspaceId={workspaceId} settings={settings} canEdit={isOwner} mailEnabled={mailStatus() !== "disabled"} />
+      </SettingsGroup>
       {isOwner && (
         <SettingsGroup title={t("security.sso.title")} description={t("security.sso.description")}>
           <SsoSetupDetails info={setup} />
@@ -300,23 +314,40 @@ async function SiteTab({
   );
 }
 
-async function MembersTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
-  const [members, edits, invitations, joinLink, teamspaces, groups] = await Promise.all([
+async function MembersTab({
+  workspaceId,
+  userId,
+  isOwner,
+  view,
+}: {
+  workspaceId: string;
+  userId: string;
+  isOwner: boolean;
+  view: string | undefined;
+}) {
+  const [members, edits, invitations, joinLink, teamspaces, groups, requests, addMembers, settings] = await Promise.all([
     listMembers(userId, workspaceId),
     lastEdits(userId, workspaceId),
     isOwner ? listInvitations(userId, workspaceId) : [],
     isOwner ? getJoinLink(userId, workspaceId) : null,
     teamspacesByMember(userId, workspaceId),
     groupsByMember(userId, workspaceId),
+    isOwner ? listJoinRequests(userId, workspaceId) : [],
+    memberInviteAccess(userId, workspaceId),
+    getWorkspaceSettings(userId, workspaceId),
   ]);
   return (
     <MembersPanel
       workspaceId={workspaceId}
       currentUserId={userId}
       isOwner={isOwner}
+      initialTab={view === "requests" && isOwner ? "requests" : view === "invitations" && isOwner ? "invitations" : "members"}
+      addMembers={addMembers}
       members={members.map((m) => ({ ...m, lastEditedAt: edits.get(m.userId) ?? null }))}
       invitations={invitations}
+      requests={requests}
       joinLink={joinLink}
+      joinLinkAsks={settings.joinRequests === "anyone_with_link"}
       // A plain object: a Map doesn't cross to the client component.
       teamspaces={Object.fromEntries(teamspaces)}
       groups={Object.fromEntries(groups)}

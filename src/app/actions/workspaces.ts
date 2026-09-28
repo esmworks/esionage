@@ -6,6 +6,7 @@ import type { WorkspaceRole, WorkspaceSettings } from "@/db/schema";
 import { isStrongSession } from "@/lib/auth-security";
 import { AccessError } from "@/server/access";
 import { revokeFormPublication } from "@/server/forms";
+import { approveJoinRequest, declineJoinRequest, joinFromSwitcher } from "@/server/join-requests";
 import { revokePublication } from "@/server/publication";
 import { getSession, requireUserId } from "@/server/session";
 import {
@@ -32,15 +33,15 @@ async function run<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
   try {
     return { ok: true, data: await fn() };
   } catch (error) {
-    if (error instanceof WorkspaceError) return fail(error.code);
+    if (error instanceof WorkspaceError) return fail(error.code, error.detail);
     if (error instanceof AccessError) return fail("ownersOnly");
     throw error;
   }
 }
 
-async function fail(code: WorkspaceErrorCode | "ownersOnly" | "unknownRole"): Promise<{ ok: false; error: string }> {
+async function fail(code: WorkspaceErrorCode | "ownersOnly" | "unknownRole", detail = ""): Promise<{ ok: false; error: string }> {
   const t = await getTranslations("settings.errors");
-  return { ok: false, error: t(code) };
+  return { ok: false, error: code === "invalidDomain" ? t(code, { detail }) : t(code) };
 }
 
 const ROLES: WorkspaceRole[] = ["owner", "member", "guest"];
@@ -141,11 +142,39 @@ export async function acceptInvitationAction(token: string) {
   return result;
 }
 
-/** Joins the workspace of a join link as the signed-in account. Returns the workspace id. */
+/**
+ * Joins the workspace of a join link as the signed-in account, or asks an owner to let them in
+ * when the workspace wants that (see joinWithLink).
+ */
 export async function joinWithLinkAction(token: string) {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
   const result = await run(() => joinWithLink(token, session.user.id, session.user.email));
-  if (result.ok) refresh(result.data);
+  if (result.ok && result.data.status === "joined") refresh(result.data.workspaceId);
+  return result;
+}
+
+/** "Join" or "Request to join" on a workspace the account's email domain may join (workspace switcher). */
+export async function joinFromSwitcherAction(workspaceId: string) {
+  const userId = await requireUserId();
+  const result = await run(() => joinFromSwitcher(userId, workspaceId));
+  if (result.ok && result.data === "joined") refresh(workspaceId);
+  return result;
+}
+
+/** Approves a join request, or a member's request to invite someone. Owners only. */
+export async function approveJoinRequestAction(workspaceId: string, requestId: string) {
+  const userId = await requireUserId();
+  const result = await run(async () => {
+    await approveJoinRequest(userId, workspaceId, requestId);
+  });
+  refresh(workspaceId);
+  return result;
+}
+
+export async function declineJoinRequestAction(workspaceId: string, requestId: string) {
+  const userId = await requireUserId();
+  const result = await run(() => declineJoinRequest(userId, workspaceId, requestId));
+  refresh(workspaceId);
   return result;
 }

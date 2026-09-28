@@ -1,5 +1,6 @@
-import { boolean, index, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
-import { databaseProperty, page, workspace } from "./app";
+import { sql } from "drizzle-orm";
+import { boolean, check, index, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { databaseProperty, page, workspace, workspaceJoinRequest } from "./app";
 import { user } from "./auth";
 
 /** Account-wide choices that follow the user across browsers (the interface language doesn't). */
@@ -27,6 +28,10 @@ export const userPreference = pgTable("user_preference", {
   reminderEmails: boolean("reminder_emails").notNull().default(true),
   /** Show the reminders I set on dates in my inbox. */
   reminderInbox: boolean("reminder_inbox").notNull().default(true),
+  /** Email me when someone asks to join a workspace I own. */
+  joinRequestEmails: boolean("join_request_emails").notNull().default(true),
+  /** Show requests to join the workspaces I own in my inbox. */
+  joinRequestInbox: boolean("join_request_inbox").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -54,7 +59,7 @@ export const pendingAssignmentEmail = pgTable(
   (t) => [primaryKey({ columns: [t.rowId, t.propertyId, t.userId] }), index("assignment_email_due_idx").on(t.dueAt)],
 );
 
-export const NOTIFICATION_KINDS = ["assignment", "page_shared", "comment", "mention", "reminder"] as const;
+export const NOTIFICATION_KINDS = ["assignment", "page_shared", "comment", "mention", "reminder", "join_request"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /**
@@ -63,7 +68,9 @@ export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
  * `pageId`. "comment": `actorId` replied in comment thread `threadId` on page `pageId`, where the
  * user had commented before. "mention": `actorId` mentioned the user on page `pageId` (mention
  * `mentionId`). "reminder": the reminder the user set on date mention `mentionId` of page `pageId`
- * fell due. Unread ones are dropped when the change is undone. Rows are recorded
+ * fell due. "join_request": `actorId` asked to join (or to invite someone), request `joinRequestId`,
+ * which waits for the workspace's owners; it has no page. Unread ones are dropped when the change
+ * is undone (or the request decided). Rows are recorded
  * whatever the user's preferences; the inbox leaves out the kinds they turned off.
  */
 export const notification = pgTable(
@@ -80,14 +87,15 @@ export const notification = pgTable(
       .references(() => workspace.id, { onDelete: "cascade" }),
     kind: text("kind").$type<NotificationKind>().notNull(),
     actorId: text("actor_id").references(() => user.id, { onDelete: "set null" }),
-    pageId: text("page_id")
-      .notNull()
-      .references(() => page.id, { onDelete: "cascade" }),
+    /** Every kind but join_request. */
+    pageId: text("page_id").references(() => page.id, { onDelete: "cascade" }),
     propertyId: text("property_id").references(() => databaseProperty.id, { onDelete: "cascade" }),
     /** Comment notifications: the thread (in the page's document) they are about. */
     threadId: text("thread_id"),
     /** Mention and reminder notifications: the mention (in the page's document) they are about. */
     mentionId: text("mention_id"),
+    /** Join request notifications: the request. */
+    joinRequestId: text("join_request_id").references(() => workspaceJoinRequest.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     readAt: timestamp("read_at", { withTimezone: true }),
     /** When to email the user about it (all but assignment); cleared once the email is handled. */
@@ -98,5 +106,6 @@ export const notification = pgTable(
   (t) => [
     index("notification_inbox_idx").on(t.userId, t.workspaceId, t.createdAt),
     index("notification_email_due_idx").on(t.emailDueAt),
+    check("notification_subject_check", sql`${t.kind} = 'join_request' or ${t.pageId} is not null`),
   ],
 );

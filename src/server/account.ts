@@ -30,6 +30,7 @@ import { sharedLimiter, takeAll } from "@/lib/rate-limit";
 import { verifyTotp } from "@/lib/totp";
 import { getCollab } from "@/server/collab/bridge";
 import { removeStored } from "@/server/files";
+import { applyDomainPolicies } from "@/server/join-requests";
 import { emailChangedEmail, emailChangeEmail, mailStatus, passwordChangedEmail, sendMail } from "@/server/mail";
 import { requestLocale } from "@/server/mail/locale";
 import { getStorage } from "@/server/storage";
@@ -159,6 +160,8 @@ export type AccountOverview = {
   name: string;
   email: string;
   image: string | null;
+  /** Proven to be theirs (a verification link, or a provider that vouches for it). */
+  emailVerified: boolean;
   hasPassword: boolean;
   twoFactorEnabled: boolean;
   /** Linked sign-in providers other than email and password ("github", "google"). */
@@ -172,7 +175,13 @@ export async function getAccountOverview(current: AccountSession): Promise<Accou
   const userId = current.user.id;
   const [[row], accounts, sessions, pending] = await Promise.all([
     db
-      .select({ name: user.name, email: user.email, image: user.image, twoFactorEnabled: user.twoFactorEnabled })
+      .select({
+        name: user.name,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        image: user.image,
+        twoFactorEnabled: user.twoFactorEnabled,
+      })
       .from(user)
       .where(eq(user.id, userId))
       .limit(1),
@@ -205,6 +214,7 @@ export async function getAccountOverview(current: AccountSession): Promise<Accou
     name: row.name,
     email: row.email,
     image: row.image,
+    emailVerified: row.emailVerified,
     hasPassword: accounts.some((a) => a.providerId === "credential" && a.password),
     twoFactorEnabled: row.twoFactorEnabled === true,
     providers: [...new Set(accounts.map((a) => a.providerId).filter((p) => p !== "credential"))].sort(),
@@ -461,6 +471,8 @@ export async function confirmEmailChange(token: string) {
   if (!result.ok) throw new AccountError(result.error);
   const { change, name } = result;
   await notify(change.from, (locale) => emailChangedEmail(locale, { name, oldEmail: change.from, newEmail: change.to }));
+  // A newly verified address may be on a workspace's allowed domain.
+  await applyDomainPolicies(change.userId).catch((error) => console.error("could not apply allowed email domains", error));
   return { email: change.to };
 }
 

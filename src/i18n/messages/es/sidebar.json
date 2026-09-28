@@ -72,7 +72,10 @@
     "reminder": "Recordatorio: {date}",
     "someone": "Alguien",
     "unread": "No leída",
-    "unreadCount": "{count, plural, one {# notificación sin leer} other {# notificaciones sin leer}}"
+    "unreadCount": "{count, plural, one {# notificación sin leer} other {# notificaciones sin leer}}",
+    "joinRequestTitle": "Solicitud de acceso",
+    "joinRequest": "{actor} pidió unirse",
+    "inviteRequest": "{actor} pidió invitar a {email}"
   },
   "templates": {
     "title": "Plantillas",
@@ -109,5 +112,11 @@
     "newPrivate": "Nueva página privada",
     "more": "{count} más",
     "less": "Mostrar menos"
+  },
+  "joinable": {
+    "heading": "Espacios a los que puedes unirte",
+    "join": "Unirse",
+    "request": "Pedir unirse",
+    "requested": "Solicitado"
   }
 }

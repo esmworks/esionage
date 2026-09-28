@@ -84,7 +84,7 @@ Page bodies are read and written as Markdown. Before every content change Esiona
 Beyond plain Markdown, page bodies know a few block forms: a callout is a GitHub alert (\`> [!NOTE]\`, TIP, IMPORTANT, WARNING or CAUTION on its own line, then the \`> \` text; a leading emoji becomes its icon), \`$…$\` is an inline equation and a \`$$\` line pair wraps a block equation (LaTeX), a \`\`\`mermaid fence is a diagram, and the lines \`<!-- esionage:toc -->\` and \`<!-- esionage:breadcrumb -->\` are a table of contents and the page's breadcrumb. Columns (2 to 5, side by side) are written between marker lines: \`<!-- esionage:columns -->\`, then \`<!-- esionage:column -->\` before each column's blocks (\`<!-- esionage:column width=2 -->\` makes a column twice as wide as a width-1 one), then \`<!-- esionage:/columns -->\`; keep the markers when you write a body back, or the blocks leave their columns. A web bookmark (a link card) reads as a link on a line of its own, \`[Title](url)\`, and stays a bookmark when you write the body back; to add a new one write \`[Title](url) <!-- esionage:bookmark -->\`. An embed (YouTube, Vimeo, Loom, Figma, published Google Docs/Sheets/Slides, CodePen, Spotify, Google Maps) is \`[url](url) <!-- esionage:embed -->\`. A dollar sign of the text itself is written \`\\$\`.
 Mentions: a link to a page of this app (\`[Roadmap](/w/<workspace_id>/p/<page_id>)\`) is a page mention, which shows the page's live title (the link text you write is ignored; get_page shows the current title, or "No access" / "Deleted page"); that link alone on its line followed by \`<!-- esionage:page-link -->\` is a "Link to page" block. \`@Name\` with a person's name as list_users shows it mentions them (they are notified if they can open the page), and \`@YYYY-MM-DD\` is a date. Keep mentions as they are when you rewrite a page: people aren't notified twice and reminders set on dates stay. get_page lists the pages linking to a page under linked_from.
 People discuss pages in comment threads anchored to text of the page: list_comments reads them, add_comment starts a thread on quoted text or replies to one.
-list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them, new comments in their threads, mentions of them and reminders they set on dates.
+list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them, new comments in their threads, mentions of them, reminders they set on dates and, for owners, requests to join their workspaces.
 attach_file adds an image, video, audio or other file to a page, from a URL or base64 data, or (with property) to a row's files property. Files in page bodies show up in the Markdown with paths like /api/files/<id>.
 Templates are starting points for new pages and rows: list_templates lists a workspace's page templates (and the built-in gallery) or a database's row templates; create_page and create_database_row take a template_id. A database's default row template is used by create_database_row when no properties or body are given. Templates don't show up in search or list_pages.
 Always share the returned url with the user when you create or change something.`;
@@ -685,7 +685,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "List notifications",
       description:
-        "List the user's inbox, newest first: database rows someone assigned them to, pages someone shared with them and new comments in comment threads the user is in, with who did it and a link. Only the kinds the user keeps in their inbox are listed. Reading does not mark them read.",
+        "List the user's inbox, newest first: database rows someone assigned them to, pages someone shared with them, new comments in comment threads the user is in, mentions, reminders and (for owners) join requests, with who did it and a link. Only the kinds the user keeps in their inbox are listed. Reading does not mark them read.",
       inputSchema: z.object({
         workspace_id: z.string().optional().describe("Only this workspace; all of the user's workspaces when omitted."),
         unread_only: z.boolean().default(false).describe("Only notifications the user hasn't read yet."),
@@ -705,6 +705,23 @@ export function createMcpServer(principal: McpPrincipal) {
         return {
           notifications: items.map((n) => {
             const who = n.actorName || "Someone";
+            // Join requests are about the workspace, not a page; owners decide them in the app.
+            if (n.kind === "join_request" || n.pageId === null) {
+              return {
+                id: n.id,
+                kind: n.kind,
+                read: n.read,
+                created_at: n.createdAt.toISOString(),
+                summary:
+                  n.requestKind === "invite"
+                    ? `${who} asked to invite ${n.requestEmail ?? "someone"} to the workspace; an owner approves or declines it in Settings > Members`
+                    : `${who} asked to join the workspace; an owner approves or declines it in Settings > Members`,
+                actor: n.actorName,
+                workspace_id: n.workspaceId,
+                workspace_name: n.workspaceName,
+                url: `${env.appUrl}/w/${n.workspaceId}/settings?tab=members&view=requests`,
+              };
+            }
             const title = pageLabel(n.pageTitle);
             return {
               id: n.id,

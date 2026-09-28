@@ -36,7 +36,12 @@
     "newLabel": "Nouvelle adresse e-mail",
     "send": "Envoyer le lien de confirmation",
     "sentTitle": "Consultez votre boîte de réception",
-    "sentBody": "Si {email} peut être utilisée, un lien de confirmation y a été envoyé. Il est valable {hours} heures."
+    "sentBody": "Si {email} peut être utilisée, un lien de confirmation y a été envoyé. Il est valable {hours} heures.",
+    "unverifiedTitle": "Pas encore vérifiée",
+    "unverifiedDescription": "Vérifiez votre adresse pour que les espaces de travail qui autorisent votre domaine de messagerie puissent vous accueillir.",
+    "unverifiedMailOff": "La vérification passe par un e-mail, et l'envoi d'e-mails n'est pas configuré sur ce serveur.",
+    "verify": "Envoyer le lien de vérification",
+    "verifySent": "Un lien de vérification a été envoyé à {email}."
   },
   "password": {
     "heading": "Mot de passe",

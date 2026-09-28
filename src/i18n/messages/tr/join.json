@@ -10,5 +10,11 @@
   "alreadyMember": "Bu çalışma alanının zaten üyesisiniz.",
   "open": "Çalışma alanını aç",
   "signInBody": "Katılmak için hesabınızla giriş yapın. Bu sunucuda yeni hesap açılamıyor.",
-  "signIn": "Giriş yap"
+  "signIn": "Giriş yap",
+  "requestBody": "Bu çalışma alanının yeni üyelerini bir sahip onaylar. Bir istek gönderin, yanıtı e-postayla alacaksınız.",
+  "request": "Katılma isteği gönder",
+  "requesting": "Gönderiliyor…",
+  "requestedTitle": "İstek gönderildi",
+  "requestedBody": "Çalışma alanının bir sahibi isteğinize bakacak. Karar verdiklerinde bir e-posta alacaksınız.",
+  "pendingBody": "Bu çalışma alanına katılmak için zaten istek gönderdiniz. Bir sahip ilgilenecek; karar verdiklerinde e-posta alacaksınız."
 }

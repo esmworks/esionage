@@ -6,6 +6,7 @@ import { cancelEmailChangeAction, requestEmailChangeAction } from "@/app/actions
 import { SettingsRow } from "@/components/settings/section";
 import { Button, Dialog, Input } from "@/components/ui";
 import { EMAIL_CHANGE_HOURS } from "@/lib/account";
+import { authClient } from "@/lib/auth-client";
 import { canProve, ProofFields, proofFrom, type ProofSetup } from "./proof-fields";
 
 /**
@@ -14,11 +15,13 @@ import { canProve, ProofFields, proofFrom, type ProofSetup } from "./proof-field
  */
 export function AccountEmailSettings({
   email,
+  emailVerified,
   pendingEmail,
   enabled,
   proof,
 }: {
   email: string;
+  emailVerified: boolean;
   pendingEmail: string | null;
   enabled: boolean;
   proof: ProofSetup;
@@ -39,6 +42,7 @@ export function AccountEmailSettings({
           </Button>
         }
       />
+      {!emailVerified && <VerifyEmailRow email={email} enabled={enabled} />}
       {pendingEmail && (
         <SettingsRow
           title={t("pendingTitle", { email: pendingEmail })}
@@ -57,6 +61,47 @@ export function AccountEmailSettings({
       )}
       {open && <ChangeEmailDialog current={email} proof={proof} onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+/**
+ * An address nobody proved yet: Better Auth emails a link that verifies it. Workspaces that allow
+ * the address's domain only let verified addresses in (see server/join-requests.ts).
+ */
+function VerifyEmailRow({ email, enabled }: { email: string; enabled: boolean }) {
+  const t = useTranslations("account.email");
+  const tc = useTranslations("common");
+  const [state, setState] = useState<"idle" | "sent" | "error">("idle");
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <SettingsRow
+      title={t("unverifiedTitle")}
+      description={
+        state === "sent" ? (
+          t("verifySent", { email })
+        ) : state === "error" ? (
+          <span className="text-danger">{tc("genericError")}</span>
+        ) : enabled ? (
+          t("unverifiedDescription")
+        ) : (
+          t("unverifiedMailOff")
+        )
+      }
+      control={
+        <Button
+          disabled={!enabled || pending || state === "sent"}
+          onClick={() =>
+            startTransition(async () => {
+              const { error } = await authClient.sendVerificationEmail({ email, callbackURL: "/account?tab=profile" });
+              setState(error ? "error" : "sent");
+            })
+          }
+        >
+          {t("verify")}
+        </Button>
+      }
+    />
   );
 }
 

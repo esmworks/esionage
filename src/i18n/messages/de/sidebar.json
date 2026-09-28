@@ -72,7 +72,10 @@
     "reminder": "Erinnerung: {date}",
     "someone": "Jemand",
     "unread": "Ungelesen",
-    "unreadCount": "{count, plural, one {# ungelesene Benachrichtigung} other {# ungelesene Benachrichtigungen}}"
+    "unreadCount": "{count, plural, one {# ungelesene Benachrichtigung} other {# ungelesene Benachrichtigungen}}",
+    "joinRequestTitle": "Beitrittsanfrage",
+    "joinRequest": "{actor} möchte beitreten",
+    "inviteRequest": "{actor} möchte {email} einladen"
   },
   "templates": {
     "title": "Vorlagen",
@@ -109,5 +112,11 @@
     "newPrivate": "Neue private Seite",
     "more": "{count} weitere",
     "less": "Weniger anzeigen"
+  },
+  "joinable": {
+    "heading": "Workspaces, denen du beitreten kannst",
+    "join": "Beitreten",
+    "request": "Beitritt anfragen",
+    "requested": "Angefragt"
   }
 }

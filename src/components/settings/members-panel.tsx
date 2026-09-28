@@ -6,6 +6,8 @@ import { useFormatter, useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import {
   addMembersAction,
+  approveJoinRequestAction,
+  declineJoinRequestAction,
   removeMemberAction,
   revokeInvitationAction,
   setJoinLinkAction,
@@ -20,6 +22,7 @@ import { Button, cn, Dialog, IconButton, Input, MenuItem, Switch } from "@/compo
 import { UserAvatar } from "@/components/user-avatar";
 import type { WorkspaceRole } from "@/db/schema/app";
 import { MAX_BULK_EMAILS, parseEmailList } from "@/lib/emails";
+import type { JoinRequestItem } from "@/server/join-requests";
 import type { BulkAddResult } from "@/server/workspaces";
 import { searchFold } from "@/lib/search-fold";
 
@@ -37,6 +40,7 @@ export type MemberTeamspace = { id: string; name: string; icon: string | null };
 export type MemberGroup = { id: string; name: string };
 
 type SortKey = "name" | "role" | "joined" | "edited";
+type Tab = "members" | "invitations" | "requests";
 type Sort = { key: SortKey; dir: "asc" | "desc" };
 
 function matches(query: string, ...values: string[]) {
@@ -65,9 +69,13 @@ export function MembersPanel({
   workspaceId,
   currentUserId,
   isOwner,
+  initialTab = "members",
+  addMembers,
   members,
   invitations,
+  requests,
   joinLink,
+  joinLinkAsks,
   teamspaces,
   groups,
   now,
@@ -75,20 +83,27 @@ export function MembersPanel({
   workspaceId: string;
   currentUserId: string;
   isOwner: boolean;
+  initialTab?: Tab;
+  /** How the viewer may add members (Settings > Security): right away, by asking an owner, or not. */
+  addMembers: "direct" | "request" | null;
   /** Render time from the server, so relative dates match between server and client render. */
   now: Date;
   members: Member[];
   /** Pending invitations; only owners get them. */
   invitations: Invitation[];
+  /** Join requests waiting for an owner; only owners get them. */
+  requests: JoinRequestItem[];
   /** The join link, or null when off. Only owners get it. */
   joinLink: string | null;
+  /** The link asks an owner instead of adding people ("Who can ask to join": anyone with the link). */
+  joinLinkAsks: boolean;
   /** By user id: the teamspaces (that the viewer can see) each person is in. Guests have none. */
   teamspaces: Record<string, MemberTeamspace[]>;
   /** By user id: the groups each person is in. Guests are in none. */
   groups: Record<string, MemberGroup[]>;
 }) {
   const t = useTranslations("settings.members");
-  const [tab, setTab] = useState<"members" | "invitations">("members");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<Sort>({ key: "name", dir: "asc" });
   const [adding, setAdding] = useState(false);
@@ -107,7 +122,7 @@ export function MembersPanel({
       <div className="space-y-10">
         {isOwner && (
           <SettingsGroup>
-            <JoinLinkCard workspaceId={workspaceId} link={joinLink} />
+            <JoinLinkCard workspaceId={workspaceId} link={joinLink} asks={joinLinkAsks} />
           </SettingsGroup>
         )}
 
@@ -120,6 +135,11 @@ export function MembersPanel({
               {isOwner && (
                 <TabButton active={tab === "invitations"} onClick={() => setTab("invitations")}>
                   {t("tabs.invitations")} <span className="text-fg-faint">{invitations.length}</span>
+                </TabButton>
+              )}
+              {isOwner && (
+                <TabButton active={tab === "requests"} onClick={() => setTab("requests")}>
+                  {t("tabs.requests")} <span className="text-fg-faint">{requests.length}</span>
                 </TabButton>
               )}
             </div>
@@ -146,7 +166,7 @@ export function MembersPanel({
                   <Download className="h-4 w-4" />
                 </a>
               )}
-              {isOwner && (
+              {addMembers && (
                 <Button variant="primary" onClick={() => setAdding(true)}>
                   {t("addButton")}
                 </Button>
@@ -170,6 +190,13 @@ export function MembersPanel({
                 }
                 empty={members.length ? t("noMatches") : null}
               />
+            ) : tab === "requests" ? (
+              <RequestsTable
+                now={now}
+                workspaceId={workspaceId}
+                requests={requests.filter((r) => matches(query, r.email, r.askerName ?? ""))}
+                empty={requests.length ? t("noMatches") : t("noRequests")}
+              />
             ) : (
               <InvitationsTable
                 now={now}
@@ -182,7 +209,15 @@ export function MembersPanel({
         </div>
       </div>
 
-      {isOwner && <AddMembersDialog workspaceId={workspaceId} open={adding} onClose={() => setAdding(false)} />}
+      {addMembers && (
+        <AddMembersDialog
+          workspaceId={workspaceId}
+          open={adding}
+          onClose={() => setAdding(false)}
+          canPickRole={isOwner}
+          asks={addMembers === "request"}
+        />
+      )}
     </div>
   );
 }
@@ -204,7 +239,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
   );
 }
 
-function JoinLinkCard({ workspaceId, link }: { workspaceId: string; link: string | null }) {
+function JoinLinkCard({ workspaceId, link, asks }: { workspaceId: string; link: string | null; asks: boolean }) {
   const t = useTranslations("settings.members.joinLink");
   const { pending, error, run } = useAction();
   const [confirmReset, setConfirmReset] = useState(false);
@@ -215,7 +250,7 @@ function JoinLinkCard({ workspaceId, link }: { workspaceId: string; link: string
         title={t("heading")}
         description={
           <>
-            {link ? t("descriptionOn") : t("descriptionOff")}{" "}
+            {link ? (asks ? t("descriptionAsks") : t("descriptionOn")) : t("descriptionOff")}{" "}
             {link && (
               <button
                 type="button"
@@ -672,7 +707,21 @@ function InvitationRow({ now, workspaceId, invitation }: { now: Date; workspaceI
   );
 }
 
-function AddMembersDialog({ workspaceId, open, onClose }: { workspaceId: string; open: boolean; onClose: () => void }) {
+function AddMembersDialog({
+  workspaceId,
+  open,
+  onClose,
+  canPickRole,
+  asks,
+}: {
+  workspaceId: string;
+  open: boolean;
+  onClose: () => void;
+  /** Owners choose the role; members add members only. */
+  canPickRole: boolean;
+  /** The workspace wants the viewer's additions approved by an owner first. */
+  asks: boolean;
+}) {
   const t = useTranslations("settings.members");
   const tc = useTranslations("common");
   const tErrors = useTranslations("settings.errors");
@@ -705,7 +754,9 @@ function AddMembersDialog({ workspaceId, open, onClose }: { workspaceId: string;
                       ? t("add.added")
                       : r.kind === "invited"
                         ? t(r.delivery === "sent" ? "add.emailed" : r.delivery === "failed" ? "add.emailFailed" : "add.linkOnly")
-                        : tErrors(r.code)}
+                        : r.kind === "requested"
+                          ? t("add.requested")
+                          : tErrors(r.code)}
                   </span>
                 </div>
                 {r.kind === "invited" && r.delivery !== "sent" && (
@@ -717,7 +768,7 @@ function AddMembersDialog({ workspaceId, open, onClose }: { workspaceId: string;
               </li>
             ))}
           </ul>
-          <p className="text-xs text-fg-muted">{t("add.linkValidity")}</p>
+          <p className="text-xs text-fg-muted">{asks ? t("add.requestedNote") : t("add.linkValidity")}</p>
           <div className="flex justify-end gap-2">
             <Button
               variant="ghost"
@@ -743,7 +794,7 @@ function AddMembersDialog({ workspaceId, open, onClose }: { workspaceId: string;
           }}
         >
           <h2 className="text-base font-semibold">{t("add.title")}</h2>
-          <p className="text-sm text-fg-muted">{t("add.description")}</p>
+          <p className="text-sm text-fg-muted">{asks ? t("add.descriptionAsks") : t("add.description")}</p>
           <label className="block space-y-1.5">
             <span className="text-sm text-fg-muted">{t("add.emailsLabel")}</span>
             <textarea
@@ -759,14 +810,16 @@ function AddMembersDialog({ workspaceId, open, onClose }: { workspaceId: string;
             <span className={cn("text-xs", tooMany ? "text-danger" : "text-fg-muted")}>
               {tooMany ? tErrors("tooManyEmails") : t("add.count", { count })}
             </span>
-            <label className="flex items-center gap-2 text-sm text-fg-muted">
-              {t("roleLabel")}
-              <select className={selectClass} value={role} onChange={(e) => setRole(e.target.value as WorkspaceRole)}>
-                <option value="member">{t("roles.member")}</option>
-                <option value="owner">{t("roles.owner")}</option>
-                <option value="guest">{t("roles.guest")}</option>
-              </select>
-            </label>
+            {canPickRole && (
+              <label className="flex items-center gap-2 text-sm text-fg-muted">
+                {t("roleLabel")}
+                <select className={selectClass} value={role} onChange={(e) => setRole(e.target.value as WorkspaceRole)}>
+                  <option value="member">{t("roles.member")}</option>
+                  <option value="owner">{t("roles.owner")}</option>
+                  <option value="guest">{t("roles.guest")}</option>
+                </select>
+              </label>
+            )}
           </div>
           {error && <p className="text-xs text-danger">{error}</p>}
           <div className="flex justify-end gap-2">
@@ -774,11 +827,108 @@ function AddMembersDialog({ workspaceId, open, onClose }: { workspaceId: string;
               {tc("cancel")}
             </Button>
             <Button type="submit" variant="primary" disabled={pending || !count || tooMany}>
-              {pending ? t("add.submitting") : t("add.submit")}
+              {pending ? t("add.submitting") : asks ? t("add.submitAsk") : t("add.submit")}
             </Button>
           </div>
         </form>
       )}
     </Dialog>
+  );
+}
+
+const SOURCE_KEYS = { domain: "domain", link: "link", switcher: "switcher", member: "member" } as const;
+
+/** Settings > Members > Requests: people asking to join, and members asking to invite someone. Owners only. */
+function RequestsTable({
+  now,
+  workspaceId,
+  requests,
+  empty,
+}: {
+  now: Date;
+  workspaceId: string;
+  requests: JoinRequestItem[];
+  empty: string;
+}) {
+  const t = useTranslations("settings.members");
+  if (!requests.length) return <p className="px-4 py-8 text-center text-sm text-fg-muted">{empty}</p>;
+  return (
+    <div className="relative overflow-x-auto">
+      <table className="w-full min-w-[640px] text-sm">
+        <thead className="border-b border-border bg-bg-subtle text-xs text-fg-muted">
+          <tr>
+            <th scope="col" className="px-4 py-2.5 text-left font-normal">
+              {t("columns.user")}
+            </th>
+            <th scope="col" className="w-56 px-4 py-2.5 text-left font-normal">
+              {t("columns.request")}
+            </th>
+            <th scope="col" className="w-32 px-4 py-2.5 text-left font-normal">
+              {t("columns.asked")}
+            </th>
+            <th scope="col" className="w-48">
+              <span className="sr-only">{t("columns.actions")}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {requests.map((request) => (
+            <RequestRow key={request.id} now={now} workspaceId={workspaceId} request={request} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RequestRow({ now, workspaceId, request }: { now: Date; workspaceId: string; request: JoinRequestItem }) {
+  const t = useTranslations("settings.members");
+  const format = useFormatter();
+  const { pending, error, run } = useAction();
+  const joining = request.kind === "join";
+  // Someone asking to join is shown as themselves; for an invitation, the address to invite.
+  const name = joining ? request.askerName || request.email : request.email;
+
+  return (
+    <tr>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <UserAvatar name={name} image={joining ? request.askerImage : null} size="md" />
+          <div className="min-w-0">
+            <div className="truncate font-medium">{name}</div>
+            {joining && request.askerName && <div className="truncate text-xs text-fg-muted">{request.email}</div>}
+          </div>
+        </div>
+        {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+      </td>
+      <td className="px-4 py-3 text-fg-muted">
+        {joining
+          ? t("requests.join", { source: t(`requests.sources.${SOURCE_KEYS[request.source ?? "switcher"]}`) })
+          : t("requests.invite", { name: request.askerName || request.askerEmail || t("requests.someone") })}
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap text-fg-muted">
+        <time
+          dateTime={request.createdAt.toISOString()}
+          title={format.dateTime(request.createdAt, { dateStyle: "medium", timeStyle: "short" })}
+        >
+          {format.relativeTime(request.createdAt, now)}
+        </time>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex justify-end gap-2">
+          <Button size="sm" disabled={pending} onClick={() => run(() => declineJoinRequestAction(workspaceId, request.id))}>
+            {t("requests.decline")}
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={pending}
+            onClick={() => run(() => approveJoinRequestAction(workspaceId, request.id))}
+          >
+            {t("requests.approve")}
+          </Button>
+        </div>
+      </td>
+    </tr>
   );
 }

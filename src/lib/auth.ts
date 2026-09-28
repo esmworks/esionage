@@ -16,7 +16,8 @@ import {
 } from "@/lib/auth-options";
 import { revokeAllApiTokens } from "@/server/api/tokens";
 import { revokeAllConnectedApps } from "@/server/mcp/grants";
-import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetEmail, sendMail } from "@/server/mail";
+import { applyDomainPolicies } from "@/server/join-requests";
+import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetEmail, sendMail, verificationEmail } from "@/server/mail";
 import { joinThroughSso, resolveSsoProvider, ssoAccountCreation } from "@/server/sso";
 import { acceptInvitation, createPersonalWorkspace, invitationAllowsSignUp, joinWithLink } from "@/server/workspaces";
 
@@ -71,10 +72,49 @@ async function sendResetPassword({ user, url }: { user: { email: string; name: s
   );
 }
 
+/**
+ * Allowed email domains (server/join-requests.ts) after a sign-up, sign-in or verification. Never
+ * throws: signing in must not fail because a workspace couldn't take the person in.
+ */
+async function domainPolicies(userId: string) {
+  try {
+    return await applyDomainPolicies(userId);
+  } catch (error) {
+    console.error("could not apply allowed email domains", error);
+    return [];
+  }
+}
+
+/**
+ * Emails the link that verifies an address. Email and password sign-up gets one right away; the
+ * account page sends another on request. Not awaited, like password resets.
+ */
+async function sendVerificationEmail({ user, url }: { user: { email: string; name: string }; url: string }, request?: Request) {
+  const locale = request ? requestLocale(request.headers) : "en";
+  void sendMail({ to: user.email, ...verificationEmail(locale, { name: user.name, url }) }).catch((error) =>
+    console.error("could not send verification email", error),
+  );
+}
+
 export const auth = betterAuth({
   ...base,
   secret: env.authSecret,
   database: drizzleAdapter(db, { provider: "pg", schema }),
+  // Proving an address is only needed for allowed email domains (a verified address may join a
+  // workspace on its own); nobody has to verify to sign in. Without email on this server nothing
+  // can be verified this way: only providers that vouch for the address count (see join-requests).
+  ...(mailStatus() === "disabled"
+    ? {}
+    : {
+        emailVerification: {
+          sendVerificationEmail,
+          sendOnSignUp: true,
+          autoSignInAfterVerification: true,
+          afterEmailVerification: async (user: { id: string }) => {
+            await domainPolicies(user.id);
+          },
+        },
+      }),
   emailAndPassword: {
     ...base.emailAndPassword,
     // Without email the endpoint answers RESET_PASSWORD_DISABLED and the page explains why.
@@ -86,6 +126,7 @@ export const auth = betterAuth({
     customRules: {
       "/request-password-reset": { window: 60, max: 3 },
       "/reset-password": { window: 60, max: 10 },
+      "/send-verification-email": { window: 60, max: 3 },
     },
   },
   ...socialAuthOptions(env.socialProviders),
@@ -109,16 +150,19 @@ export const auth = betterAuth({
               console.error("could not accept invitation on sign-up", error);
             }
           }
-          // Same for a workspace's join link (it never opens closed sign-up, see baseAuthOptions).
+          // Same for a workspace's join link (it never opens closed sign-up, see baseAuthOptions),
+          // unless the link only asked an owner to let them in.
           const joinToken = await signUpTokenOf(ctx, "join");
           if (joinToken) {
             try {
-              await joinWithLink(joinToken, user.id, user.email);
-              return;
+              if ((await joinWithLink(joinToken, user.id, user.email)).status === "joined") return;
             } catch (error) {
               console.error("could not join with link on sign-up", error);
             }
           }
+          // A verified address (Google, GitHub, the instance's SSO) on a workspace's allowed
+          // domain joins that workspace; they start there instead of in a personal one.
+          if ((await domainPolicies(user.id)).length) return;
           await createPersonalWorkspace(user.id, user.name);
         },
       },
@@ -142,8 +186,15 @@ export const auth = betterAuth({
       },
     },
     session: {
-      // How the session was signed in: a passkey sign-in passes "require two-step verification".
-      create: { before: recordAuthMethod },
+      create: {
+        // How the session was signed in: a passkey sign-in passes "require two-step verification".
+        before: recordAuthMethod,
+        // Every sign-in: workspaces that allow the (verified) email domain and haven't dealt with
+        // this person yet let them in or take their request.
+        after: async (session) => {
+          await domainPolicies(session.userId);
+        },
+      },
     },
   },
   plugins: [...base.plugins, nextCookies()],
