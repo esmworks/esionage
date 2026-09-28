@@ -21,7 +21,7 @@ export default async function WorkspaceHome({ params }: { params: Promise<{ work
   const guest = !membership || isGuest(membership.role);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 px-6 py-12">
+    <div className="mx-auto max-w-2xl space-y-8 px-4 pt-14 pb-12 md:px-6 md:pt-12">
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold">{t("welcome", { name: user.name.split(/\s+/)[0] })}</h1>
         {topLevel && <QuickCreate workspaceId={workspaceId} />}
@@ -39,7 +39,7 @@ export default async function WorkspaceHome({ params }: { params: Promise<{ work
               <li key={p.id}>
                 <Link
                   href={`/w/${workspaceId}/p/${p.id}`}
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-bg-hover"
+                  className="flex items-center gap-2.5 px-4 py-3 text-sm hover:bg-bg-hover md:py-2.5"
                 >
                   <PageIcon icon={p.icon} kind={p.kind} className="text-fg-muted" />
                   <span className="min-w-0 flex-1 truncate">{pageLabel(p.title, tc("untitled"))}</span>

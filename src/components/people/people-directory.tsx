@@ -26,7 +26,7 @@ export function PeopleDirectory({
   const shown = useMemo(() => people.filter((p) => matchesPerson(p, query)), [people, query]);
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12">
+    <div className="mx-auto max-w-4xl px-4 pt-14 pb-12 md:px-6 md:pt-12">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">{t("heading")}</h1>
         <p className="mt-2 text-sm text-fg-muted">{t("description")}</p>

@@ -115,7 +115,7 @@ export default async function SettingsPage({
       <nav
         aria-label={t("title")}
         // Same look as the main sidebar next to it: subtle background, 28px rows, plain section labels.
-        className="shrink-0 border-b border-border p-2 text-sm max-md:pl-11 md:sticky md:top-0 md:h-dvh md:w-60 md:overflow-y-auto md:border-r md:border-b-0 md:bg-bg-subtle"
+        className="shrink-0 border-b border-border p-2 text-sm max-md:pl-12 md:sticky md:top-0 md:h-dvh md:w-60 md:overflow-y-auto md:border-r md:border-b-0 md:bg-bg-subtle"
       >
         <div className="flex gap-4 overflow-x-auto [scrollbar-width:none] md:flex-col md:gap-3">
           <div className="shrink-0">

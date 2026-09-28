@@ -540,6 +540,8 @@ export function Sidebar({
             "md:fixed md:top-12 md:bottom-3 md:left-0 md:z-50 md:rounded-r-xl md:border md:border-l-0 md:shadow-2xl md:transition-[translate,visibility] md:duration-200 md:ease-out",
           sidebar?.collapsed && (sidebar.peek ? "md:translate-x-0" : "md:invisible md:-translate-x-[calc(100%+1rem)]"),
           !sidebar?.drawerOpen && "max-md:hidden",
+          // Phones: rows and their buttons grow from 28px to 36px so they are easy to tap.
+          "max-md:[&_.h-7]:h-9 max-md:[&_.w-7]:w-9",
         )}
       >
         {sidebar && !sidebar.collapsed && <ResizeHandle />}
