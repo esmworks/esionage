@@ -335,6 +335,11 @@
       "withoutCount": "{count, plural, one {# person here hasn't set it up yet.} other {# people here haven't set it up yet.}}"
     },
     "guestsHeading": "Guests",
+    "sharingHeading": "Sharing",
+    "accessRequests": {
+      "title": "Access requests",
+      "description": "People who open a link to a page they can't see can ask for access, with a message. The people with full access to the page get the request. Off: they only see that they don't have access."
+    },
     "guestInvites": {
       "title": "Who can invite guests",
       "description": "People outside the workspace join as guests when someone shares a page with them by email. They see only the pages shared with them.",
@@ -518,6 +523,9 @@
     "reminderTitle": "Reminders",
     "reminderDescription": "A reminder you set on a date in a page is due.",
     "reminderChannel": "Reminders: {channel}",
+    "accessRequestTitle": "Access requests",
+    "accessRequestDescription": "Someone asks for access to a page you have full access to.",
+    "accessRequestChannel": "Access requests: {channel}",
     "mailOff": "This server can't send email right now, so none go out."
   },
   "site": {

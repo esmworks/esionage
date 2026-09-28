@@ -54,8 +54,8 @@ approve them over OAuth.
   and dates with optional reminders; "Link to page" blocks; a "Linked from" list of backlinks on
   every page.
 - **Inbox**: a notification when someone assigns you to a row, shares a page with you, replies in
-  a comment thread you're in or mentions you, and when a reminder you set is due, with an email a
-  little later. Choose per kind whether it shows in the inbox and whether it comes by email.
+  a comment thread you're in or mentions you, asks for access to a page you manage, and when a
+  reminder you set is due, with an email a little later. Choose per kind whether it shows in the inbox and whether it comes by email.
 - **Page history**: versions are saved automatically while you edit and before every AI edit.
   You can preview and restore any version, and see what changed since it or since the version
   before, and who (or which AI app) changed it.
@@ -72,7 +72,9 @@ approve them over OAuth.
 - **Sharing and permissions**: give people, or everyone in the page's teamspace (the workspace
   for a private page), full, edit, comment, view or no access to a page. Subpages inherit it
   unless you change them. Share a page with someone outside the workspace by email and they join
-  as a guest who sees only the pages shared with them.
+  as a guest who sees only the pages shared with them. Someone who opens a link to a page they
+  can't see can request access; the people with full access approve it at a level or decline it
+  from their inbox or the Share panel (owners can turn requests off in Settings → Security).
 - **Member groups**: workspace owners gather members into groups (Settings → Groups) and share a
   page with a group, or add it to a teamspace, the way they would with a person. Everyone in the
   group gets that access for as long as they are in it; when a page has entries for someone and

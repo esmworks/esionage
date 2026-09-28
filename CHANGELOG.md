@@ -530,6 +530,23 @@
   The cleanup runs on production servers; `RETENTION_JOB=on|off` overrides that (a dev server
   leaves the data alone unless it is `on`).
   New checks: `scripts/retention-e2e.ts` (35), `src/lib/retention.test.ts`.
+- **Request access to a page** (#57): a signed-in person who opens a link to a page they can't
+  see gets a "You don't have access" screen instead of a 404, with *Request access* and an
+  optional message (500 characters). The screen shows nothing of the page or its workspace, and a
+  page that doesn't exist gets the same screen and the same answer; a request is stored only for
+  a page that exists, isn't in the trash and has requests on. People outside the workspace see it
+  without the sidebar and can ask too. Everyone with full access to the page gets an inbox
+  notification (new kind `access_request`, with its own inbox and email preferences) and an email,
+  and answers from the inbox or from *Requests* at the top of the Share panel (the Share button
+  shows how many wait): share at a level (view, comment, edit, full), which brings someone from
+  outside in as a guest when the guest invite policy lets the approver, or decline. Answering, or
+  sharing the page with the requester some other way, removes the request and every notification
+  about it; the requester gets an email either way, in their language, and a declined one names
+  neither the page nor who declined. One pending request per person and page; each person may ask
+  10 times an hour, every ask counting whatever the page. Owners turn requests off in Settings >
+  Security > Sharing (`workspace.settings.accessRequests`, on by default); the screen then has no
+  button. Migration `0029_access_requests`. New checks: `scripts/access-requests-e2e.ts` (84),
+  `src/lib/access-requests.test.ts`, access request emails in `src/server/mail/mail.test.ts`.
 
 ### Changed
 

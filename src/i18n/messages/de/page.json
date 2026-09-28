@@ -12,6 +12,7 @@
     "someone": "Jemand",
     "comments": "Kommentare",
     "share": "Teilen",
+    "accessRequests": "{count, plural, one {# Zugriffsanfrage} other {# Zugriffsanfragen}}",
     "addFavorite": "Zu Favoriten hinzufügen",
     "removeFavorite": "Aus Favoriten entfernen",
     "linkCopied": "Link kopiert",
@@ -158,6 +159,15 @@
     "copyLink": "Link kopieren",
     "copied": "Kopiert",
     "loading": "Wird geladen…",
+    "requests": {
+      "heading": "Anfragen",
+      "message": "„{message}“",
+      "level": "Zugriffsstufe",
+      "approve": "Teilen",
+      "decline": "Ablehnen",
+      "outsider": "Nicht im Workspace: Beim Teilen kommt die Person als Gast dazu.",
+      "cantInvite": "Nicht im Workspace, und dieser Workspace erlaubt dir nicht, mit Personen außerhalb zu teilen."
+    },
     "levels": {
       "full": "Vollzugriff",
       "edit": "Kann bearbeiten",
@@ -173,6 +183,21 @@
       "invitesRestricted": "Dieser Workspace erlaubt nicht, Seiten mit Personen außerhalb zu teilen. Frag einen Inhaber.",
       "generic": "Die Freigabe konnte nicht aktualisiert werden."
     }
+  },
+  "noAccess": {
+    "metaTitle": "Kein Zugriff",
+    "title": "Du hast keinen Zugriff auf diese Seite",
+    "description": "Bitte um Zugriff, dann erhalten die Personen, die diese Seite teilen können, deine Anfrage.",
+    "descriptionNoRequests": "Bitte die Person, die dir den Link geschickt hat, diese Seite mit dir zu teilen.",
+    "messageLabel": "Nachricht (optional)",
+    "messagePlaceholder": "Eine Notiz für die Personen, die sie teilen können",
+    "request": "Zugriff anfragen",
+    "sending": "Wird gesendet …",
+    "sentTitle": "Anfrage gesendet",
+    "sentDescription": "Sobald jemand die Seite mit dir teilt, öffnet dieser Link sie.",
+    "rateLimited": "Du hast zu oft um Zugriff gebeten. Versuch es später noch einmal.",
+    "signedInAs": "Du bist als {email} angemeldet.",
+    "home": "Zu deinem Workspace"
   },
   "embed": {
     "label": "Datenbank",

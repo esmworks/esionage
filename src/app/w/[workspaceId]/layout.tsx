@@ -4,6 +4,7 @@ import { AiChatProvider } from "@/components/ai-chat/chat-panel";
 import { OfflineProvider } from "@/components/offline/offline-context";
 import { Sidebar } from "@/components/sidebar/sidebar";
 import { FloatingSidebarButton, SidebarProvider } from "@/components/sidebar/sidebar-context";
+import { requestedPageId } from "@/lib/access-requests";
 import { USER_MARKER } from "@/lib/offline";
 import { parseSidebarCookie, SIDEBAR_COOKIE } from "@/lib/sidebar-layout";
 import { getMembership } from "@/server/access";
@@ -11,7 +12,7 @@ import { isEnabled as aiConfigured } from "@/server/ai";
 import { aiAvailable } from "@/server/ai-writing";
 import { listFavorites } from "@/server/page-meta";
 import { getSidebar, listWorkspaces } from "@/server/pages";
-import { requireSession, requireWorkspaceSession } from "@/server/session";
+import { requestedPath, requireSession, requireWorkspaceSession } from "@/server/session";
 import { canCreateTeamspace } from "@/server/teamspaces";
 import { topLevelAccess } from "@/server/workspaces";
 
@@ -27,7 +28,14 @@ export default async function WorkspaceLayout({
   // Before anything that reads the workspace (those throw for a held-back session). It only
   // redirects members, so outsiders don't learn the workspace exists.
   await requireWorkspaceSession(workspaceId);
-  if (!(await getMembership(user.id, workspaceId))) notFound();
+  if (!(await getMembership(user.id, workspaceId))) {
+    // A link to a page gets the "You don't have access" screen, without anything of the workspace
+    // around it (the page route shows the same screen whether the page or workspace exists).
+    if (requestedPageId(await requestedPath(), workspaceId)) {
+      return <main className="h-full overflow-y-auto">{children}</main>;
+    }
+    notFound();
+  }
   const [workspaces, sidebar, favorites, topLevel, canCreate, cookieStore, ai] = await Promise.all([
     listWorkspaces(user.id),
     getSidebar(user.id, workspaceId),

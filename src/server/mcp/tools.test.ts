@@ -969,6 +969,20 @@ describe("list_notifications", () => {
       databaseTitle: "Tasks",
       propertyName: "Owner",
     },
+    {
+      id: "n-0",
+      kind: "access_request",
+      workspaceId: "ws-1",
+      workspaceName: "Team",
+      createdAt: new Date("2026-08-31T00:00:00Z"),
+      read: false,
+      actorName: "Grace",
+      pageId: "page-2",
+      pageTitle: "Budget",
+      pageIcon: null,
+      databaseTitle: null,
+      propertyName: null,
+    },
   ];
 
   it("lists the inbox with a summary and link for each kind", async () => {
@@ -989,6 +1003,11 @@ describe("list_notifications", () => {
       summary: 'Someone assigned the user to "Owner" on "Untitled" in Tasks',
       database: "Tasks",
       property: "Owner",
+    });
+    expect(data.notifications[2]).toMatchObject({
+      kind: "access_request",
+      summary: expect.stringMatching(/^Grace asked for access to "Budget"/),
+      url: expect.stringMatching(/\/w\/ws-1\/p\/page-2$/),
     });
   });
 

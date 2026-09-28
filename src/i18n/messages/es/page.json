@@ -12,6 +12,7 @@
     "someone": "Alguien",
     "comments": "Comentarios",
     "share": "Compartir",
+    "accessRequests": "{count, plural, one {# solicitud de acceso} other {# solicitudes de acceso}}",
     "addFavorite": "Añadir a favoritos",
     "removeFavorite": "Quitar de favoritos",
     "linkCopied": "Enlace copiado",
@@ -158,6 +159,15 @@
     "copyLink": "Copiar enlace",
     "copied": "Copiado",
     "loading": "Cargando…",
+    "requests": {
+      "heading": "Solicitudes",
+      "message": "“{message}”",
+      "level": "Nivel de acceso",
+      "approve": "Compartir",
+      "decline": "Rechazar",
+      "outsider": "No está en el espacio de trabajo: al compartir se une como invitado.",
+      "cantInvite": "No está en el espacio de trabajo y este espacio no te permite compartir con personas de fuera."
+    },
     "levels": {
       "full": "Acceso completo",
       "edit": "Puede editar",
@@ -173,6 +183,21 @@
       "invitesRestricted": "Este espacio de trabajo no permite compartir páginas con personas externas. Pregunta a un propietario.",
       "generic": "No se pudo actualizar el uso compartido."
     }
+  },
+  "noAccess": {
+    "metaTitle": "Sin acceso",
+    "title": "No tienes acceso a esta página",
+    "description": "Pide acceso y las personas que pueden compartir esta página recibirán tu solicitud.",
+    "descriptionNoRequests": "Pide a quien te envió el enlace que comparta esta página contigo.",
+    "messageLabel": "Mensaje (opcional)",
+    "messagePlaceholder": "Añade una nota para quienes pueden compartirla",
+    "request": "Solicitar acceso",
+    "sending": "Enviando…",
+    "sentTitle": "Solicitud enviada",
+    "sentDescription": "Cuando alguien comparta la página contigo, este enlace la abrirá.",
+    "rateLimited": "Has pedido acceso demasiadas veces. Vuelve a intentarlo más tarde.",
+    "signedInAs": "Iniciaste sesión como {email}.",
+    "home": "Ir a tu espacio de trabajo"
   },
   "embed": {
     "label": "Base de datos",

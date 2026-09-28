@@ -785,6 +785,7 @@ const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettin
   loginMethod: ["any", "sso"],
   ai: [true, false],
   trashRetentionDays: TRASH_RETENTION_CHOICES,
+  accessRequests: [true, false],
 };
 
 /**

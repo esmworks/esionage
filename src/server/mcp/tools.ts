@@ -685,7 +685,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "List notifications",
       description:
-        "List the user's inbox, newest first: database rows someone assigned them to, pages someone shared with them and new comments in comment threads the user is in, with who did it and a link. Only the kinds the user keeps in their inbox are listed. Reading does not mark them read.",
+        "List the user's inbox, newest first: database rows someone assigned them to, pages someone shared with them, new comments in comment threads the user is in, mentions, reminders and requests for access to pages the user can share, with who did it and a link. Only the kinds the user keeps in their inbox are listed. Reading does not mark them read.",
       inputSchema: z.object({
         workspace_id: z.string().optional().describe("Only this workspace; all of the user's workspaces when omitted."),
         unread_only: z.boolean().default(false).describe("Only notifications the user hasn't read yet."),
@@ -720,7 +720,9 @@ export function createMcpServer(principal: McpPrincipal) {
                       ? `${who} mentioned the user on "${title}"`
                       : n.kind === "reminder"
                         ? `Reminder the user set for ${n.reminderDate ?? "a date"} on "${title}"`
-                        : `${who} shared "${title}" with the user`,
+                        : n.kind === "access_request"
+                          ? `${who} asked for access to "${title}", which the user can share (answer from the page's Share menu)`
+                          : `${who} shared "${title}" with the user`,
               actor: n.actorName,
               page_id: n.pageId,
               title,

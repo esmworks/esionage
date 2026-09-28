@@ -335,6 +335,11 @@
       "withoutCount": "{count, plural, one {# persona de aquí aún no la ha configurado.} other {# personas de aquí aún no la han configurado.}}"
     },
     "guestsHeading": "Invitados",
+    "sharingHeading": "Compartir",
+    "accessRequests": {
+      "title": "Solicitudes de acceso",
+      "description": "Quien abre el enlace de una página que no puede ver puede pedir acceso, con un mensaje. La solicitud llega a las personas con acceso total a la página. Desactivado: solo ven que no tienen acceso."
+    },
     "guestInvites": {
       "title": "Quién puede añadir invitados",
       "description": "Las personas externas al espacio de trabajo se unen como invitados cuando alguien comparte una página con ellas por correo. Solo ven las páginas compartidas con ellas.",
@@ -518,6 +523,9 @@
     "reminderTitle": "Recordatorios",
     "reminderDescription": "Vence un recordatorio que configuraste en una fecha de una página.",
     "reminderChannel": "Recordatorios: {channel}",
+    "accessRequestTitle": "Solicitudes de acceso",
+    "accessRequestDescription": "Alguien pide acceso a una página a la que tienes acceso total.",
+    "accessRequestChannel": "Solicitudes de acceso: {channel}",
     "mailOff": "Este servidor no puede enviar correos en este momento, así que no se envía ninguno."
   },
   "site": {

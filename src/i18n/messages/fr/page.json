@@ -12,6 +12,7 @@
     "someone": "Quelqu’un",
     "comments": "Commentaires",
     "share": "Partager",
+    "accessRequests": "{count, plural, one {# demande d’accès} other {# demandes d’accès}}",
     "addFavorite": "Ajouter aux favoris",
     "removeFavorite": "Retirer des favoris",
     "linkCopied": "Lien copié",
@@ -158,6 +159,15 @@
     "copyLink": "Copier le lien",
     "copied": "Copié",
     "loading": "Chargement…",
+    "requests": {
+      "heading": "Demandes",
+      "message": "« {message} »",
+      "level": "Niveau d’accès",
+      "approve": "Partager",
+      "decline": "Refuser",
+      "outsider": "Hors de l’espace de travail : le partage l’ajoute comme invité.",
+      "cantInvite": "Hors de l’espace de travail, et cet espace ne vous permet pas de partager avec des personnes extérieures."
+    },
     "levels": {
       "full": "Accès complet",
       "edit": "Peut modifier",
@@ -173,6 +183,21 @@
       "invitesRestricted": "Cet espace de travail ne permet pas de partager des pages avec des personnes extérieures. Adressez-vous à un propriétaire.",
       "generic": "Impossible de mettre à jour le partage."
     }
+  },
+  "noAccess": {
+    "metaTitle": "Accès refusé",
+    "title": "Vous n’avez pas accès à cette page",
+    "description": "Demandez l’accès : les personnes qui peuvent partager cette page recevront votre demande.",
+    "descriptionNoRequests": "Demandez à la personne qui vous a envoyé le lien de partager cette page avec vous.",
+    "messageLabel": "Message (facultatif)",
+    "messagePlaceholder": "Ajoutez un mot pour les personnes qui peuvent la partager",
+    "request": "Demander l’accès",
+    "sending": "Envoi…",
+    "sentTitle": "Demande envoyée",
+    "sentDescription": "Quand quelqu’un partagera la page avec vous, ce lien l’ouvrira.",
+    "rateLimited": "Vous avez demandé l’accès trop de fois. Réessayez plus tard.",
+    "signedInAs": "Vous êtes connecté en tant que {email}.",
+    "home": "Aller à votre espace de travail"
   },
   "embed": {
     "label": "Base de données",

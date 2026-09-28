@@ -123,6 +123,52 @@ export function GuestPrivatePagesSetting({
   );
 }
 
+/** Whether people who open a link to a page they can't see may ask for access to it. */
+export function AccessRequestsSetting({
+  workspaceId,
+  settings,
+  canEdit,
+}: {
+  workspaceId: string;
+  settings: WorkspaceSettings;
+  canEdit: boolean;
+}) {
+  const t = useTranslations("settings.security");
+  const [value, setValue] = useState(settings.accessRequests);
+  const { pending, error, run } = useAction();
+
+  return (
+    <SettingsRow
+      title={t("accessRequests.title")}
+      description={
+        error ? (
+          <span className="text-danger">{error}</span>
+        ) : (
+          <>
+            {t("accessRequests.description")}
+            {!canEdit && <> {t("ownersOnly")}</>}
+          </>
+        )
+      }
+      control={
+        <Switch
+          checked={value}
+          label={t("accessRequests.title")}
+          disabled={!canEdit || pending}
+          onChange={(next) => {
+            setValue(next);
+            run(async () => {
+              const result = await updateWorkspaceSettingsAction(workspaceId, { accessRequests: next });
+              if (!result.ok) setValue(!next);
+              return result;
+            });
+          }}
+        />
+      }
+    />
+  );
+}
+
 /**
  * Whether everyone must use two-step verification to open the workspace. Turning it on needs the
  * owner's own session to pass it, so they can't shut themselves out; the server checks it too.

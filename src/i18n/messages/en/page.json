@@ -12,6 +12,7 @@
     "someone": "Someone",
     "comments": "Comments",
     "share": "Share",
+    "accessRequests": "{count, plural, one {# access request} other {# access requests}}",
     "addFavorite": "Add to favorites",
     "removeFavorite": "Remove from favorites",
     "linkCopied": "Link copied",
@@ -158,6 +159,15 @@
     "copyLink": "Copy link",
     "copied": "Copied",
     "loading": "Loading…",
+    "requests": {
+      "heading": "Requests",
+      "message": "“{message}”",
+      "level": "Access level",
+      "approve": "Share",
+      "decline": "Decline",
+      "outsider": "Not in the workspace: sharing adds them as a guest.",
+      "cantInvite": "Not in the workspace, and this workspace doesn't let you share with people outside it."
+    },
     "levels": {
       "full": "Full access",
       "edit": "Can edit",
@@ -173,6 +183,21 @@
       "invitesRestricted": "This workspace doesn't let you share pages with people outside it. Ask an owner.",
       "generic": "Couldn't update sharing."
     }
+  },
+  "noAccess": {
+    "metaTitle": "No access",
+    "title": "You don't have access to this page",
+    "description": "Ask for access and the people who can share this page will get your request.",
+    "descriptionNoRequests": "Ask the person who sent you the link to share this page with you.",
+    "messageLabel": "Message (optional)",
+    "messagePlaceholder": "Add a note for the people who can share it",
+    "request": "Request access",
+    "sending": "Sending…",
+    "sentTitle": "Request sent",
+    "sentDescription": "When someone shares the page with you, this link will open it.",
+    "rateLimited": "You've asked for access too many times. Try again in a while.",
+    "signedInAs": "You're signed in as {email}.",
+    "home": "Go to your workspace"
   },
   "embed": {
     "label": "Database",

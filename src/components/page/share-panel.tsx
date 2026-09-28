@@ -4,6 +4,7 @@ import { Check, Link2, Mail, Search, Send, Users, UsersRound, X } from "lucide-r
 import { useTranslations } from "next-intl";
 import { UserAvatar } from "@/components/user-avatar";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { approveAccessRequestAction, declineAccessRequestAction } from "@/app/actions/access-requests";
 import {
   getSharingAction,
   removePageGroupPermissionAction,
@@ -14,7 +15,7 @@ import {
   sharePageByEmailAction,
   type SharingResult,
 } from "@/app/actions/sharing";
-import { cn } from "@/components/ui";
+import { Button, cn } from "@/components/ui";
 import type { PageLevel } from "@/db/schema";
 import { isEmail, normalizeEmail } from "@/lib/emails";
 import { searchFold } from "@/lib/search-fold";
@@ -34,10 +35,13 @@ export function SharePanel({
   pageId,
   currentUser,
   publishable = true,
+  onChange,
 }: {
   pageId: string;
   currentUser: CurrentUser;
   publishable?: boolean;
+  /** After a sharing change, e.g. so the header updates its count of access requests. */
+  onChange?: () => void;
 }) {
   const t = useTranslations("page.share");
   const [tab, setTab] = useState<"share" | "publish">("share");
@@ -60,12 +64,12 @@ export function SharePanel({
           </button>
         ))}
       </div>
-      {tab === "share" ? <ShareTab pageId={pageId} currentUser={currentUser} /> : <PublishTab pageId={pageId} />}
+      {tab === "share" ? <ShareTab pageId={pageId} currentUser={currentUser} onChange={onChange} /> : <PublishTab pageId={pageId} />}
     </div>
   );
 }
 
-function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: CurrentUser }) {
+function ShareTab({ pageId, currentUser, onChange }: { pageId: string; currentUser: CurrentUser; onChange?: () => void }) {
   const currentUserId = currentUser.id;
   const t = useTranslations("page.share");
   const [data, setData] = useState<Sharing | null>(null);
@@ -100,6 +104,7 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
     } finally {
       await load();
       setBusy(false);
+      onChange?.();
     }
   };
 
@@ -179,6 +184,22 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
 
   return (
     <div className={cn("p-3", busy && "pointer-events-none opacity-70")}>
+      {canManage && data.requests.length > 0 && (
+        <div className="mb-3 border-b border-border pb-3">
+          <p className="mb-1 text-xs font-medium text-fg-muted">{t("requests.heading")}</p>
+          <ul className="space-y-2">
+            {data.requests.map((request) => (
+              <AccessRequestRow
+                key={request.id}
+                request={request}
+                initialLevel={request.inWorkspace ? addLevel(request.requesterId) : "edit"}
+                onApprove={(level) => void run(() => approveAccessRequestAction(request.id, level))}
+                onDecline={() => void run(() => declineAccessRequestAction(request.id))}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
       {canManage ? (
         <div className="relative">
           <label className="flex h-9 items-center gap-2 rounded-md border border-border px-2 focus-within:border-accent">
@@ -428,6 +449,58 @@ function ShareTab({ pageId, currentUser }: { pageId: string; currentUser: Curren
         </button>
       </div>
     </div>
+  );
+}
+
+/** A pending request for access: who asked (and what they wrote), the level to share at, Share and Decline. */
+function AccessRequestRow({
+  request,
+  initialLevel,
+  onApprove,
+  onDecline,
+}: {
+  request: Sharing["requests"][number];
+  initialLevel: PageLevel;
+  onApprove: (level: PageLevel) => void;
+  onDecline: () => void;
+}) {
+  const t = useTranslations("page.share");
+  const [level, setLevel] = useState<PageLevel>(initialLevel === "none" ? "edit" : initialLevel);
+  const note = !request.inWorkspace ? (request.approvable ? t("requests.outsider") : t("requests.cantInvite")) : null;
+  return (
+    <li className="list-none">
+      <div className="flex items-center gap-2">
+        <Avatar name={request.name || request.email} image={request.image} />
+        <div className="min-w-0 flex-1">
+          <PersonLabel name={request.name || request.email} detail={request.email} />
+        </div>
+      </div>
+      {request.message && (
+        <p className="mt-1 ml-9 text-sm break-words whitespace-pre-line text-fg-muted">{t("requests.message", { message: request.message })}</p>
+      )}
+      {note && <p className="mt-1 ml-9 text-xs text-fg-faint">{note}</p>}
+      <div className="mt-1.5 ml-9 flex flex-wrap items-center gap-1.5">
+        <select
+          value={level}
+          aria-label={t("requests.level")}
+          onChange={(e) => setLevel(e.target.value as PageLevel)}
+          disabled={!request.approvable}
+          className="h-7 rounded-md bg-transparent px-1.5 text-sm text-fg-muted hover:bg-bg-hover focus:outline-none"
+        >
+          {LEVELS.filter((l) => l !== "none").map((l) => (
+            <option key={l} value={l}>
+              {t(`levels.${l}`)}
+            </option>
+          ))}
+        </select>
+        <Button size="sm" variant="primary" disabled={!request.approvable} onClick={() => onApprove(level)}>
+          {t("requests.approve")}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onDecline}>
+          {t("requests.decline")}
+        </Button>
+      </div>
+    </li>
   );
 }
 

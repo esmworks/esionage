@@ -71,6 +71,27 @@
     "action": "Sayfayı aç",
     "optOut": "Hatırlatma kurduğunuz için bu e-postaları alıyorsunuz. Hesabım > Tercihler'den kapatabilirsiniz."
   },
+  "accessRequest": {
+    "subject": "{requester} “{page}” sayfasına erişim istedi",
+    "heading": "{requester} “{page}” sayfasına erişim istedi",
+    "body": "{requester} ({email}), {workspace} içindeki “{page}” sayfasını açmak istiyor.",
+    "message": "Mesajı: “{message}”",
+    "answer": "Ne yapabileceğini seçerek sayfayı onunla paylaşın ya da isteği reddedin. Gelen kutunuzdan veya sayfadaki Paylaş menüsünden yanıtlayabilirsiniz.",
+    "action": "Sayfayı aç",
+    "optOut": "Sayfaya tam erişiminiz olduğu için bu e-postaları alıyorsunuz. Hesabım > Tercihler'den kapatabilirsiniz."
+  },
+  "accessApproved": {
+    "subject": "Artık “{page}” sayfasını açabilirsiniz",
+    "heading": "{actor} isteğinizi onayladı",
+    "body": "{workspace} içindeki “{page}” sayfasını artık {level}.",
+    "action": "Sayfayı aç"
+  },
+  "accessDeclined": {
+    "subject": "Erişim isteğiniz reddedildi",
+    "heading": "İsteğiniz reddedildi",
+    "body": "Bu sayfaya erişim isteğiniz reddedildi: {link}",
+    "hint": "Hâlâ ihtiyacınız varsa bağlantıyı size gönderen kişiye sorun."
+  },
   "emailChange": {
     "subject": "Yeni e-posta adresinizi onaylayın",
     "heading": "Yeni e-posta adresinizi onaylayın",

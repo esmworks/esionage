@@ -1,13 +1,23 @@
-import { and, count, desc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { databaseProperty, notification, page, pageReminder, user, workspace, type NotificationKind } from "@/db/schema";
+import {
+  accessRequest,
+  databaseProperty,
+  notification,
+  page,
+  pageReminder,
+  user,
+  workspace,
+  type NotificationKind,
+} from "@/db/schema";
 import { newAssignees } from "@/lib/properties";
-import { pageVisibleTo, requireMembership } from "@/server/access";
+import { FULL_RANK, pageVisibleTo, peopleWithFullAccess, requireMembership, workspaceRoleOf } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 import { mailStatus } from "@/server/mail";
 import { requestLocale } from "@/server/mail/locale";
 import { inboxKinds } from "@/server/notification-preferences";
+import { canInviteGuests } from "@/server/workspaces";
 
 /**
  * The in-app inbox: one list per user and workspace. Sidebars in a workspace listen on its signal
@@ -28,6 +38,9 @@ const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is str
 function signal(workspaceId: string) {
   getCollab().broadcast(`ws:${workspaceId}`, INBOX_EVENT);
 }
+
+/** Tells the workspace's sidebars to refetch their inbox, after notifications went away some other way. */
+export const signalInbox = signal;
 
 /**
  * Notifies people someone else newly assigned to rows, and takes back unread notifications of
@@ -269,6 +282,48 @@ export async function recordReminder(userId: string, pageId: string, mentionId: 
   signal(target.workspaceId);
 }
 
+/**
+ * Tells everyone in the workspace with full access to the page that `requesterId` asked for access
+ * (request `requestId`), and emails them right away. The requester's interface language is the
+ * only one known (see requestLocale), so the email uses it. Returns who was told.
+ */
+export async function recordAccessRequest(
+  workspaceId: string,
+  pageId: string,
+  requestId: string,
+  requesterId: string,
+  locale: string,
+): Promise<string[]> {
+  const approvers = await peopleWithFullAccess(workspaceId, pageId, requesterId);
+  if (!approvers.length) return [];
+  const emailDueAt = mailStatus() === "disabled" ? null : new Date();
+  await db.insert(notification).values(
+    approvers.map((id) => ({
+      userId: id,
+      workspaceId,
+      kind: "access_request" as const,
+      actorId: requesterId,
+      pageId,
+      accessRequestId: requestId,
+      emailDueAt,
+      emailLocale: locale,
+    })),
+  );
+  signal(workspaceId);
+  return approvers;
+}
+
+/**
+ * Keeps the share email from going out: the requester whose access request was approved gets an
+ * email about the answer instead. The share stays in their inbox.
+ */
+export async function skipShareEmail(userId: string, pageId: string) {
+  await db
+    .update(notification)
+    .set({ emailDueAt: null })
+    .where(and(unreadShare(userId, pageId), isNotNull(notification.emailDueAt)));
+}
+
 const unreadShare = (userId: string, pageId: string) =>
   and(
     eq(notification.kind, "page_shared"),
@@ -292,6 +347,18 @@ export type InboxItem = {
   propertyName: string | null;
   /** Reminders: the date they were set on (YYYY-MM-DD). */
   reminderDate: string | null;
+  /** Access requests: what the user needs to answer it. */
+  accessRequest: InboxAccessRequest | null;
+};
+
+export type InboxAccessRequest = {
+  id: string;
+  requesterEmail: string;
+  message: string | null;
+  /** The requester is in the workspace (as a member or guest); otherwise approving adds them as a guest. */
+  inWorkspace: boolean;
+  /** The user may approve it: always for people in the workspace, for others when they may invite guests. */
+  approvable: boolean;
 };
 
 const databasePage = alias(page, "database_page");
@@ -299,7 +366,8 @@ const actor = alias(user, "actor");
 
 /**
  * Notifications about pages the user can still open, of the kinds they keep in their inbox; ones
- * for trashed or unshared pages stay hidden. Null when every kind is turned off.
+ * for trashed or unshared pages stay hidden. Access requests show only while the user can answer
+ * them (full access) and the requester still can't open the page. Null when every kind is off.
  */
 async function inboxFilter(userId: string, workspaceId?: string): Promise<SQL | null> {
   const kinds = await inboxKinds(userId);
@@ -310,6 +378,14 @@ async function inboxFilter(userId: string, workspaceId?: string): Promise<SQL | 
     inArray(notification.kind, kinds),
     isNull(page.archivedAt),
     pageVisibleTo(userId),
+    or(
+      ne(notification.kind, "access_request"),
+      and(
+        sql`page_access_level(${userId}, ${page.id}) = ${FULL_RANK}`,
+        isNotNull(notification.actorId),
+        sql`page_access_level(${notification.actorId}, ${page.id}) = 0`,
+      ),
+    ),
   )!;
 }
 
@@ -339,6 +415,10 @@ export async function listNotifications(
       databaseTitle: databasePage.title,
       propertyName: databaseProperty.name,
       reminderDate: pageReminder.date,
+      actorEmail: actor.email,
+      requestId: accessRequest.id,
+      requestMessage: accessRequest.message,
+      requesterRole: workspaceRoleOf(accessRequest.requesterId, accessRequest.workspaceId),
     })
     .from(notification)
     .innerJoin(page, eq(page.id, notification.pageId))
@@ -350,10 +430,32 @@ export async function listNotifications(
       pageReminder,
       and(eq(notification.kind, "reminder"), eq(pageReminder.pageId, notification.pageId), eq(pageReminder.mentionId, notification.mentionId)),
     )
+    .leftJoin(accessRequest, eq(accessRequest.id, notification.accessRequestId))
     .where(and(filter, unreadOnly ? isNull(notification.readAt) : undefined))
     .orderBy(desc(notification.createdAt))
     .limit(limit);
-  return rows.map(({ readAt, ...row }) => ({ ...row, read: readAt !== null }));
+  // Approving someone from outside brings them in as a guest, which not everyone may do.
+  const inviting = new Map<string, Promise<boolean>>();
+  const mayInvite = (id: string) => {
+    if (!inviting.has(id)) inviting.set(id, canInviteGuests(userId, id));
+    return inviting.get(id)!;
+  };
+  return Promise.all(
+    rows.map(async ({ readAt, actorEmail, requestId, requestMessage, requesterRole, ...row }) => ({
+      ...row,
+      read: readAt !== null,
+      accessRequest:
+        row.kind === "access_request" && requestId
+          ? {
+              id: requestId,
+              requesterEmail: actorEmail ?? "",
+              message: requestMessage,
+              inWorkspace: requesterRole !== null,
+              approvable: requesterRole !== null || (await mayInvite(row.workspaceId)),
+            }
+          : null,
+    })),
+  );
 }
 
 export async function listInbox(userId: string, workspaceId: string): Promise<InboxItem[]> {

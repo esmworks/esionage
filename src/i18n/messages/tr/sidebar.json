@@ -70,6 +70,7 @@
     "comment": "{actor}, katıldığınız bir yorum konusuna yazdı",
     "mention": "{actor} sizden bahsetti",
     "reminder": "Hatırlatma: {date}",
+    "accessRequest": "{actor} bu sayfaya erişim istedi",
     "someone": "Biri",
     "unread": "Okunmadı",
     "unreadCount": "{count, plural, one {# okunmamış bildirim} other {# okunmamış bildirim}}"

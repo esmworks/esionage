@@ -3,6 +3,9 @@ import { type MailConfig, MailConfigError, readMailConfig } from "./config";
 
 export { MailConfigError } from "./config";
 export {
+  accessApprovedEmail,
+  accessDeclinedEmail,
+  accessRequestEmail,
   assignmentEmail,
   commentEmail,
   emailChangeEmail,

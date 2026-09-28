@@ -71,6 +71,27 @@
     "action": "Abrir página",
     "optOut": "Recibes estos correos porque configuraste un recordatorio. Puedes desactivarlos en Mi cuenta > Preferencias."
   },
+  "accessRequest": {
+    "subject": "{requester} pidió acceso a “{page}”",
+    "heading": "{requester} pidió acceso a “{page}”",
+    "body": "{requester} ({email}) quiere abrir “{page}” en {workspace}.",
+    "message": "Su mensaje: “{message}”",
+    "answer": "Comparte la página con esta persona eligiendo lo que puede hacer, o rechaza la solicitud. Puedes responder desde tu bandeja de entrada o desde Compartir en la página.",
+    "action": "Abrir página",
+    "optOut": "Recibes estos correos porque tienes acceso total a la página. Puedes desactivarlos en Mi cuenta > Preferencias."
+  },
+  "accessApproved": {
+    "subject": "Ya puedes abrir “{page}”",
+    "heading": "{actor} aprobó tu solicitud",
+    "body": "Ahora puedes {level} “{page}” en {workspace}.",
+    "action": "Abrir página"
+  },
+  "accessDeclined": {
+    "subject": "Se rechazó tu solicitud de acceso",
+    "heading": "Se rechazó tu solicitud",
+    "body": "Se rechazó tu solicitud de acceso a esta página: {link}",
+    "hint": "Si aún la necesitas, pregunta a quien te envió el enlace."
+  },
   "emailChange": {
     "subject": "Confirma tu nueva dirección de correo",
     "heading": "Confirma tu nueva dirección de correo",

@@ -3,15 +3,18 @@
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { approveAccessRequestAction, declineAccessRequestAction } from "@/app/actions/access-requests";
 import { listInboxAction, markReadAction } from "@/app/actions/notifications";
 import { Button, cn, Dialog, PageIcon, pageLabel } from "@/components/ui";
+import { APPROVAL_LEVELS, type ApprovalLevel } from "@/lib/access-requests";
 import { formatIsoDate } from "@/lib/mentions";
 import { relativeTime } from "@/lib/relative-time";
-import type { InboxItem } from "@/server/notifications";
+import type { InboxAccessRequest, InboxItem } from "@/server/notifications";
 
 /**
- * The workspace inbox: rows the user was assigned to, pages shared with them, comments, mentions and
- * reminders, newest first; opening one marks it read.
+ * The workspace inbox: rows the user was assigned to, pages shared with them, comments, mentions,
+ * reminders and requests for access to their pages, newest first; opening one marks it read.
+ * Access requests can be answered right here.
  */
 export function InboxDialog({
   workspaceId,
@@ -98,7 +101,9 @@ export function InboxDialog({
                   <span className="truncate">{pageLabel(item.pageTitle, tc("untitled"))}</span>
                 </span>
                 <span className="mt-0.5 block text-xs text-fg-muted">
-                  {item.kind === "page_shared"
+                  {item.kind === "access_request"
+                    ? t("accessRequest", { actor: item.actorName || item.accessRequest?.requesterEmail || t("someone") })
+                    : item.kind === "page_shared"
                     ? t("pageShared", { actor: item.actorName || t("someone") })
                     : item.kind === "comment"
                       ? t("comment", { actor: item.actorName || t("someone") })
@@ -106,7 +111,7 @@ export function InboxDialog({
                         ? t("mention", { actor: item.actorName || t("someone") })
                         : item.kind === "reminder"
                           ? t("reminder", { date: item.reminderDate ? formatIsoDate(item.reminderDate, locale) : "" })
-                          : t("assignment", { actor: item.actorName || t("someone"), property: item.propertyName ?? "" })}
+                            : t("assignment", { actor: item.actorName || t("someone"), property: item.propertyName ?? "" })}
                   {item.databaseTitle !== null && <> · {pageLabel(item.databaseTitle, tc("untitled"))}</>}
                 </span>
               </span>
@@ -119,9 +124,82 @@ export function InboxDialog({
               </time>
               {!item.read && <span className="sr-only">{t("unread")}</span>}
             </button>
+            {item.accessRequest && (
+              <AccessRequestActions
+                request={item.accessRequest}
+                onAnswered={() => {
+                  setItems((list) => list?.filter((other) => other.id !== item.id) ?? list);
+                  onRead();
+                }}
+              />
+            )}
           </li>
         ))}
       </ul>
     </Dialog>
+  );
+}
+
+/** Share (at a level) or decline an access request from the inbox; the notification goes away once answered. */
+function AccessRequestActions({ request, onAnswered }: { request: InboxAccessRequest; onAnswered: () => void }) {
+  const ts = useTranslations("page.share");
+  const [level, setLevel] = useState<ApprovalLevel>("edit");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const answer = async (run: () => ReturnType<typeof declineAccessRequestAction>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await run();
+      if (result.ok) onAnswered();
+      else setError(ts(`errors.${result.code}`));
+    } catch {
+      setError(ts("errors.generic"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="pb-2 pl-[2.125rem] pr-3">
+      {request.message && (
+        <p className="mb-1.5 text-sm break-words whitespace-pre-line text-fg-muted">{ts("requests.message", { message: request.message })}</p>
+      )}
+      {!request.inWorkspace && (
+        <p className="mb-1.5 text-xs text-fg-faint">{request.approvable ? ts("requests.outsider") : ts("requests.cantInvite")}</p>
+      )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <select
+          value={level}
+          aria-label={ts("requests.level")}
+          disabled={busy || !request.approvable}
+          onChange={(e) => setLevel(e.target.value as ApprovalLevel)}
+          className="h-7 rounded-md bg-transparent px-1.5 text-sm text-fg-muted hover:bg-bg-hover focus:outline-none"
+        >
+          {APPROVAL_LEVELS.map((l) => (
+            <option key={l} value={l}>
+              {ts(`levels.${l}`)}
+            </option>
+          ))}
+        </select>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={busy || !request.approvable}
+          onClick={() => void answer(() => approveAccessRequestAction(request.id, level))}
+        >
+          {ts("requests.approve")}
+        </Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => void answer(() => declineAccessRequestAction(request.id))}>
+          {ts("requests.decline")}
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className="mt-1 text-xs text-danger">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

@@ -335,6 +335,11 @@
       "withoutCount": "{count, plural, one {# Person hier hat sie noch nicht eingerichtet.} other {# Personen hier haben sie noch nicht eingerichtet.}}"
     },
     "guestsHeading": "Gäste",
+    "sharingHeading": "Teilen",
+    "accessRequests": {
+      "title": "Zugriffsanfragen",
+      "description": "Wer den Link zu einer Seite öffnet, die er nicht sehen kann, kann mit einer Nachricht um Zugriff bitten. Die Anfrage geht an die Personen mit vollem Zugriff auf die Seite. Aus: Sie sehen nur, dass sie keinen Zugriff haben."
+    },
     "guestInvites": {
       "title": "Wer Gäste einladen darf",
       "description": "Personen außerhalb des Workspace treten als Gäste bei, wenn jemand eine Seite per E-Mail mit ihnen teilt. Gäste sehen nur die Seiten, die mit ihnen geteilt wurden.",
@@ -518,6 +523,9 @@
     "reminderTitle": "Erinnerungen",
     "reminderDescription": "Eine Erinnerung, die du für ein Datum auf einer Seite eingerichtet hast, ist fällig.",
     "reminderChannel": "Erinnerungen: {channel}",
+    "accessRequestTitle": "Zugriffsanfragen",
+    "accessRequestDescription": "Jemand bittet um Zugriff auf eine Seite, auf die du vollen Zugriff hast.",
+    "accessRequestChannel": "Zugriffsanfragen: {channel}",
     "mailOff": "Dieser Server kann gerade keine E-Mails senden, daher werden keine verschickt."
   },
   "site": {

@@ -70,6 +70,7 @@
     "comment": "{actor} hat in einer Diskussion kommentiert, an der du beteiligt bist",
     "mention": "{actor} hat dich erwähnt",
     "reminder": "Erinnerung: {date}",
+    "accessRequest": "{actor} möchte Zugriff auf diese Seite",
     "someone": "Jemand",
     "unread": "Ungelesen",
     "unreadCount": "{count, plural, one {# ungelesene Benachrichtigung} other {# ungelesene Benachrichtigungen}}"

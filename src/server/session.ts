@@ -21,6 +21,11 @@ export async function requireSession() {
   return session;
 }
 
+/** For pages and layouts under the app routes (see src/proxy.ts): the path being requested, with its query. */
+export async function requestedPath(): Promise<string | null> {
+  return (await headers()).get(PATH_HEADER);
+}
+
 /** For pages and layouts: the signed-in user, or a redirect to sign-in. */
 export async function requireUser() {
   return (await requireSession()).user;
