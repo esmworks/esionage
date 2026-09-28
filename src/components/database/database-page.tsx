@@ -46,6 +46,7 @@ export function DatabasePage({
   databaseId,
   canEdit = true,
   guest = false,
+  exportable = true,
   embed,
 }: {
   workspaceId: string;
@@ -54,6 +55,8 @@ export function DatabasePage({
   canEdit?: boolean;
   /** Guests get fewer bulk actions (no trash). */
   guest?: boolean;
+  /** The workspace lets people export its pages (the selection's CSV export). */
+  exportable?: boolean;
   /** Shown inside a page: the selected view stays out of the URL and new rows don't open. */
   embed?: DatabaseEmbed;
 }) {
@@ -449,6 +452,7 @@ export function DatabasePage({
                     locked={locked}
                     filtered={rows.length > 0}
                     guest={guest}
+                    exportable={exportable}
                   />
                 )}
               </div>

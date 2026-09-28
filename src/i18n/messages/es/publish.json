@@ -61,5 +61,6 @@
   "site": {
     "menu": "Páginas",
     "navigation": "Páginas del sitio"
-  }
+  },
+  "publishingOff": "La publicación en la web está desactivada en este espacio de trabajo. Las páginas publicadas no se muestran hasta que un propietario la vuelva a activar."
 }

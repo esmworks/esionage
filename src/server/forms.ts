@@ -20,7 +20,7 @@ import { AccessError, accessRank, hasLevel, pageAccessOf, requireMembership, req
 import { getProperties, insertRows, normalizeRowProperties, withCode, type DatabaseProperty } from "@/server/databases";
 import { publishBlocker } from "@/server/publication";
 import { storeFile, type StoredFile, type UploadInput } from "@/server/files";
-import { canPublish, workspacePeople } from "@/server/workspaces";
+import { canPublish, publishingOn, workspacePeople } from "@/server/workspaces";
 
 /**
  * Form views: people fill in a form and each answer becomes a row of the database.
@@ -51,6 +51,7 @@ export type FormErrorCode =
   | "expired"
   | "tooLarge"
   | "notAllowed"
+  | "publishingOff"
   | "inTrash";
 
 export class FormError extends Error {
@@ -339,6 +340,9 @@ export async function formPublicationsOf(viewIds: string[]) {
 }
 
 async function assertMayPublish(userId: string, database: { workspaceId: string; archivedAt: Date | null }) {
+  if (!(await publishingOn(database.workspaceId))) {
+    throw new FormError("Publishing to the web is turned off in this workspace", "publishingOff");
+  }
   if (!(await canPublish(userId, database.workspaceId))) {
     throw new FormError("This workspace lets only owners publish to the web", "notAllowed");
   }
@@ -387,6 +391,7 @@ export type WorkspaceFormPublication = {
 /** Every public form of the workspace, newest first, for owners to review. */
 export async function listWorkspaceFormPublications(userId: string, workspaceId: string): Promise<WorkspaceFormPublication[]> {
   await requireMembership(userId, workspaceId, "owner");
+  const served = await publishingOn(workspaceId);
   const rows = await db
     .select({
       viewId: databaseView.id,
@@ -415,7 +420,7 @@ export async function listWorkspaceFormPublications(userId: string, workspaceId:
     viewName: r.visible ? r.viewName : null,
     title: r.visible ? r.title : null,
     icon: r.visible ? r.icon : null,
-    url: r.visible && !r.archivedAt && live[i] ? publicFormPath(r.token) : null,
+    url: r.visible && !r.archivedAt && live[i] && served ? publicFormPath(r.token) : null,
     inTrash: r.archivedAt !== null,
     live: live[i],
     anonymous: r.anonymous,
@@ -451,7 +456,10 @@ export type PublicForm = {
   allowAnother: boolean;
 };
 
-/** The live public form for `token`: open, its database not in the trash, its publisher still able to add rows. */
+/**
+ * The live public form for `token`: open, its database not in the trash, its publisher still able
+ * to add rows, and its workspace with publishing on (off keeps the link for when it is back on).
+ */
 async function openPublicForm(token: string) {
   if (!token || token.length > 128) return null;
   const [found] = await db
@@ -470,7 +478,7 @@ async function openPublicForm(token: string) {
     .innerJoin(page, eq(page.id, databaseView.databaseId))
     .where(and(eq(formPublication.token, token), isNull(page.archivedAt), eq(page.kind, "database")))
     .limit(1);
-  if (!found || found.type !== "form") return null;
+  if (!found || found.type !== "form" || !(await publishingOn(found.workspaceId))) return null;
   return (await publisherCanAdd(found.publishedBy, found.databaseId)) ? found : null;
 }
 

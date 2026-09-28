@@ -61,5 +61,6 @@
   "site": {
     "menu": "Pages",
     "navigation": "Pages du site"
-  }
+  },
+  "publishingOff": "La publication sur le Web est désactivée dans cet espace de travail. Les pages publiées ne sont plus affichées jusqu’à ce qu’un propriétaire la réactive."
 }

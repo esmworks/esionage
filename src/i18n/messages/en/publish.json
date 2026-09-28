@@ -61,5 +61,6 @@
   "site": {
     "menu": "Pages",
     "navigation": "Site pages"
-  }
+  },
+  "publishingOff": "Publishing to the web is turned off in this workspace. Published pages aren't shown until an owner turns it back on."
 }

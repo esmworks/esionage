@@ -27,9 +27,19 @@ import { type DeletionPlan, planAccountDeletion, type WorkspaceStanding } from "
 import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
 import { env } from "@/lib/env";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
-import { AccessError, findMembership, FULL_RANK, getMembership, isGuest, requireMember, requireMembership } from "@/server/access";
+import {
+  AccessError,
+  findMembership,
+  FULL_RANK,
+  getMembership,
+  isGuest,
+  requireMember,
+  requireMembership,
+  workspacesHiddenFromApp,
+} from "@/server/access";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
+import { CONNECTED_APPS_MODES } from "@/server/connected-app";
 import { dropFromGroups } from "@/server/groups";
 import { dropFromTeamspaces, setUpGeneralTeamspace } from "@/server/teamspaces";
 
@@ -111,13 +121,18 @@ export async function createWorkspace(userId: string, name: string) {
 }
 
 /** The user's workspaces with their role, oldest first. */
+/** The user's workspaces, oldest first; for a connected app, without those hidden from it. */
 export async function listWorkspaces(userId: string) {
-  return db
-    .select({ id: workspace.id, name: workspace.name, icon: workspace.icon, role: workspaceMember.role })
-    .from(workspace)
-    .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, workspace.id))
-    .where(eq(workspaceMember.userId, userId))
-    .orderBy(asc(workspace.createdAt));
+  const [rows, hidden] = await Promise.all([
+    db
+      .select({ id: workspace.id, name: workspace.name, icon: workspace.icon, role: workspaceMember.role })
+      .from(workspace)
+      .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, workspace.id))
+      .where(eq(workspaceMember.userId, userId))
+      .orderBy(asc(workspace.createdAt)),
+    workspacesHiddenFromApp(userId),
+  ]);
+  return hidden.size ? rows.filter((w) => !hidden.has(w.id)) : rows;
 }
 
 export async function getWorkspace(userId: string, workspaceId: string) {
@@ -778,11 +793,13 @@ export async function countMembersWithoutTwoFactor(actorId: string, workspaceId:
 const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettings[K][] } = {
   guestInvites: ["owners", "members"],
   guestPrivatePages: [false, true],
-  publishing: ["owners", "members"],
+  publishing: ["owners", "members", "off"],
   requireTwoFactor: [false, true],
   teamspaceCreation: ["owners", "members"],
   loginMethod: ["any", "sso"],
   ai: [true, false],
+  export: [true, false],
+  connectedApps: CONNECTED_APPS_MODES,
 };
 
 /**
@@ -899,13 +916,34 @@ export async function canInviteGuests(userId: string, workspaceId: string) {
 }
 
 /**
- * Whether the user may publish pages of the workspace to the web (on top of full access to the
- * page): owners always, members when the workspace allows it, guests never.
+ * Pure: whether someone with this role may publish under the workspace's publishing setting:
+ * owners unless publishing is off, members when it allows them, guests never.
+ */
+export function mayPublish(role: WorkspaceRole, publishing: WorkspaceSettings["publishing"]) {
+  if (publishing === "off" || isGuest(role)) return false;
+  return role === "owner" || publishing === "members";
+}
+
+/**
+ * Whether the user may publish pages (and open forms) of the workspace to the web, on top of full
+ * access to the page (see mayPublish).
  */
 export async function canPublish(userId: string, workspaceId: string) {
   const [membership, settings] = await Promise.all([getMembership(userId, workspaceId), workspaceSettings(workspaceId)]);
-  if (!membership) return false;
-  return membership.role === "owner" || (membership.role === "member" && settings.publishing === "members");
+  return membership ? mayPublish(membership.role, settings.publishing) : false;
+}
+
+/**
+ * Whether the workspace serves what is published: not while publishing is off, which keeps the
+ * publications and the site to bring them back when it is turned on again.
+ */
+export async function publishingOn(workspaceId: string) {
+  return (await workspaceSettings(workspaceId)).publishing !== "off";
+}
+
+/** Whether the workspace lets people export its pages (Markdown, CSV, ZIP, the print view). */
+export async function exportAllowed(workspaceId: string) {
+  return (await workspaceSettings(workspaceId)).export !== false;
 }
 
 /**

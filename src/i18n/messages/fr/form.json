@@ -62,7 +62,8 @@
     "notAllowed": "Dans cet espace de travail, seuls les propriétaires peuvent publier sur le Web. Demandez à un propriétaire de créer le lien.",
     "failed": "Une erreur s’est produite. Réessayez.",
     "stale": "Ce lien n’accepte plus de réponses : la personne qui l’a ouvert ne peut plus ajouter de lignes à cette base de données. Rouvrez-le pour recevoir les réponses en votre nom.",
-    "reactivate": "Accepter à nouveau les réponses"
+    "reactivate": "Accepter à nouveau les réponses",
+    "publishingOff": "La publication sur le Web est désactivée dans cet espace de travail. Les formulaires publics n’acceptent plus de réponses jusqu’à ce qu’un propriétaire la réactive."
   },
   "errors": {
     "required": "Cette question est obligatoire.",
@@ -78,7 +79,8 @@
     "tooLarge": "Vos réponses sont trop longues.",
     "notAllowed": "Dans cet espace de travail, seuls les propriétaires peuvent publier sur le Web.",
     "inTrash": "Cette base de données est dans la corbeille.",
-    "notAForm": "Cette vue n’est pas un formulaire."
+    "notAForm": "Cette vue n’est pas un formulaire.",
+    "publishingOff": "La publication sur le Web est désactivée dans cet espace de travail."
   },
   "public": {
     "signInTitle": "Connectez-vous pour répondre",

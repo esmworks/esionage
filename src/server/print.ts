@@ -6,6 +6,7 @@ import { printOrder } from "@/lib/print";
 import { pageVisibleTo, requirePageAccess } from "@/server/access";
 import type { PageBlock } from "@/server/blocknote";
 import { getCollab } from "@/server/collab/bridge";
+import { assertExportAllowed } from "@/server/export";
 import { resolvePageRefs } from "@/server/mentions";
 import { getBreadcrumbs } from "@/server/pages";
 import {
@@ -185,11 +186,13 @@ async function printSection(userId: string, pageId: string, depth: number, index
 }
 
 /**
- * What `/print/<pageId>` shows. Throws AccessError when `userId` can't view the page. With
- * `subpages`, the pages under it follow it in sidebar order, up to PRINT_MAX_PAGES in all.
+ * What `/print/<pageId>` shows. Throws AccessError when `userId` can't view the page, and an
+ * ExportError (`disabled`) while the workspace has export turned off: printing to PDF is an export.
+ * With `subpages`, the pages under it follow it in sidebar order, up to PRINT_MAX_PAGES in all.
  */
 export async function printDocument(userId: string, pageId: string, { subpages = false }: { subpages?: boolean } = {}): Promise<PrintDocument> {
   const root = await requirePageAccess(userId, pageId, "view");
+  await assertExportAllowed(root.workspaceId);
   const { pages, truncated } =
     subpages && root.kind !== "database" ? printOrder(root.id, await subtree(userId, root.id)) : { pages: [{ id: root.id, depth: 0 }], truncated: false };
   // One page at a time: each reads its document and renders HTML, and they come in order anyway.

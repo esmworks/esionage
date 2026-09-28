@@ -28,7 +28,7 @@ type WebView = { id: string; name: string; type: ViewType; published: boolean };
 
 /** Published pages draw these views as they are; the rest show as tables. */
 const DRAWN: ViewType[] = ["table", "board", "list", "gallery"];
-type Blocker = "needsFullAccess" | "notAllowed" | null;
+type Blocker = "needsFullAccess" | "notAllowed" | "publishingOff" | null;
 
 /** Publish tab of the Share popover: turn the public, read-only link on or off. */
 export function PublishTab({ pageId }: { pageId: string }) {
@@ -79,8 +79,8 @@ export function PublishTab({ pageId }: { pageId: string }) {
 
   if (publication === undefined) return <div className="px-3 py-6 text-sm text-fg-muted">…</div>;
 
-  // Only full access matters for taking a page offline.
-  const hint = publication ? (blocker === "needsFullAccess" ? blocker : null) : blocker;
+  // Only full access matters for taking a page offline; with publishing off, the link isn't served.
+  const hint = publication ? (blocker === "needsFullAccess" || blocker === "publishingOff" ? blocker : null) : blocker;
   // A page listed in the site shows its site address; its own link keeps working.
   const shownUrl = publication ? (publication.siteUrl ?? publication.url) : "";
   const options: Option[] = site ? ["indexable", "inSite", "allowDuplicate"] : ["indexable", "allowDuplicate"];

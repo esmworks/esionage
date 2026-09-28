@@ -3,6 +3,7 @@ import { AccessError } from "@/server/access";
 import { MAX_BULK_ROWS } from "@/server/databases";
 import {
   archiveResponse,
+  assertExportAllowed,
   attachment,
   databaseCsv,
   ExportError,
@@ -43,7 +44,8 @@ async function requestedRows(request: Request): Promise<string[] | null> {
  * A page as Markdown, or a database's rows as CSV (all of them, or with POST the selected ones).
  * With `?subpages=1`, the page or database with everything under it as a ZIP (see server/export);
  * adding `check=1` only answers whether that export can be made (JSON), so the page menu can say
- * why not before starting a download. Pages the user can't see are 404.
+ * why not before starting a download. Pages the user can't see are 404; with export turned off in
+ * the workspace, every export is 403 (`{error: "disabled"}`).
  */
 export async function GET(request: Request, { params }: { params: Promise<{ pageId: string }> }) {
   const session = await getSession();
@@ -55,6 +57,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ page
     const target = await getPage(userId, pageId);
     const hold = await blockedByWorkspacePolicy(session, target.workspaceId);
     if (hold) return new Response(policyRefusal(hold), { status: 403 });
+    // Every export this route makes, before any of it is read (also asked by the ZIP and CSV code).
+    await assertExportAllowed(target.workspaceId);
     const labels = await exportLabels();
     if (request.method === "GET" && query.get("subpages") === "1") {
       if (query.get("check") === "1") {

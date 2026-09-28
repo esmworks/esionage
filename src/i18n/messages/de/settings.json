@@ -24,7 +24,8 @@
     "title": "Workspace exportieren",
     "description": "Lade alle Seiten, die du sehen kannst, als ZIP herunter: Seiten als Markdown, Datenbanken als CSV und die darin angezeigten Dateien. Seiten im Papierkorb werden ausgelassen; Vorlagen landen in einem Ordner „Templates“.",
     "button": "Exportieren",
-    "preparing": "Wird vorbereitet…"
+    "preparing": "Wird vorbereitet…",
+    "disabled": "Der Export ist für diesen Workspace unter Einstellungen → Sicherheit ausgeschaltet."
   },
   "members": {
     "heading": "Mitglieder",
@@ -279,7 +280,7 @@
     "ssoFirst": "Richte zuerst Single Sign-on ein und bestätige seine Domains."
   },
   "security": {
-    "description": "Lege fest, wie sich Personen anmelden, wer andere in diesen Workspace holen darf, was Gäste tun können und wer Seiten im Web veröffentlichen darf. Nur Inhaber können diese Einstellungen ändern.",
+    "description": "Lege fest, wie sich Personen anmelden, wer andere in diesen Workspace holen darf, was Gäste tun können, was ihn verlassen darf (Exporte, verbundene Apps) und wer Seiten im Web veröffentlichen darf. Nur Inhaber können diese Einstellungen ändern.",
     "authenticationHeading": "Authentifizierung",
     "requireTwoFactor": {
       "title": "Bestätigung in zwei Schritten verlangen",
@@ -301,9 +302,10 @@
     "publishingHeading": "Veröffentlichen",
     "publishing": {
       "title": "Wer im Web veröffentlichen darf",
-      "description": "Veröffentlichte Seiten können von allen mit dem Link gelesen und öffentliche Formulare ausgefüllt werden. Gäste können nie veröffentlichen. Seiten und Formulare, die bereits im Web sind, bleiben dort, bis jemand sie deaktiviert.",
+      "description": "Veröffentlichte Seiten können von allen mit dem Link gelesen und öffentliche Formulare ausgefüllt werden. Gäste können nie veröffentlichen. Seiten und Formulare, die bereits im Web sind, bleiben dort, bis jemand sie deaktiviert. Aus: Niemand kann veröffentlichen, und Seiten, Formulare und die Website im Web funktionieren nicht mehr, bis das Veröffentlichen wieder eingeschaltet wird.",
       "owners": "Nur Inhaber",
-      "members": "Inhaber und Mitglieder"
+      "members": "Inhaber und Mitglieder",
+      "off": "Niemand (aus)"
     },
     "publications": {
       "title": "Veröffentlichte Seiten",
@@ -316,7 +318,8 @@
       "open": "Website öffnen",
       "unpublish": "Veröffentlichung aufheben",
       "confirm": "Veröffentlichung dieser Seite aufheben? Der Link funktioniert dann für niemanden mehr.",
-      "indexable": "Suchmaschinen erlaubt"
+      "indexable": "Suchmaschinen erlaubt",
+      "off": "Das Veröffentlichen ist ausgeschaltet: Keine dieser Seiten ist gerade im Web. Sie sind wieder da, sobald es eingeschaltet wird, außer du nimmst sie offline."
     },
     "forms": {
       "title": "Öffentliche Formulare",
@@ -331,7 +334,8 @@
       "open": "Formular öffnen",
       "turnOff": "Deaktivieren",
       "confirm": "Öffentlichen Link dieses Formulars deaktivieren? Er funktioniert dann für niemanden mehr.",
-      "stale": "Nimmt keine Antworten an: Die Person, die es aktiviert hat, hat keinen Zugriff mehr"
+      "stale": "Nimmt keine Antworten an: Die Person, die es aktiviert hat, hat keinen Zugriff mehr",
+      "off": "Das Veröffentlichen ist ausgeschaltet: Keines dieser Formulare nimmt gerade Antworten an. Sie sind wieder da, sobald es eingeschaltet wird, außer du deaktivierst sie."
     },
     "ownersOnly": "Nur Inhaber können das ändern.",
     "loginMethod": {
@@ -438,6 +442,18 @@
         "limit": "Ein Workspace kann höchstens 20 SCIM-Tokens haben. Widerrufe zuerst eines.",
         "generic": "Etwas ist schiefgelaufen. Bitte versuche es noch einmal."
       }
+    },
+    "dataHeading": "Export und verbundene Apps",
+    "export": {
+      "title": "Export erlauben",
+      "description": "Alle im Workspace können Seiten als Markdown, CSV oder ZIP herunterladen und als PDF drucken. Aus: Diese Optionen gibt es für niemanden mehr, auch nicht für Inhaber."
+    },
+    "connectedApps": {
+      "title": "Verbundene Apps und API-Token",
+      "description": "Was KI-Assistenten und andere über MCP verbundene Apps sowie REST-API-Token in diesem Workspace tun dürfen. Sie dürfen nie mehr als die Person, die sie verbunden hat. Ohne Zugriff ist der Workspace für sie unsichtbar.",
+      "full": "Lesen und bearbeiten",
+      "read": "Nur lesen",
+      "off": "Kein Zugriff"
     }
   },
   "notifications": {

@@ -36,7 +36,9 @@
     "viewersTitle": "Sehen sich diese Seite an",
     "saveAsTemplate": "Als Vorlage speichern",
     "saveAsRowTemplate": "Als Zeilenvorlage speichern",
-    "deleteTemplate": "Vorlage löschen"
+    "deleteTemplate": "Vorlage löschen",
+    "exportDisabled": "Export ist ausgeschaltet",
+    "exportDisabledBody": "Die Inhaber dieses Workspace haben das Exportieren und Drucken seiner Seiten ausgeschaltet."
   },
   "comments": {
     "title": "Kommentare",

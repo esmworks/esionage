@@ -36,7 +36,9 @@
     "viewersTitle": "Personnes sur cette page",
     "saveAsTemplate": "Enregistrer comme modèle",
     "saveAsRowTemplate": "Enregistrer comme modèle de ligne",
-    "deleteTemplate": "Supprimer le modèle"
+    "deleteTemplate": "Supprimer le modèle",
+    "exportDisabled": "L’exportation est désactivée",
+    "exportDisabledBody": "Les propriétaires de cet espace de travail ont désactivé l’exportation et l’impression de ses pages."
   },
   "comments": {
     "title": "Commentaires",

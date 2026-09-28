@@ -24,7 +24,8 @@
     "title": "Exportar espacio de trabajo",
     "description": "Descarga en un ZIP todas las páginas que puedes ver: las páginas como Markdown, las bases de datos como CSV y los archivos que muestran. Las páginas de la papelera se excluyen; las plantillas se guardan en una carpeta Plantillas.",
     "button": "Exportar",
-    "preparing": "Preparando…"
+    "preparing": "Preparando…",
+    "disabled": "La exportación está desactivada para este espacio de trabajo en Configuración → Seguridad."
   },
   "members": {
     "heading": "Miembros",
@@ -279,7 +280,7 @@
     "ssoFirst": "Primero configura el inicio de sesión único y verifica sus dominios."
   },
   "security": {
-    "description": "Decide cómo inician sesión las personas, quién puede traer personas a este espacio de trabajo, qué pueden hacer los invitados y quién puede publicar páginas en la web. Solo los propietarios pueden cambiar estos ajustes.",
+    "description": "Decide cómo inician sesión las personas, quién puede traer personas a este espacio de trabajo, qué pueden hacer los invitados, qué puede salir de él (exportaciones, apps conectadas) y quién puede publicar páginas en la web. Solo los propietarios pueden cambiar estos ajustes.",
     "authenticationHeading": "Autenticación",
     "requireTwoFactor": {
       "title": "Exigir la verificación en dos pasos",
@@ -301,9 +302,10 @@
     "publishingHeading": "Publicación",
     "publishing": {
       "title": "Quién puede publicar en la web",
-      "description": "Cualquier persona con el enlace puede leer las páginas publicadas y rellenar los formularios públicos. Los invitados nunca pueden publicar. Las páginas y los formularios que ya están en la web siguen ahí hasta que alguien los desactive.",
+      "description": "Cualquier persona con el enlace puede leer las páginas publicadas y rellenar los formularios públicos. Los invitados nunca pueden publicar. Las páginas y los formularios que ya están en la web siguen ahí hasta que alguien los desactive. Desactivado: nadie puede publicar, y las páginas, los formularios y el sitio que ya están en la web dejan de funcionar hasta que se vuelva a activar la publicación.",
       "owners": "Solo los propietarios",
-      "members": "Propietarios y miembros"
+      "members": "Propietarios y miembros",
+      "off": "Nadie (desactivado)"
     },
     "publications": {
       "title": "Páginas publicadas",
@@ -316,7 +318,8 @@
       "open": "Abrir sitio",
       "unpublish": "Dejar de publicar",
       "confirm": "¿Dejar de publicar esta página? El enlace dejará de funcionar para todos.",
-      "indexable": "Motores de búsqueda permitidos"
+      "indexable": "Motores de búsqueda permitidos",
+      "off": "La publicación está desactivada: ninguna de estas páginas está en la web ahora. Volverán cuando se active de nuevo, salvo que las retires."
     },
     "forms": {
       "title": "Formularios públicos",
@@ -331,7 +334,8 @@
       "open": "Abrir formulario",
       "turnOff": "Desactivar",
       "confirm": "¿Desactivar el enlace público de este formulario? Dejará de funcionar para todos.",
-      "stale": "No acepta respuestas: quien lo abrió perdió el acceso"
+      "stale": "No acepta respuestas: quien lo abrió perdió el acceso",
+      "off": "La publicación está desactivada: ninguno de estos formularios acepta respuestas ahora. Volverán cuando se active de nuevo, salvo que los desactives."
     },
     "ownersOnly": "Solo los propietarios pueden cambiar esto.",
     "loginMethod": {
@@ -438,6 +442,18 @@
         "limit": "Un espacio de trabajo puede tener como máximo 20 tokens SCIM. Revoca uno primero.",
         "generic": "Algo salió mal. Inténtalo de nuevo."
       }
+    },
+    "dataHeading": "Exportación y apps conectadas",
+    "export": {
+      "title": "Permitir exportar",
+      "description": "Todos en el espacio de trabajo pueden descargar páginas como Markdown, CSV o ZIP e imprimirlas en PDF. Desactivado: esas opciones desaparecen para todos, también para los propietarios."
+    },
+    "connectedApps": {
+      "title": "Apps conectadas y tokens de API",
+      "description": "Lo que pueden hacer en este espacio de trabajo los asistentes de IA y otras apps conectadas por MCP, y los tokens de la API REST. Nunca pueden más que la persona que los conectó. Sin acceso, el espacio de trabajo queda oculto para ellos.",
+      "full": "Leer y editar",
+      "read": "Solo lectura",
+      "off": "Sin acceso"
     }
   },
   "notifications": {
