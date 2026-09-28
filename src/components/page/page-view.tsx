@@ -212,11 +212,11 @@ export function PageView({
   return (
     // Cmd/Ctrl+F with focus anywhere in here opens the page's find bar instead of the browser's.
     <div data-find-scope className="flex min-h-full flex-col">
-      <header className="sticky top-0 z-20 flex h-11 items-center justify-between gap-2 border-b border-transparent bg-bg/90 px-3 backdrop-blur">
+      <header className="sticky top-0 z-20 flex h-11 items-center justify-between gap-2 border-b border-transparent bg-bg/90 px-3 backdrop-blur max-md:pl-1.5">
         <nav className="flex min-w-0 items-center gap-1 text-sm text-fg-muted">
-          <SidebarOpenButton className="mr-1" />
+          <SidebarOpenButton className="mr-1 max-md:mr-0" />
           {parents.map((c) => (
-            <span key={c.id} className="flex min-w-0 items-center gap-1">
+            <span key={c.id} className="flex min-w-0 items-center gap-1 max-md:hidden">
               <Link
                 href={`/w/${workspaceId}/p/${c.id}`}
                 className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-bg-hover hover:text-fg"
@@ -229,7 +229,7 @@ export function PageView({
           ))}
           <span className="flex min-w-0 items-center gap-1 px-1 text-fg">
             <PageIcon icon={icon} kind={page.kind} className="text-sm" />
-            <span className="max-w-60 truncate">{pageLabel(title, untitled)}</span>
+            <span className="truncate md:max-w-60">{pageLabel(title, untitled)}</span>
           </span>
         </nav>
         <div className="flex shrink-0 items-center gap-0.5">
@@ -379,7 +379,8 @@ function TitleField({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- inputRef is a ref object; only a new value matters
   }, [value]);
-  const font = cn("font-bold leading-tight", compact ? "text-3xl" : "text-4xl");
+  // Phones get a step smaller, so a typical title fits on one or two lines.
+  const font = cn("font-bold leading-tight", compact ? "text-2xl md:text-3xl" : "text-[1.75rem] md:text-4xl");
   // An invisible copy of the text sizes the box, so the field is only as wide and tall as its text
   // and a click beside the title doesn't start editing it.
   return (

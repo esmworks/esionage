@@ -131,12 +131,12 @@ export function SidebarOpenButton({ className }: { className?: string }) {
     <IconButton
       label={t("open")}
       title={`${t("open")} (⌘\\)`}
-      className={cn("group/open h-7 w-7", !sidebar.collapsed && "md:hidden", sidebar.drawerOpen && "max-md:hidden", className)}
+      className={cn("group/open h-7 w-7 max-md:h-9 max-md:w-9", !sidebar.collapsed && "md:hidden", sidebar.drawerOpen && "max-md:hidden", className)}
       onClick={sidebar.toggle}
       onMouseEnter={sidebar.collapsed ? sidebar.showPeek : undefined}
       onMouseLeave={sidebar.collapsed ? sidebar.hidePeek : undefined}
     >
-      <Menu className="h-4 w-4 md:group-hover/open:hidden" />
+      <Menu className="h-4 w-4 max-md:h-5 max-md:w-5 md:group-hover/open:hidden" />
       <ChevronsRight className="hidden h-4 w-4 md:group-hover/open:block" />
     </IconButton>
   );
