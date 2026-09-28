@@ -91,7 +91,15 @@ export function SearchDialog({ workspaceId, open, onClose }: { workspaceId: stri
             >
               <PageIcon icon={hit.icon} kind={hit.kind} className="mt-0.5 text-sm" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{pageLabel(hit.title, tc("untitled"))}</span>
+                <span className="flex items-baseline gap-2">
+                  <span className="min-w-0 truncate text-sm font-medium">{pageLabel(hit.title, tc("untitled"))}</span>
+                  {/* Semantic search found it by meaning; its words may not appear in the snippet. */}
+                  {hit.match === "semantic" && (
+                    <span className="shrink-0 text-xs text-fg-faint" title={t("semanticHint")}>
+                      {t("semantic")}
+                    </span>
+                  )}
+                </span>
                 {hit.snippet && <span className="line-clamp-2 text-xs text-fg-muted">{hit.snippet}</span>}
               </span>
             </button>

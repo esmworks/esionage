@@ -8,8 +8,9 @@ approve them over OAuth.
 
 - **Pages**: nested pages, a block editor (BlockNote) with slash menu and markdown shortcuts,
   icons, favorites, duplicate, move, trash with restore, export as Markdown or PDF (or, with
-  subpages, as a ZIP; owners can export the whole workspace, see [Export](#export)), and full-text
-  search over titles and content.
+  subpages, as a ZIP; owners can export the whole workspace, see [Export](#export)), and search
+  over titles and content: full-text, and also by meaning when the server has an embeddings model
+  (see [Semantic search](#semantic-search)).
 - **Rich blocks**: callouts, LaTeX equations (block and inline, KaTeX), Mermaid diagrams with a
   live preview, a table of contents and a breadcrumb, and columns (2 to 5, resizable, blocks
   dragged in and out with the side menu, stacked on phones), also on published pages and in
@@ -126,11 +127,13 @@ approve them over OAuth.
 - **Single sign-on and provisioning**: OpenID Connect for the whole server, OpenID Connect or SAML
   per workspace with DNS-verified email domains, a "single sign-on only" policy, and SCIM 2.0 user
   and group provisioning (see [Single sign-on (OIDC, SAML) and SCIM](#single-sign-on-oidc-saml-and-scim)).
-- **AI writing assistant and AI properties** (optional, off until a provider is set up): improve,
-  shorten, fix, translate or rewrite selected text as you ask, continue writing, and summarize a
-  page, as a suggestion you accept or discard; database text properties that AI fills in (a
-  summary, a translation or your own prompt over the row's values). Anthropic, OpenAI, Google,
-  any OpenAI-compatible server, or a local model with Ollama or LM Studio (see [AI features](#ai-features)).
+- **AI writing assistant, AI properties and AI chat** (optional, off until a provider is set up):
+  improve, shorten, fix, translate or rewrite selected text as you ask, continue writing, and
+  summarize a page, as a suggestion you accept or discard; database text properties that AI fills
+  in (a summary, a translation or your own prompt over the row's values); a chat panel that
+  answers questions from the pages you can read, citing them; and semantic search with an
+  embeddings model. Anthropic, OpenAI, Google, any OpenAI-compatible server, or a local model
+  with Ollama or LM Studio (see [AI features](#ai-features)).
 - **Five interface languages**: English, Turkish, German, Spanish and French, chosen in My account
   or taken from the browser (see [Languages](#languages)).
 - **MCP server with OAuth 2.1**: remote MCP endpoint at `/mcp`.
@@ -566,10 +569,12 @@ handles database backups on its own. No compose file is involved.
 
 ## AI features
 
-Esionage can use a language model for a writing assistant in pages and for database properties
-that AI fills in. Both are **off** until the server has a provider: set `AI_PROVIDER` and
-`AI_MODEL` (plus a key for hosted providers) in `.env` and restart. Nothing is sent anywhere while
-they are unset.
+Esionage can use a language model for a writing assistant in pages, database properties that AI
+fills in, and a chat that answers questions from your pages; and an embeddings model for
+semantic search. All are **off** until the server has a provider: set `AI_PROVIDER` and
+`AI_MODEL` (plus a key for hosted providers) in `.env` and restart, and `AI_EMBEDDINGS_MODEL` for
+semantic search (it works without a chat model too). Nothing is sent anywhere while they are
+unset.
 
 | Provider | `AI_PROVIDER` | Needs |
 | --- | --- | --- |
@@ -615,11 +620,26 @@ tick *Update when the row changes*, a few seconds after a row's values or page c
 what the value depends on changed). Cells show when a value is being worked out or failed, and
 why. Turning AI autofill off leaves the values as plain text.
 
+**AI chat.** *Ask AI* in the sidebar opens a chat panel. Questions are answered from the pages
+you can read: each question is searched for (full-text and, with embeddings, by meaning) and goes
+to the model with the best passages; the model can also search again (`search_pages`) and read a
+whole page (`read_page`), up to five turns per question. Answers cite their sources as numbered
+links to the page, and to the block the passage starts at when it is known. *Answer from* → *This
+page and its subpages* keeps questions to the page you are on. *Stop* ends an answer; what was written so far
+is kept. Conversations are private to you and listed under *Conversations*, where you can
+delete one or all; up to 50 per workspace are kept (the oldest go first), 40 questions each, 4000
+characters a question. They are deleted when you leave the workspace or delete your account. The
+chat is off while offline and when AI is off for the workspace. Every question counts against
+`AI_RATE_LIMIT`; the model's extra turns count against `AI_WORKSPACE_RATE_LIMIT`.
+
 **Privacy.** Requests run as the person who asked, with their access at the time: the assistant
-works only on pages they may edit, and an AI property sends only the row values they can see.
-Nothing is sent without someone asking (automatic updates follow an edit and run as its author).
-Owners can turn AI off for a workspace in Settings → General → AI, which stops both features
-there. The server logs each request's feature, model, token counts and cost, never its content.
+works only on pages they may edit, an AI property sends only the row values they can see, and the
+chat and semantic search only find and read pages they can open, checked again on every search and
+every `read_page` call (a page whose access was taken back mid-conversation can't be read any
+more, and its old citations no longer show its title). Nothing is sent without someone asking
+(automatic updates follow an edit and run as its author; indexing for semantic search sends page
+text to the embeddings endpoint in the background). Owners can turn AI off for a workspace in
+Settings → General → AI, which stops all AI features there and deletes its semantic search index. The server logs each request's feature, model, token counts and cost, never its content.
 With a hosted provider, what is sent is subject to that provider's terms; a local model keeps
 everything on your machines.
 
@@ -635,10 +655,48 @@ everything on your machines.
 | `AI_CONCURRENCY` | 2 | AI property values worked out at the same time |
 | `AI_CONTEXT_WINDOW` | 32768 | Context size assumed for OpenAI-compatible and local models |
 
-**Embeddings** (for semantic search): `AI_EMBEDDINGS_MODEL` turns them on. They use an
-OpenAI-compatible `/embeddings` endpoint: the chat provider's by default (OpenAI, Google, local
-servers; Anthropic has none, so set `AI_EMBEDDINGS_BASE_URL`), with `AI_EMBEDDINGS_API_KEY` and
-`AI_EMBEDDINGS_DIMENSIONS` if needed.
+### Semantic search
+
+With an embeddings model, search also finds pages by meaning ("car" finds a page about
+automobiles): in the search dialog (such results are marked *Similar meaning*), the chat, MCP
+`search` and REST `GET /search` (each result says `match: "text"` or `"semantic"`). The two
+rankings are merged by reciprocal rank fusion. Without an embeddings model, or with AI off for the
+workspace, search is exactly the full-text search.
+
+```bash
+AI_EMBEDDINGS_MODEL=text-embedding-3-small   # or nomic-embed-text with Ollama, etc.
+# AI_EMBEDDINGS_BASE_URL=https://api.openai.com/v1   # default: the chat provider's endpoint
+# AI_EMBEDDINGS_API_KEY=...                          # default: AI_API_KEY on the chat provider's endpoint
+# AI_EMBEDDINGS_DIMENSIONS=512                       # for models that can shorten their vectors
+# AI_EMBEDDINGS_MIN_SIMILARITY=0.3                   # lowest cosine similarity that counts as a match
+```
+
+Embeddings use an OpenAI-compatible `/embeddings` endpoint: the chat provider's by default
+(OpenAI, Google, local servers; Anthropic has none, so set `AI_EMBEDDINGS_BASE_URL`). A good
+`AI_EMBEDDINGS_MIN_SIMILARITY` depends on the model; raise it if unrelated pages show up, lower it
+if too few do.
+
+**Indexing.** Each page's title and text (a database row's values too) is cut into chunks of
+about 900 characters along its blocks, and each chunk's embedding is stored in `page_chunk` with
+its model, dimensions and a hash of its text. Pages are indexed in the background a few seconds
+after they are edited, created, renamed or restored, or a row's values change; only chunks whose
+text changed are embedded again. A workspace's first search after a restart starts a sweep that
+indexes pages the index missed (at most every ten minutes); `pnpm search:index [workspace-id…]`
+indexes everything at once, e.g. after setting `AI_EMBEDDINGS_MODEL` or changing the model. Jobs
+respect `AI_CONCURRENCY` and `AI_WORKSPACE_RATE_LIMIT`. Trashed pages drop out of results at once
+(their chunks stay for a restore); deleted pages take their chunks with them.
+
+**Access** is never stored in the index: every search filters the chunks to the pages the person
+can open right now (`page_access_level`) before ranking them, so guests only find what was shared
+with them and private pages stay private.
+
+**Scaling.** Vectors are stored as `real[]` and ranked with a small SQL function
+(`embedding_cosine`), so any PostgreSQL works without extensions. Each search compares the query
+with every chunk of the pages the person can open, which is fine up to some tens of thousands of
+chunks per workspace. For larger workspaces, install [pgvector](https://github.com/pgvector/pgvector),
+add a `vector(n)` column filled from `embedding` (one model and dimension per column) with an HNSW
+index (`vector_cosine_ops`), and order the `ranked` step of `src/server/semantic-search.ts` by
+`embedding <=> query` over a larger candidate set before the access filter's final cut.
 
 ## Connect an AI assistant
 
@@ -743,7 +801,8 @@ Useful scripts:
 | `pnpm build` | Production build |
 | `pnpm mail:test you@example.com` | Send a test email with the SMTP settings from `.env` |
 | `pnpm db:generate` | New migration from schema changes in `src/db/schema` |
-| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (teamspaces, databases, filters, bulk actions, property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, sites and duplicating published pages, presence, offline editing, uploads, import, Notion import, export, and `roundtrip-e2e.ts` for an export imported again); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
+| `pnpm search:index [workspace-id…]` | Builds or catches up the semantic search index (see [Semantic search](#semantic-search)) |
+| `pnpm tsx scripts/access-e2e.ts` | End-to-end checks against the database for page permissions, guests and publishing. The other `scripts/*-e2e.ts` files do the same for their areas (teamspaces, databases, filters, bulk actions, AI features, semantic search and AI chat (with a stand-in OpenAI-compatible server), property types, people, trash, views, formulas, charts, forms, inline databases, publishing options, sites and duplicating published pages, presence, offline editing, uploads, import, Notion import, export, and `roundtrip-e2e.ts` for an export imported again); `mcp-e2e.ts` and `auth-e2e.ts` below need a running server. |
 | `pnpm tsx scripts/sw-e2e.ts` | Checks the service worker (`public/sw.js`) in headless Chrome against a stand-in server: offline pages, per-user copies, the offline page (set `CHROME_PATH` outside macOS) |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/api-e2e.ts` | End-to-end REST API check (tokens, every endpoint, access, rate limits, OpenAPI) against a running server |
@@ -789,6 +848,13 @@ requests; see [CONTRIBUTING.md](CONTRIBUTING.md#translations) for the workflow.
   library. Embeddings are a plain `fetch` to an OpenAI-compatible `/embeddings` endpoint. AI
   property values are worked out by an in-process queue (`src/server/ai-properties.ts`) whose
   pending and failed states live in `ai_property_state`.
+- Semantic search keeps chunk embeddings in `page_chunk` (`real[]`, ranked by the SQL function
+  `embedding_cosine`) and what was indexed in `page_index_state`; an in-process queue
+  (`src/server/semantic-index.ts`) indexes pages after saves, which the collaboration server and
+  the route handlers announce through `src/server/page-events.ts`. The AI chat
+  (`src/server/ai-chat.ts`, `POST /api/ai/chat` streaming NDJSON) runs its `search_pages` and
+  `read_page` tools through `src/server/operations.ts` as the person asking; conversations are
+  stored per person in `ai_conversation`.
 - Auth is Better Auth: email/password, GitHub/Google, two-factor and passkey plugins for people,
   and the OAuth provider, JWT, MCP and CIMD plugins for apps. Data access uses Drizzle ORM on PostgreSQL 18.
 

@@ -3,12 +3,15 @@ import { and, asc, eq, gt, inArray, isNotNull, max, sql } from "drizzle-orm";
 import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/db";
 import {
+  aiConversation,
   DEFAULT_WORKSPACE_SETTINGS,
   file,
   page,
   pageInvitation,
   passkey,
+  pageChunk,
   pageGroupPermission,
+  pageIndexState,
   pagePermission,
   ssoProvider,
   user,
@@ -625,6 +628,8 @@ export async function removeMember(actorId: string, workspaceId: string, targetI
     const heir = actorId !== targetId ? actorId : await oldestOwner(tx, workspaceId);
     await dropFromTeamspaces(tx, workspaceId, targetId, heir);
     if (heir) await handOverOrphanedPages(tx, workspaceId, heir);
+    // Their AI chat conversations quote the workspace's pages: they go with them.
+    await tx.delete(aiConversation).where(and(eq(aiConversation.workspaceId, workspaceId), eq(aiConversation.userId, targetId)));
   });
   await getCollab().disconnectUser(targetId, workspaceId);
 }
@@ -810,6 +815,11 @@ export async function updateWorkspaceSettings(
     .update(workspace)
     .set({ settings: sql`${workspace.settings} || ${JSON.stringify(clean)}::jsonb` })
     .where(eq(workspace.id, workspaceId));
+  // AI off: the workspace's content leaves the semantic search index too (see semantic-index.ts).
+  if (clean.ai === false) {
+    await db.delete(pageChunk).where(eq(pageChunk.workspaceId, workspaceId));
+    await db.delete(pageIndexState).where(eq(pageIndexState.workspaceId, workspaceId));
+  }
   // Open editors were let in before; the ones the policy now holds back reconnect and are refused.
   if (clean.requireTwoFactor === true || clean.loginMethod === "sso") await getCollab().disconnectHeldBack(workspaceId);
 }
@@ -867,6 +877,8 @@ export async function removeMemberByProvider(workspaceId: string, userId: string
     if (!current) return false;
     if (current.role === "owner") throw new WorkspaceError("lastOwnerRemove", "Owners are managed in the app");
     await tx.delete(workspaceMember).where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, userId)));
+    // Their AI chat conversations quote the workspace's pages: they go with the membership.
+    await tx.delete(aiConversation).where(and(eq(aiConversation.workspaceId, workspaceId), eq(aiConversation.userId, userId)));
     const heir = await oldestOwner(tx, workspaceId);
     await dropFromTeamspaces(tx, workspaceId, userId, heir);
     if (heir) await handOverOrphanedPages(tx, workspaceId, heir);

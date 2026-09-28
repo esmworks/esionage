@@ -332,8 +332,18 @@ export async function listGroups(ctx: OperationContext, { workspace_id }: Args<"
   };
 }
 
-export async function search(ctx: OperationContext, { query, workspace_id, limit }: Args<"search">) {
-  const hits = await pages.searchPages(ctx.userId, query, { workspaceId: workspace_id, limit });
+/**
+ * Full-text search, merged with semantic search where the server has an embeddings model (see
+ * pages.searchPages). `match` says how a result was found: "semantic" when only by meaning.
+ * `withinPageId` keeps to a page and its subpages; `passages` adds the best matching passage of
+ * each page (as far as semantic search found one) and the block it starts at (AI chat).
+ */
+export async function search(
+  ctx: OperationContext,
+  { query, workspace_id, limit }: Args<"search">,
+  { withinPageId, passages = false }: { withinPageId?: string; passages?: boolean } = {},
+) {
+  const hits = await pages.searchPages(ctx.userId, query, { workspaceId: workspace_id, limit, withinPageId });
   return {
     results: hits.map((h) => ({
       id: h.id,
@@ -343,8 +353,10 @@ export async function search(ctx: OperationContext, { query, workspace_id, limit
       teamspace_id: h.teamspaceId,
       parent_id: h.parentId,
       snippet: h.snippet,
+      match: h.match ?? ("text" as const),
       updated_at: h.updatedAt.toISOString(),
       url: pageUrl(h.workspaceId, h.id),
+      ...(passages ? { passage: h.passage ?? null, block_id: h.blockId ?? null } : {}),
     })),
   };
 }

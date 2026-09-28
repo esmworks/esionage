@@ -183,6 +183,20 @@
       "when": 1790555406459,
       "tag": "0025_scim_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790556977052,
+      "tag": "0026_semantic_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790556978052,
+      "tag": "0027_ai_chat",
+      "breakpoints": true
     }
   ]
 }

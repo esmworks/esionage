@@ -15,7 +15,7 @@
 import { Type, type Api, type AssistantMessage, type Context, type Message, type Model, type Tool } from "@earendil-works/pi-ai";
 import { sharedLimiter, takeAll, type SlidingWindowLimiter } from "@/lib/rate-limit";
 import { createBackend, type AiBackend } from "./backend";
-import { describeAiConfig, readAiConfig, type AiConfig } from "./config";
+import { DEFAULT_MIN_SIMILARITY, describeAiConfig, readAiConfig, type AiConfig } from "./config";
 import { fetchEmbeddings } from "./embeddings";
 import { AiError } from "./errors";
 
@@ -120,6 +120,21 @@ export function embeddingsEnabled(): boolean {
   const override = runtime.override;
   if (override) return Boolean(override.backend?.embed) || override.config.embeddings !== null;
   return aiConfig().embeddings !== null;
+}
+
+/**
+ * The embeddings model's name, stored with each vector so vectors of another model are never
+ * compared; null without embeddings. Tests that embed in-process use "test".
+ */
+export function embeddingModel(): string | null {
+  const config = aiConfig();
+  if (config.embeddings) return config.embeddings.model;
+  return runtime.override?.backend?.embed ? "test" : null;
+}
+
+/** How similar a passage must be to a query to count as a semantic match (see config.ts). */
+export function minSimilarity(): number {
+  return aiConfig().embeddings?.minSimilarity ?? DEFAULT_MIN_SIMILARITY;
 }
 
 /** Provider and model names for settings pages and logs; null while AI is off. */

@@ -28,7 +28,7 @@ import { WorkspaceExport } from "@/components/settings/workspace-export";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isStrongSession } from "@/lib/auth-security";
 import { AccessError, isGuest } from "@/server/access";
-import { aiInfo } from "@/server/ai";
+import { aiInfo, embeddingModel } from "@/server/ai";
 import { listWorkspaceFormPublications } from "@/server/forms";
 import { groupsByMember, listGroups } from "@/server/groups";
 import { listWorkspacePublications } from "@/server/publication";
@@ -169,7 +169,7 @@ async function AiGroup({ workspaceId, userId, isOwner }: { workspaceId: string; 
   const [settings, t] = await Promise.all([getWorkspaceSettings(userId, workspaceId), getTranslations("ai.settings")]);
   return (
     <SettingsGroup title={t("heading")} description={t("description")} className="mt-10">
-      <AiSettings workspaceId={workspaceId} enabled={settings.ai !== false} canEdit={isOwner} provider={aiInfo()} />
+      <AiSettings workspaceId={workspaceId} enabled={settings.ai !== false} canEdit={isOwner} provider={aiInfo()} embeddings={embeddingModel()} />
     </SettingsGroup>
   );
 }

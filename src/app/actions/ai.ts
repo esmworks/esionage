@@ -5,6 +5,7 @@ import type { AiAutofillConfig } from "@/lib/ai";
 import { isDatabaseErrorCode, PropertyValueError } from "@/lib/properties";
 import { AccessError } from "@/server/access";
 import { isAiError } from "@/server/ai";
+import { deleteConversations, getConversation, listConversations } from "@/server/ai-chat";
 import { AutofillError, requestAutofill, setAutofill } from "@/server/ai-properties";
 import { snapshotBeforeAiEdit } from "@/server/ai-writing";
 import * as databases from "@/server/databases";
@@ -65,4 +66,19 @@ export async function addAutofillPropertyAction(databaseId: string, name: string
 /** Works the AI values of these rows out again (a row's refresh, or "Update all rows" of a view). */
 export async function refreshAutofillAction(propertyId: string, rowIds: string[]) {
   return run((userId) => requestAutofill(userId, propertyId, Array.isArray(rowIds) ? rowIds.map(String) : []));
+}
+
+/** The person's AI chat conversations in a workspace, newest first. */
+export async function listConversationsAction(workspaceId: string) {
+  return run((userId) => listConversations(userId, String(workspaceId)));
+}
+
+/** One of the person's conversations, its sources as they may see them now. */
+export async function getConversationAction(workspaceId: string, conversationId: string) {
+  return run((userId) => getConversation(userId, String(workspaceId), String(conversationId)));
+}
+
+/** Deletes one of the person's conversations, or all of them in the workspace. */
+export async function deleteConversationAction(workspaceId: string, conversationId: string | "all") {
+  return run((userId) => deleteConversations(userId, String(workspaceId), conversationId === "all" ? "all" : [String(conversationId)]));
 }

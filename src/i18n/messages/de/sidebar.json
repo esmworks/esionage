@@ -42,7 +42,9 @@
   "search": {
     "placeholder": "Seiten und Inhalte durchsuchen…",
     "label": "Suchen",
-    "noResults": "Keine Ergebnisse"
+    "noResults": "Keine Ergebnisse",
+    "semantic": "Ähnliche Bedeutung",
+    "semanticHint": "Nach Bedeutung gefunden: Die Wörter unterscheiden sich von deiner Suche."
   },
   "trash": {
     "title": "Papierkorb",

@@ -41,7 +41,7 @@ describe("AI settings", () => {
 
   it("reuses the chat key for embeddings only on the same endpoint", () => {
     const same = readAiConfig({ AI_PROVIDER: "openai", AI_MODEL: "gpt-4.1-mini", AI_API_KEY: "k", AI_EMBEDDINGS_MODEL: "text-embedding-3-small" });
-    expect(same.embeddings).toEqual({ model: "text-embedding-3-small", baseUrl: "https://api.openai.com/v1", apiKey: "k", dimensions: null });
+    expect(same.embeddings).toEqual({ model: "text-embedding-3-small", baseUrl: "https://api.openai.com/v1", apiKey: "k", dimensions: null, minSimilarity: 0.3 });
     const elsewhere = readAiConfig({
       AI_PROVIDER: "openai",
       AI_MODEL: "gpt-4.1-mini",

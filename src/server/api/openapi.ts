@@ -163,6 +163,7 @@ const SCHEMAS: Record<string, JsonSchema> = {
           teamspace_id: teamspaceId,
           parent_id: { type: ["string", "null"] },
           snippet: { type: "string" },
+          match: { type: "string", enum: ["text", "semantic"], description: "semantic: found by meaning only (needs an embeddings model on the server)." },
           updated_at: { type: "string", format: "date-time" },
           url,
         }),

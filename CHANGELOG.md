@@ -4,6 +4,33 @@
 
 ### Added
 
+- **Semantic search** (#43; optional, on with `AI_EMBEDDINGS_MODEL`): search also finds pages by
+  meaning, merged with full-text results by reciprocal rank fusion, in the search dialog (marked
+  *Similar meaning*), MCP `search` and REST `GET /search` (each result has `match: "text"` or
+  `"semantic"`). Pages are cut into chunks (title, a row's values, the body's blocks) whose
+  embeddings are stored in `page_chunk` as `real[]` with their model, dimensions and a content hash
+  (only changed chunks are embedded again), ranked by cosine similarity in SQL (`embedding_cosine`,
+  no extension needed; the README describes moving to pgvector for large workspaces). Indexing runs
+  in the background a few seconds after pages are edited, created, renamed or restored or a row's
+  values change, within `AI_CONCURRENCY` and `AI_WORKSPACE_RATE_LIMIT`; a workspace's first search
+  sweeps up pages the index missed, and `pnpm search:index` backfills everything. Access is
+  checked when the query runs, before ranking, never stored in the index. Trashed pages drop out
+  at once; turning AI off for a workspace deletes its index. New setting
+  `AI_EMBEDDINGS_MIN_SIMILARITY` (default 0.3). Without an embeddings model search is exactly the
+  full-text search it was. Migration `0026_semantic_search`. New checks:
+  `scripts/semantic-search-e2e.ts` (64, against a stand-in OpenAI-compatible server),
+  `src/server/semantic-text.test.ts`.
+- **AI chat** (#41): *Ask AI* in the sidebar opens a panel that answers questions from the pages
+  the person can read, citing them as links to the page and block. Each question is searched for
+  (hybrid search) and the model may call `search_pages` and `read_page` (up to five turns), which
+  run through `operations.ts` as the person with their access checked on every call; answers
+  stream (`POST /api/ai/chat`, NDJSON) and can be stopped. Questions can be kept to the current
+  page and its subpages. Conversations are private, kept per person and workspace
+  (`ai_conversation`, migration `0027_ai_chat`; 50 per workspace, 40 questions each, 4000
+  characters a question), listed and deletable in the panel, and deleted when the person leaves
+  the workspace or deletes their account; cited pages they can no longer open lose their title.
+  Off while offline and when AI is off, with the reason shown. Links to `#block-<id>` scroll to
+  and highlight the block. New checks: `scripts/ai-chat-e2e.ts` (62), `src/server/ai/chat.test.ts`.
 - **Single sign-on and SCIM** (#38), with Better Auth's SSO plugin (`@better-auth/sso` 1.7.6):
   an instance-wide OpenID Connect provider from `OIDC_ISSUER`, `OIDC_CLIENT_ID`,
   `OIDC_CLIENT_SECRET` (`OIDC_NAME`, `OIDC_DOMAINS`), and one OpenID Connect or SAML 2.0
