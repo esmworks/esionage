@@ -24,9 +24,9 @@ describe("instanceOidcFrom", () => {
     expect(instanceOidcFrom({ ...base, OIDC_ISSUER: "ftp://id.example.com" })).toBeNull();
   });
 
-  it("trims the issuer, names the button and reads the domains", () => {
+  it("keeps the issuer as given (ID tokens name it exactly), names the button and reads the domains", () => {
     expect(instanceOidcFrom({ ...base, OIDC_DOMAINS: "Example.com, @example.org" })).toEqual({
-      issuer: "https://id.example.com/realms/acme",
+      issuer: "https://id.example.com/realms/acme/",
       clientId: "app",
       clientSecret: "s3cret",
       name: "SSO",

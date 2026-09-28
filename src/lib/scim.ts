@@ -213,7 +213,6 @@ export function listResponse(resources: unknown[], totalResults: number, startIn
 export function serviceProviderConfig(baseUrl: string) {
   return {
     schemas: ["urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"],
-    documentationUri: `${baseUrl.replace(/\/scim\/v2$/, "")}/docs/api#scim`,
     patch: { supported: true },
     bulk: { supported: false, maxOperations: 0, maxPayloadSize: 0 },
     filter: { supported: true, maxResults: MAX_PAGE_SIZE },

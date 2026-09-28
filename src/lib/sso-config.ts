@@ -34,7 +34,8 @@ export type InstanceOidc = {
  * email domains it vouches for.
  */
 export function instanceOidcFrom(source: Record<string, string | undefined>): InstanceOidc | null {
-  const issuer = source.OIDC_ISSUER?.trim().replace(/\/+$/, "");
+  // Kept as given: ID tokens name it exactly so (Authentik's ends with a slash).
+  const issuer = source.OIDC_ISSUER?.trim();
   const clientId = source.OIDC_CLIENT_ID?.trim();
   const clientSecret = source.OIDC_CLIENT_SECRET?.trim();
   if (!issuer || !clientId || !clientSecret) return null;
@@ -70,6 +71,9 @@ export function ssoTrustedOriginsFrom(source: Record<string, string | undefined>
   }
   return [...origins];
 }
+
+/** Where an issuer's discovery document is (OpenID Connect Discovery 1.0, section 4). */
+export const discoveryUrl = (issuer: string) => `${issuer.replace(/\/+$/, "")}/.well-known/openid-configuration`;
 
 export function isHttpUrl(value: string) {
   try {

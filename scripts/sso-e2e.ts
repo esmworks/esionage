@@ -84,6 +84,8 @@ let nextLogin: Login | null = null;
 const idpRequests: string[] = [];
 
 const b64url = (data: Buffer | string) => Buffer.from(data).toString("base64url");
+/** The workspace tenant names its issuer with a trailing slash, as Authentik does; owners type it without. */
+const issuerOf = (tenant: string) => (tenant === "acme" ? `${IDP}/acme/` : `${IDP}/${tenant}`);
 const subOf = (email: string) => `sub-${createHash("sha256").update(email).digest("hex").slice(0, 16)}`;
 
 function idToken(grant: Grant) {
@@ -91,7 +93,7 @@ function idToken(grant: Grant) {
   const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT", kid: jwk.kid }));
   const payload = b64url(
     JSON.stringify({
-      iss: `${IDP}/${grant.tenant}`,
+      iss: issuerOf(grant.tenant),
       aud: grant.clientId,
       sub: subOf(grant.email),
       email: grant.email,
@@ -124,14 +126,15 @@ const idp = createServer(async (req, res) => {
   const client = TENANTS[tenant];
   idpRequests.push(`${req.method} ${url.pathname}`);
   if (!client) return send(res, 404, { error: "unknown tenant" });
-  const issuer = `${IDP}/${tenant}`;
+  const base = `${IDP}/${tenant}`;
+  const issuer = issuerOf(tenant);
   if (route === ".well-known/openid-configuration") {
     return send(res, 200, {
       issuer,
-      authorization_endpoint: `${issuer}/authorize`,
-      token_endpoint: `${issuer}/token`,
-      jwks_uri: `${issuer}/jwks`,
-      userinfo_endpoint: `${issuer}/userinfo`,
+      authorization_endpoint: `${base}/authorize`,
+      token_endpoint: `${base}/token`,
+      jwks_uri: `${base}/jwks`,
+      userinfo_endpoint: `${base}/userinfo`,
       response_types_supported: ["code"],
       subject_types_supported: ["public"],
       id_token_signing_alg_values_supported: ["RS256"],
@@ -467,6 +470,17 @@ async function main() {
   const links = await db.select({ provider: account.providerId }).from(account).where(eq(account.userId, carol.id));
   check(links.some((l) => l.provider === providerId) && !links.some((l) => l.provider === "credential"), "…and, its address unverified, the earlier password goes", links);
   check((await sessionOf(carol.jar)) === null, "…with the sessions from before");
+
+  // Joining happens on the first sign-in through the connection only: someone an owner removed stays out.
+  const frank = new Jar();
+  await ssoSignIn(frank, { email: `frank@${DOMAIN}` }, { email: `frank@${DOMAIN}`, name: "Frank" });
+  const frankId = (await sessionOf(frank))!.user.id;
+  userIds.push(frankId);
+  check((await roleOf(workspaceId, frankId)) === "member", "another person joins through SSO");
+  const removedFrank = await callAction(owner.jar, settingsPath, "src/app/actions/workspaces.ts", "removeMemberAction", [workspaceId, frankId]);
+  check(removedFrank.status === 200 && (await roleOf(workspaceId, frankId)) === null, "…the owner removes them", removedFrank.status);
+  const frankAgain = await ssoSignIn(new Jar(), { email: `frank@${DOMAIN}` }, { email: `frank@${DOMAIN}`, name: "Frank" });
+  check(frankAgain.status === 302 && (await roleOf(workspaceId, frankId)) === null, "…and signing in again doesn't bring them back", frankAgain);
 
   // ── SSO only ─────────────────────────────────────────────────────────────────────────────
   const PAGES_ACTIONS = "src/app/actions/pages.ts";

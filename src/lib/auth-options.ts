@@ -10,11 +10,11 @@ import {
   socialTwoFactorRedirect,
   twoFactorPlugin,
 } from "@/lib/auth-security";
-import { sso, type SSOOptions } from "@better-auth/sso";
+import { sso } from "@better-auth/sso";
 import { cleanName } from "@/lib/account";
 import { env, mcpResource } from "@/lib/env";
 import type { SocialCredentials, SocialProvider } from "@/lib/social-providers";
-import { INSTANCE_SSO_PROVIDER_ID, SSO_SCOPES, type InstanceOidc } from "@/lib/sso-config";
+import { discoveryUrl, INSTANCE_SSO_PROVIDER_ID, SSO_SCOPES, type InstanceOidc } from "@/lib/sso-config";
 
 export const MCP_SCOPES = ["pages:read", "pages:write", "notifications:read", "files:write"] as const;
 const OAUTH_SCOPES = ["openid", "profile", "email", "offline_access", ...MCP_SCOPES];
@@ -180,8 +180,6 @@ export const SSO_DISABLED_PATHS = [...SSO_DISABLED_ENDPOINTS].filter((path) => !
 export type SsoCallbacks = {
   /** Picks the provider for an email typed on the sign-in page ("Continue with SSO"). */
   resolveProvider?: (email: string) => Promise<string | null>;
-  /** After each SSO sign-in: joins the workspace whose connection it came through. */
-  provisionUser?: SSOOptions["provisionUser"];
 };
 
 /**
@@ -202,7 +200,7 @@ export function ssoPlugin(instance: InstanceOidc | null, callbacks: SsoCallbacks
               clientId: instance.clientId,
               clientSecret: instance.clientSecret,
               pkce: true,
-              discoveryEndpoint: `${instance.issuer}/.well-known/openid-configuration`,
+              discoveryEndpoint: discoveryUrl(instance.issuer),
               scopes: SSO_SCOPES,
             },
           },
@@ -210,8 +208,6 @@ export function ssoPlugin(instance: InstanceOidc | null, callbacks: SsoCallbacks
       : undefined,
     domainVerification: { enabled: true, tokenPrefix: "esionage-sso" },
     providersLimit: 0,
-    provisionUser: callbacks.provisionUser,
-    provisionUserOnEveryLogin: true,
     saml: { requireTimestamps: true },
   });
 }

@@ -25,13 +25,7 @@ export { MCP_SCOPES } from "@/lib/auth-options";
 const base = baseAuthOptions({
   invitationAllowsSignUp,
   instanceOidc: env.instanceOidc,
-  sso: {
-    resolveProvider: resolveSsoProvider,
-    // Every SSO sign-in (the plugin calls it on each one): join the connection's workspace.
-    provisionUser: async ({ user, provider }) => {
-      await joinThroughSso(provider.providerId, user);
-    },
-  },
+  sso: { resolveProvider: resolveSsoProvider },
 });
 
 type HookContext = { path?: string; params?: unknown } | null | undefined;
@@ -102,7 +96,7 @@ export const auth = betterAuth({
       create: {
         before: beforeUserCreate,
         after: async (user, ctx) => {
-          // A workspace connection's sign-in joins that workspace instead (provisionUser above).
+          // A workspace connection's sign-in joins that workspace instead (account.create.after).
           if (workspaceOfProvider(ssoProviderOf(ctx))) return;
           // Signing up from an invitation link joins that workspace instead of creating a
           // personal one; if the invitation was revoked meanwhile, fall back to a personal one.
@@ -132,10 +126,19 @@ export const auth = betterAuth({
     account: {
       // Claiming an account by email also ends what was granted before: app grants and API tokens.
       create: {
-        after: claimOnEmailLink(async (userId) => {
-          await revokeAllConnectedApps(userId);
-          await revokeAllApiTokens(userId);
-        }),
+        after: async (account, ctx) => {
+          await claimOnEmailLink(async (userId) => {
+            await revokeAllConnectedApps(userId);
+            await revokeAllApiTokens(userId);
+          })(account, ctx);
+          // The first sign-in through a workspace's connection (a new account, or an existing one
+          // linked by email) joins that workspace. Only the first: someone an owner removed later
+          // stays out; their identity provider brings them back over SCIM.
+          if (workspaceOfProvider(ssoProviderOf(ctx)) && account.providerId === ssoProviderOf(ctx)) {
+            const owner = await ctx?.context.internalAdapter.findUserById(account.userId);
+            if (owner) await joinThroughSso(account.providerId, owner);
+          }
+        },
       },
     },
     session: {

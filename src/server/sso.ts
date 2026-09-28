@@ -6,6 +6,7 @@ import { scimIdentity, ssoProvider, workspace, workspaceSso } from "@/db/schema"
 import { env } from "@/lib/env";
 import {
   domainRecordName,
+  discoveryUrl,
   domainRecordValue,
   domainsFromColumn,
   emailInDomains,
@@ -93,14 +94,17 @@ export async function ssoSignInAvailable() {
 
 /**
  * Whether a single sign-on may create an account for `email`, and whether the address counts as
- * verified. The instance provider is the operator's: it may (also when sign-up is closed), and
- * vouches for its own domains. A workspace connection only for addresses in its verified domains,
+ * verified. The instance provider is the operator's: it may (also when sign-up is closed), only
+ * within OIDC_DOMAINS when those are set (a provider like Google signs in anyone otherwise), and
+ * vouches for those domains. A workspace connection only for addresses in its verified domains,
  * which it vouches for.
  */
 export async function ssoAccountCreation(providerId: string, email: string) {
   if (providerId === INSTANCE_SSO_PROVIDER_ID) {
     const instance = env.instanceOidc;
-    return { allowed: instance !== null, emailVerified: !!instance && emailInDomains(email, instance.domains) };
+    if (!instance) return { allowed: false, emailVerified: false };
+    const inDomains = emailInDomains(email, instance.domains);
+    return { allowed: instance.domains.length === 0 || inDomains, emailVerified: inDomains };
   }
   if (!workspaceOfProvider(providerId)) return { allowed: false, emailVerified: false };
   const [row] = await db
@@ -113,9 +117,9 @@ export async function ssoAccountCreation(providerId: string, email: string) {
 }
 
 /**
- * After every sign-in through a workspace's connection: someone with an address in its verified
- * domains joins the workspace as a member (automatic account creation, then joining), unless they
- * are in it already or its identity provider has deactivated them over SCIM.
+ * After the first sign-in through a workspace's connection (the account is created or linked to
+ * it, see auth.ts): someone with an address in its verified domains joins the workspace as a
+ * member, unless they are in it already or its identity provider has deactivated them over SCIM.
  */
 export async function joinThroughSso(providerId: string, user: { id: string; email: string }) {
   const workspaceId = workspaceOfProvider(providerId);
@@ -236,6 +240,8 @@ function trustedOrigin(url: string) {
 }
 
 export type OidcDiscovery = {
+  /** The issuer exactly as the provider names it (ID tokens are checked against it). */
+  issuer: string;
   authorizationEndpoint: string;
   tokenEndpoint: string;
   jwksEndpoint: string;
@@ -251,15 +257,16 @@ const MAX_DISCOVERY_BYTES = 256 * 1024;
  * is a trusted origin, so an owner can't point the server at something inside its network.
  */
 export async function discoverOidc(issuer: string, fetchText = fetchDiscovery): Promise<OidcDiscovery> {
-  const url = `${issuer}/.well-known/openid-configuration`;
+  const url = discoveryUrl(issuer);
   let doc: Record<string, unknown>;
   try {
     doc = JSON.parse(await fetchText(url)) as Record<string, unknown>;
   } catch (error) {
     throw new SsoError("discoveryFailed", `Could not read ${url}: ${error instanceof Error ? error.message : error}`, url);
   }
-  const named = typeof doc.issuer === "string" ? doc.issuer.replace(/\/+$/, "") : "";
-  if (named !== issuer) throw new SsoError("discoveryFailed", `The discovery document names issuer ${named || "(none)"}`, named);
+  const exact = typeof doc.issuer === "string" ? doc.issuer : "";
+  const named = exact.replace(/\/+$/, "");
+  if (!named || named !== issuer.replace(/\/+$/, "")) throw new SsoError("discoveryFailed", `The discovery document names issuer ${named || "(none)"}`, named);
   const endpoint = (key: string, required: boolean) => {
     const value = doc[key];
     if (value === undefined && !required) return undefined;
@@ -270,6 +277,7 @@ export async function discoverOidc(issuer: string, fetchText = fetchDiscovery): 
   };
   const methods = Array.isArray(doc.token_endpoint_auth_methods_supported) ? doc.token_endpoint_auth_methods_supported : null;
   return {
+    issuer: exact,
     authorizationEndpoint: endpoint("authorization_endpoint", true)!,
     tokenEndpoint: endpoint("token_endpoint", true)!,
     jwksEndpoint: endpoint("jwks_uri", true)!,
@@ -395,7 +403,7 @@ export async function saveSsoConnection(
   let oidcConfig: string | null = null;
   let samlConfig: string | null = null;
   if (input.protocol === "oidc") {
-    issuer = input.issuer.trim().replace(/\/+$/, "");
+    issuer = input.issuer.trim();
     if (!isHttpUrl(issuer) || (!issuer.startsWith("https:") && !trustedOrigin(issuer))) {
       throw new SsoError("invalidIssuer", "The issuer must be an https URL", issuer);
     }
@@ -405,13 +413,16 @@ export async function saveSsoConnection(
     const clientSecret = input.clientSecret?.trim() || previous?.clientSecret;
     if (!clientSecret) throw new SsoError("secretRequired", "Enter the client secret");
     const discovery = await (deps.discover ?? ((i: string) => discoverOidc(i)))(issuer);
+    // Stored as the provider names it: "https://idp/x" and "https://idp/x/" are different issuers
+    // to the ID token check.
+    issuer = discovery.issuer;
     oidcConfig = JSON.stringify({
-      issuer,
       pkce: true,
       clientId,
       clientSecret,
-      discoveryEndpoint: `${issuer}/.well-known/openid-configuration`,
+      discoveryEndpoint: discoveryUrl(issuer),
       ...discovery,
+      issuer,
       scopes: SSO_SCOPES,
     });
   } else {

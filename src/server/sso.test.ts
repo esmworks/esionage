@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // The database isn't touched by the functions tested here.
 vi.mock("@/db", () => ({ db: {} }));
 
-const { discoverOidc, keepSamlInput, normalizeCertificate, samlConfigFor, SsoError } = await import("./sso");
+const { discoverOidc, keepSamlInput, normalizeCertificate, samlConfigFor, ssoAccountCreation, SsoError } = await import("./sso");
 
 const ISSUER = "https://id.example.com/realms/acme";
 const discovery = (overrides: Record<string, unknown> = {}) =>
@@ -42,6 +42,7 @@ describe("discoverOidc", () => {
     });
     expect(urls).toEqual([`${ISSUER}/.well-known/openid-configuration`]);
     expect(result).toEqual({
+      issuer: ISSUER,
       authorizationEndpoint: `${ISSUER}/auth`,
       tokenEndpoint: `${ISSUER}/token`,
       jwksEndpoint: `${ISSUER}/certs`,
@@ -68,6 +69,16 @@ describe("discoverOidc", () => {
     expect(await codeOf(discoverOidc(ISSUER, async () => plain))).toBe("discoveryFailed");
     process.env.SSO_TRUSTED_ORIGINS = "http://10.0.0.5";
     expect((await discoverOidc(ISSUER, async () => plain)).tokenEndpoint).toBe("http://10.0.0.5/token");
+  });
+
+  it("keeps the issuer exactly as the provider names it", async () => {
+    const withSlash = await discoverOidc(`${ISSUER}/`, async (url) => {
+      expect(url).toBe(`${ISSUER}/.well-known/openid-configuration`);
+      return discovery({ issuer: `${ISSUER}/` });
+    });
+    expect(withSlash.issuer).toBe(`${ISSUER}/`);
+    expect((await discoverOidc(ISSUER, async () => discovery({ issuer: `${ISSUER}/` }))).issuer).toBe(`${ISSUER}/`);
+    expect(await codeOf(discoverOidc(ISSUER, async () => discovery({ issuer: 42 })))).toBe("discoveryFailed");
   });
 
   it("needs the required endpoints", async () => {
@@ -128,5 +139,25 @@ describe("SAML settings", () => {
     );
     expect(keepSamlInput({ protocol: "saml", metadataXml: "<new/>", domains: "a.com" }, stored).metadataXml).toBe("<new/>");
     expect(keepSamlInput({ protocol: "saml", domains: "a.com" }, null).metadataXml).toBeUndefined();
+  });
+});
+
+describe("accounts from the instance provider", () => {
+  const instance = { OIDC_ISSUER: "https://id.example.com", OIDC_CLIENT_ID: "c", OIDC_CLIENT_SECRET: "s" };
+
+  it("creates them for anyone its operator's provider vouches for, without OIDC_DOMAINS", async () => {
+    Object.assign(process.env, instance);
+    expect(await ssoAccountCreation("oidc", "ada@anywhere.com")).toEqual({ allowed: true, emailVerified: false });
+  });
+
+  it("only within OIDC_DOMAINS when they are set, and vouches for those", async () => {
+    Object.assign(process.env, instance, { OIDC_DOMAINS: "example.com" });
+    expect(await ssoAccountCreation("oidc", "ada@eu.example.com")).toEqual({ allowed: true, emailVerified: true });
+    expect(await ssoAccountCreation("oidc", "ada@gmail.com")).toEqual({ allowed: false, emailVerified: false });
+  });
+
+  it("creates none without the instance provider, or for unknown providers", async () => {
+    expect(await ssoAccountCreation("oidc", "ada@example.com")).toEqual({ allowed: false, emailVerified: false });
+    expect(await ssoAccountCreation("github", "ada@example.com")).toEqual({ allowed: false, emailVerified: false });
   });
 });
