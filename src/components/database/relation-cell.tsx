@@ -9,6 +9,7 @@ import { Button, cn, Input, PageIcon } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
 import { linkedRows, useRelations } from "./relation-context";
 import type { Property, RelationInput, RelationTargetRow } from "./types";
+import { searchFold } from "@/lib/search-fold";
 
 /** Read-only list of linked rows (table cells, cards, panels). */
 export function RelationChips({ prop, value, wrap }: { prop: Property; value: unknown; wrap?: boolean }) {
@@ -46,7 +47,6 @@ export function RelationPicker({
 }) {
   const t = useTranslations("database.relation");
   const tc = useTranslations("common");
-  const locale = useLocale();
   const ctx = useRelations();
   const target = ctx?.targets[prop.id];
   const [query, setQuery] = useState("");
@@ -59,7 +59,8 @@ export function RelationPicker({
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
 
-  const lower = (s: string) => s.toLocaleLowerCase(locale);
+  // Case-insensitive, with the dotted and dotless i alike (see searchFold).
+  const lower = searchFold;
   const q = lower(query.trim());
   const rows = target?.rows ?? [];
   const filtered = q ? rows.filter((r) => lower(r.title).includes(q)) : rows;

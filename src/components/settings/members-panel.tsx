@@ -21,6 +21,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import type { WorkspaceRole } from "@/db/schema/app";
 import { MAX_BULK_EMAILS, parseEmailList } from "@/lib/emails";
 import type { BulkAddResult } from "@/server/workspaces";
+import { searchFold } from "@/lib/search-fold";
 
 export type Member = {
   userId: string;
@@ -39,8 +40,8 @@ type SortKey = "name" | "role" | "joined" | "edited";
 type Sort = { key: SortKey; dir: "asc" | "desc" };
 
 function matches(query: string, ...values: string[]) {
-  const q = query.trim().toLocaleLowerCase();
-  return !q || values.some((v) => v.toLocaleLowerCase().includes(q));
+  const q = searchFold(query.trim());
+  return !q || values.some((v) => searchFold(v).includes(q));
 }
 
 const ROLE_ORDER: Record<WorkspaceRole, number> = { owner: 0, member: 1, guest: 2 };

@@ -489,8 +489,10 @@
 
 ### Fixed
 
-- Search in the share panel and the groups pickers no longer misses names with "I" in a
-  Turkish-locale browser (typed "I" could fold to "ı" while the names folded to "i").
+- Searching in the share panel, the groups, members and teamspace lists, the @-mention menu, the
+  person, relation and select pickers and the move and link-to-page dialogs no longer misses
+  names with "I" in a Turkish-locale browser (typed "I" could fold to "ı" while the names folded
+  to "i").
 - Empty lines on published pages no longer show as a box.
 - Typing right after pressing New in a database keeps the first letters, including accented
   letters, other keyboards and pasted text, and Enter no longer adds a second empty row.
