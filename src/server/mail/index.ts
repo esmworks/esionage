@@ -15,6 +15,7 @@ export {
   invitationEmail,
   PASSWORD_RESET_MINUTES,
   passwordResetEmail,
+  passwordResetRequiredEmail,
   renderEmail,
   shareEmail,
   testEmail,

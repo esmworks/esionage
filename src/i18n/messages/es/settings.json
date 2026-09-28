@@ -323,7 +323,8 @@
     "transferToSelf": "Elige a otra persona para hacerla propietaria.",
     "transferToGuest": "Hazla miembro antes de hacerla propietaria.",
     "twoFactorFirst": "Primero activa la verificación en dos pasos en tu propia cuenta o inicia sesión con una llave de acceso.",
-    "ssoFirst": "Primero configura el inicio de sesión único y verifica sus dominios."
+    "ssoFirst": "Primero configura el inicio de sesión único y verifica sus dominios.",
+    "creationRestricted": "Solo los administradores del servidor pueden crear espacios de trabajo."
   },
   "security": {
     "description": "Decide cómo inician sesión las personas, quién puede traer personas a este espacio de trabajo, qué pueden hacer los invitados y quién puede publicar páginas en la web. Solo los propietarios pueden cambiar estos ajustes.",

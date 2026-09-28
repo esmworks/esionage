@@ -7,7 +7,8 @@
     "profile": "Profil",
     "security": "Sécurité",
     "preferences": "Préférences",
-    "apps": "Applications connectées"
+    "apps": "Applications connectées",
+    "admin": "Administration du serveur"
   },
   "apps": {
     "description": "Les applications que vous avez autorisées à utiliser Esionage en votre nom, par exemple des assistants IA connectés via MCP. Elles ont accès à tous vos espaces de travail."
@@ -132,6 +133,8 @@
     "currentSession": "Utilisez Se déconnecter dans le menu pour mettre fin à cette session.",
     "sessionNotFound": "Cette session a déjà pris fin.",
     "avatarType": "Utilisez une image PNG, JPEG, WebP ou GIF.",
-    "avatarTooLarge": "La photo est trop volumineuse (2 Mo maximum)."
+    "avatarTooLarge": "La photo est trop volumineuse (2 Mo maximum).",
+    "samePassword": "Choisissez un mot de passe différent de l'ancien.",
+    "resetStepExpired": "Cette étape a expiré. Reconnectez-vous avec votre ancien mot de passe."
   }
 }

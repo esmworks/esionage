@@ -7,7 +7,8 @@
     "profile": "Perfil",
     "security": "Seguridad",
     "preferences": "Preferencias",
-    "apps": "Apps conectadas"
+    "apps": "Apps conectadas",
+    "admin": "Administración del servidor"
   },
   "apps": {
     "description": "Apps a las que has permitido usar Esionage en tu nombre, por ejemplo asistentes de IA conectados por MCP. Tienen acceso a todos los espacios de trabajo de los que formas parte."
@@ -132,6 +133,8 @@
     "currentSession": "Usa Cerrar sesión en el menú para terminar esta sesión.",
     "sessionNotFound": "Esa sesión ya ha terminado.",
     "avatarType": "Usa una imagen PNG, JPEG, WebP o GIF.",
-    "avatarTooLarge": "La foto es demasiado grande (2 MB como máximo)."
+    "avatarTooLarge": "La foto es demasiado grande (2 MB como máximo).",
+    "samePassword": "Elige una contraseña distinta de la anterior.",
+    "resetStepExpired": "Este paso ha caducado. Vuelve a iniciar sesión con tu contraseña anterior."
   }
 }

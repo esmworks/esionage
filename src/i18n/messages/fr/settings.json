@@ -323,7 +323,8 @@
     "transferToSelf": "Choisissez une autre personne à nommer propriétaire.",
     "transferToGuest": "Faites-en d’abord un membre avant de le nommer propriétaire.",
     "twoFactorFirst": "Activez d’abord la vérification en deux étapes pour votre propre compte, ou connectez-vous avec une clé d’accès.",
-    "ssoFirst": "Configurez d'abord l'authentification unique et vérifiez ses domaines."
+    "ssoFirst": "Configurez d'abord l'authentification unique et vérifiez ses domaines.",
+    "creationRestricted": "Seuls les administrateurs du serveur peuvent créer des espaces de travail."
   },
   "security": {
     "description": "Choisissez comment les personnes se connectent, qui peut faire entrer des personnes dans cet espace de travail, ce que les invités peuvent faire et qui peut publier des pages sur le Web. Seuls les propriétaires peuvent modifier ces paramètres.",

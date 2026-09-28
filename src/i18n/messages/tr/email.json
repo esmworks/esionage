@@ -89,5 +89,12 @@
     "heading": "Şifreniz değişti",
     "body": "Merhaba {name}, Esionage hesabınızın şifresi az önce değiştirildi.",
     "warning": "Bu değişikliği siz yapmadıysanız giriş sayfasından şifrenizi sıfırlayın ve çalışma alanınızın bir sahibine haber verin."
+  },
+  "passwordResetRequired": {
+    "subject": "Yeni bir Leafdesk parolası seçin",
+    "heading": "Yeni bir parola seçin",
+    "body": "Merhaba {name}, bu Leafdesk sunucusunun bir yöneticisi yeni bir parola seçmenizi istedi. Eski parolanızla artık giriş yapamazsınız.",
+    "expires": "Bağlantı {minutes} dakika boyunca ve yalnızca bir kez çalışır. Eski parolanızla yeniden giriş yapmayı denerseniz yeni bir bağlantı gönderilir.",
+    "action": "Yeni bir parola seçin"
   }
 }

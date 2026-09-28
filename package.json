@@ -12,6 +12,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "mail:test": "tsx scripts/send-test-email.ts",
     "auth:reset-2fa": "tsx scripts/reset-two-factor.ts",
+    "auth:verify-email": "tsx scripts/verify-email.ts",
     "search:index": "tsx scripts/semantic-index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",

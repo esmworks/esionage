@@ -7,7 +7,8 @@
     "profile": "Profil",
     "security": "Güvenlik",
     "preferences": "Tercihler",
-    "apps": "Bağlı uygulamalar"
+    "apps": "Bağlı uygulamalar",
+    "admin": "Sunucu yönetimi"
   },
   "apps": {
     "description": "Esionage'ı sizin adınıza kullanmasına izin verdiğiniz uygulamalar, örneğin MCP ile bağlanan yapay zekâ asistanları. Bulunduğunuz tüm çalışma alanlarına erişirler."
@@ -132,6 +133,8 @@
     "currentSession": "Bu oturumu kapatmak için menüdeki Çıkış yap'ı kullanın.",
     "sessionNotFound": "Bu oturum zaten kapanmış.",
     "avatarType": "PNG, JPEG, WebP veya GIF görsel kullanın.",
-    "avatarTooLarge": "Fotoğraf çok büyük (en fazla 2 MB)."
+    "avatarTooLarge": "Fotoğraf çok büyük (en fazla 2 MB).",
+    "samePassword": "Eskisinden farklı bir parola seçin.",
+    "resetStepExpired": "Bu adımın süresi doldu. Eski parolanızla yeniden giriş yapın."
   }
 }

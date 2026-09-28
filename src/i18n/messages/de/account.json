@@ -7,7 +7,8 @@
     "profile": "Profil",
     "security": "Sicherheit",
     "preferences": "Präferenzen",
-    "apps": "Verbundene Apps"
+    "apps": "Verbundene Apps",
+    "admin": "Serververwaltung"
   },
   "apps": {
     "description": "Apps, denen du erlaubt hast, Esionage in deinem Namen zu nutzen, zum Beispiel über MCP verbundene KI-Assistenten. Diese Apps haben Zugriff auf jeden Workspace, in dem du Mitglied bist."
@@ -132,6 +133,8 @@
     "currentSession": "Verwende „Abmelden“ im Menü, um diese Sitzung zu beenden.",
     "sessionNotFound": "Diese Sitzung ist bereits beendet.",
     "avatarType": "Verwende ein PNG-, JPEG-, WebP- oder GIF-Bild.",
-    "avatarTooLarge": "Das Bild ist zu groß (höchstens 2 MB)."
+    "avatarTooLarge": "Das Bild ist zu groß (höchstens 2 MB).",
+    "samePassword": "Wählen Sie ein anderes Passwort als das alte.",
+    "resetStepExpired": "Dieser Schritt ist abgelaufen. Melden Sie sich erneut mit Ihrem alten Passwort an."
   }
 }

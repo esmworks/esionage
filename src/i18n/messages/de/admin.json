@@ -1,0 +1,71 @@
+{
+  "metaTitle": "Serververwaltung",
+  "title": "Serververwaltung",
+  "description": "Die Konten auf diesem Server, ihre Sitzungen und Passwörter. Sie sehen diese Seite, weil Ihre bestätigte E-Mail-Adresse in ADMIN_EMAILS steht.",
+  "back": "Zurück zu {workspace}",
+  "backHome": "Zurück",
+  "workspaces": {
+    "heading": "Workspaces anlegen",
+    "everyone": "Alle können Workspaces anlegen",
+    "admins": "Nur Administratoren können Workspaces anlegen",
+    "description": "Wird auf dem Server mit WORKSPACE_CREATION festgelegt (everyone oder admins). Bei der Registrierung bekommt trotzdem jeder einen persönlichen Workspace."
+  },
+  "sessions": {
+    "heading": "Alle",
+    "description": "{count, plural, one {# angemeldete Sitzung} other {# angemeldete Sitzungen}} auf diesem Server.",
+    "signOutEveryone": "Alle abmelden",
+    "signOutEveryoneDescription": "Beendet jede Sitzung auf jedem Gerät außer Ihrer in diesem Browser; dort geöffnete Seiten synchronisieren nicht mehr. Verbundene Apps und API-Tokens funktionieren weiter.",
+    "signOutEveryoneTitle": "Alle abmelden?",
+    "signOutEveryoneBody": "Alle auf diesem Server müssen sich neu anmelden, auch Sie auf Ihren anderen Geräten.",
+    "signOutEveryoneConfirm": "Alle abmelden",
+    "resetEveryone": "Neue Passwörter verlangen",
+    "resetEveryoneDescription": "Alle, die sich mit einem Passwort anmelden, außer Ihnen, werden abgemeldet und müssen bei der nächsten Anmeldung ein neues Passwort wählen. Konten, die sich nur per Single Sign-on, GitHub oder Google anmelden, sind nicht betroffen.",
+    "resetByEmail": "Bei der Anmeldung bekommen sie dafür einen Link per E-Mail.",
+    "resetInApp": "Auf diesem Server ist keine E-Mail eingerichtet, daher wählen sie es direkt nach der Anmeldung mit dem alten Passwort (und einem Bestätigungscode, falls sie einen nutzen).",
+    "resetEveryoneTitle": "Von allen neue Passwörter verlangen?",
+    "resetEveryoneBody": "Alle mit einem Passwort, außer Ihnen, werden jetzt abgemeldet und können sich mit ihrem aktuellen Passwort nicht mehr anmelden.",
+    "resetEveryoneConfirm": "Neue Passwörter verlangen"
+  },
+  "users": {
+    "heading": "Konten",
+    "count": "{count, plural, one {# Konto} other {# Konten}}",
+    "countPartial": "{shown} von {total} Konten werden angezeigt. Suchen Sie, um die anderen zu finden.",
+    "search": "Nach Name oder E-Mail suchen",
+    "noMatches": "Kein Konto passt zu dieser Suche.",
+    "none": "Noch keine Konten.",
+    "columns": {
+      "user": "Konto",
+      "workspaces": "Workspaces",
+      "lastActive": "Zuletzt aktiv",
+      "twoFactor": "Zwei-Schritt",
+      "password": "Passwort",
+      "actions": "Aktionen"
+    },
+    "you": "(Sie)",
+    "admin": "Admin",
+    "unverified": "Nicht bestätigt",
+    "signedOut": "Nicht angemeldet",
+    "on": "An",
+    "off": "Aus",
+    "hasPassword": "Gesetzt",
+    "noPassword": "Keins",
+    "resetPending": "Neues verlangt",
+    "actionsFor": "Aktionen für {name}",
+    "signOut": "Überall abmelden",
+    "signOutTitle": "{name} überall abmelden?",
+    "signOutBody": "{count, plural, one {Die # Sitzung endet} other {Die # Sitzungen enden}}, und geöffnete Seiten synchronisieren nicht mehr. Verbundene Apps und API-Tokens funktionieren weiter.",
+    "signOutSelfBody": "{count, plural, one {Ihre # Sitzung endet} other {Ihre # Sitzungen enden}}, außer der in diesem Browser.",
+    "signOutConfirm": "Abmelden",
+    "requireReset": "Neues Passwort verlangen",
+    "resetTitle": "Von {name} ein neues Passwort verlangen?",
+    "resetBody": "Die Person wird jetzt abgemeldet und muss bei der nächsten Anmeldung mit Passwort ein neues wählen.",
+    "resetByEmail": "Bei der Anmeldung bekommt sie dafür einen Link per E-Mail.",
+    "resetInApp": "Auf diesem Server ist keine E-Mail eingerichtet, daher wählt sie es direkt nach der Anmeldung mit dem alten Passwort (und einem Bestätigungscode, falls sie einen nutzt).",
+    "resetConfirm": "Neues Passwort verlangen"
+  },
+  "errors": {
+    "notFound": "Dieses Konto wurde nicht gefunden.",
+    "noPassword": "Dieses Konto hat kein Passwort; es meldet sich anders an.",
+    "self": "Ändern Sie Ihr eigenes Passwort auf Ihrer Kontoseite."
+  }
+}

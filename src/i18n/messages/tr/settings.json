@@ -323,7 +323,8 @@
     "transferToSelf": "Sahip yapmak için başka birini seçin.",
     "transferToGuest": "Sahip yapmadan önce üye yapın.",
     "twoFactorFirst": "Önce kendi hesabınız için iki adımlı doğrulamayı açın veya passkey ile giriş yapın.",
-    "ssoFirst": "Önce çoklu oturum açmayı kurun ve alan adlarını doğrulayın."
+    "ssoFirst": "Önce çoklu oturum açmayı kurun ve alan adlarını doğrulayın.",
+    "creationRestricted": "Çalışma alanlarını yalnızca sunucunun yöneticileri oluşturabilir."
   },
   "security": {
     "description": "İnsanların nasıl giriş yapacağını, bu çalışma alanına kimlerin kişi getirebileceğini, misafirlerin neler yapabileceğini ve kimlerin sayfaları web'de yayınlayabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",

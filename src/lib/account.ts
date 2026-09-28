@@ -25,7 +25,9 @@ export type AccountErrorCode =
   | "currentSession"
   | "sessionNotFound"
   | "avatarType"
-  | "avatarTooLarge";
+  | "avatarTooLarge"
+  | "samePassword"
+  | "resetStepExpired";
 
 export const MAX_NAME_LENGTH = 80;
 /** Same bounds Better Auth checks on sign-up and password changes. */

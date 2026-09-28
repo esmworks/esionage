@@ -17,7 +17,8 @@ import ai from "./en/ai.json";
 import apiTokens from "./en/apiTokens.json";
 import account from "./en/account.json";
 import offline from "./en/offline.json";
+import admin from "./en/admin.json";
 
-const messages = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish, form, import: imports, security, apiTokens, account, offline, teamspaces, ai };
+const messages = { common, auth, consent, sidebar, page, home, settings, database, invite, join, publish, form, import: imports, security, apiTokens, account, offline, teamspaces, ai, admin };
 
 export default messages;

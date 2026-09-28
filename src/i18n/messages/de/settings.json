@@ -323,7 +323,8 @@
     "transferToSelf": "Wähle eine andere Person, die Inhaber werden soll.",
     "transferToGuest": "Mach die Person zuerst zum Mitglied, bevor du sie zum Inhaber machst.",
     "twoFactorFirst": "Aktiviere zuerst die Bestätigung in zwei Schritten für dein eigenes Konto oder melde dich mit einem Passkey an.",
-    "ssoFirst": "Richte zuerst Single Sign-on ein und bestätige seine Domains."
+    "ssoFirst": "Richte zuerst Single Sign-on ein und bestätige seine Domains.",
+    "creationRestricted": "Nur die Administratoren des Servers können Workspaces anlegen."
   },
   "security": {
     "description": "Lege fest, wie sich Personen anmelden, wer andere in diesen Workspace holen darf, was Gäste tun können und wer Seiten im Web veröffentlichen darf. Nur Inhaber können diese Einstellungen ändern.",

@@ -66,7 +66,17 @@ vi.mock("@/server/teamspaces", () => teamspaces);
 const groups = vi.hoisted(() => ({ listGroups: vi.fn() }));
 vi.mock("@/server/groups", () => groups);
 
-const workspaces = vi.hoisted(() => ({ listMembers: vi.fn() }));
+const workspaces = vi.hoisted(() => {
+  class WorkspaceError extends Error {
+    constructor(
+      readonly code: string,
+      message: string,
+    ) {
+      super(message);
+    }
+  }
+  return { WorkspaceError, listMembers: vi.fn(), addMembers: vi.fn() };
+});
 vi.mock("@/server/workspaces", () => workspaces);
 
 const notifications = vi.hoisted(() => ({ listNotifications: vi.fn() }));
@@ -929,13 +939,72 @@ describe("trash and history", () => {
 });
 
 describe("workspace reads", () => {
-  it("list_users marks the connected user", async () => {
+  it("list_users marks the connected user and says when each joined", async () => {
     workspaces.listMembers.mockResolvedValue([
-      { userId: "user-1", name: "Erhan", email: "e@example.com", role: "owner" },
-      { userId: "user-2", name: "Ada", email: "a@example.com", role: "member" },
+      { userId: "user-1", name: "Erhan", email: "e@example.com", role: "owner", joinedAt: new Date("2026-01-02T03:04:05Z") },
+      { userId: "user-2", name: "Ada", email: "a@example.com", role: "member", joinedAt: new Date("2026-02-03T00:00:00Z") },
     ]);
     const r = await callTool(reader, "list_users", { workspace_id: "ws-1" });
     expect(r.data.users.map((u: { is_you: boolean }) => u.is_you)).toEqual([true, false]);
+    expect(r.data.users.map((u: { joined_at: string }) => u.joined_at)).toEqual(["2026-01-02T03:04:05.000Z", "2026-02-03T00:00:00.000Z"]);
+  });
+});
+
+describe("invite_member", () => {
+  it("invites through the members page's path, as the connected user, member by default", async () => {
+    workspaces.addMembers.mockResolvedValue([
+      { email: "new@example.com", kind: "invited", link: "http://localhost:3000/invite/tok", delivery: "sent" },
+    ]);
+    const r = await callTool(writer, "invite_member", { workspace_id: "ws-1", email: "New@Example.com" });
+    expect(workspaces.addMembers).toHaveBeenCalledWith("user-1", "ws-1", ["New@Example.com"], "member");
+    expect(r.data).toEqual({
+      status: "invited",
+      email: "new@example.com",
+      role: "member",
+      invitation_link: "http://localhost:3000/invite/tok",
+      email_sent: true,
+    });
+  });
+
+  it("adds someone who has an account right away, with the role asked for", async () => {
+    workspaces.addMembers.mockResolvedValue([{ email: "ada@example.com", kind: "added" }]);
+    const r = await callTool(writer, "invite_member", { workspace_id: "ws-1", email: "ada@example.com", role: "guest" });
+    expect(workspaces.addMembers).toHaveBeenCalledWith("user-1", "ws-1", ["ada@example.com"], "guest");
+    expect(r.data).toEqual({ status: "added", email: "ada@example.com", role: "guest" });
+  });
+
+  it("says to share the link when no email went out", async () => {
+    workspaces.addMembers.mockResolvedValue([{ email: "x@example.com", kind: "invited", link: "http://l/invite/t", delivery: "off" }]);
+    const r = await callTool(writer, "invite_member", { workspace_id: "ws-1", email: "x@example.com" });
+    expect(r.data.email_sent).toBe(false);
+    expect(r.data.note).toMatch(/doesn't send email/);
+  });
+
+  it("refuses non-owners with a message the model can act on", async () => {
+    workspaces.addMembers.mockRejectedValue(new AccessError());
+    const r = await callTool(writer, "invite_member", { workspace_id: "ws-1", email: "x@example.com" });
+    expect(r.isError).toBe(true);
+    expect(r.text).toMatch(/Only owners/);
+  });
+
+  it("reports invalid addresses and people already in the workspace", async () => {
+    workspaces.addMembers.mockResolvedValue([{ email: "nope", kind: "error", code: "invalidEmail" }]);
+    const invalid = await callTool(writer, "invite_member", { workspace_id: "ws-1", email: "nope" });
+    expect(invalid.isError).toBe(true);
+    expect(invalid.text).toMatch(/valid email/);
+    workspaces.addMembers.mockResolvedValue([{ email: "a@example.com", kind: "error", code: "alreadyMember" }]);
+    const member = await callTool(writer, "invite_member", { workspace_id: "ws-1", email: "a@example.com" });
+    expect(member.isError).toBe(true);
+    expect(member.text).toMatch(/already in the workspace/);
+  });
+
+  it("needs pages:write and rejects unknown roles", async () => {
+    const readOnly = await callTool(reader, "invite_member", { workspace_id: "ws-1", email: "x@example.com" });
+    expect(readOnly.isError).toBe(true);
+    expect(readOnly.text).toMatch(/read-only/);
+    const badRole = await callTool(writer, "invite_member", { workspace_id: "ws-1", email: "x@example.com", role: "admin" });
+    expect(badRole.isError).toBe(true);
+    expect(workspaces.addMembers).not.toHaveBeenCalled();
   });
 });
 

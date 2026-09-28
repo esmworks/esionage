@@ -280,6 +280,13 @@ export function baseAuthOptions({
       enabled: true,
       minPasswordLength: 8,
     },
+    user: {
+      additionalFields: {
+        // An instance admin asked for a new password: the next password sign-in sets one first
+        // (see server/required-password.ts). Cleared when the password changes.
+        passwordResetRequired: { type: "boolean", required: false, input: false, defaultValue: false },
+      },
+    },
     session: {
       additionalFields: {
         // How the session was signed in (see authMethodOf); a passkey session counts as two-step.

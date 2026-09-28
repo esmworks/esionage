@@ -1,0 +1,71 @@
+{
+  "metaTitle": "Sunucu yönetimi",
+  "title": "Sunucu yönetimi",
+  "description": "Bu sunucudaki hesaplar, oturumları ve parolaları. Bu sayfayı doğrulanmış e-posta adresiniz ADMIN_EMAILS listesinde olduğu için görüyorsunuz.",
+  "back": "{workspace} alanına dön",
+  "backHome": "Geri",
+  "workspaces": {
+    "heading": "Çalışma alanı oluşturma",
+    "everyone": "Herkes çalışma alanı oluşturabilir",
+    "admins": "Yalnızca yöneticiler çalışma alanı oluşturabilir",
+    "description": "Sunucuda WORKSPACE_CREATION ile ayarlanır (everyone veya admins). Kaydolan herkes yine de kişisel bir çalışma alanı alır."
+  },
+  "sessions": {
+    "heading": "Herkes",
+    "description": "Bu sunucuda {count, plural, one {# açık oturum} other {# açık oturum}} var.",
+    "signOutEveryone": "Herkesin oturumunu kapat",
+    "signOutEveryoneDescription": "Bu tarayıcıdaki sizinki dışında her cihazdaki her oturumu kapatır; oralarda açık sayfaların eşitlenmesi durur. Bağlı uygulamalar ve API anahtarları çalışmaya devam eder.",
+    "signOutEveryoneTitle": "Herkesin oturumu kapatılsın mı?",
+    "signOutEveryoneBody": "Bu sunucudaki herkes yeniden giriş yapmak zorunda kalır, diğer cihazlarınızda siz de.",
+    "signOutEveryoneConfirm": "Herkesin oturumunu kapat",
+    "resetEveryone": "Yeni parola iste",
+    "resetEveryoneDescription": "Parolayla giriş yapan herkesin (siz hariç) oturumu kapatılır ve bir sonraki girişte yeni bir parola seçmesi gerekir. Yalnızca çoklu oturum açma (SSO), GitHub veya Google ile giriş yapan hesaplar etkilenmez.",
+    "resetByEmail": "Giriş yaptıklarında, parolayı seçmeleri için e-postayla bir bağlantı alırlar.",
+    "resetInApp": "Bu sunucuda e-posta ayarlı değil; bu yüzden eski parolalarıyla (ve kullanıyorlarsa iki adımlı doğrulama koduyla) giriş yaptıktan hemen sonra yeni parolayı seçerler.",
+    "resetEveryoneTitle": "Herkesten yeni parola istensin mi?",
+    "resetEveryoneBody": "Parolası olan herkesin (siz hariç) oturumu şimdi kapatılır ve mevcut parolasıyla bir daha giriş yapamaz.",
+    "resetEveryoneConfirm": "Yeni parola iste"
+  },
+  "users": {
+    "heading": "Hesaplar",
+    "count": "{count, plural, one {# hesap} other {# hesap}}",
+    "countPartial": "{total} hesaptan {shown} tanesi gösteriliyor. Diğerlerini bulmak için arayın.",
+    "search": "Ad veya e-postaya göre ara",
+    "noMatches": "Bu aramayla eşleşen hesap yok.",
+    "none": "Henüz hesap yok.",
+    "columns": {
+      "user": "Hesap",
+      "workspaces": "Çalışma alanları",
+      "lastActive": "Son etkinlik",
+      "twoFactor": "İki adımlı",
+      "password": "Parola",
+      "actions": "İşlemler"
+    },
+    "you": "(siz)",
+    "admin": "Yönetici",
+    "unverified": "Doğrulanmamış",
+    "signedOut": "Oturum açık değil",
+    "on": "Açık",
+    "off": "Kapalı",
+    "hasPassword": "Var",
+    "noPassword": "Yok",
+    "resetPending": "Yenisi gerekiyor",
+    "actionsFor": "{name} için işlemler",
+    "signOut": "Her yerde oturumu kapat",
+    "signOutTitle": "{name} her yerde oturumdan çıkarılsın mı?",
+    "signOutBody": "{count, plural, one {# oturumu kapanır} other {# oturumu kapanır}} ve açık sayfalarının eşitlenmesi durur. Bağlı uygulamalar ve API anahtarları çalışmaya devam eder.",
+    "signOutSelfBody": "Bu tarayıcıdaki dışında {count, plural, one {# oturumunuz kapanır} other {# oturumunuz kapanır}}.",
+    "signOutConfirm": "Oturumu kapat",
+    "requireReset": "Yeni parola iste",
+    "resetTitle": "{name} kişisinden yeni parola istensin mi?",
+    "resetBody": "Oturumu şimdi kapatılır ve bir dahaki parolayla girişinde yeni bir parola seçmesi gerekir.",
+    "resetByEmail": "Giriş yaptığında, parolayı seçmesi için e-postayla bir bağlantı alır.",
+    "resetInApp": "Bu sunucuda e-posta ayarlı değil; bu yüzden eski parolasıyla (ve kullanıyorsa iki adımlı doğrulama koduyla) giriş yaptıktan hemen sonra yeni parolayı seçer.",
+    "resetConfirm": "Yeni parola iste"
+  },
+  "errors": {
+    "notFound": "Bu hesap bulunamadı.",
+    "noPassword": "Bu hesabın parolası yok; başka bir yolla giriş yapıyor.",
+    "self": "Kendi parolanızı hesap sayfanızdan değiştirin."
+  }
+}

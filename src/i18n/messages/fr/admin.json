@@ -1,0 +1,71 @@
+{
+  "metaTitle": "Administration du serveur",
+  "title": "Administration du serveur",
+  "description": "Les comptes de ce serveur, leurs sessions et leurs mots de passe. Vous voyez cette page parce que votre adresse e-mail vérifiée figure dans ADMIN_EMAILS.",
+  "back": "Retour à {workspace}",
+  "backHome": "Retour",
+  "workspaces": {
+    "heading": "Création d'espaces de travail",
+    "everyone": "Tout le monde peut créer des espaces de travail",
+    "admins": "Seuls les administrateurs peuvent créer des espaces de travail",
+    "description": "Réglé avec WORKSPACE_CREATION sur le serveur (everyone ou admins). À l'inscription, chacun reçoit quand même un espace de travail personnel."
+  },
+  "sessions": {
+    "heading": "Tout le monde",
+    "description": "{count, plural, one {# session ouverte} other {# sessions ouvertes}} sur ce serveur.",
+    "signOutEveryone": "Déconnecter tout le monde",
+    "signOutEveryoneDescription": "Ferme toutes les sessions sur tous les appareils sauf la vôtre dans ce navigateur, et les pages ouvertes ailleurs cessent de se synchroniser. Les applications connectées et les jetons d'API continuent de fonctionner.",
+    "signOutEveryoneTitle": "Déconnecter tout le monde ?",
+    "signOutEveryoneBody": "Tout le monde sur ce serveur devra se reconnecter, vous aussi sur vos autres appareils.",
+    "signOutEveryoneConfirm": "Déconnecter tout le monde",
+    "resetEveryone": "Exiger de nouveaux mots de passe",
+    "resetEveryoneDescription": "Toutes les personnes qui se connectent avec un mot de passe, sauf vous, sont déconnectées et doivent choisir un nouveau mot de passe à leur prochaine connexion. Les comptes qui se connectent uniquement par authentification unique, GitHub ou Google ne sont pas concernés.",
+    "resetByEmail": "À la connexion, elles reçoivent un lien par e-mail pour le choisir.",
+    "resetInApp": "L'e-mail n'est pas configuré sur ce serveur : elles le choisissent juste après s'être connectées avec leur ancien mot de passe (et un code de validation en deux étapes, si elles en utilisent un).",
+    "resetEveryoneTitle": "Exiger de nouveaux mots de passe de tout le monde ?",
+    "resetEveryoneBody": "Toutes les personnes ayant un mot de passe, sauf vous, sont déconnectées maintenant et ne peuvent plus se connecter avec leur mot de passe actuel.",
+    "resetEveryoneConfirm": "Exiger de nouveaux mots de passe"
+  },
+  "users": {
+    "heading": "Comptes",
+    "count": "{count, plural, one {# compte} other {# comptes}}",
+    "countPartial": "{shown} comptes affichés sur {total}. Faites une recherche pour trouver les autres.",
+    "search": "Rechercher par nom ou e-mail",
+    "noMatches": "Aucun compte ne correspond à cette recherche.",
+    "none": "Aucun compte pour l'instant.",
+    "columns": {
+      "user": "Compte",
+      "workspaces": "Espaces",
+      "lastActive": "Dernière activité",
+      "twoFactor": "Deux étapes",
+      "password": "Mot de passe",
+      "actions": "Actions"
+    },
+    "you": "(vous)",
+    "admin": "Admin",
+    "unverified": "Non vérifiée",
+    "signedOut": "Non connecté",
+    "on": "Activée",
+    "off": "Désactivée",
+    "hasPassword": "Défini",
+    "noPassword": "Aucun",
+    "resetPending": "Nouveau exigé",
+    "actionsFor": "Actions pour {name}",
+    "signOut": "Déconnecter partout",
+    "signOutTitle": "Déconnecter {name} partout ?",
+    "signOutBody": "{count, plural, one {Sa # session se ferme} other {Ses # sessions se ferment}}, et les pages ouvertes cessent de se synchroniser. Les applications connectées et les jetons d'API continuent de fonctionner.",
+    "signOutSelfBody": "{count, plural, one {Votre # session se ferme} other {Vos # sessions se ferment}}, sauf celle de ce navigateur.",
+    "signOutConfirm": "Déconnecter",
+    "requireReset": "Exiger un nouveau mot de passe",
+    "resetTitle": "Exiger un nouveau mot de passe de {name} ?",
+    "resetBody": "La personne est déconnectée maintenant et doit choisir un nouveau mot de passe la prochaine fois qu'elle se connecte avec un mot de passe.",
+    "resetByEmail": "À la connexion, elle reçoit un lien par e-mail pour le choisir.",
+    "resetInApp": "L'e-mail n'est pas configuré sur ce serveur : elle le choisit juste après s'être connectée avec son ancien mot de passe (et un code de validation en deux étapes, si elle en utilise un).",
+    "resetConfirm": "Exiger un nouveau mot de passe"
+  },
+  "errors": {
+    "notFound": "Ce compte est introuvable.",
+    "noPassword": "Ce compte n'a pas de mot de passe ; il se connecte autrement.",
+    "self": "Changez votre propre mot de passe sur la page de votre compte."
+  }
+}
