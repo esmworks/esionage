@@ -24,6 +24,7 @@ import {
 } from "@/lib/mentions";
 import type { MentionCandidates, PageRef } from "@/server/mentions";
 import type { PageEditor } from "./embed-blocks";
+import { searchFold } from "@/lib/search-fold";
 
 /**
  * The editor's side of mentions and page links (configs shared with the server in lib/mentions):
@@ -421,7 +422,7 @@ export function MentionMenu({ editor, workspaceId, pageId }: { editor: PageEdito
       } catch {
         // Keep the last answer.
       }
-      const q = query.trim().toLocaleLowerCase();
+      const q = searchFold(query.trim());
       const people = found.people.map(
         (p): DefaultReactSuggestionItem => ({
           title: p.name,
@@ -445,7 +446,7 @@ export function MentionMenu({ editor, workspaceId, pageId }: { editor: PageEdito
       );
       const dates = DATE_ITEMS.flatMap((d): DefaultReactSuggestionItem[] => {
         const title = t(d.key);
-        if (q && !title.toLocaleLowerCase().includes(q) && !d.key.toLowerCase().includes(q)) return [];
+        if (q && !searchFold(title).includes(q) && !searchFold(d.key).includes(q)) return [];
         const date = localIsoDate(d.days);
         return [
           {

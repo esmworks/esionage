@@ -42,6 +42,7 @@ import type { TreeNode } from "@/server/pages";
 import type { TeamspaceSummary } from "@/server/teamspaces";
 import { PresenceAvatars } from "./presence-avatars";
 import { SharePanel } from "./share-panel";
+import { searchFold } from "@/lib/search-fold";
 
 const RANK = { none: 0, view: 1, comment: 2, edit: 3, full: 4 } as const;
 /** Client-side mirror of the server's level check, for hiding what the server would refuse. */
@@ -532,20 +533,20 @@ function MoveDialog({
         }
       }
     }
-    const q = query.trim().toLocaleLowerCase();
+    const q = searchFold(query.trim());
     return tree
       .filter((n) => !blocked.has(n.id) && n.id !== currentParentId)
       // Moving into a page needs edit access to it, as the server checks.
       .filter((n) => hasLevel(n.level, "edit"))
       // A database can't become a row of another database.
       .filter((n) => !(isDatabase && n.kind === "database"))
-      .filter((n) => !q || pageLabel(n.title, tc("untitled")).toLocaleLowerCase().includes(q))
+      .filter((n) => !q || searchFold(pageLabel(n.title, tc("untitled"))).includes(q))
       .slice(0, 50);
   }, [tree, pageId, isDatabase, currentParentId, query, tc]);
 
   // The tops of the teamspaces they are in and their private pages, except where the page is now.
   const here = tree.find((n) => n.id === pageId);
-  const q = query.trim().toLocaleLowerCase();
+  const q = searchFold(query.trim());
   const roots: { key: string; teamspaceId: string | null; label: string; hint: string; icon: string | null }[] = guest
     ? []
     : [
@@ -559,7 +560,7 @@ function MoveDialog({
         { key: "private", teamspaceId: null, label: t("private"), hint: t("privateHint"), icon: null },
       ]
         .filter((r) => currentParentId || !here || r.teamspaceId !== here.teamspaceId)
-        .filter((r) => !q || r.label.toLocaleLowerCase().includes(q));
+        .filter((r) => !q || searchFold(r.label).includes(q));
   const spaceName = new Map(teamspaces.map((ts) => [ts.id, ts.name]));
 
   const move = (parentId: string | null, teamspaceId?: string | null) =>

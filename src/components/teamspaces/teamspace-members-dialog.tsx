@@ -16,6 +16,7 @@ import { selectClass, useAction } from "@/components/settings/workspace-settings
 import { Button, cn, Dialog, IconButton, Input } from "@/components/ui";
 import type { TeamspaceRole } from "@/db/schema/app";
 import type { TeamspaceGroupSummary, TeamspacePerson, TeamspaceSummary } from "@/server/teamspaces";
+import { searchFold } from "@/lib/search-fold";
 
 type WorkspacePerson = { userId: string; name: string; email: string; role: "owner" | "member" | "guest" };
 
@@ -59,8 +60,8 @@ export function TeamspaceMembersDialog({
 }
 
 function matches(query: string, ...values: string[]) {
-  const q = query.trim().toLocaleLowerCase();
-  return !q || values.some((v) => v.toLocaleLowerCase().includes(q));
+  const q = searchFold(query.trim());
+  return !q || values.some((v) => searchFold(v).includes(q));
 }
 
 function MembersBody({

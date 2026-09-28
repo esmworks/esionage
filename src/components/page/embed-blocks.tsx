@@ -22,6 +22,7 @@ import { mentionBlockSpecs, mentionInlineSpecs } from "./mentions";
 import { DatabaseEmbed, useEmbedHost } from "./database-embed";
 import { FileBlock } from "./file-block";
 import { webBlockSpecs } from "./web-blocks";
+import { searchFold } from "@/lib/search-fold";
 
 /**
  * The page editor's schema: BlockNote's blocks plus the database blocks (configs shared with the
@@ -206,9 +207,9 @@ export function DatabasePicker({
   }, [open, workspaceId]);
 
   const matches = useMemo(() => {
-    const q = query.trim().toLocaleLowerCase();
+    const q = searchFold(query.trim());
     return (databases ?? [])
-      .filter((d) => !q || pageLabel(d.title, tc("untitled")).toLocaleLowerCase().includes(q))
+      .filter((d) => !q || searchFold(pageLabel(d.title, tc("untitled"))).includes(q))
       .slice(0, 50);
   }, [databases, query, tc]);
 

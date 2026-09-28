@@ -23,6 +23,7 @@ import { useFormulaErrorMessage } from "./formula-editor";
 import { PersonChips, PersonPicker } from "./person-cell";
 import { RelationChips, RelationPicker } from "./relation-cell";
 import type { ChecklistItem, Property, SelectOption } from "./types";
+import { searchFold } from "@/lib/search-fold";
 
 export type CreateOption = (propertyId: string, name: string) => Promise<SelectOption | null>;
 
@@ -881,9 +882,9 @@ export function OptionPicker({
   useEffect(() => input.current?.focus(), []);
 
   const options = useMemo(() => (status ? sortStatusOptions(optionsOf(prop)) : optionsOf(prop)), [prop, status]);
-  const q = query.trim().toLowerCase();
-  const filtered = useMemo(() => options.filter((o) => o.name.toLowerCase().includes(q)), [options, q]);
-  const exact = options.some((o) => o.name.toLowerCase() === q);
+  const q = searchFold(query.trim());
+  const filtered = useMemo(() => options.filter((o) => searchFold(o.name).includes(q)), [options, q]);
+  const exact = options.some((o) => searchFold(o.name) === q);
   const canCreate = !status && q.length > 0 && !exact;
   const items: ({ kind: "option"; option: SelectOption } | { kind: "create" })[] = [
     ...filtered.map((option) => ({ kind: "option" as const, option })),
