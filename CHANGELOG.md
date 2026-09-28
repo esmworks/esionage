@@ -17,7 +17,7 @@
   checked when the query runs, before ranking, never stored in the index. Trashed pages drop out
   at once; turning AI off for a workspace deletes its index. New setting
   `AI_EMBEDDINGS_MIN_SIMILARITY` (default 0.3). Without an embeddings model search is exactly the
-  full-text search it was. Migration `0025_semantic_search`. New checks:
+  full-text search it was. Migration `0026_semantic_search`. New checks:
   `scripts/semantic-search-e2e.ts` (64, against a stand-in OpenAI-compatible server),
   `src/server/semantic-text.test.ts`.
 - **AI chat** (#41): *Ask AI* in the sidebar opens a panel that answers questions from the pages
@@ -26,7 +26,7 @@
   run through `operations.ts` as the person with their access checked on every call; answers
   stream (`POST /api/ai/chat`, NDJSON) and can be stopped. Questions can be kept to the current
   page and its subpages. Conversations are private, kept per person and workspace
-  (`ai_conversation`, migration `0026_ai_chat`; 50 per workspace, 40 questions each, 4000
+  (`ai_conversation`, migration `0027_ai_chat`; 50 per workspace, 40 questions each, 4000
   characters a question), listed and deletable in the panel, and deleted when the person leaves
   the workspace or deletes their account; cited pages they can no longer open lose their title.
   Off while offline and when AI is off, with the reason shown. Links to `#block-<id>` scroll to
@@ -44,12 +44,29 @@
   (pages, exports, actions, API routes, live collaboration; a new `/sso-required/<id>` page), with
   owners and guests exempt. SCIM 2.0 at `/scim/v2` with workspace SCIM tokens (hashed, revocable):
   `Users` list/filter/get/create/replace/patch/delete, where `active: false` removes someone from
-  the workspace and owners can't be deactivated; `Groups` lists none and answers changes with 501.
+  the workspace and owners can't be deactivated; `Groups` in the next entry.
   The SSO box lists the workspace ID, OIDC redirect URI, SAML entity ID, ACS and metadata URLs to
   copy. The plugin's own provider management, its shared callback and SAML single logout are off.
   Migration `0024_sso`. New checks: `scripts/sso-e2e.ts` (69, against a mock OIDC provider it
-  runs itself), `scripts/scim-e2e.ts` (59), `src/lib/sso-config.test.ts`, `src/lib/scim.test.ts`,
+  runs itself), `scripts/scim-e2e.ts`, `src/lib/sso-config.test.ts`, `src/lib/scim.test.ts`,
   `src/server/sso.test.ts`. Not tried against real identity providers; SAML only in unit tests.
+- **SCIM groups** (#38, on member groups #37): `/scim/v2/Groups` lists (filter `displayName`,
+  `externalId` or `id` with `eq`, paging, `excludedAttributes=members`), gets, creates, replaces,
+  patches and deletes the workspace's member groups, including ones made in the app. `PATCH`
+  takes Okta's and Microsoft Entra ID's forms (`add`/`remove`/`replace` on `members`, `remove` on
+  `members[value eq "…"]`, `displayName`, `externalId`, path-less objects, ops in any case); `PUT`
+  keeps members it leaves out. Members must be the workspace's owners or members: guests, unknown
+  or outside ids and nested groups are a 400 `invalidValue` and nothing of that request is
+  applied; a taken name is a 409. Changes run through `server/groups.ts` (a new `changeGroup`
+  that renames and adds and removes people in one transaction, which the settings' rename, add
+  and remove now use too), so access, open editors and stranded pages are handled as in the app;
+  the workspace's oldest owner acts for the token and receives pages only a removed member or
+  deleted group could manage. `scim_group` keeps the provider's `externalId`, and Settings →
+  Groups marks provisioned groups ("From your identity provider", with a note in the members
+  dialog that the provider may undo edits; en/tr/de/es/fr). `/Schemas` now describes the User and
+  Group attributes. Migration `0025_scim_groups` (renumber at merge if needed). Checks:
+  `scripts/scim-e2e.ts` (118, including a live editor closing and cross-workspace isolation),
+  `src/lib/scim.test.ts` (22). Not tried against real Okta or Entra ID.
 - **Member groups** (#37): workspace owners create groups in Settings → Groups (rename, add and
   remove members, delete); everyone sees the list and who is in each group. A page can be shared
   with a group from the share panel like a person (`page_group_permission`, inherited by subpages

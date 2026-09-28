@@ -1,30 +1,47 @@
-import { and, count, desc, eq, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { scimIdentity, scimToken, ssoProvider, user, workspaceMember, workspaceSso } from "@/db/schema";
+import {
+  memberGroup,
+  memberGroupMember,
+  scimGroup,
+  scimIdentity,
+  scimToken,
+  ssoProvider,
+  user,
+  workspaceMember,
+  workspaceSso,
+} from "@/db/schema";
 import { cleanName } from "@/lib/account";
 import { env } from "@/lib/env";
 import { sharedLimiter } from "@/lib/rate-limit";
 import {
+  applyGroupPatch,
   changesFromPatch,
   changesFromResource,
   emailOfResource,
-  GROUP_SCHEMA,
+  groupFromResource,
+  groupResource,
   listResponse,
   pageOf,
+  parseGroupFilter,
   parseUserFilter,
   resourceTypes,
+  schemaResources,
   SCIM_CONTENT_TYPE,
   ScimError,
   serviceProviderConfig,
   userResource,
-  USER_SCHEMA,
+  wantsMembers,
+  type GroupState,
+  type ScimGroupRecord,
   type ScimUserRecord,
   type UserChanges,
 } from "@/lib/scim";
 import { domainsFromColumn, emailInDomains } from "@/lib/sso-config";
-import { requireMembership } from "@/server/access";
+import { AccessError, isGuest, requireMembership } from "@/server/access";
 import { generateTokenSecret, hashToken } from "@/server/api/tokens";
-import { joinAsMember, removeMemberByProvider, WorkspaceError } from "@/server/workspaces";
+import { changeGroup, createGroup, deleteGroup, GroupError } from "@/server/groups";
+import { joinAsMember, oldestOwner, removeMemberByProvider, WorkspaceError } from "@/server/workspaces";
 
 /**
  * SCIM 2.0 provisioning (/scim/v2): a workspace's identity provider adds people to the workspace,
@@ -38,8 +55,14 @@ import { joinAsMember, removeMemberByProvider, WorkspaceError } from "@/server/w
  * have an account. Guests aren't listed; provisioning one makes them a member. Owners can't be
  * deactivated or removed over SCIM, so a provider can't take a workspace away from its owners.
  *
- * Groups: member groups (Settings > Groups) aren't provisioned over SCIM yet, so /Groups lists none
- * and refuses changes (501); identity providers then manage people only.
+ * Groups are the workspace's member groups (Settings > Groups), all of them, whoever created them.
+ * Their members are SCIM user ids of the workspace's owners and members; guests and anyone else are
+ * refused (400 invalidValue). Changes go through server/groups.ts like the settings' do, so access,
+ * open editors and stranded pages are handled the same way. The token has no person behind it, so
+ * the workspace's oldest owner (who also inherits what a deprovisioned member leaves) acts for it:
+ * pages only a group could manage pass to them when the provider takes people out or deletes it,
+ * and groups the provider creates are recorded as created by them. `scim_group` keeps the
+ * provider's externalId and marks the group as provisioned.
  */
 
 export const SCIM_PREFIX = "/scim/v2";
@@ -280,6 +303,179 @@ async function deleteUser(workspaceId: string, id: string) {
   await db.delete(scimIdentity).where(and(eq(scimIdentity.workspaceId, workspaceId), eq(scimIdentity.userId, id)));
 }
 
+// ------------------------------------------------------------------------------------------ groups
+
+/**
+ * Who acts for the token on groups: the workspace's oldest owner (see the note at the top). A
+ * workspace always has an owner; this only fails for one being deleted.
+ */
+async function groupActor(workspaceId: string) {
+  const owner = await oldestOwner(db, workspaceId);
+  if (!owner) throw new ScimError(409, "The workspace has no owner to act for the SCIM token.");
+  return owner;
+}
+
+/** Groups of the workspace as SCIM sees them, optionally only some, a page at a time. */
+async function groupRecords(
+  workspaceId: string,
+  where?: ReturnType<typeof sql>,
+  page?: { offset: number; limit: number },
+  withMembers = true,
+): Promise<ScimGroupRecord[]> {
+  const query = db
+    .select({
+      id: memberGroup.id,
+      name: memberGroup.name,
+      createdAt: memberGroup.createdAt,
+      updatedAt: memberGroup.updatedAt,
+      externalId: scimGroup.externalId,
+      scimUpdated: scimGroup.updatedAt,
+    })
+    .from(memberGroup)
+    .leftJoin(scimGroup, eq(scimGroup.groupId, memberGroup.id))
+    .where(and(eq(memberGroup.workspaceId, workspaceId), where))
+    .orderBy(asc(memberGroup.createdAt), asc(memberGroup.id));
+  const groups = page ? await query.offset(page.offset).limit(page.limit) : await query;
+  const people =
+    withMembers && groups.length
+      ? await db
+          .select({ groupId: memberGroupMember.groupId, id: user.id, name: user.name })
+          .from(memberGroupMember)
+          .innerJoin(user, eq(user.id, memberGroupMember.userId))
+          .where(inArray(memberGroupMember.groupId, groups.map((g) => g.id)))
+          .orderBy(asc(user.name), asc(user.id))
+      : [];
+  return groups.map((g) => ({
+    id: g.id,
+    displayName: g.name,
+    externalId: g.externalId,
+    members: people.filter((p) => p.groupId === g.id).map(({ id, name }) => ({ id, name })),
+    created: new Date(g.createdAt),
+    lastModified: new Date(Math.max(new Date(g.updatedAt).getTime(), g.scimUpdated ? new Date(g.scimUpdated).getTime() : 0)),
+  }));
+}
+
+function groupFilterSql(filter: ReturnType<typeof parseGroupFilter>) {
+  if (!filter) return undefined;
+  switch (filter.attribute) {
+    case "displayName":
+      // Names are unique ignoring case, and stored with whitespace collapsed.
+      return sql`lower(${memberGroup.name}) = ${filter.value.replace(/\s+/g, " ").trim().toLowerCase()}`;
+    case "id":
+      return eq(memberGroup.id, filter.value);
+    case "externalId":
+      return sql`exists (select 1 from ${scimGroup} s where s.group_id = ${memberGroup.id} and s.external_id = ${filter.value})`;
+  }
+}
+
+async function listGroupResources(workspaceId: string, params: URLSearchParams, baseUrl: string) {
+  const where = groupFilterSql(parseGroupFilter(params.get("filter")));
+  const { startIndex, count: size } = pageOf(params);
+  const withMembers = wantsMembers(params);
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(memberGroup)
+    .where(and(eq(memberGroup.workspaceId, workspaceId), where));
+  const rows = size > 0 ? await groupRecords(workspaceId, where, { offset: startIndex - 1, limit: size }, withMembers) : [];
+  return listResponse(
+    rows.map((r) => groupResource(r, baseUrl, withMembers)),
+    Number(total),
+    startIndex,
+  );
+}
+
+/** The group, when it is this workspace's; 404 otherwise, whether it is missing or another's. */
+async function findGroup(workspaceId: string, id: string) {
+  const [row] = await groupRecords(workspaceId, eq(memberGroup.id, id));
+  if (!row) throw new ScimError(404, `Group ${id} not found.`);
+  return row;
+}
+
+/** 400 invalidValue unless every id is an owner or member of the workspace (guests can't be in groups). */
+async function requireGroupableUsers(workspaceId: string, ids: string[]) {
+  if (!ids.length) return;
+  const rows = await db
+    .select({ userId: workspaceMember.userId, role: workspaceMember.role })
+    .from(workspaceMember)
+    .where(and(eq(workspaceMember.workspaceId, workspaceId), inArray(workspaceMember.userId, ids)));
+  const allowed = new Set(rows.filter((r) => !isGuest(r.role)).map((r) => r.userId));
+  const refused = ids.filter((id) => !allowed.has(id));
+  if (refused.length) {
+    const shown = refused.slice(0, 5).join(", ") + (refused.length > 5 ? `, and ${refused.length - 5} more` : "");
+    throw new ScimError(
+      400,
+      `Group members must be active owners or members of the workspace (guests can't be in groups). Not one: ${shown}.`,
+      "invalidValue",
+    );
+  }
+}
+
+async function setGroupIdentity(workspaceId: string, groupId: string, externalId: string | null | undefined) {
+  await db
+    .insert(scimGroup)
+    .values({ groupId, workspaceId, externalId: externalId ?? null })
+    .onConflictDoUpdate({
+      target: scimGroup.groupId,
+      set: { updatedAt: new Date(), ...(externalId !== undefined ? { externalId } : {}) },
+    });
+}
+
+async function createGroupResource(workspaceId: string, resource: Record<string, unknown>) {
+  const wanted = groupFromResource(resource);
+  if (!wanted.displayName) throw new ScimError(400, "A group needs a displayName.", "invalidValue");
+  const members = wanted.members ?? [];
+  await requireGroupableUsers(workspaceId, members);
+  const created = await createGroup(await groupActor(workspaceId), workspaceId, wanted.displayName, members);
+  await setGroupIdentity(workspaceId, created.id, wanted.externalId ?? null);
+  return findGroup(workspaceId, created.id);
+}
+
+/**
+ * Saves a group as `next` asks: the new name, the members added and taken out (in one
+ * transaction, server/groups.ts changeGroup), and the provider's externalId.
+ */
+async function saveGroup(workspaceId: string, current: ScimGroupRecord, next: GroupState) {
+  const before = new Set(current.members.map((m) => m.id));
+  const after = new Set(next.members);
+  const add = next.members.filter((id) => !before.has(id));
+  const remove = [...before].filter((id) => !after.has(id));
+  await requireGroupableUsers(workspaceId, add);
+  await changeGroup(await groupActor(workspaceId), current.id, {
+    name: next.displayName !== current.displayName ? next.displayName : undefined,
+    add,
+    remove,
+  });
+  await setGroupIdentity(workspaceId, current.id, next.externalId);
+}
+
+const stateOf = (record: ScimGroupRecord): GroupState => ({
+  displayName: record.displayName,
+  externalId: record.externalId,
+  members: record.members.map((m) => m.id),
+});
+
+/**
+ * PUT replaces the name, and the members and externalId when it sends them: RFC 7644 §3.5.1 lets a
+ * server keep attributes a replace leaves out, and emptying a group because a client left
+ * `members` out would take access away by accident. `members: []` empties it.
+ */
+async function replaceGroup(workspaceId: string, id: string, resource: Record<string, unknown>) {
+  const current = await findGroup(workspaceId, id);
+  const wanted = groupFromResource(resource);
+  if (!wanted.displayName) throw new ScimError(400, "A group needs a displayName.", "invalidValue");
+  await saveGroup(workspaceId, current, { ...stateOf(current), ...wanted });
+}
+
+async function patchGroup(workspaceId: string, id: string, body: Record<string, unknown>) {
+  const current = await findGroup(workspaceId, id);
+  await saveGroup(workspaceId, current, applyGroupPatch(stateOf(current), body));
+}
+
+async function deleteGroupResource(workspaceId: string, id: string) {
+  const current = await findGroup(workspaceId, id);
+  await deleteGroup(await groupActor(workspaceId), current.id);
+}
+
 // ------------------------------------------------------------------------------------------- HTTP
 
 function scimJson(status: number, body: unknown, headers: Record<string, string> = {}) {
@@ -300,8 +496,6 @@ async function readJson(request: Request): Promise<Record<string, unknown>> {
   } catch {}
   throw new ScimError(400, "The request body must be a JSON object.", "invalidSyntax");
 }
-
-const notImplemented = () => new ScimError(501, "Provisioning groups over SCIM is not supported yet; manage member groups in the app.");
 
 /** Every /scim/v2 request (route: src/app/scim/v2/[[...path]]/route.ts). */
 export async function handleScimRequest(request: Request): Promise<Response> {
@@ -345,12 +539,7 @@ export async function handleScimRequest(request: Request): Promise<Response> {
       }
       case "Schemas": {
         only("GET");
-        const schemas = [USER_SCHEMA, GROUP_SCHEMA].map((schemaId) => ({
-          schemas: ["urn:ietf:params:scim:schemas:core:2.0:Schema"],
-          id: schemaId,
-          name: schemaId.endsWith("User") ? "User" : "Group",
-          attributes: [],
-        }));
+        const schemas = schemaResources(baseUrl);
         if (!id) return scimJson(200, listResponse(schemas, schemas.length, 1));
         const schema = schemas.find((s) => s.id === id);
         if (!schema) throw new ScimError(404, `No schema ${id}.`);
@@ -375,18 +564,34 @@ export async function handleScimRequest(request: Request): Promise<Response> {
         return scimJson(200, userResource(await findRecord(workspaceId, id), baseUrl));
       }
       case "Groups": {
-        if (method === "GET") {
-          if (id) throw new ScimError(404, `Group ${id} not found.`);
-          return scimJson(200, listResponse([], 0, 1));
+        if (!id) {
+          only("GET", "POST");
+          if (method === "GET") return scimJson(200, await listGroupResources(workspaceId, url.searchParams, baseUrl));
+          const resource = groupResource(await createGroupResource(workspaceId, await readJson(request)), baseUrl);
+          return scimJson(201, resource, { Location: resource.meta.location });
         }
-        only("GET", "POST", "PUT", "PATCH", "DELETE");
-        throw notImplemented();
+        only("GET", "PUT", "PATCH", "DELETE");
+        if (method === "DELETE") {
+          await deleteGroupResource(workspaceId, id);
+          return scimJson(204, null);
+        }
+        if (method === "PUT") await replaceGroup(workspaceId, id, await readJson(request));
+        if (method === "PATCH") await patchGroup(workspaceId, id, await readJson(request));
+        const withMembers = method !== "GET" || wantsMembers(url.searchParams);
+        return scimJson(200, groupResource(await findGroup(workspaceId, id), baseUrl, withMembers));
       }
       default:
         throw new ScimError(404, "There is no such endpoint.");
     }
   } catch (error) {
     if (error instanceof ScimError) return errorResponse(error);
+    if (error instanceof GroupError) {
+      return errorResponse(
+        error.code === "nameTaken" ? new ScimError(409, error.message, "uniqueness") : new ScimError(400, error.message, "invalidValue"),
+      );
+    }
+    // A group deleted, or the workspace's owners changed, between the lookup and the change.
+    if (error instanceof AccessError) return errorResponse(new ScimError(404, "Not found."));
     if (error instanceof WorkspaceError) return errorResponse(new ScimError(400, error.message, "mutability"));
     console.error("SCIM request failed", error);
     return errorResponse(new ScimError(500, "Something went wrong."));

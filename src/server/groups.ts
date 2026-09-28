@@ -3,6 +3,7 @@ import { db } from "@/db";
 import {
   memberGroup,
   memberGroupMember,
+  scimGroup,
   teamspaceGroup,
   user,
   workspaceMember,
@@ -26,6 +27,8 @@ import { handOverOrphanedPages } from "@/server/workspaces";
  * - Taking access away (removing someone from a group, deleting a group) hands pages nobody could
  *   manage any more to the owner who did it, as removing someone from the workspace does, and
  *   drops open editors that lost access.
+ * - The workspace's identity provider can manage groups over SCIM (server/scim.ts) through the same
+ *   functions, with the workspace's oldest owner acting for it; `scim_group` marks those groups.
  */
 
 export { GroupError, type GroupErrorCode } from "@/lib/groups";
@@ -41,6 +44,8 @@ export type GroupSummary = {
   members: GroupPerson[];
   /** Teamspaces the group joined, among those the viewer can see. */
   teamspaces: { id: string; name: string; icon: string | null }[];
+  /** Created or changed by the workspace's identity provider over SCIM. */
+  provisioned: boolean;
   createdAt: Date;
 };
 
@@ -62,7 +67,12 @@ async function ownedGroup(actorId: string, groupId: string) {
 export async function listGroups(userId: string, workspaceId: string): Promise<GroupSummary[]> {
   await requireMember(userId, workspaceId);
   const groups = await db
-    .select({ id: memberGroup.id, name: memberGroup.name, createdAt: memberGroup.createdAt })
+    .select({
+      id: memberGroup.id,
+      name: memberGroup.name,
+      createdAt: memberGroup.createdAt,
+      provisioned: sql<boolean>`exists (select 1 from ${scimGroup} s where s.group_id = ${memberGroup.id})`,
+    })
     .from(memberGroup)
     .where(eq(memberGroup.workspaceId, workspaceId))
     .orderBy(sql`lower(${memberGroup.name})`, asc(memberGroup.createdAt));
@@ -151,32 +161,59 @@ export async function createGroup(actorId: string, workspaceId: string, name: st
   }
 }
 
-/** Renames a group. Workspace owners only. */
-export async function renameGroup(actorId: string, groupId: string, name: string) {
+/** What changeGroup does: a new name, people to add, people to take out (ids in both stay in). */
+export type GroupChanges = { name?: string; add?: string[]; remove?: string[] };
+
+/**
+ * Renames a group and changes who is in it, in one transaction. Workspace owners only. The people
+ * added must be owners or members of the workspace. Taking people out hands pages nobody could
+ * manage without them to the owner who did it, and drops their open editors that lost access.
+ * Settings > Groups and SCIM (/scim/v2/Groups, see server/scim.ts) both go through here.
+ */
+export async function changeGroup(actorId: string, groupId: string, changes: GroupChanges) {
   const found = await ownedGroup(actorId, groupId);
-  const clean = cleanGroupName(name);
+  const name = changes.name === undefined ? undefined : cleanGroupName(changes.name);
+  const add = [...new Set(changes.add ?? [])];
+  const remove = [...new Set(changes.remove ?? [])].filter((id) => !add.includes(id));
+  if (name === undefined && !add.length && !remove.length) return;
+  await requireGroupable(found.workspaceId, add);
+  let removed: string[];
   try {
-    await db.update(memberGroup).set({ name: clean, updatedAt: new Date() }).where(eq(memberGroup.id, groupId));
+    removed = await db.transaction(async (tx) => {
+      await tx
+        .update(memberGroup)
+        .set({ ...(name !== undefined ? { name } : {}), updatedAt: new Date() })
+        .where(eq(memberGroup.id, groupId));
+      if (add.length) {
+        await tx
+          .insert(memberGroupMember)
+          .values(add.map((id) => ({ groupId, workspaceId: found.workspaceId, userId: id })))
+          .onConflictDoNothing();
+      }
+      if (!remove.length) return [];
+      const gone = await tx
+        .delete(memberGroupMember)
+        .where(and(eq(memberGroupMember.groupId, groupId), inArray(memberGroupMember.userId, remove)))
+        .returning({ userId: memberGroupMember.userId });
+      if (gone.length) await handOverOrphanedPages(tx, found.workspaceId, actorId);
+      return gone.map((g) => g.userId);
+    });
   } catch (error) {
     if (isUniqueViolation(error)) throw new GroupError("nameTaken", "Another group already has this name.");
     throw error;
   }
-  getCollab().broadcast(`ws:${found.workspaceId}`, "tree");
+  // Pages and teamspaces the group has may now show up in (or leave) their sidebars.
+  await afterAccessLoss(found.workspaceId, removed);
+}
+
+/** Renames a group. Workspace owners only. */
+export async function renameGroup(actorId: string, groupId: string, name: string) {
+  await changeGroup(actorId, groupId, { name });
 }
 
 /** Adds owners or members of the workspace to a group; people already in it stay. Workspace owners only. */
 export async function addGroupMembers(actorId: string, groupId: string, userIds: string[]) {
-  const found = await ownedGroup(actorId, groupId);
-  const wanted = [...new Set(userIds)];
-  if (!wanted.length) return;
-  await requireGroupable(found.workspaceId, wanted);
-  await db
-    .insert(memberGroupMember)
-    .values(wanted.map((id) => ({ groupId, workspaceId: found.workspaceId, userId: id })))
-    .onConflictDoNothing();
-  await db.update(memberGroup).set({ updatedAt: new Date() }).where(eq(memberGroup.id, groupId));
-  // Pages and teamspaces the group has may now show up in their sidebar.
-  getCollab().broadcast(`ws:${found.workspaceId}`, "tree");
+  await changeGroup(actorId, groupId, { add: userIds });
 }
 
 /**
@@ -184,15 +221,7 @@ export async function addGroupMembers(actorId: string, groupId: string, userIds:
  * the owner who did it, and their open editors that lost access are dropped.
  */
 export async function removeGroupMember(actorId: string, groupId: string, targetId: string) {
-  const found = await ownedGroup(actorId, groupId);
-  await db.transaction(async (tx) => {
-    await tx
-      .delete(memberGroupMember)
-      .where(and(eq(memberGroupMember.groupId, groupId), eq(memberGroupMember.userId, targetId)));
-    await tx.update(memberGroup).set({ updatedAt: new Date() }).where(eq(memberGroup.id, groupId));
-    await handOverOrphanedPages(tx, found.workspaceId, actorId);
-  });
-  await afterAccessLoss(found.workspaceId, [targetId]);
+  await changeGroup(actorId, groupId, { remove: [targetId] });
 }
 
 /**

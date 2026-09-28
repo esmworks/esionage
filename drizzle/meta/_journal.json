@@ -166,7 +166,7 @@
     {
       "idx": 23,
       "version": "7",
-      "when": 1790551124720,
+      "when": 1790551740728,
       "tag": "0023_ai_properties",
       "breakpoints": true
     },
@@ -180,15 +180,22 @@
     {
       "idx": 25,
       "version": "7",
-      "when": 1790554351452,
-      "tag": "0025_semantic_search",
+      "when": 1790555406459,
+      "tag": "0025_scim_groups",
       "breakpoints": true
     },
     {
       "idx": 26,
       "version": "7",
-      "when": 1790554393148,
-      "tag": "0026_ai_chat",
+      "when": 1790556977052,
+      "tag": "0026_semantic_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790556978052,
+      "tag": "0027_ai_chat",
       "breakpoints": true
     }
   ]

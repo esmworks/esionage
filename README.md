@@ -78,6 +78,7 @@ approve them over OAuth.
   group gets that access for as long as they are in it; when a page has entries for someone and
   their groups, the highest level wins. Guests can't be in groups, and people leave their groups
   when they leave the workspace or become guests. The member list shows each person's groups.
+  An identity provider can manage groups over SCIM.
 - **Publish to the web**: a read-only public link for a page and its subpages, kept out of search
   engines unless you allow them. Published databases show the views you pick (tables, boards,
   lists, galleries) and visitors switch between them. Owners decide whether members may publish
@@ -125,7 +126,7 @@ approve them over OAuth.
   [Two-step verification and passkeys](#two-step-verification-and-passkeys)).
 - **Single sign-on and provisioning**: OpenID Connect for the whole server, OpenID Connect or SAML
   per workspace with DNS-verified email domains, a "single sign-on only" policy, and SCIM 2.0 user
-  provisioning (see [Single sign-on (OIDC, SAML) and SCIM](#single-sign-on-oidc-saml-and-scim)).
+  and group provisioning (see [Single sign-on (OIDC, SAML) and SCIM](#single-sign-on-oidc-saml-and-scim)).
 - **AI writing assistant, AI properties and AI chat** (optional, off until a provider is set up):
   improve, shorten, fix, translate or rewrite selected text as you ask, continue writing, and
   summarize a page, as a suggestion you accept or discard; database text properties that AI fills
@@ -504,8 +505,28 @@ base URL `${APP_URL}/scim/v2` with the token as a bearer token. Supported:
 - `active: false` removes the person from the workspace (what an owner removing them does) and
   keeps them listed as inactive; they can't come back through single sign-on until reactivated.
   `DELETE` removes them and forgets them. Owners can't be deactivated or deleted over SCIM.
-- `/ServiceProviderConfig`, `/ResourceTypes` and `/Schemas` for discovery. `/Groups` lists no
-  groups and answers changes with 501: member groups are managed in the app for now.
+- `/Groups` are the workspace's [member groups](#features), all of them, including ones made in
+  the app: list (with `startIndex`/`count`, one `eq` filter on `displayName` (ignoring case),
+  `externalId` or `id`, and `excludedAttributes=members`), get, create (`POST` with
+  `displayName`, `externalId`, `members`), replace (`PUT`; `members` and `externalId` it leaves out
+  are kept, `members: []` empties the group), `PATCH` and delete. `PATCH` takes what Okta and
+  Microsoft Entra ID send: `add`/`remove`/`replace` on `members` (a `remove` without a value
+  empties the group), `remove` on `members[value eq "<user id>"]`, `displayName` and `externalId`
+  paths, and path-less operations with an object value; op names in any case.
+- Group members are SCIM user ids of the workspace's owners and members. Guests, people the
+  provider deactivated, other people and nested groups are refused with 400 `invalidValue`, and
+  nothing in that request is applied. A name another group has (ignoring case) is a 409
+  `uniqueness`.
+- Group changes go through the same code as Settings → Groups: access is worked out again, open
+  editors of people who lost a page close, and pages only the group could manage pass to someone.
+  A SCIM token isn't a person, so the workspace's **oldest owner** acts for it: they receive those
+  pages (as they do when the provider removes a member) and are recorded as having created the
+  groups the provider creates. Settings → Groups marks groups the provider created or changed
+  ("From your identity provider"); owners can still edit them, but the provider may undo that at
+  its next sync. Someone made a guest in the app leaves their groups, and the provider adding them
+  back is refused.
+- `/ServiceProviderConfig`, `/ResourceTypes` and `/Schemas` (User and Group attributes) for
+  discovery.
 
 **Examples**
 
@@ -527,7 +548,8 @@ base URL `${APP_URL}/scim/v2` with the token as a bearer token. Supported:
   and paste the IdP metadata it offers. Google Workspace doesn't send SCIM to custom apps.
 
 Tested here against a mock OpenID Connect provider (`scripts/sso-e2e.ts`) and over HTTP for SCIM
-(`scripts/scim-e2e.ts`); SAML and the providers above have not been tried against the real thing.
+(`scripts/scim-e2e.ts`, which sends groups the way Okta and Entra ID document it); SAML, SCIM from
+Okta or Entra ID and the providers above have not been tried against the real thing.
 
 ## Deploy on Dokploy
 

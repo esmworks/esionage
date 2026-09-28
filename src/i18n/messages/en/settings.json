@@ -194,6 +194,7 @@
     "creating": "Creating…",
     "deleteTitle": "Delete {name}?",
     "deleteBody": "Its members keep the access they have on their own. What the group was given on pages and in teamspaces goes away, and open pages they can no longer see close. Pages only the group could manage pass to you.",
+    "provisioned": "From your identity provider",
     "members": {
       "title": "Members of {name}",
       "list": "People in this group",
@@ -205,7 +206,8 @@
       "noOneToAdd": "Every owner and member of the workspace is already in this group.",
       "noMatches": "No one matches your search.",
       "remove": "Remove {name}",
-      "guestsHint": "Guests can't be in groups."
+      "guestsHint": "Guests can't be in groups.",
+      "provisionedHint": "Your identity provider manages this group over SCIM. Changes made here may be undone at its next sync."
     },
     "errors": {
       "nameRequired": "Give the group a name.",
@@ -409,7 +411,7 @@
     },
     "scim": {
       "title": "User provisioning (SCIM)",
-      "description": "Let your identity provider add, update and remove members over SCIM 2.0. Groups aren't supported yet.",
+      "description": "Let your identity provider add, update and remove members, and manage member groups, over SCIM 2.0.",
       "baseUrl": "SCIM base URL",
       "managed": "{count, plural, =0 {No one is managed over SCIM yet.} one {# person is managed over SCIM.} other {# people are managed over SCIM.}}",
       "tokens": "Tokens",

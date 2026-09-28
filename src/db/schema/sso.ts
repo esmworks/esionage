@@ -1,6 +1,7 @@
-import { boolean, index, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, foreignKey, index, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 import { workspace } from "./app";
 import { ssoProvider, user } from "./auth";
+import { memberGroup } from "./groups";
 
 /**
  * A workspace's single sign-on connection (one per workspace): which `sso_provider` row is its
@@ -76,4 +77,31 @@ export const scimIdentity = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [primaryKey({ columns: [t.workspaceId, t.userId] }), index("scim_identity_user_idx").on(t.userId)],
+);
+
+/**
+ * Member groups an identity provider created or changed over SCIM (/scim/v2/Groups), with its own id
+ * for them (SCIM `externalId`). The group itself is an ordinary `member_group`; this row marks it as
+ * provisioned (Settings > Groups says so) and goes with the group when it is deleted.
+ */
+export const scimGroup = pgTable(
+  "scim_group",
+  {
+    groupId: text("group_id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    externalId: text("external_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("scim_group_workspace_idx").on(t.workspaceId),
+    foreignKey({
+      name: "scim_group_group_fk",
+      columns: [t.groupId, t.workspaceId],
+      foreignColumns: [memberGroup.id, memberGroup.workspaceId],
+    }).onDelete("cascade"),
+  ],
 );
