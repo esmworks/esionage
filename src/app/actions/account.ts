@@ -12,6 +12,7 @@ import {
   changePassword,
   confirmEmailChange,
   deleteAccount,
+  finishRequiredPasswordReset,
   removeAvatar,
   requestEmailChange,
   revokeOtherSessions,
@@ -102,6 +103,15 @@ export async function cancelEmailChangeAction() {
   const current = await signedIn();
   await cancelEmailChange(current.user.id);
   revalidatePath("/account");
+}
+
+/**
+ * The sign-in page's "choose a new password" step (an instance admin asked for it, and the
+ * server can't email a reset link); needs no session, the step's token stands for the sign-in.
+ */
+export async function finishRequiredPasswordResetAction(input: { token: string; newPassword: string; code?: string }) {
+  const { token, newPassword, code } = (input ?? {}) as Record<string, unknown>;
+  return run(() => finishRequiredPasswordReset({ token, newPassword, code }));
 }
 
 /** From the link in the confirmation email; needs no session. */

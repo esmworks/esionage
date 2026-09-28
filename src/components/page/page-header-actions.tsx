@@ -150,10 +150,19 @@ export function PageHeaderActions({
               className="inline-flex h-7 items-center rounded-md px-2 text-sm text-fg hover:bg-bg-hover disabled:cursor-default disabled:text-fg-faint disabled:hover:bg-transparent"
             >
               {t("share")}
+              {info.accessRequests > 0 && (
+                <span
+                  title={t("accessRequests", { count: info.accessRequests })}
+                  className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium text-accent-fg"
+                >
+                  <span aria-hidden>{info.accessRequests}</span>
+                  <span className="sr-only">{t("accessRequests", { count: info.accessRequests })}</span>
+                </span>
+              )}
             </button>
           )}
         >
-          <SharePanel pageId={page.id} currentUser={currentUser} publishable={!info.template} />
+          <SharePanel pageId={page.id} currentUser={currentUser} publishable={!info.template} onChange={refresh} />
         </Popover>
       )}
       {onComments && (
@@ -413,36 +422,41 @@ function PageMenu({
             )}
 
             <MenuSeparator />
-            <a
-              href={`/w/${workspaceId}/p/${page.id}/export`}
-              download
-              onClick={() => close()}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover"
-            >
-              <span className="flex h-4 w-4 items-center justify-center text-fg-muted">
-                {isDatabase ? <Download className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
-              </span>
-              <span className="flex-1 truncate">{isDatabase ? t("exportCsv") : t("exportMarkdown")}</span>
-            </a>
-            <MenuItem
-              icon={<FileArchive className="h-4 w-4" />}
-              onClick={() => void zipExport.start(`/w/${workspaceId}/p/${page.id}/export?subpages=1`, close)}
-            >
-              {zipExport.pending ? t("exportPreparing") : isDatabase ? t("exportZipDatabase") : t("exportZip")}
-            </MenuItem>
-            {/* The print view in a new tab; it opens the browser's print dialog ("Save as PDF") once loaded. */}
-            <a
-              href={printPath(page.id, { auto: true })}
-              target="_blank"
-              rel="noopener"
-              onClick={() => close()}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover"
-            >
-              <span className="flex h-4 w-4 items-center justify-center text-fg-muted">
-                <Printer className="h-4 w-4" />
-              </span>
-              <span className="flex-1 truncate">{t("exportPdf")}</span>
-            </a>
+            {/* Hidden while the workspace has export turned off; the routes refuse it too. */}
+            {info.exportable && (
+              <>
+                <a
+                  href={`/w/${workspaceId}/p/${page.id}/export`}
+                  download
+                  onClick={() => close()}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover"
+                >
+                  <span className="flex h-4 w-4 items-center justify-center text-fg-muted">
+                    {isDatabase ? <Download className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+                  </span>
+                  <span className="flex-1 truncate">{isDatabase ? t("exportCsv") : t("exportMarkdown")}</span>
+                </a>
+                <MenuItem
+                  icon={<FileArchive className="h-4 w-4" />}
+                  onClick={() => void zipExport.start(`/w/${workspaceId}/p/${page.id}/export?subpages=1`, close)}
+                >
+                  {zipExport.pending ? t("exportPreparing") : isDatabase ? t("exportZipDatabase") : t("exportZip")}
+                </MenuItem>
+                {/* The print view in a new tab; it opens the browser's print dialog ("Save as PDF") once loaded. */}
+                <a
+                  href={printPath(page.id, { auto: true })}
+                  target="_blank"
+                  rel="noopener"
+                  onClick={() => close()}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover"
+                >
+                  <span className="flex h-4 w-4 items-center justify-center text-fg-muted">
+                    <Printer className="h-4 w-4" />
+                  </span>
+                  <span className="flex-1 truncate">{t("exportPdf")}</span>
+                </a>
+              </>
+            )}
             {page.hasBody && (
               <MenuItem
                 icon={<History className="h-4 w-4" />}

@@ -21,13 +21,13 @@ jobs:
       postgres:
         image: postgres:18-alpine
         env:
-          POSTGRES_USER: esionage
-          POSTGRES_PASSWORD: esionage
-          POSTGRES_DB: esionage
+          POSTGRES_USER: leafdesk
+          POSTGRES_PASSWORD: leafdesk
+          POSTGRES_DB: leafdesk
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U esionage"
+          --health-cmd "pg_isready -U leafdesk"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
@@ -39,11 +39,11 @@ jobs:
           - 8025:8025
     env:
       APP_URL: http://localhost:3000
-      DATABASE_URL: postgres://esionage:esionage@localhost:5432/esionage
+      DATABASE_URL: postgres://leafdesk:leafdesk@localhost:5432/leafdesk
       BETTER_AUTH_SECRET: ci-only-secret-that-protects-nothing-000000000000
       NEXT_TELEMETRY_DISABLED: 1
       SMTP_URL: smtp://localhost:1025
-      MAIL_FROM: Esionage CI <ci@esionage.test>
+      MAIL_FROM: Leafdesk CI <ci@leafdesk.test>
       MAILPIT_URL: http://localhost:8025
     steps:
       - uses: actions/checkout@v7
@@ -70,6 +70,10 @@ jobs:
       - name: Page permissions end-to-end
         run: pnpm tsx scripts/access-e2e.ts
 
+      # Emails are captured by the script, never sent.
+      - name: Access requests end-to-end
+        run: pnpm tsx scripts/access-requests-e2e.ts
+
       - name: Database edits end-to-end
         run: pnpm tsx scripts/database-e2e.ts
 
@@ -79,6 +83,9 @@ jobs:
       # Assignment emails are captured by the script, never sent.
       - name: Person properties end-to-end
         run: pnpm tsx scripts/person-e2e.ts
+
+      - name: People directory and analytics end-to-end
+        run: pnpm tsx scripts/people-e2e.ts
 
       - name: Trash end-to-end
         run: pnpm tsx scripts/trash-e2e.ts
@@ -120,7 +127,12 @@ jobs:
       - name: Membership policies end-to-end
         run: pnpm tsx scripts/membership-e2e.ts
 
+      # The admin e2e's administrator, and new workspaces for administrators only (the other policy
+      # is checked against the database).
       - name: Start the server
+        env:
+          ADMIN_EMAILS: admin-e2e@example.test
+          WORKSPACE_CREATION: admins
         run: |
           pnpm start > "$RUNNER_TEMP/server.log" 2>&1 &
           for _ in $(seq 60); do
@@ -141,6 +153,13 @@ jobs:
 
       - name: Password reset end-to-end
         run: pnpm tsx scripts/auth-e2e.ts
+
+      # Last: it signs every session on the server out.
+      - name: Instance administration end-to-end
+        env:
+          ADMIN_EMAILS: admin-e2e@example.test
+          WORKSPACE_CREATION: admins
+        run: pnpm tsx scripts/admin-e2e.ts
 
       - name: Server log
         if: always()

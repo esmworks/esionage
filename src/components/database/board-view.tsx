@@ -261,7 +261,7 @@ export function BoardView({
                     const r = col.getBoundingClientRect();
                     e.dataTransfer.setDragImage(col, e.clientX - r.left, e.clientY - r.top);
                   }
-                  e.dataTransfer.setData("application/x-esionage-column", key);
+                  e.dataTransfer.setData("application/x-leafdesk-column", key);
                   e.dataTransfer.effectAllowed = "move";
                   setDragCol(key);
                 }}

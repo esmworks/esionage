@@ -1,4 +1,4 @@
-import { and, eq, getTableColumns, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import { and, eq, getTableColumns, ne, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   page,
@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { env } from "@/lib/env";
 import { INSTANCE_SSO_PROVIDER_ID, workspaceProviderId } from "@/lib/sso-config";
+import { connectedAppCall, connectedAppRefusal, connectedAppsMode, type ConnectedAppCall, type ConnectedAppsMode } from "@/server/connected-app";
 import { requestSession } from "@/server/request-session";
 
 /**
@@ -30,6 +31,10 @@ import { requestSession } from "@/server/request-session";
  * personal access tokens (/api/v1) and SCIM tokens are outside the policies: they are credentials
  * handed to a program, revoked in Settings, not sign-ins. Lists filtered only in SQL
  * (`pageVisibleTo`) run after one of those checks, or ask `sessionHeldBack` themselves.
+ *
+ * Those programs answer to the workspace's connected-apps setting instead (see connected-app.ts):
+ * the same checks hide a workspace whose owners turned connected apps off (AccessError, as if the
+ * user weren't in it) and refuse writes where they may only read (ConnectedAppReadOnlyError).
  */
 
 export class AccessError extends Error {
@@ -73,6 +78,17 @@ export class SsoRequiredError extends WorkspacePolicyError {
   constructor(workspaceId: string) {
     super(workspaceId, "sso", "This workspace requires signing in with single sign-on");
     this.name = "SsoRequiredError";
+  }
+}
+
+/**
+ * The workspace lets connected apps (MCP clients, REST API tokens) only read, and this request of
+ * one tried to change something. An AccessError, so whatever turns access errors away turns it away.
+ */
+export class ConnectedAppReadOnlyError extends AccessError {
+  constructor(readonly workspaceId: string) {
+    super("The owners of this workspace let connected apps only read it");
+    this.name = "ConnectedAppReadOnlyError";
   }
 }
 
@@ -166,18 +182,63 @@ export async function sessionHold(userId: string, workspaceId: string): Promise<
   return held;
 }
 
-/** Whether a workspace policy holds back this request's session (see sessionHold). */
+/** The workspace's connected-apps setting, asked once per request. */
+function appsModeOf(call: ConnectedAppCall, workspaceId: string): Promise<ConnectedAppsMode> {
+  let mode = call.modes.get(workspaceId);
+  if (!mode) {
+    mode = db
+      .select({ mode: sql<string | null>`${workspace.settings}->>'connectedApps'` })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+      .limit(1)
+      .then(([row]) => connectedAppsMode(row?.mode));
+    call.modes.set(workspaceId, mode);
+  }
+  return mode;
+}
+
+/**
+ * What the workspace's connected-apps setting does to this request (see connectedAppRefusal): null
+ * outside connected-app requests and for checks on behalf of someone other than the app's user.
+ */
+export async function connectedAppHold(userId: string, workspaceId: string): Promise<"hidden" | "readOnly" | null> {
+  const call = connectedAppCall(userId);
+  return call ? connectedAppRefusal(await appsModeOf(call, workspaceId), call.writing) : null;
+}
+
+/**
+ * Of the user's workspaces, the ones hidden from the connected app serving this request (owners
+ * turned connected apps off); none outside connected-app requests. For lists across workspaces.
+ */
+export async function workspacesHiddenFromApp(userId: string): Promise<Set<string>> {
+  const call = connectedAppCall(userId);
+  if (!call) return new Set();
+  const rows = await db
+    .select({ id: workspace.id })
+    .from(workspaceMember)
+    .innerJoin(workspace, eq(workspace.id, workspaceMember.workspaceId))
+    .where(and(eq(workspaceMember.userId, userId), sql`${workspace.settings}->>'connectedApps' = 'off'`));
+  return new Set(rows.map((r) => r.id));
+}
+
+/**
+ * Whether a workspace policy holds back this request: a sign-in policy its session doesn't meet
+ * (see sessionHold), or the connected-apps setting (see connectedAppHold).
+ */
 export async function sessionHeldBack(userId: string, workspaceId: string): Promise<boolean> {
-  return (await sessionHold(userId, workspaceId)) !== null;
+  return (await sessionHold(userId, workspaceId)) !== null || (await connectedAppHold(userId, workspaceId)) !== null;
 }
 
 export async function enforceWorkspacePolicy(userId: string, workspaceId: string) {
   const hold = await sessionHold(userId, workspaceId);
   if (hold) throw policyError(workspaceId, hold);
+  const app = await connectedAppHold(userId, workspaceId);
+  if (app === "hidden") throw new AccessError();
+  if (app === "readOnly") throw new ConnectedAppReadOnlyError(workspaceId);
 }
 
 
-/** Of these workspace ids, the ones whose two-step policy holds back this request's session. */
+/** Of these workspace ids, the ones whose policies hold back this request (see sessionHeldBack). */
 export async function workspacesHeldBack(userId: string, workspaceIds: Iterable<string>): Promise<Set<string>> {
   const ids = [...new Set(workspaceIds)];
   const held = await Promise.all(ids.map((id) => sessionHeldBack(userId, id)));
@@ -296,6 +357,31 @@ export async function requirePageAccess(userId: string, pageId: string, needed: 
   if (!found || !hasLevel(level, needed)) throw new AccessError();
   return found;
 }
+
+/**
+ * Everyone in the workspace with full access to the page (the people who can share it), but
+ * `except`: who hears about a request for access to it.
+ */
+export async function peopleWithFullAccess(workspaceId: string, pageId: string, except?: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: workspaceMember.userId })
+    .from(workspaceMember)
+    .where(
+      and(
+        eq(workspaceMember.workspaceId, workspaceId),
+        except ? ne(workspaceMember.userId, except) : undefined,
+        sql`page_access_level(${workspaceMember.userId}, ${pageId}) = ${FULL_RANK}`,
+      ),
+    );
+  return rows.map((r) => r.userId);
+}
+
+/**
+ * SQL: someone's role in a workspace, or null when they aren't in it; for lists that say whether
+ * a person is in the workspace (an access request's requester, say). Both are SQL expressions.
+ */
+export const workspaceRoleOf = (userId: SQL | AnyColumn, workspaceId: SQL | AnyColumn) =>
+  sql<WorkspaceRole | null>`(select wm.role from ${workspaceMember} wm where wm.workspace_id = ${workspaceId} and wm.user_id = ${userId})`;
 
 /**
  * SQL condition: the user can at least view the page. Pass the alias when the page table is

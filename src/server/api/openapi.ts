@@ -26,7 +26,7 @@ const TOOL_NAMES = [
   ["list_templates, attach_file", "the app (not in the REST API yet)"],
 ];
 
-const DESCRIPTION = `A REST API for the pages, databases, rows and comments of Esionage, acting as the user who created the token, with that user's own access to pages.
+const DESCRIPTION = `A REST API for the pages, databases, rows and comments of Leafdesk, acting as the user who created the token, with that user's own access to pages.
 
 **Authentication.** Create a personal access token in Settings → Connected apps and send it as \`Authorization: Bearer esi_…\`. Tokens have the scope \`pages:read\` (GET endpoints) and optionally \`pages:write\` (everything that changes data), may be limited to one workspace and may expire. Tokens look like \`esi_\` followed by 40 letters and digits, so secret scanners can spot leaked ones; revoke a leaked token in Settings. Tokens act outside a workspace's "require two-step verification" policy, like connected MCP apps.
 
@@ -40,7 +40,7 @@ const DESCRIPTION = `A REST API for the pages, databases, rows and comments of E
 
 **Page bodies** are Markdown with a few extensions (callouts, equations, columns, mentions, embedded databases); see the MCP server's instructions in the README. Every body change saves the previous version to page history first.
 
-Field descriptions are shared with Esionage's MCP server; where they name its tools: ${TOOL_NAMES.map(([tool, rest]) => `\`${tool}\` → ${rest}`).join(", ")}.`;
+Field descriptions are shared with Leafdesk's MCP server; where they name its tools: ${TOOL_NAMES.map(([tool, rest]) => `\`${tool}\` → ${rest}`).join(", ")}.`;
 
 const url = { type: "string", format: "uri", description: "Link to it in the app." };
 const id = { type: "string" };
@@ -293,7 +293,10 @@ const SCHEMAS: Record<string, JsonSchema> = {
 const ERROR_RESPONSES: Record<string, { description: string }> = {
   "400": { description: "Invalid input (validation_error, invalid_json, invalid_request, invalid_property_value, invalid_cursor)." },
   "401": { description: "No token, or an invalid or expired one (unauthorized, invalid_token, token_expired)." },
-  "403": { description: "The token lacks the scope (insufficient_scope), or the user may not do this (forbidden)." },
+  "403": {
+    description:
+      "The token lacks the scope (insufficient_scope), or the user may not do this, or the workspace lets API tokens only read (forbidden).",
+  },
   "404": { description: "Not found, or the user (or the token's workspace) may not access it." },
   "413": { description: "The request body is too large (payload_too_large)." },
   "429": { description: "Rate limited; wait for Retry-After seconds." },
@@ -356,7 +359,7 @@ export function buildOpenApiDocument(routes: ApiRoute[], { appUrl, version }: { 
   return {
     openapi: "3.1.0",
     info: {
-      title: "Esionage REST API",
+      title: "Leafdesk REST API",
       version,
       description: DESCRIPTION,
       license: { name: "Apache-2.0", identifier: "Apache-2.0" },

@@ -3,12 +3,14 @@
     "myAccount": "Hesabım",
     "newWorkspace": "Yeni çalışma alanı",
     "settingsAndMembers": "Ayarlar ve üyeler",
-    "signOut": "Çıkış yap"
+    "signOut": "Çıkış yap",
+    "admin": "Sunucu yönetimi"
   },
   "nav": {
     "search": "Ara",
     "home": "Ana sayfa",
     "inbox": "Gelen kutusu",
+    "people": "Kişiler",
     "settings": "Ayarlar",
     "trash": "Çöp kutusu",
     "templates": "Şablonlar",
@@ -70,6 +72,7 @@
     "comment": "{actor}, katıldığınız bir yorum konusuna yazdı",
     "mention": "{actor} sizden bahsetti",
     "reminder": "Hatırlatma: {date}",
+    "accessRequest": "{actor} bu sayfaya erişim istedi",
     "someone": "Biri",
     "unread": "Okunmadı",
     "unreadCount": "{count, plural, one {# okunmamış bildirim} other {# okunmamış bildirim}}",

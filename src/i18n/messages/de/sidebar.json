@@ -3,12 +3,14 @@
     "myAccount": "Mein Konto",
     "newWorkspace": "Neuer Workspace",
     "settingsAndMembers": "Einstellungen & Mitglieder",
-    "signOut": "Abmelden"
+    "signOut": "Abmelden",
+    "admin": "Serververwaltung"
   },
   "nav": {
     "search": "Suchen",
     "home": "Startseite",
     "inbox": "Posteingang",
+    "people": "Personen",
     "settings": "Einstellungen",
     "trash": "Papierkorb",
     "templates": "Vorlagen",
@@ -70,6 +72,7 @@
     "comment": "{actor} hat in einer Diskussion kommentiert, an der du beteiligt bist",
     "mention": "{actor} hat dich erwähnt",
     "reminder": "Erinnerung: {date}",
+    "accessRequest": "{actor} möchte Zugriff auf diese Seite",
     "someone": "Jemand",
     "unread": "Ungelesen",
     "unreadCount": "{count, plural, one {# ungelesene Benachrichtigung} other {# ungelesene Benachrichtigungen}}",

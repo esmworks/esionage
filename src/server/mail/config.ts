@@ -44,7 +44,7 @@ export function readMailConfig(vars: Record<string, string | undefined> = proces
 
   const from = vars.MAIL_FROM?.trim();
   if (!from) {
-    throw new MailConfigError('MAIL_FROM is required when SMTP is configured, e.g. MAIL_FROM="Esionage <no-reply@example.com>"');
+    throw new MailConfigError('MAIL_FROM is required when SMTP is configured, e.g. MAIL_FROM="Leafdesk <no-reply@example.com>"');
   }
 
   if (url) {

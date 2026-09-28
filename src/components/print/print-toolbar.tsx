@@ -26,7 +26,7 @@ async function whenReady(root: HTMLElement) {
   await Promise.race([document.fonts?.ready, sleep(READY_TIMEOUT_MS)]);
   while (Date.now() < deadline) {
     const images = [...root.querySelectorAll("img")];
-    const waiting = images.some((img) => !img.complete) || root.querySelector('[data-esionage-mermaid="pending"]');
+    const waiting = images.some((img) => !img.complete) || root.querySelector('[data-leafdesk-mermaid="pending"]');
     if (!waiting) break;
     await sleep(100);
   }

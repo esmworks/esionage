@@ -163,7 +163,7 @@ try {
   // The block in the page body: a title-free reference line
   await service.replaceContent(host.id, `Intro\n\n${referenceLine("database", inline.id)}\n\nOutro`, owner);
   const [body] = await db.select({ markdown: page.contentMarkdown, text: page.contentText }).from(page).where(eq(page.id, host.id));
-  check(body.markdown.includes(`<!-- esionage:database ${inline.id} -->`), "the page's Markdown holds the database's reference line", body);
+  check(body.markdown.includes(`<!-- leafdesk:database ${inline.id} -->`), "the page's Markdown holds the database's reference line", body);
   check(!body.markdown.includes("Secret") && !body.text.includes("Secret"), "the page's Markdown and search text never name the database", body);
   check((await storedBlocks(host.id)).some((b) => b.type === "database" && b.props.databaseId === inline.id), "the reference is stored as a database block");
 
@@ -266,7 +266,7 @@ try {
   );
   const [copyBody] = await db.select({ markdown: page.contentMarkdown }).from(page).where(eq(page.id, copy.id));
   check(
-    copyBody.markdown.includes(`esionage:database ${copiedDb.id}`) && !copyBody.markdown.includes(`esionage:database ${inline.id}`),
+    copyBody.markdown.includes(`leafdesk:database ${copiedDb.id}`) && !copyBody.markdown.includes(`leafdesk:database ${inline.id}`),
     "…and its Markdown says so too",
     copyBody,
   );
@@ -315,5 +315,5 @@ try {
   await db.delete(workspace).where(inArray(workspace.id, [workspaceId]));
   await db.delete(user).where(inArray(user.id, userIds));
   hocuspocus.closeConnections();
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }

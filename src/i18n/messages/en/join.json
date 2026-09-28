@@ -3,7 +3,7 @@
   "title": "Join “{workspace}”",
   "invalidTitle": "Link not found",
   "invalidBody": "This join link is invalid or was turned off. Ask a workspace owner for a new one.",
-  "home": "Go to Esionage",
+  "home": "Go to Leafdesk",
   "body": "You'll join as a member, unless you were invited with a different role.",
   "join": "Join workspace",
   "joining": "Joining…",

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { boolean, check, index, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 import { databaseProperty, page, workspace, workspaceJoinRequest } from "./app";
 import { user } from "./auth";
+import { accessRequest } from "./permissions";
 
 /** Account-wide choices that follow the user across browsers (the interface language doesn't). */
 export const userPreference = pgTable("user_preference", {
@@ -28,6 +29,10 @@ export const userPreference = pgTable("user_preference", {
   reminderEmails: boolean("reminder_emails").notNull().default(true),
   /** Show the reminders I set on dates in my inbox. */
   reminderInbox: boolean("reminder_inbox").notNull().default(true),
+  /** Email me when someone asks for access to a page I have full access to. */
+  accessRequestEmails: boolean("access_request_emails").notNull().default(true),
+  /** Show requests for access to pages I have full access to in my inbox. */
+  accessRequestInbox: boolean("access_request_inbox").notNull().default(true),
   /** Email me when someone asks to join a workspace I own. */
   joinRequestEmails: boolean("join_request_emails").notNull().default(true),
   /** Show requests to join the workspaces I own in my inbox. */
@@ -59,7 +64,15 @@ export const pendingAssignmentEmail = pgTable(
   (t) => [primaryKey({ columns: [t.rowId, t.propertyId, t.userId] }), index("assignment_email_due_idx").on(t.dueAt)],
 );
 
-export const NOTIFICATION_KINDS = ["assignment", "page_shared", "comment", "mention", "reminder", "join_request"] as const;
+export const NOTIFICATION_KINDS = [
+  "assignment",
+  "page_shared",
+  "comment",
+  "mention",
+  "reminder",
+  "access_request",
+  "join_request",
+] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /**
@@ -68,9 +81,11 @@ export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
  * `pageId`. "comment": `actorId` replied in comment thread `threadId` on page `pageId`, where the
  * user had commented before. "mention": `actorId` mentioned the user on page `pageId` (mention
  * `mentionId`). "reminder": the reminder the user set on date mention `mentionId` of page `pageId`
- * fell due. "join_request": `actorId` asked to join (or to invite someone), request `joinRequestId`,
- * which waits for the workspace's owners; it has no page. Unread ones are dropped when the change
- * is undone (or the request decided). Rows are recorded
+ * fell due. "access_request": `actorId` asked for access to page `pageId`, which the user has full
+ * access to (request `accessRequestId`); answered by anyone, it goes away, read or not.
+ * "join_request": `actorId` asked to join (or to invite someone), request `joinRequestId`, which
+ * waits for the workspace's owners; it has no page. Unread ones are dropped when the change is
+ * undone (or the request decided). Rows are recorded
  * whatever the user's preferences; the inbox leaves out the kinds they turned off.
  */
 export const notification = pgTable(
@@ -94,6 +109,8 @@ export const notification = pgTable(
     threadId: text("thread_id"),
     /** Mention and reminder notifications: the mention (in the page's document) they are about. */
     mentionId: text("mention_id"),
+    /** Access request notifications: the request, so answering it takes all of them away. */
+    accessRequestId: text("access_request_id").references(() => accessRequest.id, { onDelete: "cascade" }),
     /** Join request notifications: the request. */
     joinRequestId: text("join_request_id").references(() => workspaceJoinRequest.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -106,6 +123,9 @@ export const notification = pgTable(
   (t) => [
     index("notification_inbox_idx").on(t.userId, t.workspaceId, t.createdAt),
     index("notification_email_due_idx").on(t.emailDueAt),
+    // Answering a request deletes its notifications through the foreign key.
+    index("notification_access_request_idx").on(t.accessRequestId),
+    // Only join requests are about no page (access requests are about the page asked for).
     check("notification_subject_check", sql`${t.kind} = 'join_request' or ${t.pageId} is not null`),
   ],
 );

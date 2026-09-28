@@ -62,7 +62,8 @@
     "notAllowed": "This workspace lets only owners publish to the web. Ask an owner to create the link.",
     "failed": "Something went wrong. Try again.",
     "stale": "This link takes no answers: whoever opened it can no longer add rows to this database. Open it again to take answers on your behalf.",
-    "reactivate": "Take answers again"
+    "reactivate": "Take answers again",
+    "publishingOff": "Publishing to the web is turned off in this workspace. Public forms take no answers until an owner turns it back on."
   },
   "errors": {
     "required": "This question is required.",
@@ -78,7 +79,8 @@
     "tooLarge": "Your answers are too long.",
     "notAllowed": "This workspace lets only owners publish to the web.",
     "inTrash": "This database is in the trash.",
-    "notAForm": "This view is not a form."
+    "notAForm": "This view is not a form.",
+    "publishingOff": "Publishing to the web is turned off in this workspace."
   },
   "public": {
     "signInTitle": "Sign in to answer",
@@ -88,6 +90,6 @@
     "anonymous": "Answers are anonymous.",
     "notFound": "Form not found",
     "notFoundBody": "This link is invalid, or the form no longer takes answers.",
-    "home": "Go to Esionage"
+    "home": "Go to Leafdesk"
   }
 }

@@ -361,7 +361,7 @@ export function PropertyCell({
 }) {
   const t = useTranslations("database.cell");
   const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
-  // Who created or last edited a row, and when, is filled in by Esionage and never edited; formulas
+  // Who created or last edited a row, and when, is filled in by Leafdesk and never edited; formulas
   // are worked out from the row.
   const readOnly = readOnlyProp || isReadOnlyType(prop.type);
   const [editing, setEditing] = useState(Boolean(autoEdit) && !readOnly);

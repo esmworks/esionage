@@ -54,12 +54,12 @@ export function renderEmail(locale: Locale, content: EmailContent): RenderedEmai
     .join("\n");
   const button = action
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;">
-<tr><td style="border-radius:6px;background:#2f6fed;">
+<tr><td style="border-radius:6px;background:#2f7d4f;">
 <a href="${escapeHtml(action.url)}" style="display:inline-block;padding:10px 18px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">${escapeHtml(action.label)}</a>
 </td></tr>
 </table>
 <p style="margin:0;font-size:13px;color:#6b6d75;">${escapeHtml(t("actionFallback"))}<br>
-<a href="${escapeHtml(action.url)}" style="color:#2f6fed;word-break:break-all;">${escapeHtml(action.url)}</a></p>`
+<a href="${escapeHtml(action.url)}" style="color:#2f7d4f;word-break:break-all;">${escapeHtml(action.url)}</a></p>`
     : "";
 
   const html = `<!doctype html>
@@ -74,7 +74,7 @@ export function renderEmail(locale: Locale, content: EmailContent): RenderedEmai
 <tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;">
 <tr><td style="padding:32px;font-family:${FONT};font-size:15px;line-height:1.6;color:#1f2023;">
-<p style="margin:0 0 24px;font-size:14px;font-weight:600;color:#6b6d75;">Esionage</p>
+<p style="margin:0 0 24px;font-size:14px;font-weight:600;color:#6b6d75;">Leafdesk</p>
 <h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;font-weight:600;">${escapeHtml(content.heading)}</h1>
 ${paragraphs}
 ${button}
@@ -194,6 +194,59 @@ export function reminderEmail(
   });
 }
 
+/** To the people with full access to a page: someone asked for access to it. */
+export function accessRequestEmail(
+  locale: Locale,
+  request: { requesterName: string; requesterEmail: string; pageTitle: string; workspaceName: string; message: string | null; link: string },
+): RenderedEmail {
+  const t = emailTranslator(locale);
+  const names = {
+    requester: request.requesterName || request.requesterEmail,
+    email: request.requesterEmail,
+    page: request.pageTitle,
+    workspace: request.workspaceName,
+  };
+  return renderEmail(locale, {
+    subject: t("accessRequest.subject", names),
+    heading: t("accessRequest.heading", names),
+    paragraphs: [
+      t("accessRequest.body", names),
+      ...(request.message ? [t("accessRequest.message", { message: request.message })] : []),
+      t("accessRequest.answer"),
+      t("accessRequest.optOut"),
+    ],
+    action: { label: t("accessRequest.action"), url: request.link },
+  });
+}
+
+/** To the requester: their request was approved, with the level they got. */
+export function accessApprovedEmail(
+  locale: Locale,
+  approval: { actorName: string; pageTitle: string; workspaceName: string; level: "view" | "comment" | "edit" | "full"; link: string },
+): RenderedEmail {
+  const t = emailTranslator(locale);
+  const names = { actor: approval.actorName || t("mention.someone"), page: approval.pageTitle, workspace: approval.workspaceName };
+  return renderEmail(locale, {
+    subject: t("accessApproved.subject", names),
+    heading: t("accessApproved.heading", names),
+    paragraphs: [t("accessApproved.body", { ...names, level: t(`share.levels.${approval.level}`) })],
+    action: { label: t("accessApproved.action"), url: approval.link },
+  });
+}
+
+/**
+ * To the requester: their request was declined. Names neither the page nor the workspace nor who
+ * declined it, since they still can't see the page; the link tells them which one it was.
+ */
+export function accessDeclinedEmail(locale: Locale, decline: { link: string }): RenderedEmail {
+  const t = emailTranslator(locale);
+  return renderEmail(locale, {
+    subject: t("accessDeclined.subject"),
+    heading: t("accessDeclined.heading"),
+    paragraphs: [t("accessDeclined.body", { link: decline.link }), t("accessDeclined.hint")],
+  });
+}
+
 /** To a workspace's owners: someone asks to join it, or a member asks to invite someone. */
 export function joinRequestEmail(
   locale: Locale,
@@ -253,6 +306,23 @@ export function passwordResetEmail(locale: Locale, reset: { name: string; url: s
       t("passwordReset.expires", { minutes: PASSWORD_RESET_MINUTES }),
     ],
     action: { label: t("passwordReset.action"), url: reset.url },
+  });
+}
+
+/**
+ * Sent when someone signs in with the password an instance admin asked them to replace (see
+ * server/required-password.ts): the same reset link as "Forgot password", with the reason.
+ */
+export function passwordResetRequiredEmail(locale: Locale, reset: { name: string; url: string }): RenderedEmail {
+  const t = emailTranslator(locale);
+  return renderEmail(locale, {
+    subject: t("passwordResetRequired.subject"),
+    heading: t("passwordResetRequired.heading"),
+    paragraphs: [
+      t("passwordResetRequired.body", { name: reset.name }),
+      t("passwordResetRequired.expires", { minutes: PASSWORD_RESET_MINUTES }),
+    ],
+    action: { label: t("passwordResetRequired.action"), url: reset.url },
   });
 }
 

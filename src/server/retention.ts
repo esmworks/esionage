@@ -28,7 +28,7 @@ export type RetentionResult = {
   snapshots: number;
 };
 
-const LOCK = "esionage:retention";
+const LOCK = "leafdesk:retention";
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Pages deleted per statement, so a long-neglected trash doesn't make one huge delete. */
 const DELETE_BATCH = 200;

@@ -1,4 +1,9 @@
-# Esionage
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/leafdesk-logo-dark.svg">
+    <img src="brand/leafdesk-logo.svg" alt="Leafdesk" height="44">
+  </picture>
+</h1>
 
 An open-source, self-hostable Notion alternative with realtime collaboration and a built-in
 MCP server, so AI assistants such as Claude can search, read and edit your workspace after you
@@ -25,7 +30,7 @@ approve them over OAuth.
   the edits sync when it is back, merged with what others wrote meanwhile. The sidebar and
   recently opened databases stay readable. The page header shows offline, syncing and synced (see
   [Install and offline use](#install-and-offline-use)).
-- **Installable app**: install Esionage from the browser on desktop (Chrome, Edge) or add it to
+- **Installable app**: install Leafdesk from the browser on desktop (Chrome, Edge) or add it to
   the home screen on phones; it opens in its own window.
 - **Find and replace** in a page (Cmd/Ctrl+F): highlights every match, steps through them, and
   replaces one or all in a single undo step. Anyone who can open the page can search it.
@@ -54,8 +59,8 @@ approve them over OAuth.
   and dates with optional reminders; "Link to page" blocks; a "Linked from" list of backlinks on
   every page.
 - **Inbox**: a notification when someone assigns you to a row, shares a page with you, replies in
-  a comment thread you're in or mentions you, and when a reminder you set is due, with an email a
-  little later. Choose per kind whether it shows in the inbox and whether it comes by email.
+  a comment thread you're in or mentions you, asks for access to a page you manage, and when a
+  reminder you set is due, with an email a little later. Choose per kind whether it shows in the inbox and whether it comes by email.
 - **Page history**: versions are saved automatically while you edit and before every AI edit.
   You can preview and restore any version, and see what changed since it or since the version
   before, and who (or which AI app) changed it.
@@ -72,17 +77,25 @@ approve them over OAuth.
 - **Sharing and permissions**: give people, or everyone in the page's teamspace (the workspace
   for a private page), full, edit, comment, view or no access to a page. Subpages inherit it
   unless you change them. Share a page with someone outside the workspace by email and they join
-  as a guest who sees only the pages shared with them.
+  as a guest who sees only the pages shared with them. Someone who opens a link to a page they
+  can't see can request access; the people with full access approve it at a level or decline it
+  from their inbox or the Share panel (owners can turn requests off in Settings → Security).
 - **Member groups**: workspace owners gather members into groups (Settings → Groups) and share a
   page with a group, or add it to a teamspace, the way they would with a person. Everyone in the
   group gets that access for as long as they are in it; when a page has entries for someone and
   their groups, the highest level wins. Guests can't be in groups, and people leave their groups
   when they leave the workspace or become guests. The member list shows each person's groups.
   An identity provider can manage groups over SCIM.
+- **People directory and analytics**: a *People* page with a card for each owner and member (their
+  teamspaces, groups and recently edited pages, as far as the viewer may see them), and, for
+  owners, Settings → Analytics: active members, edits per person and the most edited pages over
+  7, 30 or 90 days, with CSV export. Counted from page history and last edits; nothing extra is
+  tracked.
 - **Publish to the web**: a read-only public link for a page and its subpages, kept out of search
   engines unless you allow them. Published databases show the views you pick (tables, boards,
-  lists, galleries) and visitors switch between them. Owners decide whether members may publish
-  and can take any published page offline.
+  lists, galleries) and visitors switch between them. Owners decide whether members may publish,
+  can take any published page offline, or turn publishing off for the whole workspace (see
+  [Workspace security switches](#workspace-security-switches)).
 - **Workspace site**: owners give the workspace's published pages one readable address
   (`/s/<slug>`) with a home page and a navigation of the pages listed in it; pages get addresses
   like `/s/<slug>/getting-started-<id>`, and links between listed pages stay on the site. Pages
@@ -96,7 +109,7 @@ approve them over OAuth.
   in place.
 - **Import**: bring in Markdown files, a folder or a ZIP as pages that keep their folder
   structure, with links between the files turned into page links and the images they show
-  uploaded, into the page or teamspace you start it from. An Esionage export comes back as it went,
+  uploaded, into the page or teamspace you start it from. An Leafdesk export comes back as it went,
   templates included. Import a CSV file as a new database with its column types guessed (and
   changeable before importing), or add its rows to an existing database by matching columns to
   properties.
@@ -115,8 +128,10 @@ approve them over OAuth.
 - **Workspaces and members**: add people by email (several at once) as owners or members, send
   an invitation link to people who don't have an account yet, or turn on a join link anyone can
   use. Owners can export the member list as CSV, hand ownership to someone else, and decide who
-  may invite guests and add members, which email domains may join on their own, and who may ask
-  to join (see [Who can join a workspace](#who-can-join-a-workspace)).
+  may invite guests and add members, which email domains may join on their own, who may ask to
+  join, whether pages may be exported, and what connected apps and API tokens may do (see
+  [Who can join a workspace](#who-can-join-a-workspace) and
+  [Workspace security switches](#workspace-security-switches)).
 - **Email**: invitations, password reset, assignment and share notifications over SMTP (see [Email](#email)).
 - **Sign in with GitHub or Google**, optional (see [Social login](#social-login)).
 - **My account**: name and picture, password, email address, signed-in devices, connected apps,
@@ -148,13 +163,13 @@ approve them over OAuth.
 ## Quick start (Docker)
 
 Prebuilt images for amd64 and arm64 are published to
-[GitHub Container Registry](https://github.com/esmworks/esionage/pkgs/container/esionage) for every release.
+[GitHub Container Registry](https://github.com/esmworks/leafdesk/pkgs/container/leafdesk) for every release.
 You only need two files:
 
 ```bash
-mkdir esionage && cd esionage
-curl -fsSLO https://raw.githubusercontent.com/esmworks/esionage/main/docker-compose.yml
-curl -fsSL https://raw.githubusercontent.com/esmworks/esionage/main/.env.example -o .env
+mkdir leafdesk && cd leafdesk
+curl -fsSLO https://raw.githubusercontent.com/esmworks/leafdesk/main/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/esmworks/leafdesk/main/.env.example -o .env
 # set BETTER_AUTH_SECRET in .env to the output of: openssl rand -base64 32
 docker compose up -d
 ```
@@ -162,7 +177,7 @@ docker compose up -d
 Open http://localhost:3000 and create an account. Migrations run automatically when the app
 container starts.
 
-- **Pin a version:** set `ESIONAGE_VERSION=0.2.0` in `.env`. The default is `latest`.
+- **Pin a version:** set `LEAFDESK_VERSION=0.2.0` in `.env`. The default is `latest`.
 - **Upgrade:** run `docker compose pull && docker compose up -d`. Coming from 0.1.0, first add
   `COMPOSE_PROFILES=bundled-db` to `.env` (see [CHANGELOG.md](CHANGELOG.md)).
 - **Build from source:** clone the repository and run `docker compose up -d --build`.
@@ -222,8 +237,9 @@ removed after a day.
 
 The page menu exports a page as Markdown or a database as CSV. "Export with subpages" (for a
 database, "Export with row pages") downloads a ZIP of the page and everything under it; owners
-can download the whole workspace from Settings → General → Export. The archive mirrors the
-sidebar:
+can download the whole workspace from Settings → General → Export. Owners can turn exporting off
+in Settings → Security (see [Workspace security switches](#workspace-security-switches)). The
+archive mirrors the sidebar:
 
 ```
 Project.md              a page, and a folder of the same name for its subpages
@@ -275,7 +291,7 @@ in the print dialog.
 
 ## Install and offline use
 
-**Installing.** Esionage is a web app with a manifest, icons and a service worker, so browsers
+**Installing.** Leafdesk is a web app with a manifest, icons and a service worker, so browsers
 offer to install it: the install icon in Chrome's or Edge's address bar, "Install app" in the
 workspace menu (shown only while the browser offers it; nothing pops up on its own), or "Add to
 Home Screen" in Safari's share menu on iPhone and iPad. Installed, it opens in its own window and
@@ -329,7 +345,7 @@ Email is needed for invitations and password reset. Set these in `.env`:
 | --- | --- |
 | `SMTP_URL` | Connection URL, e.g. `smtp://user:password@smtp.example.com:587`. Use `smtps://` for implicit TLS on port 465. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` | Alternative to `SMTP_URL`. The port defaults to 587 (STARTTLS), or 465 with `SMTP_SECURE=true`. |
-| `MAIL_FROM` | Sender, e.g. `Esionage <no-reply@example.com>`. Required when SMTP is set. |
+| `MAIL_FROM` | Sender, e.g. `Leafdesk <no-reply@example.com>`. Required when SMTP is set. |
 
 Check the settings with `pnpm mail:test you@example.com`. In Docker, run
 `docker compose exec app tsx scripts/send-test-email.ts you@example.com`. The server also logs
@@ -387,7 +403,8 @@ workspace and isn't held back by a workspace's two-step policy. The old addresse
   who only sign in with GitHub or Google can set one instead. Both send a notice by email.
 - **Sessions:** every signed-in device with its browser, system, IP address and last activity
   (refreshed about once a day), with "Sign out" per device and "Sign out all other devices",
-  which also closes their live collaboration connections.
+  which also closes their live collaboration connections. A session ends after
+  `SESSION_MAX_AGE_DAYS` without use (see below).
 - **Security, connected apps, language and notifications:** as before, moved here from the
   workspace settings.
 - **Delete account:** type the account's email to confirm. It is refused while the person is the
@@ -402,6 +419,33 @@ two-step code (or recovery code) on accounts without one. An account with neithe
 sign-in from the last 10 minutes. These checks are rate-limited per person (10 tries per 15
 minutes), as are email changes (5 an hour), picture uploads (20 an hour) and signing out devices.
 
+How long a sign-in lasts is set for the whole server:
+
+| Variable | Meaning |
+| --- | --- |
+| `SESSION_MAX_AGE_DAYS` | Days a session lasts, in whole days from 1 to 3650. Default `7`. A session in use is extended (about once a day, or halfway through for a one-day lifetime), so this is how long a device may sit unused before it has to sign in again. Existing sessions keep the expiry they have until they are next extended. |
+
+## Workspace security switches
+
+Owners decide in the workspace's **Settings → Security** what may leave the workspace. The
+server enforces each switch everywhere it applies: in the app, on public pages, over MCP and in
+the REST API.
+
+- **Publishing:** *Owners only*, *Owners and members*, or *Off*. Off stops serving everything the
+  workspace has published: published pages, their files, the workspace site and public forms
+  answer "not found", and nobody can publish or duplicate them. Nothing is deleted: the
+  publications and the site's settings stay listed in Settings, and come back as they were when
+  publishing is turned on again.
+- **Export:** on by default. Off removes Markdown, CSV, ZIP and PDF export (and the print view)
+  for everyone, owners included, and the export routes answer `403`. The member list CSV in
+  Settings → Members stays, as it is an owner's own administration tool.
+- **Connected apps and API tokens:** what MCP apps and personal access tokens may do in the
+  workspace, on top of their own permissions and their user's access. *Full access* (default),
+  *Read only* (write tools and write endpoints are refused, reads still work), or *Off* (the
+  workspace is hidden from them: `list_workspaces` and `GET /workspaces` leave it out, and its
+  pages answer as pages the user can't see). This applies to the MCP server and the REST API
+  only; the app itself in the browser is not affected.
+
 ## Who can join a workspace
 
 Owners decide in the workspace's **Settings → Security → Members**:
@@ -410,8 +454,9 @@ Owners decide in the workspace's **Settings → Security → Members**:
   *Owners and members*. Members add people as members only, never as owners or guests. With
   approval, what a member adds (one address or several) becomes a request, and the invitation
   (with its email) goes out in the member's name once an owner approves it. Guests never add
-  anyone. The same rule applies wherever members are added; the REST API and MCP only list
-  members.
+  anyone. The same rule applies wherever members are added, in the app and through MCP's
+  `invite_member` (a member's invitation there becomes a request the same way); the REST API
+  only lists members.
 - **Allowed email domains** (`example.com, example.org`, subdomains included, up to 20; public
   mail services such as gmail.com can't be added) and what happens **when someone from these
   domains signs in**: they *join as members* (default) or *ask to join*. This runs on sign-up,
@@ -465,6 +510,49 @@ pnpm auth:reset-2fa person@example.com
 # Docker: docker compose exec app pnpm auth:reset-2fa person@example.com
 ```
 
+## Instance administrators
+
+Whoever runs the server can name the accounts that administer it. There is no role in the
+database: the list below is the only source, and an account counts only once its email address
+is verified.
+
+| Variable | Description |
+|---|---|
+| `ADMIN_EMAILS` | Comma-separated email addresses of the instance administrators, in any case, e.g. `ops@example.com, ada@example.com`. Empty by default: nobody is. |
+| `WORKSPACE_CREATION` | Who may create workspaces: `everyone` (default) or `admins`. Any other value means `admins`. The personal workspace every new account gets at sign-up is still created. |
+
+An address is verified by signing in once with GitHub or Google with it (when the provider
+confirms the address), by resetting the password through the emailed link, or by whoever runs
+the server:
+
+```bash
+pnpm auth:verify-email ops@example.com
+# Docker: docker compose exec app tsx scripts/verify-email.ts ops@example.com
+```
+
+Administrators get **Server administration** in the workspace menu and in My account; for
+everyone else `/admin` doesn't exist (404), and its actions do nothing. With
+`WORKSPACE_CREATION=admins`, "New workspace" is hidden from everyone else and the server
+refuses it. The page has:
+
+- **Accounts:** every account with its email, whether the address is verified, how many
+  workspaces it is in, when it was last active, and whether it uses two-step verification;
+  search by name or email. The first 200 are listed; a search narrows them down.
+- **Sign out everywhere** for one account, and **Sign out everyone** except the administrator's
+  own browser. Both end the sessions and close their live collaboration connections.
+- **Require a new password** for one account, or for everyone with a password (except the
+  administrator, who changes theirs in My account). Their sessions end, and their next password
+  sign-in gets no session. With SMTP, they get an email with a link to choose one (valid for 1
+  hour; another is sent at most every 5 minutes); without it, the sign-in page asks for the new
+  password right away, and for a two-step code when the account has it on. The old password
+  can't be chosen again. Changing the password in My account clears the requirement too.
+  Accounts without a password (GitHub, Google or single sign-on only) are not affected, and
+  neither are other ways in: GitHub, Google, single sign-on and passkeys still sign them in.
+
+Apps connected over MCP and REST API tokens use OAuth or personal access tokens, not sessions,
+so signing people out doesn't disconnect them; the person revokes them under Connected apps.
+Every administrator action is written to the server log (`[admin] …`).
+
 ## Single sign-on (OIDC, SAML) and SCIM
 
 Organizations can sign people in through their own identity provider (Keycloak, Authentik, Okta,
@@ -517,7 +605,7 @@ Then fill in the provider's details:
   Single logout is not supported.
 - **Email domains** (`example.com, example.org`; subdomains included): the connection signs
   nobody in until they are verified. Add the TXT record it shows for each domain
-  (`_esionage-sso.<domain>` with the value `esionage-sso=<token>`) at your DNS provider and click
+  (`_leafdesk-sso.<domain>` with the value `leafdesk-sso=<token>`) at your DNS provider and click
   **Verify domains**. Public mail services (gmail.com, outlook.com…) can't be claimed, and a
   domain verified by one workspace (or listed in `OIDC_DOMAINS`) can't be verified by another.
   Changing the domains or the provider asks for verification again.
@@ -613,7 +701,7 @@ handles database backups on its own. No compose file is involved.
 
 ## AI features
 
-Esionage can use a language model for a writing assistant in pages, database properties that AI
+Leafdesk can use a language model for a writing assistant in pages, database properties that AI
 fills in, and a chat that answers questions from your pages; and an embeddings model for
 semantic search. All are **off** until the server has a provider: set `AI_PROVIDER` and
 `AI_MODEL` (plus a key for hosted providers) in `.env` and restart, and `AI_EMBEDDINGS_MODEL` for
@@ -748,12 +836,15 @@ The server URL is `<APP_URL>/mcp`. My account → *Connected apps* shows ready-t
 instructions. For example, with Claude Code:
 
 ```bash
-claude mcp add --transport http esionage http://localhost:3000/mcp
+claude mcp add --transport http leafdesk http://localhost:3000/mcp
 ```
 
 The client opens a browser window where you sign in and approve access. The tools cover:
 
-- **Finding things:** `list_workspaces`, `list_teamspaces`, `search`, `list_pages`, `list_recent_pages`, `list_users`, `list_groups` (member groups with their members and teamspaces).
+- **Finding things:** `list_workspaces`, `list_teamspaces`, `search`, `list_pages`, `list_recent_pages`, `list_users` (with when each member joined), `list_groups` (member groups with their members and teamspaces).
+- **Members:** `invite_member` adds someone to a workspace by email, as Settings → Members does
+  (owners only, and not for read-only apps): someone with an account joins right away, anyone
+  else gets an invitation, whose link is returned too.
 - **Teamspaces:** `create_page`, `create_database` and `move_page` take a `teamspace_id` for
   top-level pages (`"private"` for the user's private pages). Without one, a page an AI app
   creates at the top is private to the user, as in Notion's API; the user moves it to share it.
@@ -777,7 +868,8 @@ The client opens a browser window where you sign in and approve access. The tool
   timeline, chart or form, including a form's public link).
 
 An app only ever sees the pages its user can see. Read-only apps can't call the tools that
-change anything.
+change anything, and a workspace's owners can let apps only read it, or hide it from them (see
+[Workspace security switches](#workspace-security-switches)).
 
 ## REST API
 
@@ -788,15 +880,15 @@ token. The reference is at `<APP_URL>/docs/api`, generated from the OpenAPI 3.1 
 Create a token in My account → *Connected apps* → *Personal access tokens*: give it a name, choose
 **Read only** (`pages:read`) or **Read and write** (`pages:write` too), optionally limit it to one
 workspace, and pick when it expires (7, 30, 90 days, a year, or never). The token is shown once;
-Esionage keeps only its SHA-256 hash. Tokens look like `esi_` and 40 letters and digits, so secret
+Leafdesk keeps only its SHA-256 hash. Tokens look like `esi_` and 40 letters and digits, so secret
 scanners can match leaked ones with `esi_[A-Za-z0-9]{40}`. The list shows when each was last
 used; revoking one stops it at once.
 
 ```bash
-curl http://localhost:3000/api/v1/workspaces -H "Authorization: Bearer $ESIONAGE_TOKEN"
+curl http://localhost:3000/api/v1/workspaces -H "Authorization: Bearer $LEAFDESK_TOKEN"
 
 curl -X POST http://localhost:3000/api/v1/databases/<database_id>/query \
-  -H "Authorization: Bearer $ESIONAGE_TOKEN" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $LEAFDESK_TOKEN" -H "Content-Type: application/json" \
   -d '{"filters": [{"property": "Status", "op": "equals", "value": "Done"}], "limit": 20}'
 ```
 
@@ -821,7 +913,10 @@ lists page with `next_cursor`. Each token may make 180 requests a minute (`API_R
 `X-RateLimit-*` headers, `429` with `Retry-After` beyond it), and request bodies are limited to
 5 MB. Only tokens authenticate (never the browser session), and CORS is off unless
 `API_CORS_ORIGINS` lists origins. Like connected MCP apps, tokens are not held back by a
-workspace's "require two-step verification" policy: it guards browser sessions.
+workspace's "require two-step verification" policy: it guards browser sessions. They are held to
+its **Connected apps and API tokens** switch: in a read-only workspace write endpoints answer
+`403` (`forbidden`), and a workspace with it off answers `404` like one the user isn't in (see
+[Workspace security switches](#workspace-security-switches)).
 
 ## Development
 
@@ -851,8 +946,10 @@ Useful scripts:
 | `pnpm tsx scripts/sw-e2e.ts` | Checks the service worker (`public/sw.js`) in headless Chrome against a stand-in server: offline pages, per-user copies, the offline page (set `CHROME_PATH` outside macOS) |
 | `pnpm tsx scripts/mcp-e2e.ts` | End-to-end OAuth + MCP check against a running server (see the header of the file) |
 | `pnpm tsx scripts/api-e2e.ts` | End-to-end REST API check (tokens, every endpoint, access, rate limits, OpenAPI) against a running server |
+| `pnpm tsx scripts/security-switches-e2e.ts` | End-to-end check of the workspace security switches (export, publishing, connected apps) through the settings action, the export and public routes, MCP and the REST API, against a running server |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
 | `pnpm tsx scripts/two-factor-e2e.ts` | End-to-end two-step verification check (sign-in challenge, recovery codes, workspace policy) against a running server |
+| `pnpm tsx scripts/admin-e2e.ts` | End-to-end instance administration check (`ADMIN_EMAILS`, `WORKSPACE_CREATION`, signing out, required password resets) against a running server with the same two settings; it signs everyone out, so only on a development or CI database |
 
 ## Languages
 

@@ -270,9 +270,9 @@ class LegacySession {
       jsonrpc: "2.0",
       id: this.nextId++,
       method: "initialize",
-      params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "esionage-e2e", version: "1.0.0" } },
+      params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "leafdesk-e2e", version: "1.0.0" } },
     });
-    check(r.status === 200 && r.message?.result?.serverInfo?.name === "esionage", "legacy initialize succeeds", r);
+    check(r.status === 200 && r.message?.result?.serverInfo?.name === "leafdesk", "legacy initialize succeeds", r);
     const n = await rpc(this.token, { jsonrpc: "2.0", method: "notifications/initialized" }, { "mcp-protocol-version": "2025-11-25" });
     check(n.status === 202 || n.status === 200, "initialized notification accepted", n.status);
     return r.message.result;
@@ -392,7 +392,7 @@ async function main() {
     "get_database", "query_database", "create_database_row", "create_database_rows", "update_database_row", "create_database", "add_database_property",
     "update_database_property", "delete_database_property", "create_database_view", "update_database_view", "move_page",
     "list_recent_pages", "list_users", "list_trash", "restore_page", "list_page_history", "get_page_version", "diff_page_version", "restore_page_version",
-    "list_notifications", "attach_file",
+    "list_notifications", "attach_file", "invite_member",
   ];
   check(expected.every((t) => toolNames.includes(t)), "tools/list returns every tool", toolNames);
   const getPageTool = list.message.result.tools.find((t: { name: string }) => t.name === "get_page");
@@ -525,6 +525,69 @@ async function main() {
   check(recent.pages.some((p: { id: string }) => p.id === moved.id), "list_recent_pages lists fresh edits", recent);
   const members = await mcp.ok("list_users", { workspace_id: ws });
   check(members.users.some((u: { is_you: boolean; email: string }) => u.is_you && u.email === EMAIL), "list_users includes the connected user", members);
+  check(
+    members.users.every((u: { joined_at: string }) => !Number.isNaN(Date.parse(u.joined_at))),
+    "list_users says when each member joined",
+    members,
+  );
+
+  // ---- inviting people (owners only)
+  const invited = await mcp.ok("invite_member", { workspace_id: ws, email: `mcp-invitee-${RUN}@example.test` });
+  check(
+    invited.status === "invited" && invited.role === "member" && /\/invite\//.test(invited.invitation_link) && typeof invited.email_sent === "boolean",
+    "invite_member invites someone without an account, with a link to share",
+    invited,
+  );
+  const colleague = await authPost(new Jar(), "/sign-up/email", {
+    name: `MCP colleague ${RUN}`,
+    email: `mcp-colleague-${RUN}@example.test`,
+    password: PASSWORD,
+  });
+  const colleagueId = (await json(colleague))?.user?.id as string;
+  check(colleague.ok && colleagueId, "sign up a colleague");
+  userIds.push(colleagueId);
+  const { db } = await import("@/db");
+  const { workspaceMember } = await import("@/db/schema");
+  const { eq } = await import("drizzle-orm");
+  const colleagueWorkspaces = await db
+    .select({ id: workspaceMember.workspaceId })
+    .from(workspaceMember)
+    .where(eq(workspaceMember.userId, colleagueId));
+  workspaceIds.push(...colleagueWorkspaces.map((w) => w.id));
+  const added = await mcp.ok("invite_member", { workspace_id: ws, email: `MCP-colleague-${RUN}@example.test`, role: "guest" });
+  check(added.status === "added" && added.role === "guest", "invite_member adds someone with an account right away", added);
+  const again = await mcp.call("invite_member", { workspace_id: ws, email: `mcp-colleague-${RUN}@example.test` });
+  check(again.isError && /already in the workspace/.test(again.text), "…once", again.text);
+  const invalid = await mcp.call("invite_member", { workspace_id: ws, email: "not-an-address" });
+  check(invalid.isError && /valid email/.test(invalid.text), "invite_member refuses an invalid address", invalid.text);
+  // The colleague's own workspace, where the connected user is only a member.
+  await db.insert(workspaceMember).values({ workspaceId: colleagueWorkspaces[0].id, userId: userIds[0], role: "member" });
+  const notOwner = await mcp.call("invite_member", { workspace_id: colleagueWorkspaces[0].id, email: `mcp-other-${RUN}@example.test` });
+  check(
+    notOwner.isError && /Who can add members/.test(notOwner.text),
+    "invite_member follows \"Who can add members\": members can't while only owners may",
+    notOwner.text,
+  );
+  // The same policy as the members page: with approval, a member's invitation waits for an owner.
+  const { workspace } = await import("@/db/schema");
+  const { sql: raw } = await import("drizzle-orm");
+  const memberInvites = (mode: string) =>
+    db
+      .update(workspace)
+      .set({ settings: raw`${workspace.settings} || ${JSON.stringify({ memberInvites: mode })}::jsonb` })
+      .where(eq(workspace.id, colleagueWorkspaces[0].id));
+  await memberInvites("members_with_approval");
+  const requested = await mcp.ok("invite_member", { workspace_id: colleagueWorkspaces[0].id, email: `mcp-other-${RUN}@example.test` });
+  check(requested.status === "requested" && !requested.invitation_link, "…with approval, a member's invitation waits for an owner", requested);
+  await memberInvites("any_member");
+  const asGuest = await mcp.call("invite_member", {
+    workspace_id: colleagueWorkspaces[0].id,
+    email: `mcp-guest-${RUN}@example.test`,
+    role: "guest",
+  });
+  check(asGuest.isError, "…members add members only, never guests", asGuest.text);
+  const direct = await mcp.ok("invite_member", { workspace_id: colleagueWorkspaces[0].id, email: `mcp-other-${RUN}@example.test` });
+  check(direct.status === "invited" && typeof direct.invitation_link === "string", "…and with \"Owners and members\", right away", direct);
 
   // ---- editing properties and views
   const renamedProp = await mcp.ok("update_database_property", {
@@ -664,7 +727,6 @@ async function main() {
   check(page.markdown.includes("First paragraph") && !page.markdown.includes("Replaced body"), "restore_page_version brings the old body back", page.markdown);
 
   // ---- snapshots: every agent content write is preceded by a history snapshot
-  const { db } = await import("@/db");
   const { sql } = await import("drizzle-orm");
   const snaps = await db.execute<{ count: number }>(
     sql`select count(*)::int as count from page_snapshot where page_id = ${root.id} and reason = 'before_mcp_write' and oauth_client_id = ${full.client_id}`,
@@ -675,7 +737,7 @@ async function main() {
   const modernMeta = {
     "io.modelcontextprotocol/protocolVersion": "2026-07-28",
     "io.modelcontextprotocol/clientCapabilities": {},
-    "io.modelcontextprotocol/clientInfo": { name: "esionage-e2e", version: "1.0.0" },
+    "io.modelcontextprotocol/clientInfo": { name: "leafdesk-e2e", version: "1.0.0" },
   };
   const modernHeaders = { "mcp-protocol-version": "2026-07-28" };
   const modernList = await rpc(
@@ -748,7 +810,6 @@ async function main() {
 
   const { revokeConnectedApp, listConnectedApps } = await import("@/server/mcp/grants");
   const { user } = await import("@/db/schema");
-  const { eq } = await import("drizzle-orm");
   const [me] = await db.select({ id: user.id }).from(user).where(eq(user.email, EMAIL));
   const apps = await listConnectedApps(me.id);
   check(apps.some((x) => x.clientId === full.client_id) && apps.some((x) => x.clientId === ro.client_id), "connected apps lists both clients");

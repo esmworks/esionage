@@ -1,15 +1,15 @@
 {
-  "footer": "Bu e-posta {appUrl} adresindeki Esionage tarafından gönderildi.",
+  "footer": "Bu e-posta {appUrl} adresindeki Leafdesk tarafından gönderildi.",
   "actionFallback": "Düğme çalışmazsa bu bağlantıyı tarayıcınıza yapıştırın:",
   "test": {
-    "subject": "Esionage test e-postası",
+    "subject": "Leafdesk test e-postası",
     "heading": "E-posta gönderimi çalışıyor",
-    "body": "Bu, {appUrl} adresindeki Esionage sunucunuzdan gönderilen bir test mesajı. Bunu okuyabiliyorsanız e-posta ayarları doğru demektir."
+    "body": "Bu, {appUrl} adresindeki Leafdesk sunucunuzdan gönderilen bir test mesajı. Bunu okuyabiliyorsanız e-posta ayarları doğru demektir."
   },
   "invitation": {
-    "subject": "{inviter} sizi Esionage'a davet etti: “{workspace}”",
+    "subject": "{inviter} sizi Leafdesk'e davet etti: “{workspace}”",
     "heading": "Davet: “{workspace}”",
-    "body": "{inviter}, sizi Esionage'daki “{workspace}” adlı çalışma alanına {role} olarak davet etti.",
+    "body": "{inviter}, sizi Leafdesk'teki “{workspace}” adlı çalışma alanına {role} olarak davet etti.",
     "expires": "Bağlantı 7 gün geçerlidir. Daveti kabul etmek için {email} adresiyle kaydolun.",
     "action": "Daveti kabul et",
     "roles": {
@@ -19,9 +19,9 @@
     }
   },
   "passwordReset": {
-    "subject": "Esionage şifrenizi sıfırlayın",
+    "subject": "Leafdesk şifrenizi sıfırlayın",
     "heading": "Şifrenizi sıfırlayın",
-    "body": "Merhaba {name}, Esionage hesabınızın şifresini sıfırlamak için bir istek yapıldı. İsteği siz yaptıysanız aşağıdaki düğmeyle yeni bir şifre belirleyin.",
+    "body": "Merhaba {name}, Leafdesk hesabınızın şifresini sıfırlamak için bir istek yapıldı. İsteği siz yaptıysanız aşağıdaki düğmeyle yeni bir şifre belirleyin.",
     "expires": "Bağlantı {minutes} dakika boyunca ve yalnızca bir kez çalışır. Bu isteği siz yapmadıysanız bu e-postayı yok sayın; şifreniz değişmez.",
     "action": "Yeni şifre belirle"
   },
@@ -71,23 +71,44 @@
     "action": "Sayfayı aç",
     "optOut": "Hatırlatma kurduğunuz için bu e-postaları alıyorsunuz. Hesabım > Tercihler'den kapatabilirsiniz."
   },
+  "accessRequest": {
+    "subject": "{requester} “{page}” sayfasına erişim istedi",
+    "heading": "{requester} “{page}” sayfasına erişim istedi",
+    "body": "{requester} ({email}), {workspace} içindeki “{page}” sayfasını açmak istiyor.",
+    "message": "Mesajı: “{message}”",
+    "answer": "Ne yapabileceğini seçerek sayfayı onunla paylaşın ya da isteği reddedin. Gelen kutunuzdan veya sayfadaki Paylaş menüsünden yanıtlayabilirsiniz.",
+    "action": "Sayfayı aç",
+    "optOut": "Sayfaya tam erişiminiz olduğu için bu e-postaları alıyorsunuz. Hesabım > Tercihler'den kapatabilirsiniz."
+  },
+  "accessApproved": {
+    "subject": "Artık “{page}” sayfasını açabilirsiniz",
+    "heading": "{actor} isteğinizi onayladı",
+    "body": "{workspace} içindeki “{page}” sayfasını artık {level}.",
+    "action": "Sayfayı aç"
+  },
+  "accessDeclined": {
+    "subject": "Erişim isteğiniz reddedildi",
+    "heading": "İsteğiniz reddedildi",
+    "body": "Bu sayfaya erişim isteğiniz reddedildi: {link}",
+    "hint": "Hâlâ ihtiyacınız varsa bağlantıyı size gönderen kişiye sorun."
+  },
   "emailChange": {
     "subject": "Yeni e-posta adresinizi onaylayın",
     "heading": "Yeni e-posta adresinizi onaylayın",
-    "body": "Merhaba {name}, Esionage hesabınızda {old} yerine bu adresi kullanmak istediniz. Aşağıdaki düğmeyle onaylayın.",
+    "body": "Merhaba {name}, Leafdesk hesabınızda {old} yerine bu adresi kullanmak istediniz. Aşağıdaki düğmeyle onaylayın.",
     "expires": "Bağlantı {hours} saat boyunca ve yalnızca bir kez çalışır. Bu isteği siz yapmadıysanız bu e-postayı yok sayın; hiçbir şey değişmez.",
     "action": "E-posta adresini onayla"
   },
   "emailChanged": {
-    "subject": "Esionage hesabınızın e-posta adresi değişti",
+    "subject": "Leafdesk hesabınızın e-posta adresi değişti",
     "heading": "E-posta adresiniz değişti",
-    "body": "Merhaba {name}, Esionage hesabınızın e-posta adresi {old} adresinden {new} adresine değişti. Bundan sonra yeni adresle giriş yapın.",
+    "body": "Merhaba {name}, Leafdesk hesabınızın e-posta adresi {old} adresinden {new} adresine değişti. Bundan sonra yeni adresle giriş yapın.",
     "warning": "Bu değişikliği siz yapmadıysanız hemen çalışma alanınızın bir sahibine haber verin."
   },
   "passwordChanged": {
-    "subject": "Esionage şifreniz değişti",
+    "subject": "Leafdesk şifreniz değişti",
     "heading": "Şifreniz değişti",
-    "body": "Merhaba {name}, Esionage hesabınızın şifresi az önce değiştirildi.",
+    "body": "Merhaba {name}, Leafdesk hesabınızın şifresi az önce değiştirildi.",
     "warning": "Bu değişikliği siz yapmadıysanız giriş sayfasından şifrenizi sıfırlayın ve çalışma alanınızın bir sahibine haber verin."
   },
   "joinRequest": {
@@ -133,5 +154,12 @@
     "body": "Merhaba {name}, bu adresin size ait olduğunu aşağıdaki düğmeyle onaylayın.",
     "ignore": "Bir Leafdesk hesabı oluşturmadıysanız bu e-postayı yok sayabilirsiniz.",
     "action": "E-posta adresini doğrula"
+  },
+  "passwordResetRequired": {
+    "subject": "Yeni bir Leafdesk parolası seçin",
+    "heading": "Yeni bir parola seçin",
+    "body": "Merhaba {name}, bu Leafdesk sunucusunun bir yöneticisi yeni bir parola seçmenizi istedi. Eski parolanızla artık giriş yapamazsınız.",
+    "expires": "Bağlantı {minutes} dakika boyunca ve yalnızca bir kez çalışır. Eski parolanızla yeniden giriş yapmayı denerseniz yeni bir bağlantı gönderilir.",
+    "action": "Yeni bir parola seçin"
   }
 }

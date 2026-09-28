@@ -2,15 +2,16 @@
   "metaTitle": "Mon compte",
   "title": "Mon compte",
   "back": "Retour à {workspace}",
-  "backHome": "Retour à Esionage",
+  "backHome": "Retour à Leafdesk",
   "nav": {
     "profile": "Profil",
     "security": "Sécurité",
     "preferences": "Préférences",
-    "apps": "Applications connectées"
+    "apps": "Applications connectées",
+    "admin": "Administration du serveur"
   },
   "apps": {
-    "description": "Les applications que vous avez autorisées à utiliser Esionage en votre nom, par exemple des assistants IA connectés via MCP. Elles ont accès à tous vos espaces de travail."
+    "description": "Les applications que vous avez autorisées à utiliser Leafdesk en votre nom, par exemple des assistants IA connectés via MCP. Elles ont accès à tous vos espaces de travail."
   },
   "profile": {
     "description": "Votre apparence pour les autres dans chaque espace de travail, l’adresse e-mail avec laquelle vous vous connectez et la suppression de votre compte.",
@@ -26,7 +27,7 @@
   },
   "email": {
     "heading": "E-mail",
-    "description": "Vous vous connectez avec cette adresse, et les e-mails d’Esionage y sont envoyés.",
+    "description": "Vous vous connectez avec cette adresse, et les e-mails de Leafdesk y sont envoyés.",
     "mailOff": "Vous vous connectez avec cette adresse. Pour la modifier, un e-mail de confirmation est nécessaire, mais l’envoi d’e-mails n’est pas configuré sur ce serveur ; demandez à son administrateur de définir SMTP_URL.",
     "change": "Modifier l’adresse e-mail",
     "pendingTitle": "En attente de confirmation de {email}",
@@ -108,7 +109,7 @@
   "confirmEmail": {
     "metaTitle": "Confirmer l’adresse e-mail",
     "title": "Confirmez votre nouvelle adresse e-mail",
-    "body": "Votre compte Esionage utilisera {new} au lieu de {old}. Vous vous connecterez ensuite avec la nouvelle adresse.",
+    "body": "Votre compte Leafdesk utilisera {new} au lieu de {old}. Vous vous connecterez ensuite avec la nouvelle adresse.",
     "confirm": "Confirmer l’adresse e-mail",
     "done": "C’est fait. Votre compte utilise désormais {email}.",
     "invalidTitle": "Ce lien ne fonctionne pas",
@@ -137,6 +138,8 @@
     "currentSession": "Utilisez Se déconnecter dans le menu pour mettre fin à cette session.",
     "sessionNotFound": "Cette session a déjà pris fin.",
     "avatarType": "Utilisez une image PNG, JPEG, WebP ou GIF.",
-    "avatarTooLarge": "La photo est trop volumineuse (2 Mo maximum)."
+    "avatarTooLarge": "La photo est trop volumineuse (2 Mo maximum).",
+    "samePassword": "Choisissez un mot de passe différent de l'ancien.",
+    "resetStepExpired": "Cette étape a expiré. Reconnectez-vous avec votre ancien mot de passe."
   }
 }

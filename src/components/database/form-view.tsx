@@ -227,7 +227,8 @@ function FormSharePanel({
   const publication = sharing?.publication ?? null;
   const blocker = sharing?.blocker ?? null;
   // Turning the link off needs only full access; opening it (or making it anonymous) also the policy.
-  const hint = publication ? (blocker === "needsFullAccess" ? blocker : null) : blocker;
+  // With publishing off, an open link takes no answers.
+  const hint = publication ? (blocker === "needsFullAccess" || blocker === "publishingOff" ? blocker : null) : blocker;
   const hidden = formQuestions(view.config.form, properties).filter((q) => q.prop && !isPublicAskable(q.prop.type)).length;
 
   return (

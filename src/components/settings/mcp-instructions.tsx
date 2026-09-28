@@ -12,11 +12,11 @@ function Snippet({ value }: { value: string }) {
   );
 }
 
-/** How to connect Claude and other MCP clients to this Esionage instance. */
+/** How to connect Claude and other MCP clients to this Leafdesk instance. */
 export async function McpInstructions() {
   const t = await getTranslations("settings.mcp");
   const url = mcpResource();
-  const claudeCode = `claude mcp add --transport http esionage ${url}`;
+  const claudeCode = `claude mcp add --transport http leafdesk ${url}`;
 
   return (
     <SettingsGroup title={t("heading")} description={t("description")}>

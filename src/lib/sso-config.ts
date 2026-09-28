@@ -134,9 +134,9 @@ export const domainsFromColumn = (value: string | null | undefined) =>
     .filter(Boolean);
 
 /** Name of the DNS TXT record that proves a domain belongs to the workspace. */
-export const DOMAIN_RECORD_PREFIX = "_esionage-sso";
+export const DOMAIN_RECORD_PREFIX = "_leafdesk-sso";
 export const domainRecordName = (domain: string) => `${DOMAIN_RECORD_PREFIX}.${domain}`;
-export const domainRecordValue = (token: string) => `esionage-sso=${token}`;
+export const domainRecordValue = (token: string) => `leafdesk-sso=${token}`;
 
 /**
  * Addresses a workspace's identity provider is configured with. The auth routes live under

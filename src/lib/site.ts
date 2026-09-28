@@ -30,7 +30,7 @@ export const RESERVED_SITE_SLUGS: ReadonlySet<string> = new Set([
   "docs",
   "download",
   "duplicate",
-  "esionage",
+  "leafdesk",
   "help",
   "home",
   "invite",

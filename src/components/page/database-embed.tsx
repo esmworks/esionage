@@ -123,6 +123,7 @@ export function DatabaseEmbed({
         databaseId={databaseId}
         canEdit={hasLevel(info.level, "edit")}
         guest={info.guest}
+        exportable={info.exportable}
         embed={embed}
       />
     </Frame>

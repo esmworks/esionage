@@ -299,7 +299,7 @@ export function PageView({
               compact={wide}
               editable={editable}
               onChange={(v) => pageDoc && setDocTitle(pageDoc.doc, v)}
-              onEnter={() => document.querySelector<HTMLElement>(".esionage-editor .ProseMirror")?.focus()}
+              onEnter={() => document.querySelector<HTMLElement>(".leafdesk-editor .ProseMirror")?.focus()}
             />
           </div>
           {error && <p className="mt-2 text-sm text-danger">{error}</p>}

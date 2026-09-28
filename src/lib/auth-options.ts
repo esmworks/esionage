@@ -13,6 +13,7 @@ import {
 import { sso } from "@better-auth/sso";
 import { cleanName } from "@/lib/account";
 import { env, mcpResource } from "@/lib/env";
+import { sessionLifetime } from "@/lib/session-lifetime";
 import type { SocialCredentials, SocialProvider } from "@/lib/social-providers";
 import { discoveryUrl, INSTANCE_SSO_PROVIDER_ID, SSO_SCOPES, type InstanceOidc } from "@/lib/sso-config";
 
@@ -206,7 +207,7 @@ export function ssoPlugin(instance: InstanceOidc | null) {
           },
         ]
       : undefined,
-    domainVerification: { enabled: true, tokenPrefix: "esionage-sso" },
+    domainVerification: { enabled: true, tokenPrefix: "leafdesk-sso" },
     providersLimit: 0,
     saml: { requireTimestamps: true },
   });
@@ -280,7 +281,16 @@ export function baseAuthOptions({
       enabled: true,
       minPasswordLength: 8,
     },
+    user: {
+      additionalFields: {
+        // An instance admin asked for a new password: the next password sign-in sets one first
+        // (see server/required-password.ts). Cleared when the password changes.
+        passwordResetRequired: { type: "boolean", required: false, input: false, defaultValue: false },
+      },
+    },
     session: {
+      // SESSION_MAX_AGE_DAYS: how long a sign-in lasts without use (see lib/session-lifetime).
+      ...sessionLifetime(env.sessionDays),
       additionalFields: {
         // How the session was signed in (see authMethodOf); a passkey session counts as two-step.
         authMethod: { type: "string", required: false, input: false },

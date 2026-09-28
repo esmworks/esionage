@@ -18,6 +18,12 @@ import { revokeAllApiTokens } from "@/server/api/tokens";
 import { revokeAllConnectedApps } from "@/server/mcp/grants";
 import { applyDomainPolicies } from "@/server/join-requests";
 import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetEmail, sendMail, verificationEmail } from "@/server/mail";
+import {
+  afterPasswordReset,
+  clearPasswordResetRequirement,
+  holdRequiredPasswordReset,
+  requiredPasswordPlugin,
+} from "@/server/required-password";
 import { joinThroughSso, resolveSsoProvider, ssoAccountCreation } from "@/server/sso";
 import { acceptInvitation, createPersonalWorkspace, invitationAllowsSignUp, joinWithLink } from "@/server/workspaces";
 
@@ -121,6 +127,12 @@ export const auth = betterAuth({
     sendResetPassword: mailStatus() === "disabled" ? undefined : sendResetPassword,
     resetPasswordTokenExpiresIn: PASSWORD_RESET_MINUTES * 60,
     revokeSessionsOnPasswordReset: true,
+    // A reset through the emailed link proves the address, so it counts as verified, and allowed
+    // email domains apply as after any other verification.
+    onPasswordReset: async ({ user }) => {
+      await afterPasswordReset(user.id);
+      await domainPolicies(user.id);
+    },
   },
   rateLimit: {
     customRules: {
@@ -184,11 +196,22 @@ export const auth = betterAuth({
           }
         },
       },
+      // Better Auth updates the credential account only to change its password (/change-password);
+      // a new one means an instance admin's "choose a new password" is done.
+      update: {
+        after: async (account) => {
+          if (account?.providerId === "credential") await clearPasswordResetRequirement(account.userId);
+        },
+      },
     },
     session: {
       create: {
         // How the session was signed in: a passkey sign-in passes "require two-step verification".
-        before: recordAuthMethod,
+        before: async (session, ctx) => {
+          // A password sign-in of an account that has to choose a new password gets no session.
+          await holdRequiredPasswordReset(session, ctx);
+          return recordAuthMethod(session, ctx);
+        },
         // Every sign-in: workspaces that allow the (verified) email domain and haven't dealt with
         // this person yet let them in or take their request.
         after: async (session) => {
@@ -197,7 +220,7 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [...base.plugins, nextCookies()],
+  plugins: [...base.plugins, requiredPasswordPlugin(), nextCookies()],
 });
 
 export type Session = typeof auth.$Infer.Session;

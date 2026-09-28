@@ -18,6 +18,7 @@ import {
   Plus,
   Search,
   Settings,
+  ShieldCheck,
   Sparkles,
   Trash2,
   Upload,
@@ -64,11 +65,11 @@ import { ImportDialog } from "@/components/workspace/import-dialog";
 
 type Workspace = { id: string; name: string; icon: string | null; role: string };
 
-const EXPANDED_KEY = "esionage:expanded";
+const EXPANDED_KEY = "leafdesk:expanded";
 /** Sidebar headings the user folded: "private", "shared" and the teamspaces group (open until folded). */
-const FOLDED_KEY = "esionage:folded-sections";
+const FOLDED_KEY = "leafdesk:folded-sections";
 /** Teamspaces the user opened: like pages, and as in Notion, a teamspace stays closed until opened. */
-const OPEN_TEAMSPACES_KEY = "esionage:open-teamspaces";
+const OPEN_TEAMSPACES_KEY = "leafdesk:open-teamspaces";
 const TEAMSPACES_GROUP = "teamspaces";
 /** Top-level pages "Private" and "Shared" show before a "More" row, as Notion does. */
 const SECTION_LIMIT = 10;
@@ -98,6 +99,8 @@ export function Sidebar({
   initialTree,
   initialTeamspaces,
   canCreateTeamspace,
+  canCreateWorkspace,
+  isInstanceAdmin,
   initialFavorites,
   topLevel,
   user,
@@ -111,6 +114,10 @@ export function Sidebar({
   /** The teamspaces they are in, each a sidebar section. */
   initialTeamspaces: TeamspaceSummary[];
   canCreateTeamspace: boolean;
+  /** WORKSPACE_CREATION may keep "New workspace" to the server's administrators. */
+  canCreateWorkspace: boolean;
+  /** Listed in ADMIN_EMAILS: the menu links to /admin. */
+  isInstanceAdmin: boolean;
   initialFavorites: FavoritePage[];
   /** Whether they may add top-level pages; a guest's are private to them. */
   topLevel: "shared" | "private" | null;
@@ -585,17 +592,19 @@ export function Sidebar({
                     </MenuItem>
                   ))}
                   {joinable.length > 0 && <JoinableWorkspaces workspaces={joinable} onJoined={close} />}
-                  <MenuItem
-                    icon={<Plus className="h-4 w-4" />}
-                    disabled={offline}
-                    title={needsServer(t("workspaceMenu.newWorkspace"))}
-                    onClick={() => {
-                      close();
-                      setNewWorkspaceOpen(true);
-                    }}
-                  >
-                    {t("workspaceMenu.newWorkspace")}
-                  </MenuItem>
+                  {canCreateWorkspace && (
+                    <MenuItem
+                      icon={<Plus className="h-4 w-4" />}
+                      disabled={offline}
+                      title={needsServer(t("workspaceMenu.newWorkspace"))}
+                      onClick={() => {
+                        close();
+                        setNewWorkspaceOpen(true);
+                      }}
+                    >
+                      {t("workspaceMenu.newWorkspace")}
+                    </MenuItem>
+                  )}
                   <MenuSeparator />
                   <MenuItem
                     icon={<Settings className="h-4 w-4" />}
@@ -615,6 +624,17 @@ export function Sidebar({
                   >
                     {t("workspaceMenu.myAccount")}
                   </MenuItem>
+                  {isInstanceAdmin && (
+                    <MenuItem
+                      icon={<ShieldCheck className="h-4 w-4" />}
+                      onClick={() => {
+                        close();
+                        router.push(`/admin?from=${encodeURIComponent(workspaceId)}`);
+                      }}
+                    >
+                      {t("workspaceMenu.admin")}
+                    </MenuItem>
+                  )}
                   <InstallAppMenuItem onDone={close} />
                   <MenuItem icon={<LogOut className="h-4 w-4" />} onClick={signOut} disabled={offline} title={needsServer(t("workspaceMenu.signOut"))}>
                     {t("workspaceMenu.signOut")}
@@ -687,6 +707,16 @@ export function Sidebar({
             >
               {t("nav.inbox")}
             </SidebarButton>
+            {/* The people directory, like the members list, isn't for guests. */}
+            {!guest && (
+              <SidebarButton
+                icon={<Users className="h-4 w-4" />}
+                href={`/w/${workspaceId}/people`}
+                active={pathname === `/w/${workspaceId}/people`}
+              >
+                {t("nav.people")}
+              </SidebarButton>
+            )}
             <SidebarButton
               icon={<Settings className="h-4 w-4" />}
               href={`/w/${workspaceId}/settings`}
@@ -904,7 +934,7 @@ export function Sidebar({
         version={inboxVersion}
         onRead={refreshInbox}
       />
-      <NewWorkspaceDialog open={newWorkspaceOpen} onClose={() => setNewWorkspaceOpen(false)} />
+      {canCreateWorkspace && <NewWorkspaceDialog open={newWorkspaceOpen} onClose={() => setNewWorkspaceOpen(false)} />}
       <TemplatesDialog
         workspaceId={workspaceId}
         open={templatesOpen}
@@ -1336,7 +1366,7 @@ function TreeLevel({ nodes, ...props }: TreeProps & { nodes: TreeNode[] }) {
   );
 }
 
-const DRAG_TYPE = "application/x-esionage-page";
+const DRAG_TYPE = "application/x-leafdesk-page";
 
 function TreeItem({
   node,

@@ -1,0 +1,71 @@
+{
+  "metaTitle": "Server administration",
+  "title": "Server administration",
+  "description": "The accounts on this server, their sessions and their passwords. You see this page because your verified email address is listed in ADMIN_EMAILS.",
+  "back": "Back to {workspace}",
+  "backHome": "Back",
+  "workspaces": {
+    "heading": "Workspace creation",
+    "everyone": "Everyone can create workspaces",
+    "admins": "Only administrators can create workspaces",
+    "description": "Set with WORKSPACE_CREATION on the server (everyone or admins). Everyone still gets a personal workspace when they sign up."
+  },
+  "sessions": {
+    "heading": "Everyone",
+    "description": "{count, plural, one {# signed-in session} other {# signed-in sessions}} on this server.",
+    "signOutEveryone": "Sign out everyone",
+    "signOutEveryoneDescription": "Ends every session on every device except yours in this browser, and pages open there stop syncing. Connected apps and API tokens keep working.",
+    "signOutEveryoneTitle": "Sign out everyone?",
+    "signOutEveryoneBody": "Everyone on this server has to sign in again, you too on your other devices.",
+    "signOutEveryoneConfirm": "Sign out everyone",
+    "resetEveryone": "Require new passwords",
+    "resetEveryoneDescription": "Everyone who signs in with a password, except you, is signed out and has to choose a new password at their next sign-in. Accounts that only sign in with single sign-on, GitHub or Google aren't affected.",
+    "resetByEmail": "When they sign in, they get a link by email to choose it.",
+    "resetInApp": "Email isn't set up on this server, so they choose it right after signing in with their old password (and a two-step code, if they use one).",
+    "resetEveryoneTitle": "Require new passwords from everyone?",
+    "resetEveryoneBody": "Everyone with a password, except you, is signed out now and can't sign in with their current password again.",
+    "resetEveryoneConfirm": "Require new passwords"
+  },
+  "users": {
+    "heading": "Accounts",
+    "count": "{count, plural, one {# account} other {# accounts}}",
+    "countPartial": "Showing {shown} of {total} accounts. Search to find the others.",
+    "search": "Search by name or email",
+    "noMatches": "No account matches this search.",
+    "none": "No accounts yet.",
+    "columns": {
+      "user": "Account",
+      "workspaces": "Workspaces",
+      "lastActive": "Last active",
+      "twoFactor": "Two-step",
+      "password": "Password",
+      "actions": "Actions"
+    },
+    "you": "(you)",
+    "admin": "Admin",
+    "unverified": "Unverified",
+    "signedOut": "Not signed in",
+    "on": "On",
+    "off": "Off",
+    "hasPassword": "Set",
+    "noPassword": "None",
+    "resetPending": "New one required",
+    "actionsFor": "Actions for {name}",
+    "signOut": "Sign out everywhere",
+    "signOutTitle": "Sign out {name} everywhere?",
+    "signOutBody": "{count, plural, one {Their # session ends} other {Their # sessions end}}, and pages they have open stop syncing. Connected apps and API tokens keep working.",
+    "signOutSelfBody": "{count, plural, one {Your # session ends} other {Your # sessions end}}, except the one in this browser.",
+    "signOutConfirm": "Sign out",
+    "requireReset": "Require a new password",
+    "resetTitle": "Require a new password from {name}?",
+    "resetBody": "They are signed out now and have to choose a new password the next time they sign in with one.",
+    "resetByEmail": "When they sign in, they get a link by email to choose it.",
+    "resetInApp": "Email isn't set up on this server, so they choose it right after signing in with their old password (and a two-step code, if they use one).",
+    "resetConfirm": "Require a new password"
+  },
+  "errors": {
+    "notFound": "That account wasn't found.",
+    "noPassword": "This account has no password; it signs in another way.",
+    "self": "Change your own password on your account page."
+  }
+}

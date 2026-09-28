@@ -2,7 +2,7 @@ import type { CallToolResult } from "@modelcontextprotocol/server";
 import { CommentError } from "@/lib/comments";
 import { env } from "@/lib/env";
 import { PropertyValueError } from "@/lib/properties";
-import { AccessError } from "@/server/access";
+import { AccessError, ConnectedAppReadOnlyError } from "@/server/access";
 import { GroupError } from "@/lib/groups";
 import { TeamspaceError } from "@/lib/teamspace-error";
 
@@ -30,6 +30,11 @@ export function errorResult(message: string): CallToolResult {
 /** Turns domain errors into tool errors the model can act on; unknown errors stay opaque. */
 export function toolErrorFor(error: unknown): CallToolResult {
   if (error instanceof ToolInputError) return errorResult(error.message);
+  if (error instanceof ConnectedAppReadOnlyError) {
+    return errorResult(
+      `${error.message}, so this change was refused. Reading still works; an owner can allow changes in the workspace's Settings → Security (Connected apps and API tokens).`,
+    );
+  }
   if (error instanceof AccessError) {
     return errorResult(
       `${error.message}. The id may be wrong, deleted, or in a workspace this user cannot access. ` +
@@ -43,7 +48,7 @@ export function toolErrorFor(error: unknown): CallToolResult {
     return errorResult(`${error.message}. Call get_database to see property names, types and select options.`);
   }
   console.error("[mcp] tool failed", error);
-  return errorResult("Something went wrong on the Esionage server while running this tool. Try again later.");
+  return errorResult("Something went wrong on the Leafdesk server while running this tool. Try again later.");
 }
 
 export async function runTool(fn: () => Promise<unknown>): Promise<CallToolResult> {

@@ -121,7 +121,7 @@ async function main() {
   );
 
   const email = await latestEmailTo(EMAIL, seen);
-  check(email.Subject === "Esionage şifrenizi sıfırlayın", "reset email is in the requester's language", email.Subject);
+  check(email.Subject === "Leafdesk şifrenizi sıfırlayın", "reset email is in the requester's language", email.Subject);
   const link = resetLinkIn(email.Text);
   check(link && link.startsWith(`${BASE}/api/auth/reset-password/`), "reset email carries the link", email.Text);
   check(email.HTML.includes(link.replaceAll("&", "&amp;")), "HTML version has the same link");

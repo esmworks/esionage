@@ -216,7 +216,7 @@ function get(url: URL, { isBlocked, deadline }: { isBlocked: (address: string) =
     const options: RequestOptions = {
       method: "GET",
       lookup: guardedLookup(isBlocked),
-      headers: { "user-agent": "Esionage (+file attachment)", accept: "*/*", "accept-encoding": "identity" },
+      headers: { "user-agent": "Leafdesk (+file attachment)", accept: "*/*", "accept-encoding": "identity" },
       // A fresh connection per request: pooled sockets would skip the lookup.
       agent: false,
     };

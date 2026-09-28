@@ -4,6 +4,7 @@ import { page, pagePublication, workspaceSite, type PageKind } from "@/db/schema
 import { isSiteKey, publishedHref, siteSlugProblem, type PublishedLinks, type SiteSlugProblem } from "@/lib/site";
 import { accessRank, pageVisibleTo, requireMember, requireMembership, requirePageAccess } from "@/server/access";
 import { chainTo, getPublishedPage, type PublishedPage } from "@/server/publication";
+import { publishingOn } from "@/server/workspaces";
 
 /**
  * Workspace sites: a readable address for a workspace's published pages.
@@ -17,6 +18,7 @@ import { chainTo, getPublishedPage, type PublishedPage } from "@/server/publicat
  * - Everything a site shows is what the publications show: pages their publishers can see, live,
  *   outside templates (see publication.chainTo). Search engines follow each publication's own
  *   setting.
+ * - While the workspace has publishing turned off, the site is not found; its settings stay.
  * - Publication links (`/s/<token>/…`) keep working as before.
  */
 
@@ -227,7 +229,8 @@ async function ancestorsOf(pageIds: string[]): Promise<Map<string, string[]>> {
 export async function loadSite(slug: string): Promise<SiteContext | null> {
   if (!isSiteKey(slug)) return null;
   const [site] = await db.select().from(workspaceSite).where(eq(workspaceSite.slug, slug)).limit(1);
-  if (!site) return null;
+  // Publishing turned off: the site is not found, as if it had none, until it is turned back on.
+  if (!site || !(await publishingOn(site.workspaceId))) return null;
 
   const listed = await listedPublications(site.workspaceId);
   const byPage = new Map(listed.map((l) => [l.pageId, l]));

@@ -77,7 +77,7 @@ describe("embedFor", () => {
       "https://www.loom.com/embed/0281766fa2d04bb788eaf19e65135184",
     );
     expect(src("https://www.figma.com/design/AbCdEf1234567890/My-File?node-id=1-2&t=xyz")).toBe(
-      `https://www.figma.com/embed?embed_host=esionage&url=${encodeURIComponent("https://www.figma.com/design/AbCdEf1234567890?node-id=1-2")}`,
+      `https://www.figma.com/embed?embed_host=leafdesk&url=${encodeURIComponent("https://www.figma.com/design/AbCdEf1234567890?node-id=1-2")}`,
     );
     expect(src("https://docs.google.com/document/d/e/2PACX-1vQabcdefghijk/pub")).toBe(
       "https://docs.google.com/document/d/e/2PACX-1vQabcdefghijk/pub?embedded=true",

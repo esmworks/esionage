@@ -24,7 +24,7 @@
   "name": "Name",
   "noRows": "Keine Zeilen zum Anzeigen.",
   "readOnly": "Schreibgeschützt",
-  "home": "Zu Esionage",
+  "home": "Zu Leafdesk",
   "embedUnavailable": "Diese Datenbank ist nicht zusammen mit dieser Seite veröffentlicht.",
   "indexable": "Suchmaschinen erlauben",
   "indexableHint": "Suchmaschinen dürfen diese Seite und ihre Unterseiten aufführen. Standardmäßig aus: Dann findet man sie nur über den Link.",
@@ -61,5 +61,6 @@
   "site": {
     "menu": "Seiten",
     "navigation": "Seiten der Website"
-  }
+  },
+  "publishingOff": "In diesem Workspace ist das Veröffentlichen im Web ausgeschaltet. Veröffentlichte Seiten werden erst wieder angezeigt, wenn ein Inhaber es einschaltet."
 }

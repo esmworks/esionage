@@ -10,10 +10,38 @@ import { HISTORY_RETENTION, TRASH_RETENTION_CHOICES } from "@/lib/retention";
 import { SettingsRow } from "./section";
 import { selectClass, useAction } from "./workspace-settings";
 
-type RoleSetting = "guestInvites" | "publishing";
+/** The settings chosen from a list: who may do something, or how far connected apps go. */
+type ChoiceSetting = "guestInvites" | "publishing" | "connectedApps";
 
-/** Settings > Security: a policy that lets owners only, or owners and members, do something. */
-function RoleSettingSelect({
+/** Each setting's choices, with the message naming each (under settings.security). */
+const CHOICES = {
+  guestInvites: {
+    id: "guest-invites",
+    options: [
+      ["owners", "guestInvites.owners"],
+      ["members", "guestInvites.members"],
+    ],
+  },
+  publishing: {
+    id: "publishing",
+    options: [
+      ["owners", "publishing.owners"],
+      ["members", "publishing.members"],
+      ["off", "publishing.off"],
+    ],
+  },
+  connectedApps: {
+    id: "connected-apps",
+    options: [
+      ["full", "connectedApps.full"],
+      ["read", "connectedApps.read"],
+      ["off", "connectedApps.off"],
+    ],
+  },
+} as const satisfies { [K in ChoiceSetting]: { id: string; options: readonly (readonly [WorkspaceSettings[K], string])[] } };
+
+/** Settings > Security: a policy picked from a few choices, each with its own label. */
+function ChoiceSettingSelect({
   workspaceId,
   settings,
   canEdit,
@@ -22,12 +50,12 @@ function RoleSettingSelect({
   workspaceId: string;
   settings: WorkspaceSettings;
   canEdit: boolean;
-  setting: RoleSetting;
+  setting: ChoiceSetting;
 }) {
   const t = useTranslations("settings.security");
-  const [value, setValue] = useState(settings[setting]);
+  const [value, setValue] = useState<string>(settings[setting]);
   const { pending, error, run } = useAction();
-  const id = setting === "guestInvites" ? "guest-invites" : "publishing";
+  const { id, options } = CHOICES[setting];
 
   return (
     <SettingsRow
@@ -50,7 +78,7 @@ function RoleSettingSelect({
           value={value}
           disabled={!canEdit || pending}
           onChange={(e) => {
-            const next = e.target.value as WorkspaceSettings[RoleSetting];
+            const next = e.target.value;
             const previous = value;
             setValue(next);
             run(async () => {
@@ -60,8 +88,11 @@ function RoleSettingSelect({
             });
           }}
         >
-          <option value="owners">{t(`${setting}.owners`)}</option>
-          <option value="members">{t(`${setting}.members`)}</option>
+          {options.map(([option, label]) => (
+            <option key={option} value={option}>
+              {t(label)}
+            </option>
+          ))}
         </select>
       }
     />
@@ -70,11 +101,63 @@ function RoleSettingSelect({
 
 /** Settings > Security: workspace policies. Owners change them; members see what is set. */
 export function GuestInviteSetting(props: { workspaceId: string; settings: WorkspaceSettings; canEdit: boolean }) {
-  return <RoleSettingSelect {...props} setting="guestInvites" />;
+  return <ChoiceSettingSelect {...props} setting="guestInvites" />;
 }
 
+/** Owners only, owners and members, or nobody: off also takes what is published off the web. */
 export function PublishingSetting(props: { workspaceId: string; settings: WorkspaceSettings; canEdit: boolean }) {
-  return <RoleSettingSelect {...props} setting="publishing" />;
+  return <ChoiceSettingSelect {...props} setting="publishing" />;
+}
+
+/** What MCP clients and REST API tokens may do here: everything their user may, read, or nothing. */
+export function ConnectedAppsSetting(props: { workspaceId: string; settings: WorkspaceSettings; canEdit: boolean }) {
+  return <ChoiceSettingSelect {...props} setting="connectedApps" />;
+}
+
+/** Whether people may export pages (Markdown, CSV, ZIP) and print them to PDF. */
+export function ExportSetting({
+  workspaceId,
+  settings,
+  canEdit,
+}: {
+  workspaceId: string;
+  settings: WorkspaceSettings;
+  canEdit: boolean;
+}) {
+  const t = useTranslations("settings.security");
+  const [value, setValue] = useState(settings.export !== false);
+  const { pending, error, run } = useAction();
+
+  return (
+    <SettingsRow
+      title={t("export.title")}
+      description={
+        error ? (
+          <span className="text-danger">{error}</span>
+        ) : (
+          <>
+            {t("export.description")}
+            {!canEdit && <> {t("ownersOnly")}</>}
+          </>
+        )
+      }
+      control={
+        <Switch
+          checked={value}
+          label={t("export.title")}
+          disabled={!canEdit || pending}
+          onChange={(next) => {
+            setValue(next);
+            run(async () => {
+              const result = await updateWorkspaceSettingsAction(workspaceId, { export: next });
+              if (!result.ok) setValue(!next);
+              return result;
+            });
+          }}
+        />
+      }
+    />
+  );
 }
 
 /** Whether guests may add top-level pages that only they can see. */
@@ -113,6 +196,52 @@ export function GuestPrivatePagesSetting({
             setValue(next);
             run(async () => {
               const result = await updateWorkspaceSettingsAction(workspaceId, { guestPrivatePages: next });
+              if (!result.ok) setValue(!next);
+              return result;
+            });
+          }}
+        />
+      }
+    />
+  );
+}
+
+/** Whether people who open a link to a page they can't see may ask for access to it. */
+export function AccessRequestsSetting({
+  workspaceId,
+  settings,
+  canEdit,
+}: {
+  workspaceId: string;
+  settings: WorkspaceSettings;
+  canEdit: boolean;
+}) {
+  const t = useTranslations("settings.security");
+  const [value, setValue] = useState(settings.accessRequests);
+  const { pending, error, run } = useAction();
+
+  return (
+    <SettingsRow
+      title={t("accessRequests.title")}
+      description={
+        error ? (
+          <span className="text-danger">{error}</span>
+        ) : (
+          <>
+            {t("accessRequests.description")}
+            {!canEdit && <> {t("ownersOnly")}</>}
+          </>
+        )
+      }
+      control={
+        <Switch
+          checked={value}
+          label={t("accessRequests.title")}
+          disabled={!canEdit || pending}
+          onChange={(next) => {
+            setValue(next);
+            run(async () => {
+              const result = await updateWorkspaceSettingsAction(workspaceId, { accessRequests: next });
               if (!result.ok) setValue(!next);
               return result;
             });
@@ -189,15 +318,15 @@ export function RequireTwoFactorSetting({
   );
 }
 
-type ChoiceKey = "memberInvites" | "domainJoin" | "joinRequests";
-const CHOICES: { [K in ChoiceKey]: readonly WorkspaceSettings[K][] } = {
+type MemberChoiceKey = "memberInvites" | "domainJoin" | "joinRequests";
+const MEMBER_CHOICES: { [K in MemberChoiceKey]: readonly WorkspaceSettings[K][] } = {
   memberInvites: ["owners", "members_with_approval", "any_member"],
   domainJoin: ["join", "request"],
   joinRequests: ["nobody", "allowed_domains", "anyone_with_link"],
 };
 
 /** Settings > Security > Members: one policy with a few choices, as a select. */
-function ChoiceSetting<K extends ChoiceKey>({
+function MemberChoiceSetting<K extends MemberChoiceKey>({
   workspaceId,
   settings,
   canEdit,
@@ -217,9 +346,9 @@ function ChoiceSetting<K extends ChoiceKey>({
   const [value, setValue] = useState<WorkspaceSettings[K]>(settings[setting]);
   const { pending, error, run } = useAction();
   const id = `setting-${setting}`;
-  const choices = CHOICES[setting] as readonly string[];
+  const choices = MEMBER_CHOICES[setting] as readonly string[];
   // Widened from K so the message keys below resolve to a plain union.
-  const key: ChoiceKey = setting;
+  const key: MemberChoiceKey = setting;
 
   return (
     <SettingsRow
@@ -287,7 +416,7 @@ export function MembershipSettings({
 
   return (
     <>
-      <ChoiceSetting workspaceId={workspaceId} settings={settings} canEdit={canEdit} setting="memberInvites" />
+      <MemberChoiceSetting workspaceId={workspaceId} settings={settings} canEdit={canEdit} setting="memberInvites" />
       <AllowedDomainsSetting
         workspaceId={workspaceId}
         domains={domains}
@@ -295,7 +424,7 @@ export function MembershipSettings({
         mailEnabled={mailEnabled}
         onSaved={setDomains}
       />
-      <ChoiceSetting
+      <MemberChoiceSetting
         workspaceId={workspaceId}
         settings={settings}
         canEdit={canEdit}
@@ -363,7 +492,7 @@ function JoinRequestsChoice({
             });
           }}
         >
-          {CHOICES.joinRequests.map((choice) => (
+          {MEMBER_CHOICES.joinRequests.map((choice) => (
             <option key={choice} value={choice}>
               {t(choice)}
             </option>

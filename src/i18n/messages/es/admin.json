@@ -1,0 +1,71 @@
+{
+  "metaTitle": "Administración del servidor",
+  "title": "Administración del servidor",
+  "description": "Las cuentas de este servidor, sus sesiones y sus contraseñas. Ves esta página porque tu dirección de correo verificada figura en ADMIN_EMAILS.",
+  "back": "Volver a {workspace}",
+  "backHome": "Volver",
+  "workspaces": {
+    "heading": "Creación de espacios de trabajo",
+    "everyone": "Todos pueden crear espacios de trabajo",
+    "admins": "Solo los administradores pueden crear espacios de trabajo",
+    "description": "Se configura con WORKSPACE_CREATION en el servidor (everyone o admins). Al registrarse, todos reciben igualmente un espacio de trabajo personal."
+  },
+  "sessions": {
+    "heading": "Todos",
+    "description": "{count, plural, one {# sesión iniciada} other {# sesiones iniciadas}} en este servidor.",
+    "signOutEveryone": "Cerrar la sesión de todos",
+    "signOutEveryoneDescription": "Cierra todas las sesiones en todos los dispositivos excepto la tuya en este navegador, y las páginas abiertas allí dejan de sincronizarse. Las apps conectadas y los tokens de API siguen funcionando.",
+    "signOutEveryoneTitle": "¿Cerrar la sesión de todos?",
+    "signOutEveryoneBody": "Todos en este servidor tendrán que volver a iniciar sesión, tú también en tus otros dispositivos.",
+    "signOutEveryoneConfirm": "Cerrar la sesión de todos",
+    "resetEveryone": "Pedir contraseñas nuevas",
+    "resetEveryoneDescription": "Todos los que inician sesión con contraseña, excepto tú, salen de su sesión y deben elegir una contraseña nueva al volver a entrar. Las cuentas que solo entran con inicio de sesión único, GitHub o Google no se ven afectadas.",
+    "resetByEmail": "Al iniciar sesión, reciben un enlace por correo para elegirla.",
+    "resetInApp": "Este servidor no tiene correo configurado, así que la eligen justo después de entrar con su contraseña anterior (y un código de verificación en dos pasos, si lo usan).",
+    "resetEveryoneTitle": "¿Pedir contraseñas nuevas a todos?",
+    "resetEveryoneBody": "Todos los que tienen contraseña, excepto tú, salen de su sesión ahora y ya no pueden entrar con su contraseña actual.",
+    "resetEveryoneConfirm": "Pedir contraseñas nuevas"
+  },
+  "users": {
+    "heading": "Cuentas",
+    "count": "{count, plural, one {# cuenta} other {# cuentas}}",
+    "countPartial": "Se muestran {shown} de {total} cuentas. Busca para encontrar las demás.",
+    "search": "Buscar por nombre o correo",
+    "noMatches": "Ninguna cuenta coincide con esta búsqueda.",
+    "none": "Aún no hay cuentas.",
+    "columns": {
+      "user": "Cuenta",
+      "workspaces": "Espacios",
+      "lastActive": "Última actividad",
+      "twoFactor": "Dos pasos",
+      "password": "Contraseña",
+      "actions": "Acciones"
+    },
+    "you": "(tú)",
+    "admin": "Admin",
+    "unverified": "Sin verificar",
+    "signedOut": "Sin sesión",
+    "on": "Activada",
+    "off": "Desactivada",
+    "hasPassword": "Definida",
+    "noPassword": "Ninguna",
+    "resetPending": "Se pide una nueva",
+    "actionsFor": "Acciones para {name}",
+    "signOut": "Cerrar sesión en todas partes",
+    "signOutTitle": "¿Cerrar la sesión de {name} en todas partes?",
+    "signOutBody": "{count, plural, one {Se cierra su # sesión} other {Se cierran sus # sesiones}} y las páginas que tiene abiertas dejan de sincronizarse. Las apps conectadas y los tokens de API siguen funcionando.",
+    "signOutSelfBody": "{count, plural, one {Se cierra tu # sesión} other {Se cierran tus # sesiones}}, salvo la de este navegador.",
+    "signOutConfirm": "Cerrar sesión",
+    "requireReset": "Pedir una contraseña nueva",
+    "resetTitle": "¿Pedir una contraseña nueva a {name}?",
+    "resetBody": "Sale de su sesión ahora y debe elegir una contraseña nueva la próxima vez que entre con contraseña.",
+    "resetByEmail": "Al iniciar sesión, recibe un enlace por correo para elegirla.",
+    "resetInApp": "Este servidor no tiene correo configurado, así que la elige justo después de entrar con su contraseña anterior (y un código de verificación en dos pasos, si lo usa).",
+    "resetConfirm": "Pedir una contraseña nueva"
+  },
+  "errors": {
+    "notFound": "No se encontró esa cuenta.",
+    "noPassword": "Esta cuenta no tiene contraseña; inicia sesión de otra forma.",
+    "self": "Cambia tu propia contraseña en la página de tu cuenta."
+  }
+}

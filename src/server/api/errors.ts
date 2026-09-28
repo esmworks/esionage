@@ -1,6 +1,6 @@
 import { CommentError } from "@/lib/comments";
 import { PropertyValueError } from "@/lib/properties";
-import { AccessError } from "@/server/access";
+import { AccessError, ConnectedAppReadOnlyError } from "@/server/access";
 import { ToolInputError } from "@/server/mcp/format";
 import { GroupError } from "@/lib/groups";
 import { TeamspaceError } from "@/lib/teamspace-error";
@@ -11,7 +11,11 @@ export const API_ERROR_CODES = {
   invalid_token: { status: 401, description: "The token is malformed, unknown or revoked." },
   token_expired: { status: 401, description: "The token has expired; create a new one." },
   insufficient_scope: { status: 403, description: "The token lacks the scope this endpoint needs (pages:write for changes)." },
-  forbidden: { status: 403, description: "The user may see the page but not do this (for example comment on it)." },
+  forbidden: {
+    status: 403,
+    description:
+      "The user may see the page but not do this (for example comment on it), or the workspace lets connected apps and API tokens only read it.",
+  },
   not_found: {
     status: 404,
     description: "The endpoint, or the page, database or row, doesn't exist or the token's user may not access it.",
@@ -44,6 +48,8 @@ export class ApiError extends Error {
 /** Maps domain errors to API errors; unknown errors stay opaque (and are logged). */
 export function apiErrorFor(error: unknown): ApiError {
   if (error instanceof ApiError) return error;
+  // Writes to a workspace that lets apps only read: the user is in it, so saying why leaks nothing.
+  if (error instanceof ConnectedAppReadOnlyError) return new ApiError(403, "forbidden", `${error.message}.`);
   // Missing and not allowed look the same, so ids never reveal what exists.
   if (error instanceof AccessError) return new ApiError(404, "not_found", "Not found or access denied");
   if (error instanceof ToolInputError) return new ApiError(400, "invalid_request", error.message);

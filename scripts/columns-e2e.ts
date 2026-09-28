@@ -127,15 +127,15 @@ const workspaceId = `${RUN}-ws`;
 const BODY = [
   "# Plan",
   "",
-  "<!-- esionage:columns -->",
+  "<!-- leafdesk:columns -->",
   "",
-  "<!-- esionage:column -->",
+  "<!-- leafdesk:column -->",
   "",
   "## Left",
   "",
   `Ask @${ids.editor} about the budget.`,
   "",
-  "<!-- esionage:column width=1.5 -->",
+  "<!-- leafdesk:column width=1.5 -->",
   "",
   "```mermaid",
   "graph TD",
@@ -144,7 +144,7 @@ const BODY = [
   "",
   "Right side text.",
   "",
-  "<!-- esionage:/columns -->",
+  "<!-- leafdesk:/columns -->",
   "",
   "After the columns.",
 ].join("\n");
@@ -169,9 +169,9 @@ try {
   const read = r.data?.markdown as string;
   check(
     !r.isError &&
-      read.includes("<!-- esionage:columns -->\n\n<!-- esionage:column -->\n\n## Left") &&
-      read.includes("<!-- esionage:column width=1.5 -->") &&
-      read.includes("<!-- esionage:/columns -->\n\nAfter the columns."),
+      read.includes("<!-- leafdesk:columns -->\n\n<!-- leafdesk:column -->\n\n## Left") &&
+      read.includes("<!-- leafdesk:column width=1.5 -->") &&
+      read.includes("<!-- leafdesk:/columns -->\n\nAfter the columns."),
     "get_page writes the columns as marker lines around their blocks",
     read,
   );
@@ -300,7 +300,7 @@ try {
   hocuspocus.closeConnections();
   await db.delete(workspace).where(inArray(workspace.id, [workspaceId]));
   await db.delete(user).where(inArray(user.id, userIds));
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }
 
 process.exit(0);

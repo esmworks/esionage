@@ -70,12 +70,12 @@ const text = (stream: ReadableStream<Uint8Array> | null) => (stream ? new Respon
 
 describe("s3Driver", () => {
   const driver = () =>
-    s3Driver({ bucket: "uploads", endpoint, region: "us-east-1", accessKeyId: "key", secretAccessKey: "secret", forcePathStyle: true, prefix: "esionage/" });
+    s3Driver({ bucket: "uploads", endpoint, region: "us-east-1", accessKeyId: "key", secretAccessKey: "secret", forcePathStyle: true, prefix: "leafdesk/" });
 
   it("uploads a stream with its length, signed, by path under the prefix", async () => {
     await driver().put("ws-1/abc", Readable.from([Buffer.from("hello "), Buffer.from("world")]), { size: 11, contentType: "text/plain" });
     const put = seen.find((s) => s.method === "PUT")!;
-    expect(put.url).toBe("/uploads/esionage/ws-1/abc");
+    expect(put.url).toBe("/uploads/leafdesk/ws-1/abc");
     expect(put.headers["content-length"]).toBe("11");
     expect(put.headers["content-type"]).toBe("text/plain");
     expect(put.headers["x-amz-content-sha256"]).toBe("UNSIGNED-PAYLOAD");

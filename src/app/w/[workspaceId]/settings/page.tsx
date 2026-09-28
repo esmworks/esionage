@@ -1,8 +1,9 @@
-import { Boxes, ContactRound, Globe, Settings, Shield, UserRound, Users, UsersRound, type LucideIcon } from "lucide-react";
+import { Boxes, ChartColumn, ContactRound, Globe, Settings, Shield, UserRound, Users, UsersRound, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AnalyticsPanel } from "@/components/settings/analytics-panel";
 import { GroupsPanel } from "@/components/settings/groups-panel";
 import { GuestsPanel } from "@/components/settings/guests-panel";
 import { AiSettings } from "@/components/settings/ai-settings";
@@ -11,6 +12,9 @@ import { MembersPanel } from "@/components/settings/members-panel";
 import { PublicForms } from "@/components/settings/public-forms";
 import { PublishedPages } from "@/components/settings/published-pages";
 import {
+  AccessRequestsSetting,
+  ConnectedAppsSetting,
+  ExportSetting,
   GuestInviteSetting,
   GuestPrivatePagesSetting,
   HistoryRetentionNote,
@@ -30,10 +34,12 @@ import { SitePages, SiteSettings } from "@/components/settings/site-settings";
 import { TeamspacesPanel } from "@/components/settings/teamspaces-panel";
 import { WorkspaceExport } from "@/components/settings/workspace-export";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
+import { parseAnalyticsPeriod } from "@/lib/analytics";
 import { isStrongSession } from "@/lib/auth-security";
 import { type SettingsTab, visibleSettingsTabs } from "@/lib/settings-tabs";
 import { AccessError, isGuest } from "@/server/access";
 import { aiInfo, embeddingModel } from "@/server/ai";
+import { workspaceAnalytics } from "@/server/analytics";
 import { listWorkspaceFormPublications } from "@/server/forms";
 import { listJoinRequests } from "@/server/join-requests";
 import { mailStatus } from "@/server/mail";
@@ -71,6 +77,7 @@ const ICONS: Record<SettingsTab, LucideIcon> = {
   guests: ContactRound,
   teamspaces: Boxes,
   groups: UsersRound,
+  analytics: ChartColumn,
   security: Shield,
   site: Globe,
 };
@@ -95,7 +102,7 @@ export default async function SettingsPage({
   const isOwner = workspace.role === "owner";
   const guest = isGuest(workspace.role);
   const managesGuests = !guest && (await canInviteGuests(user.id, workspaceId));
-  const tabs = visibleSettingsTabs({ guest, managesGuests });
+  const tabs = visibleSettingsTabs({ guest, managesGuests, owner: isOwner });
   const tab: SettingsTab = tabs.find((name) => name === query.tab) ?? "general";
   const t = await getTranslations("settings");
   const navLink = (active: boolean) =>
@@ -153,11 +160,7 @@ export default async function SettingsPage({
               </SettingsGroup>
               {!guest && <AiGroup workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
               {/* Exporting everything is for owners, like the members list download. */}
-              {isOwner && (
-                <SettingsGroup title={t("export.heading")} className="mt-10">
-                  <WorkspaceExport workspaceId={workspaceId} />
-                </SettingsGroup>
-              )}
+              {isOwner && <ExportGroup workspaceId={workspaceId} userId={user.id} />}
             </>
           )}
           {tab === "members" && (
@@ -171,6 +174,7 @@ export default async function SettingsPage({
           {tab === "guests" && <GuestsTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "teamspaces" && <TeamspacesTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "groups" && <GroupsTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
+          {tab === "analytics" && <AnalyticsTab workspaceId={workspaceId} userId={user.id} days={query.days} />}
           {tab === "security" && <SecurityTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "site" && (
             <SiteTab workspaceId={workspaceId} workspaceName={workspace.name} userId={user.id} isOwner={isOwner} />
@@ -187,6 +191,16 @@ async function AiGroup({ workspaceId, userId, isOwner }: { workspaceId: string; 
   return (
     <SettingsGroup title={t("heading")} description={t("description")} className="mt-10">
       <AiSettings workspaceId={workspaceId} enabled={settings.ai !== false} canEdit={isOwner} provider={aiInfo()} embeddings={embeddingModel()} />
+    </SettingsGroup>
+  );
+}
+
+/** Settings > General > Export, for owners: off while the workspace has export turned off. */
+async function ExportGroup({ workspaceId, userId }: { workspaceId: string; userId: string }) {
+  const [settings, t] = await Promise.all([getWorkspaceSettings(userId, workspaceId), getTranslations("settings")]);
+  return (
+    <SettingsGroup title={t("export.heading")} className="mt-10">
+      <WorkspaceExport workspaceId={workspaceId} disabled={settings.export === false} />
     </SettingsGroup>
   );
 }
@@ -246,22 +260,35 @@ async function SecurityTab({ workspaceId, userId, isOwner }: { workspaceId: stri
           />
         </SettingsGroup>
       )}
+      <SettingsGroup title={t("security.sharingHeading")}>
+        <AccessRequestsSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
+      </SettingsGroup>
       <div>
         <SettingsGroup title={t("security.guestsHeading")}>
           <GuestInviteSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
           <GuestPrivatePagesSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
         </SettingsGroup>
       </div>
+      <SettingsGroup title={t("security.dataHeading")}>
+        <ExportSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
+        <ConnectedAppsSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
+      </SettingsGroup>
       <SettingsGroup title={t("security.publishingHeading")}>
         <PublishingSetting workspaceId={workspaceId} settings={settings} canEdit={isOwner} />
       </SettingsGroup>
       {publications && (
-        <SettingsGroup title={t("security.publications.title")} description={t("security.publications.description")}>
+        <SettingsGroup
+          title={t("security.publications.title")}
+          description={t(settings.publishing === "off" ? "security.publications.off" : "security.publications.description")}
+        >
           <PublishedPages workspaceId={workspaceId} publications={publications} />
         </SettingsGroup>
       )}
       {forms && (
-        <SettingsGroup title={t("security.forms.title")} description={t("security.forms.description")}>
+        <SettingsGroup
+          title={t("security.forms.title")}
+          description={t(settings.publishing === "off" ? "security.forms.off" : "security.forms.description")}
+        >
           <PublicForms workspaceId={workspaceId} forms={forms} />
         </SettingsGroup>
       )}
@@ -371,6 +398,13 @@ async function GroupsTab({ workspaceId, userId, isOwner }: { workspaceId: string
       members={members.map(({ userId: id, name, email, image, role }) => ({ userId: id, name, email, image, role }))}
     />
   );
+}
+
+/** Settings > Analytics, for owners (the tab isn't offered to anyone else, and the report refuses them). */
+async function AnalyticsTab({ workspaceId, userId, days }: { workspaceId: string; userId: string; days: unknown }) {
+  const now = new Date();
+  const report = await workspaceAnalytics(userId, workspaceId, parseAnalyticsPeriod(days), now);
+  return <AnalyticsPanel workspaceId={workspaceId} report={report} now={now} />;
 }
 
 async function TeamspacesTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {

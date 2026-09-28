@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { MailConfigError, readMailConfig } from "./config";
 import {
+  accessApprovedEmail,
+  accessDeclinedEmail,
+  accessRequestEmail,
   assignmentEmail,
   invitationEmail,
   PASSWORD_RESET_MINUTES,
@@ -10,7 +13,7 @@ import {
   testEmail,
 } from "./templates";
 
-const FROM = "Esionage <no-reply@example.com>";
+const FROM = "Leafdesk <no-reply@example.com>";
 
 describe("readMailConfig", () => {
   it("is off without SMTP settings", () => {
@@ -84,9 +87,9 @@ describe("renderEmail", () => {
   });
 
   it("renders the test email in both languages", () => {
-    expect(testEmail("en").subject).toBe("Test email from Esionage");
+    expect(testEmail("en").subject).toBe("Test email from Leafdesk");
     const tr = testEmail("tr");
-    expect(tr.subject).toBe("Esionage test e-postası");
+    expect(tr.subject).toBe("Leafdesk test e-postası");
     expect(tr.html).toContain('<html lang="tr">');
     expect(tr.text).toContain("E-posta gönderimi çalışıyor");
   });
@@ -103,7 +106,7 @@ describe("invitationEmail", () => {
 
   it("puts the link and the invited email in both versions", () => {
     const mail = invitationEmail("en", invitation);
-    expect(mail.subject).toBe("Erhan invited you to “<Sales & Ops>” on Esionage");
+    expect(mail.subject).toBe("Erhan invited you to “<Sales & Ops>” on Leafdesk");
     expect(mail.text).toContain("Accept invitation: https://notes.example.com/invite/abc123");
     expect(mail.text).toContain("ayse@example.com");
     expect(mail.html).toContain('href="https://notes.example.com/invite/abc123"');
@@ -120,13 +123,13 @@ describe("invitationEmail", () => {
   it("renders the password reset email with its link and lifetime", () => {
     const url = "http://localhost:3000/api/auth/reset-password/abc?callbackURL=%2Freset-password";
     const en = passwordResetEmail("en", { name: "Ada", url });
-    expect(en.subject).toBe("Reset your Esionage password");
+    expect(en.subject).toBe("Reset your Leafdesk password");
     expect(en.text).toContain(`Choose a new password: ${url}`);
     expect(en.text).toContain(`${PASSWORD_RESET_MINUTES} minutes`);
     expect(en.html).toContain("Hi Ada,");
 
     const tr = passwordResetEmail("tr", { name: "Ayşe", url });
-    expect(tr.subject).toBe("Esionage şifrenizi sıfırlayın");
+    expect(tr.subject).toBe("Leafdesk şifrenizi sıfırlayın");
     expect(tr.text).toContain(`Yeni şifre belirle: ${url}`);
   });
 });
@@ -172,5 +175,44 @@ describe("shareEmail", () => {
     const en = shareEmail("en", { ...share, level: "full" });
     expect(en.subject).toBe("Erhan shared “Yol <haritası>” with you");
     expect(en.text).toContain("You can now view, edit and share “Yol <haritası>” in Ekip.");
+  });
+});
+
+describe("access request emails", () => {
+  const link = "https://notes.example.com/w/ws/p/page1";
+
+  it("tells the people with full access who asked, for which page, and what they wrote", () => {
+    const request = {
+      requesterName: "Ada",
+      requesterEmail: "ada@example.com",
+      pageTitle: "Bütçe",
+      workspaceName: "Ekip",
+      message: "Need it for <the> review",
+      link,
+    };
+    const en = accessRequestEmail("en", request);
+    expect(en.subject).toBe("Ada asked for access to “Bütçe”");
+    expect(en.text).toContain("Ada (ada@example.com) would like to open “Bütçe” in Ekip.");
+    expect(en.text).toContain("Their message: “Need it for <the> review”");
+    expect(en.html).toContain("Need it for &lt;the&gt; review");
+    expect(en.text).toContain(`Open page: ${link}`);
+
+    const bare = accessRequestEmail("tr", { ...request, requesterName: "", message: null });
+    expect(bare.subject).toBe("ada@example.com “Bütçe” sayfasına erişim istedi");
+    expect(bare.text).not.toContain("Mesajı");
+  });
+
+  it("tells the requester what they can do now", () => {
+    const approved = accessApprovedEmail("en", { actorName: "Erhan", pageTitle: "Bütçe", workspaceName: "Ekip", level: "comment", link });
+    expect(approved.subject).toBe("You can now open “Bütçe”");
+    expect(approved.text).toContain("Erhan approved your request");
+    expect(approved.text).toContain("You can now view and comment on “Bütçe” in Ekip.");
+  });
+
+  it("declines without naming the page, its workspace or who declined", () => {
+    const declined = accessDeclinedEmail("en", { link });
+    expect(declined.subject).toBe("Your request for access was declined");
+    expect(declined.text).toContain(link);
+    for (const leak of ["Bütçe", "Ekip", "Erhan"]) expect(declined.text).not.toContain(leak);
   });
 });

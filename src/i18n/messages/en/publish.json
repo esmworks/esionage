@@ -24,7 +24,7 @@
   "name": "Name",
   "noRows": "No rows to show.",
   "readOnly": "Read-only",
-  "home": "Go to Esionage",
+  "home": "Go to Leafdesk",
   "embedUnavailable": "This database isn't published with this page.",
   "indexable": "Allow search engines",
   "indexableHint": "Search engines may list this page and its subpages. Off by default: people then find it only through the link.",
@@ -61,5 +61,6 @@
   "site": {
     "menu": "Pages",
     "navigation": "Site pages"
-  }
+  },
+  "publishingOff": "Publishing to the web is turned off in this workspace. Published pages aren't shown until an owner turns it back on."
 }

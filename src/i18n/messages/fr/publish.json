@@ -24,7 +24,7 @@
   "name": "Nom",
   "noRows": "Aucune ligne à afficher.",
   "readOnly": "Lecture seule",
-  "home": "Aller sur Esionage",
+  "home": "Aller sur Leafdesk",
   "embedUnavailable": "Cette base de données n’est pas publiée avec cette page.",
   "indexable": "Autoriser les moteurs de recherche",
   "indexableHint": "Les moteurs de recherche peuvent référencer cette page et ses sous-pages. Désactivé par défaut : on ne la trouve alors que par son lien.",
@@ -61,5 +61,6 @@
   "site": {
     "menu": "Pages",
     "navigation": "Pages du site"
-  }
+  },
+  "publishingOff": "La publication sur le Web est désactivée dans cet espace de travail. Les pages publiées ne sont plus affichées jusqu’à ce qu’un propriétaire la réactive."
 }

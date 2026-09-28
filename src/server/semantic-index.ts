@@ -56,7 +56,7 @@ type IndexQueue = {
   idle: (() => void)[];
 };
 
-const KEY = "__esionageSemanticIndex";
+const KEY = "__leafdeskSemanticIndex";
 const queue = ((globalThis as Record<string, unknown>)[KEY] ??= {
   waiting: [],
   active: new Set(),

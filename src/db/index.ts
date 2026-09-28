@@ -3,10 +3,10 @@ import postgres from "postgres";
 import { env } from "@/lib/env";
 import * as schema from "./schema";
 
-const globalForDb = globalThis as unknown as { __esionageSql?: postgres.Sql };
+const globalForDb = globalThis as unknown as { __leafdeskSql?: postgres.Sql };
 
 // One pool per process. The custom server and Next route handlers share it via globalThis.
-const sql = (globalForDb.__esionageSql ??= postgres(env.databaseUrl, { max: 10 }));
+const sql = (globalForDb.__leafdeskSql ??= postgres(env.databaseUrl, { max: 10 }));
 
 export const db = drizzle(sql, { schema });
 export type Db = typeof db;

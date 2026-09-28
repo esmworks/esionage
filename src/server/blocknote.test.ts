@@ -44,10 +44,10 @@ describe("database blocks in page bodies", () => {
       ]),
     );
     const markdown = (await blocksToMarkdown(blocks)).trim();
-    expect(markdown).toContain(`Before\n\n<!-- esionage:database ${DB} -->\n\n`);
-    expect(markdown).toContain(`<!-- esionage:linked-view ${OTHER} -->`);
+    expect(markdown).toContain(`Before\n\n<!-- leafdesk:database ${DB} -->\n\n`);
+    expect(markdown).toContain(`<!-- leafdesk:linked-view ${OTHER} -->`);
     expect(markdown).toContain("After");
-    expect(markdown).not.toContain("esionage" + "embed");
+    expect(markdown).not.toContain("leafdesk" + "embed");
     // No settings, no titles: just the kind and the id.
     expect(markdown).not.toContain("board");
     expect(blocksToPlainText(blocks)).toBe("Before\nitem\nAfter");
@@ -58,15 +58,15 @@ describe("database blocks in page bodies", () => {
     const markdown = [
       "# Title",
       "",
-      `<!-- esionage:database ${DB} -->`,
+      `<!-- leafdesk:database ${DB} -->`,
       "",
       "```",
-      `<!-- esionage:database ${OTHER} -->`,
+      `<!-- leafdesk:database ${OTHER} -->`,
       "```",
       "",
-      `<!-- esionage:linked-view ${OTHER} -->`,
+      `<!-- leafdesk:linked-view ${OTHER} -->`,
       "",
-      `Inline <!-- esionage:linked-view ${DB} --> mention`,
+      `Inline <!-- leafdesk:linked-view ${DB} --> mention`,
     ].join("\n");
     const blocks = await markdownToBlocks(markdown, existing);
     expect(blocks.map((b) => b.type)).toEqual(["heading", "database", "codeBlock", "linkedView", "paragraph"]);
@@ -76,8 +76,8 @@ describe("database blocks in page bodies", () => {
     const doc = new Y.Doc();
     doc.transact(() => serverEditor.blocksToYXmlFragment(blocks, doc.getXmlFragment(COLLAB_FRAGMENT)));
     const again = (await blocksToMarkdown(read(doc))).trim();
-    expect(again).toContain(`<!-- esionage:database ${DB} -->`);
-    expect(again).toContain(`<!-- esionage:linked-view ${OTHER} -->`);
+    expect(again).toContain(`<!-- leafdesk:database ${DB} -->`);
+    expect(again).toContain(`<!-- leafdesk:linked-view ${OTHER} -->`);
   });
 
   it("keep inline databases a rewrite leaves out, but not linked views", async () => {
@@ -95,7 +95,7 @@ describe("database blocks in page bodies", () => {
     ]);
     const appended = await markdownToBlocks("More", existing, { keepMissingInline: false });
     expect(appended.map((b) => b.type)).toEqual(["paragraph"]);
-    const moved = await markdownToBlocks(`<!-- esionage:database ${DB} -->\n\nText`, existing);
+    const moved = await markdownToBlocks(`<!-- leafdesk:database ${DB} -->\n\nText`, existing);
     expect(moved.map((b) => b.type)).toEqual(["database", "paragraph"]);
   });
 

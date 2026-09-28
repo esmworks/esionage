@@ -3,7 +3,7 @@
   "title": "Join “{workspace}”",
   "invalidTitle": "Invitation not found",
   "invalidBody": "This invitation link is invalid, has expired or was cancelled. Ask the person who invited you for a new one.",
-  "home": "Go to Esionage",
+  "home": "Go to Leafdesk",
   "wrongAccount": "This invitation is for {email}, but you are signed in as {current}. Sign out and open the link again.",
   "acceptBody": "You were invited to join as {role}.",
   "signInBody": "An account already uses {email}. Sign in to accept the invitation.",

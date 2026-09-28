@@ -24,8 +24,18 @@ vi.mock("@/db", () => ({ db: { select: () => (chain() as { select: () => unknown
 let current: RequestSession | null = null;
 vi.mock("./request-session", () => ({ requestSession: async () => current }));
 
-const { getMembership, findMembership, resolvePageAccess, requireMembership, TwoFactorRequiredError, SsoRequiredError, workspacesHeldBack } =
-  await import("./access");
+const {
+  AccessError,
+  ConnectedAppReadOnlyError,
+  getMembership,
+  findMembership,
+  resolvePageAccess,
+  requireMembership,
+  TwoFactorRequiredError,
+  SsoRequiredError,
+  workspacesHeldBack,
+} = await import("./access");
+const { asWrite, runAsConnectedApp } = await import("./connected-app");
 const { authorizeCollab } = await import("./collab/authorize");
 
 const session = (userId: string, strong: boolean, ssoProviderId: string | null = null): RequestSession => ({
@@ -166,6 +176,66 @@ describe("collab connections", () => {
     results.push(member, ssoOnly);
     expect(await authorizeCollab("u1", { kind: "ws", id: "ws1" }, { strong: false, ssoProviderId: "ws-ws1" })).toEqual({
       readOnly: false,
+    });
+  });
+});
+
+describe("the connected-apps setting in access checks", () => {
+  /** The setting lookup's row (see appsModeOf). */
+  const apps = (mode: string | null) => [{ mode }];
+
+  it("hides a workspace whose owners turned connected apps off, as if the user weren't in it", async () => {
+    await runAsConnectedApp({ userId: "u1" }, async () => {
+      results.push(member, apps("off"));
+      const error = await getMembership("u1", "ws1").catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(AccessError);
+      expect(error).not.toBeInstanceOf(ConnectedAppReadOnlyError);
+      results.push(visiblePage);
+      await expect(resolvePageAccess("u1", "p1")).rejects.toBeInstanceOf(AccessError);
+      expect(queries).toBe(3); // two lookups, the setting asked once per request
+    });
+  });
+
+  it("refuses writes where apps may only read, and lets reads through", async () => {
+    await runAsConnectedApp({ userId: "u1" }, async () => {
+      results.push(visiblePage, apps("read"));
+      expect((await resolvePageAccess("u1", "p1")).level).toBe("view");
+      results.push(visiblePage);
+      const error = await asWrite(() => resolvePageAccess("u1", "p1")).catch((e: unknown) => e);
+      expect(error).toMatchObject({ name: "ConnectedAppReadOnlyError", workspaceId: "ws1" });
+      // Writes that only ask for membership (a top-level page, say) are refused the same way.
+      results.push(member);
+      await expect(asWrite(() => requireMembership("u1", "ws1"))).rejects.toBeInstanceOf(ConnectedAppReadOnlyError);
+    });
+    await runAsConnectedApp({ userId: "u1", writing: true }, async () => {
+      results.push(member, apps("read"));
+      await expect(getMembership("u1", "ws1")).rejects.toBeInstanceOf(ConnectedAppReadOnlyError);
+    });
+  });
+
+  it("lets everything through with full access, the default", async () => {
+    await runAsConnectedApp({ userId: "u1", writing: true }, async () => {
+      results.push(member, apps(null));
+      expect(await getMembership("u1", "ws1")).toEqual({ role: "member" });
+      results.push(member, apps("full"));
+      expect(await getMembership("u1", "ws2")).toEqual({ role: "member" });
+    });
+  });
+
+  it("doesn't apply outside connected-app requests, nor to checks on other people", async () => {
+    results.push(member);
+    expect(await asWrite(() => getMembership("u1", "ws1"))).toEqual({ role: "member" });
+    await runAsConnectedApp({ userId: "u1", writing: true }, async () => {
+      results.push(member);
+      expect(await getMembership("u2", "ws1")).toEqual({ role: "member" });
+    });
+    expect(queries).toBe(2);
+  });
+
+  it("names the workspaces a list across workspaces has to leave out", async () => {
+    await runAsConnectedApp({ userId: "u1" }, async () => {
+      results.push(apps("off"), apps("read"), apps(null));
+      expect([...(await workspacesHeldBack("u1", ["ws1", "ws2", "ws3"]))]).toEqual(["ws1"]);
     });
   });
 });

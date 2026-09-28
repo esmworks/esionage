@@ -48,6 +48,7 @@ import { isGroupable, sortStatusOptions, statusColor } from "@/lib/properties";
 import { holdsOptions, holdsTimestamp, STATUS_GROUPS } from "@/lib/property-types";
 import { CARD_SIZES, TIMELINE_ZOOMS, VIEW_TYPES } from "@/lib/views";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
+import { asWrite } from "@/server/connected-app";
 import * as databases from "@/server/databases";
 import * as files from "@/server/files";
 import { uploadLimits } from "@/server/storage";
@@ -58,6 +59,7 @@ import * as notifications from "@/server/notifications";
 import * as pages from "@/server/pages";
 import * as templates from "@/server/templates";
 import { builtinTemplates } from "@/lib/builtin-templates";
+import { AccessError } from "@/server/access";
 import * as workspaces from "@/server/workspaces";
 import * as ops from "@/server/operations";
 import { filterCombinatorInput, filtersInput, id, rowValue, sortsInput } from "@/server/operations";
@@ -76,21 +78,21 @@ import {
   type SortInput,
 } from "./query";
 
-const INSTRUCTIONS = `Esionage is a Notion-like workspace. Each user belongs to one or more workspaces.
+const INSTRUCTIONS = `Leafdesk is a Notion-like workspace. Each user belongs to one or more workspaces.
 Pages form a tree inside a workspace. A database is a special page whose children are rows; rows are pages with typed properties (text, number, select, multi_select, status, date, checkbox, url, email, phone, checklist, files, relation, person, created_by, created_time, last_edited_by, last_edited_time, formula, rollup). A relation links rows to rows of another database in the same workspace; two-way relations show the links on both databases. A person property assigns rows to people of the workspace; "me" stands for the signed-in user. A status is a select whose options belong to the groups todo, in_progress and done. A checklist holds items that can be ticked off. A files property holds files uploaded to the workspace (images show as thumbnails); its values read as [{name, url}]. created_by, created_time, last_edited_by and last_edited_time show who created or last edited each row and when; they are filled in automatically and can't be written. A formula property computes its value from the row's other properties, and a rollup calculates over the rows a relation links to (see add_database_property); neither can be written.
 Start with list_workspaces or search to find ids, then get_page / list_pages / query_database.
 Teamspaces group a workspace's pages and people (list_teamspaces). A teamspace is default (everyone is in it), open (anyone can join; others can read), closed (only its members open its pages) or private (only its members know it). A top-level page belongs to a teamspace, or is private to the user who made it; pages under it follow it. create_page, create_database and move_page take a teamspace_id for top-level pages ("private" for the user's private pages); without one, new top-level pages are private. Member groups (list_groups) are named sets of owners and members that pages are shared with and teamspaces joined by; someone gets the highest access they have from anywhere (their own, a group, the teamspace).
-Page bodies are read and written as Markdown. Before every content change Esionage saves a history snapshot, so the user can undo your edits from the page history (list_page_history / diff_page_version / restore_page_version).
-Beyond plain Markdown, page bodies know a few block forms: a callout is a GitHub alert (\`> [!NOTE]\`, TIP, IMPORTANT, WARNING or CAUTION on its own line, then the \`> \` text; a leading emoji becomes its icon), \`$…$\` is an inline equation and a \`$$\` line pair wraps a block equation (LaTeX), a \`\`\`mermaid fence is a diagram, and the lines \`<!-- esionage:toc -->\` and \`<!-- esionage:breadcrumb -->\` are a table of contents and the page's breadcrumb. Columns (2 to 5, side by side) are written between marker lines: \`<!-- esionage:columns -->\`, then \`<!-- esionage:column -->\` before each column's blocks (\`<!-- esionage:column width=2 -->\` makes a column twice as wide as a width-1 one), then \`<!-- esionage:/columns -->\`; keep the markers when you write a body back, or the blocks leave their columns. A web bookmark (a link card) reads as a link on a line of its own, \`[Title](url)\`, and stays a bookmark when you write the body back; to add a new one write \`[Title](url) <!-- esionage:bookmark -->\`. An embed (YouTube, Vimeo, Loom, Figma, published Google Docs/Sheets/Slides, CodePen, Spotify, Google Maps) is \`[url](url) <!-- esionage:embed -->\`. A dollar sign of the text itself is written \`\\$\`.
-Mentions: a link to a page of this app (\`[Roadmap](/w/<workspace_id>/p/<page_id>)\`) is a page mention, which shows the page's live title (the link text you write is ignored; get_page shows the current title, or "No access" / "Deleted page"); that link alone on its line followed by \`<!-- esionage:page-link -->\` is a "Link to page" block. \`@Name\` with a person's name as list_users shows it mentions them (they are notified if they can open the page), and \`@YYYY-MM-DD\` is a date. Keep mentions as they are when you rewrite a page: people aren't notified twice and reminders set on dates stay. get_page lists the pages linking to a page under linked_from.
+Page bodies are read and written as Markdown. Before every content change Leafdesk saves a history snapshot, so the user can undo your edits from the page history (list_page_history / diff_page_version / restore_page_version).
+Beyond plain Markdown, page bodies know a few block forms: a callout is a GitHub alert (\`> [!NOTE]\`, TIP, IMPORTANT, WARNING or CAUTION on its own line, then the \`> \` text; a leading emoji becomes its icon), \`$…$\` is an inline equation and a \`$$\` line pair wraps a block equation (LaTeX), a \`\`\`mermaid fence is a diagram, and the lines \`<!-- leafdesk:toc -->\` and \`<!-- leafdesk:breadcrumb -->\` are a table of contents and the page's breadcrumb. Columns (2 to 5, side by side) are written between marker lines: \`<!-- leafdesk:columns -->\`, then \`<!-- leafdesk:column -->\` before each column's blocks (\`<!-- leafdesk:column width=2 -->\` makes a column twice as wide as a width-1 one), then \`<!-- leafdesk:/columns -->\`; keep the markers when you write a body back, or the blocks leave their columns. A web bookmark (a link card) reads as a link on a line of its own, \`[Title](url)\`, and stays a bookmark when you write the body back; to add a new one write \`[Title](url) <!-- leafdesk:bookmark -->\`. An embed (YouTube, Vimeo, Loom, Figma, published Google Docs/Sheets/Slides, CodePen, Spotify, Google Maps) is \`[url](url) <!-- leafdesk:embed -->\`. A dollar sign of the text itself is written \`\\$\`.
+Mentions: a link to a page of this app (\`[Roadmap](/w/<workspace_id>/p/<page_id>)\`) is a page mention, which shows the page's live title (the link text you write is ignored; get_page shows the current title, or "No access" / "Deleted page"); that link alone on its line followed by \`<!-- leafdesk:page-link -->\` is a "Link to page" block. \`@Name\` with a person's name as list_users shows it mentions them (they are notified if they can open the page), and \`@YYYY-MM-DD\` is a date. Keep mentions as they are when you rewrite a page: people aren't notified twice and reminders set on dates stay. get_page lists the pages linking to a page under linked_from.
 People discuss pages in comment threads anchored to text of the page: list_comments reads them, add_comment starts a thread on quoted text or replies to one.
-list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them, new comments in their threads, mentions of them, reminders they set on dates and, for owners, requests to join their workspaces.
+list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them, new comments in their threads, mentions of them, reminders they set on dates, requests for access to pages they can share and, for owners, requests to join their workspaces.
 attach_file adds an image, video, audio or other file to a page, from a URL or base64 data, or (with property) to a row's files property. Files in page bodies show up in the Markdown with paths like /api/files/<id>.
 Templates are starting points for new pages and rows: list_templates lists a workspace's page templates (and the built-in gallery) or a database's row templates; create_page and create_database_row take a template_id. A database's default row template is used by create_database_row when no properties or body are given. Templates don't show up in search or list_pages.
 Always share the returned url with the user when you create or change something.`;
 
 const EMBED_NOTE =
-  "Databases shown inside a page body appear in its Markdown as their own lines, `<!-- esionage:database <id> -->` (an inline database) or `<!-- esionage:linked-view <id> -->` (a linked view of a database); get_page lists them under embedded_databases.";
+  "Databases shown inside a page body appear in its Markdown as their own lines, `<!-- leafdesk:database <id> -->` (an inline database) or `<!-- leafdesk:linked-view <id> -->` (a linked view of a database); get_page lists them under embedded_databases.";
 
 /** How formulas are written, for tool descriptions. */
 const FORMULA_HELP =
@@ -622,14 +624,23 @@ function decodeBase64(input: string): { bytes: Buffer; contentType: string | nul
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
 
 export function createMcpServer(principal: McpPrincipal) {
-  const server = new McpServer({ name: "esionage", title: "Esionage", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "leafdesk", title: "Leafdesk", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+  // Every tool not annotated read-only runs as a write, so a workspace that lets connected apps
+  // only read refuses it in its access checks (see connected-app.ts), whatever the tool checks.
+  const register = server.registerTool.bind(server) as (name: string, config: unknown, handler: unknown) => unknown;
+  server.registerTool = ((name: string, config: { annotations?: { readOnlyHint?: boolean } }, handler: (...args: unknown[]) => unknown) =>
+    register(
+      name,
+      config,
+      config.annotations?.readOnlyHint === true ? handler : (...args: unknown[]) => asWrite(() => handler(...args)),
+    )) as typeof server.registerTool;
   const { userId } = principal;
   const actor: WriteActor = { userId, oauthClientId: principal.clientId };
 
   const assertWrite = () => {
     if (!principal.scopes.includes(WRITE_SCOPE)) {
       throw new ToolInputError(
-        "This connection is read-only: the user did not grant the pages:write permission. Ask the user to reconnect Esionage and allow editing.",
+        "This connection is read-only: the user did not grant the pages:write permission. Ask the user to reconnect Leafdesk and allow editing.",
       );
     }
   };
@@ -685,7 +696,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "List notifications",
       description:
-        "List the user's inbox, newest first: database rows someone assigned them to, pages someone shared with them, new comments in comment threads the user is in, mentions, reminders and (for owners) join requests, with who did it and a link. Only the kinds the user keeps in their inbox are listed. Reading does not mark them read.",
+        "List the user's inbox, newest first: database rows someone assigned them to, pages someone shared with them, new comments in comment threads the user is in, mentions, reminders, requests for access to pages the user can share and (for owners) join requests, with who did it and a link. Only the kinds the user keeps in their inbox are listed. Reading does not mark them read.",
       inputSchema: z.object({
         workspace_id: z.string().optional().describe("Only this workspace; all of the user's workspaces when omitted."),
         unread_only: z.boolean().default(false).describe("Only notifications the user hasn't read yet."),
@@ -698,7 +709,7 @@ export function createMcpServer(principal: McpPrincipal) {
       runTool(async () => {
         if (!principal.scopes.includes(NOTIFICATIONS_SCOPE)) {
           throw new ToolInputError(
-            "This connection can't read notifications: the user did not grant the notifications:read permission. Ask the user to reconnect Esionage and allow it.",
+            "This connection can't read notifications: the user did not grant the notifications:read permission. Ask the user to reconnect Leafdesk and allow it.",
           );
         }
         const items = await notifications.listNotifications(userId, { workspaceId: workspace_id, unreadOnly: unread_only, limit });
@@ -737,7 +748,9 @@ export function createMcpServer(principal: McpPrincipal) {
                       ? `${who} mentioned the user on "${title}"`
                       : n.kind === "reminder"
                         ? `Reminder the user set for ${n.reminderDate ?? "a date"} on "${title}"`
-                        : `${who} shared "${title}" with the user`,
+                        : n.kind === "access_request"
+                          ? `${who} asked for access to "${title}", which the user can share (answer from the page's Share menu)`
+                          : `${who} shared "${title}" with the user`,
               actor: n.actorName,
               page_id: n.pageId,
               title,
@@ -860,7 +873,7 @@ export function createMcpServer(principal: McpPrincipal) {
     "attach_file",
     {
       title: "Attach a file to a page",
-      description: `Upload a file (image, video, audio, PDF or any other file) to a page, either from a public http(s) URL, which Esionage downloads, or from base64 data. By default it is added to the end of the page body as an image, video, audio or file block, chosen by its type; a history snapshot is saved first. With append false it is only stored: put the returned path into the body yourself (e.g. \`![caption](/api/files/…)\` with update_page) within a day, or the unused upload is removed. With property (a files property of the row the page is), the file is added to that property's value instead of the body. Files can be at most ${formatBytes(maxFile)}, and URLs must point at a public address. Only people who can see the page can open the file.`,
+      description: `Upload a file (image, video, audio, PDF or any other file) to a page, either from a public http(s) URL, which Leafdesk downloads, or from base64 data. By default it is added to the end of the page body as an image, video, audio or file block, chosen by its type; a history snapshot is saved first. With append false it is only stored: put the returned path into the body yourself (e.g. \`![caption](/api/files/…)\` with update_page) within a day, or the unused upload is removed. With property (a files property of the row the page is), the file is added to that property's value instead of the body. Files can be at most ${formatBytes(maxFile)}, and URLs must point at a public address. Only people who can see the page can open the file.`,
       inputSchema: z.object({
         page_id: id("page"),
         url: z.string().max(4000).optional().describe("A public http(s) URL to download the file from. Give url or base64."),
@@ -886,12 +899,12 @@ export function createMcpServer(principal: McpPrincipal) {
         assertWrite();
         if (!principal.scopes.includes(FILES_SCOPE)) {
           throw new ToolInputError(
-            "This connection can't upload files: the user did not grant the files:write permission. Ask the user to reconnect Esionage and allow it.",
+            "This connection can't upload files: the user did not grant the files:write permission. Ask the user to reconnect Leafdesk and allow it.",
           );
         }
         if ((url === undefined) === (base64 === undefined)) throw new ToolInputError("Give either url or base64, not both.");
         const { page, parentDatabase } = await ops.loadPage(ctx, page_id);
-        if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in Esionage before adding files.");
+        if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in Leafdesk before adding files.");
         if (page.kind === "database") throw new ToolInputError("Databases have no body. Attach the file to one of its rows.");
         let filesProp: PropertyDef | null = null;
         if (property !== undefined) {
@@ -964,7 +977,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Move a page to the trash",
       description:
-        "Move a page (with all its sub-pages, or a database with its rows) to the trash. This is reversible: the user can restore it from the trash in Esionage.",
+        "Move a page (with all its sub-pages, or a database with its rows) to the trash. This is reversible: the user can restore it from the trash in Leafdesk.",
       inputSchema: ops.inputs.pageId,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       scopeChallenge: requireWrite,
@@ -1452,7 +1465,8 @@ export function createMcpServer(principal: McpPrincipal) {
     "list_users",
     {
       title: "List workspace members",
-      description: "List the people in a workspace with their name, email and role (owner, member or guest). Guests can't list them.",
+      description:
+        "List the people in a workspace with their name, email, role (owner, member or guest) and when they joined it (joined_at). Guests can't list them. Owners invite more people with invite_member.",
       inputSchema: z.object({ workspace_id: id("workspace") }),
       annotations: READ,
     },
@@ -1460,9 +1474,78 @@ export function createMcpServer(principal: McpPrincipal) {
       runTool(async () => {
         const members = await workspaces.listMembers(userId, workspace_id);
         return {
-          users: members.map((m) => ({ id: m.userId, name: m.name, email: m.email, role: m.role, is_you: m.userId === userId })),
+          users: members.map((m) => ({
+            id: m.userId,
+            name: m.name,
+            email: m.email,
+            role: m.role,
+            joined_at: m.joinedAt.toISOString(),
+            is_you: m.userId === userId,
+          })),
         };
       }),
+  );
+
+  server.registerTool(
+    "invite_member",
+    {
+      title: "Invite someone to a workspace",
+      description:
+        'Add a person to a workspace by email, as Settings > Members does, under the workspace\'s "Who can add members" setting: owners always can; members only when the workspace lets them, and only as members; guests never. Someone with an account joins right away (status "added"). Anyone else gets an invitation (status "invited"): an email with a link that works for 7 days, when the server can send email (email_sent says whether it went out), and the link is returned so the user can share it themselves. Inviting the same address again renews the invitation. When the workspace wants members\' invitations approved, a member\'s invitation becomes a request an owner approves or declines (status "requested"); nothing is sent until then. role is member (default), owner or guest.',
+      inputSchema: z.object({
+        workspace_id: id("workspace"),
+        email: z.string().max(254).describe("The person's email address."),
+        role: z.enum(["member", "owner", "guest"]).default("member").describe("Their role in the workspace (default member)."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      scopeChallenge: requireWrite,
+    },
+    write(async ({ workspace_id, email, role }) => {
+      let result: workspaces.BulkAddResult | undefined;
+      try {
+        // The same path as the members page's "Add members", with its "Who can add members"
+        // policy (server/workspaces.ts memberInviteModeFor), for one address.
+        [result] = await workspaces.addMembers(userId, workspace_id, [email], role);
+      } catch (error) {
+        if (error instanceof AccessError) {
+          throw new ToolInputError(
+            "The user can't add people to this workspace with that role: owners can; members only when the workspace's \"Who can add members\" setting lets them, and only as members; guests never. Check the workspace id and the user's role with list_workspaces.",
+          );
+        }
+        if (error instanceof workspaces.WorkspaceError) throw new ToolInputError(`${error.message}`);
+        throw error;
+      }
+      if (!result || result.kind === "error") {
+        const reasons: Partial<Record<workspaces.WorkspaceErrorCode, string>> = {
+          invalidEmail: "That isn't a valid email address.",
+          alreadyMember: "This person is already in the workspace; list_users shows their role.",
+          tooManyRequests: "Too many invitation requests from this user; try again later.",
+        };
+        throw new ToolInputError(reasons[result?.code ?? "invalidEmail"] ?? "This person couldn't be invited.");
+      }
+      if (result.kind === "added") return { status: "added", email: result.email, role };
+      if (result.kind === "requested") {
+        return {
+          status: "requested",
+          email: result.email,
+          role,
+          note: "This workspace wants members' invitations approved: its owners were asked, and the invitation goes out in the user's name once one approves it.",
+        };
+      }
+      return {
+        status: "invited",
+        email: result.email,
+        role,
+        invitation_link: result.link,
+        email_sent: result.delivery === "sent",
+        ...(result.delivery !== "sent" && {
+          note:
+            result.delivery === "off"
+              ? "This server doesn't send email. Share invitation_link with them."
+              : "Sending the invitation email failed. Share invitation_link with them.",
+        }),
+      };
+    }),
   );
 
   server.registerTool(

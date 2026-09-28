@@ -22,6 +22,7 @@ export const user = pgTable("user", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  passwordResetRequired: boolean("password_reset_required").default(false),
 });
 
 export const session = pgTable(

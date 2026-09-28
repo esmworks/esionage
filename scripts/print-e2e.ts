@@ -123,17 +123,17 @@ try {
       "graph TD; Start-->Finish",
       "```",
       "",
-      "<!-- esionage:columns -->",
+      "<!-- leafdesk:columns -->",
       "",
-      "<!-- esionage:column -->",
+      "<!-- leafdesk:column -->",
       "",
       "Left column text",
       "",
-      "<!-- esionage:column width=1.5 -->",
+      "<!-- leafdesk:column width=1.5 -->",
       "",
       "Right column text",
       "",
-      "<!-- esionage:/columns -->",
+      "<!-- leafdesk:/columns -->",
     ].join("\n"),
     owner,
   );
@@ -262,5 +262,5 @@ try {
   await db.delete(workspace).where(inArray(workspace.id, [workspaceId, otherWorkspace]));
   await db.delete(user).where(inArray(user.id, userIds));
   hocuspocus.closeConnections();
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }

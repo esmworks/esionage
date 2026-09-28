@@ -1,6 +1,6 @@
 {
   "heading": "Jetons d’accès personnels",
-  "description": "Les jetons permettent à des scripts et à d’autres programmes d’utiliser l’API REST d’Esionage en votre nom, avec vos droits d’accès aux pages. Gardez-les secrets, comme un mot de passe.",
+  "description": "Les jetons permettent à des scripts et à d’autres programmes d’utiliser l’API REST de Leafdesk en votre nom, avec vos droits d’accès aux pages. Gardez-les secrets, comme un mot de passe.",
   "docs": "Documentation de l’API",
   "empty": "Vous n’avez pas encore de jeton.",
   "create": "Nouveau jeton",

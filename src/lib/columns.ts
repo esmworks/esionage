@@ -53,7 +53,7 @@ export const ColumnListNode = Node.create({
     return [{ tag: `div[data-node-type="${COLUMN_LIST_BLOCK}"]` }];
   },
   renderHTML({ HTMLAttributes }) {
-    const dom = domFor(COLUMN_LIST_BLOCK, "esionage-columns", HTMLAttributes);
+    const dom = domFor(COLUMN_LIST_BLOCK, "leafdesk-columns", HTMLAttributes);
     return { dom, contentDOM: dom };
   },
 });
@@ -77,7 +77,7 @@ export const ColumnNode = Node.create({
     return [{ tag: `div[data-node-type="${COLUMN_BLOCK}"]` }];
   },
   renderHTML({ HTMLAttributes }) {
-    const dom = domFor(COLUMN_BLOCK, "esionage-column", HTMLAttributes);
+    const dom = domFor(COLUMN_BLOCK, "leafdesk-column", HTMLAttributes);
     dom.style.flexGrow = String(columnWidth(HTMLAttributes["data-width"]));
     return { dom, contentDOM: dom };
   },
@@ -102,23 +102,23 @@ export function columnBlockSpecs({
  * Markdown has no columns. They are written as HTML comments around their blocks, in reading
  * order, so other Markdown readers still show everything (one column after another):
  *
- *   <!-- esionage:columns -->
- *   <!-- esionage:column -->
+ *   <!-- leafdesk:columns -->
+ *   <!-- leafdesk:column -->
  *   Left column's blocks
- *   <!-- esionage:column width=2 -->
+ *   <!-- leafdesk:column width=2 -->
  *   Right column's blocks, twice as wide
- *   <!-- esionage:/columns -->
+ *   <!-- leafdesk:/columns -->
  */
 export type ColumnMarker = { kind: "columns" } | { kind: "column"; width: number } | { kind: "end" };
 
 export function columnMarkerLine(marker: ColumnMarker): string {
-  if (marker.kind === "columns") return "<!-- esionage:columns -->";
-  if (marker.kind === "end") return "<!-- esionage:/columns -->";
+  if (marker.kind === "columns") return "<!-- leafdesk:columns -->";
+  if (marker.kind === "end") return "<!-- leafdesk:/columns -->";
   const width = columnWidth(marker.width);
-  return width === 1 ? "<!-- esionage:column -->" : `<!-- esionage:column width=${width} -->`;
+  return width === 1 ? "<!-- leafdesk:column -->" : `<!-- leafdesk:column width=${width} -->`;
 }
 
-const MARKER_LINE = /^ {0,3}<!--\s*esionage:(columns|column|\/columns)(?:\s+width=([0-9]*\.?[0-9]+))?\s*-->\s*$/;
+const MARKER_LINE = /^ {0,3}<!--\s*leafdesk:(columns|column|\/columns)(?:\s+width=([0-9]*\.?[0-9]+))?\s*-->\s*$/;
 
 export function parseColumnMarker(line: string): ColumnMarker | null {
   const match = MARKER_LINE.exec(line);
@@ -132,7 +132,7 @@ export function parseColumnMarker(line: string): ColumnMarker | null {
  * The block a marker stands for between parsing and groupColumns. Its type is no block's, so one
  * left behind would fail loudly rather than write something odd.
  */
-export const COLUMN_MARKER_BLOCK = "esionage:columnMarker";
+export const COLUMN_MARKER_BLOCK = "leafdesk:columnMarker";
 
 type Tree = { type: string; props?: Record<string, unknown>; children?: Tree[] };
 

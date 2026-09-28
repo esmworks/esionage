@@ -80,7 +80,7 @@ describe("mentions in Markdown", () => {
   it("are written as links, @names and ISO dates", async () => {
     const markdown = (await blocksToMarkdown(stored(sample), { workspaceId: WS })).trim();
     expect(markdown).toBe(
-      `Ask @Ada Lovelace about [page](/w/${WS}/p/${PAGE}) by @2026-10-01\n\n[page](/w/${WS}/p/${OTHER}) <!-- esionage:page-link -->`,
+      `Ask @Ada Lovelace about [page](/w/${WS}/p/${PAGE}) by @2026-10-01\n\n[page](/w/${WS}/p/${OTHER}) <!-- leafdesk:page-link -->`,
     );
   });
 
@@ -105,7 +105,7 @@ describe("mentions in Markdown", () => {
   });
 
   it("read a page-link line as the block, with any link text", async () => {
-    const blocks = stored(await markdownToBlocks(`Intro\n\n[Q3 plan](/w/${WS}/p/${PAGE}) <!-- esionage:page-link -->\n\nOutro`));
+    const blocks = stored(await markdownToBlocks(`Intro\n\n[Q3 plan](/w/${WS}/p/${PAGE}) <!-- leafdesk:page-link -->\n\nOutro`));
     expect(blocks.map((b) => b.type)).toEqual(["paragraph", "pageLink", "paragraph"]);
     expect(blocks[1].props).toMatchObject({ pageId: PAGE });
   });

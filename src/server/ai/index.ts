@@ -84,7 +84,7 @@ type Runtime = {
 
 // On globalThis: Next bundles route handlers apart from the custom server, and both must share one
 // configuration, one set of limits and the test override.
-const KEY = "__esionageAi";
+const KEY = "__leafdeskAi";
 const runtime = ((globalThis as Record<string, unknown>)[KEY] ??= {}) as Runtime;
 
 export function aiConfig(): AiConfig {

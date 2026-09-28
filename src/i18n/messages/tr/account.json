@@ -2,15 +2,16 @@
   "metaTitle": "Hesabım",
   "title": "Hesabım",
   "back": "Geri dön: {workspace}",
-  "backHome": "Esionage'a dön",
+  "backHome": "Leafdesk'e dön",
   "nav": {
     "profile": "Profil",
     "security": "Güvenlik",
     "preferences": "Tercihler",
-    "apps": "Bağlı uygulamalar"
+    "apps": "Bağlı uygulamalar",
+    "admin": "Sunucu yönetimi"
   },
   "apps": {
-    "description": "Esionage'ı sizin adınıza kullanmasına izin verdiğiniz uygulamalar, örneğin MCP ile bağlanan yapay zekâ asistanları. Bulunduğunuz tüm çalışma alanlarına erişirler."
+    "description": "Leafdesk'i sizin adınıza kullanmasına izin verdiğiniz uygulamalar, örneğin MCP ile bağlanan yapay zekâ asistanları. Bulunduğunuz tüm çalışma alanlarına erişirler."
   },
   "profile": {
     "description": "Tüm çalışma alanlarında başkalarına nasıl göründüğünüz, giriş yaptığınız e-posta ve hesabınızı silme.",
@@ -26,7 +27,7 @@
   },
   "email": {
     "heading": "E-posta",
-    "description": "Bu adresle giriş yaparsınız; Esionage e-postaları bu adrese gelir.",
+    "description": "Bu adresle giriş yaparsınız; Leafdesk e-postaları bu adrese gelir.",
     "mailOff": "Bu adresle giriş yaparsınız. Değiştirmek için bir onay e-postası gerekir ve bu sunucuda e-posta ayarlanmamış; yöneticisinden SMTP_URL'yi ayarlamasını isteyin.",
     "change": "E-postayı değiştir",
     "pendingTitle": "{email} adresinden onay bekleniyor",
@@ -108,7 +109,7 @@
   "confirmEmail": {
     "metaTitle": "E-posta adresini onayla",
     "title": "Yeni e-posta adresinizi onaylayın",
-    "body": "Esionage hesabınız {old} yerine {new} adresini kullanacak. Bundan sonra yeni adresle giriş yaparsınız.",
+    "body": "Leafdesk hesabınız {old} yerine {new} adresini kullanacak. Bundan sonra yeni adresle giriş yaparsınız.",
     "confirm": "E-posta adresini onayla",
     "done": "Tamam. Hesabınız artık {email} adresini kullanıyor.",
     "invalidTitle": "Bu bağlantı çalışmıyor",
@@ -137,6 +138,8 @@
     "currentSession": "Bu oturumu kapatmak için menüdeki Çıkış yap'ı kullanın.",
     "sessionNotFound": "Bu oturum zaten kapanmış.",
     "avatarType": "PNG, JPEG, WebP veya GIF görsel kullanın.",
-    "avatarTooLarge": "Fotoğraf çok büyük (en fazla 2 MB)."
+    "avatarTooLarge": "Fotoğraf çok büyük (en fazla 2 MB).",
+    "samePassword": "Eskisinden farklı bir parola seçin.",
+    "resetStepExpired": "Bu adımın süresi doldu. Eski parolanızla yeniden giriş yapın."
   }
 }

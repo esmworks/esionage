@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/db";
-import { databaseProperty, databaseView, page, pagePublication, user, type CardSize, type PageKind, type ViewConfig, type ViewType } from "@/db/schema";
+import { databaseProperty, databaseView, page, pagePublication, user, workspace, type CardSize, type PageKind, type ViewConfig, type ViewType } from "@/db/schema";
 import { PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { withFormulaTypes } from "@/lib/derived";
 import type { EmbedBlockType, LinkedView } from "@/lib/embed-blocks";
@@ -16,7 +16,7 @@ import { AccessError, accessRank, pageVisibleTo, requireMembership, requirePageA
 import { rowCovers, type DatabaseProperty } from "@/server/databases";
 import { computeDerived } from "@/server/derived";
 import { publishedPageRefs } from "@/server/mentions";
-import { canPublish } from "@/server/workspaces";
+import { canPublish, publishingOn } from "@/server/workspaces";
 import type { BodyHeading, BodySegment, PublishedBookmark, PublishedColumn } from "@/server/published-body";
 import type { EmbedTarget } from "@/lib/web-blocks";
 
@@ -24,7 +24,8 @@ import type { EmbedTarget } from "@/lib/web-blocks";
  * Publish to web: a published page and its live subpages can be read by anyone holding the link
  * (`/s/<token>/…`), without signing in. Publishing needs full access to the page and the
  * workspace's publishing policy (`canPublish`); unpublishing needs full access, and owners can take
- * any page of their workspace offline. Reading one needs only the token.
+ * any page of their workspace offline. Reading one needs only the token, while the workspace has
+ * publishing on: turned off, nothing of it is served (see chainTo), but nothing is deleted either.
  *
  * A publication shows only what its publisher can see right now: subpages or rows restricted from
  * them stay private, and it stops working once they lose access to the page or leave.
@@ -36,7 +37,7 @@ const MAX_DEPTH = 32;
 export class PublishError extends Error {
   constructor(
     message: string,
-    readonly code?: "notAllowed",
+    readonly code?: "notAllowed" | "publishingOff",
   ) {
     super(message);
     this.name = "PublishError";
@@ -59,8 +60,24 @@ export async function getPublication(userId: string, pageId: string) {
   return row ?? null;
 }
 
+/** Why the user can't publish in the workspace: publishing is off there, or not for them. */
+async function workspaceBlocker(userId: string, workspaceId: string): Promise<"notAllowed" | "publishingOff" | null> {
+  if (!(await publishingOn(workspaceId))) return "publishingOff";
+  return (await canPublish(userId, workspaceId)) ? null : "notAllowed";
+}
+
+/** What publishing needs in the workspace, as a PublishError when it is refused. */
+async function assertWorkspaceAllows(userId: string, workspaceId: string) {
+  const blocker = await workspaceBlocker(userId, workspaceId);
+  if (blocker === "publishingOff") throw new PublishError("Publishing to the web is turned off in this workspace", blocker);
+  if (blocker) throw new PublishError("This workspace lets only owners publish pages", blocker);
+}
+
 /** Why the user can't publish this page, or null when they can. */
-export async function publishBlocker(userId: string, pageId: string): Promise<"needsFullAccess" | "notAllowed" | null> {
+export async function publishBlocker(
+  userId: string,
+  pageId: string,
+): Promise<"needsFullAccess" | "notAllowed" | "publishingOff" | null> {
   let p;
   try {
     p = await requirePageAccess(userId, pageId, "full");
@@ -68,14 +85,12 @@ export async function publishBlocker(userId: string, pageId: string): Promise<"n
     if (error instanceof AccessError) return "needsFullAccess";
     throw error;
   }
-  return (await canPublish(userId, p.workspaceId)) ? null : "notAllowed";
+  return workspaceBlocker(userId, p.workspaceId);
 }
 
 export async function publishPage(userId: string, pageId: string): Promise<{ token: string; indexable: boolean }> {
   const p = await requirePageAccess(userId, pageId, "full");
-  if (!(await canPublish(userId, p.workspaceId))) {
-    throw new PublishError("This workspace lets only owners publish pages", "notAllowed");
-  }
+  await assertWorkspaceAllows(userId, p.workspaceId);
   if (p.archivedAt) throw new PublishError("Pages in the trash can't be published");
   if (p.inTemplate) throw new PublishError("Templates can't be published");
   await db
@@ -100,9 +115,7 @@ export async function unpublishPage(userId: string, pageId: string): Promise<voi
 /** Changing what a publication shows asks for what publishing does. */
 async function requirePublishRights(userId: string, pageId: string) {
   const p = await requirePageAccess(userId, pageId, "full");
-  if (!(await canPublish(userId, p.workspaceId))) {
-    throw new PublishError("This workspace lets only owners publish pages", "notAllowed");
-  }
+  await assertWorkspaceAllows(userId, p.workspaceId);
   return p;
 }
 
@@ -171,7 +184,10 @@ export type WorkspacePublication = {
   /** Null when the owner can't see the page: they may take it offline, not read it. */
   title: string | null;
   icon: string | null;
-  /** Site path, only for pages the owner can see (the link would show the page to them) and that are still served. */
+  /**
+   * Site path, only for pages the owner can see (the link would show the page to them) and that are
+   * still served: not in the trash, and publishing is on.
+   */
   url: string | null;
   inTrash: boolean;
   /** Search engines may index it. */
@@ -187,6 +203,7 @@ export type WorkspacePublication = {
 /** Every published page of the workspace, newest first, for owners to review. */
 export async function listWorkspacePublications(userId: string, workspaceId: string): Promise<WorkspacePublication[]> {
   await requireMembership(userId, workspaceId, "owner");
+  const served = await publishingOn(workspaceId);
   const rows = await db
     .select({
       pageId: page.id,
@@ -210,7 +227,7 @@ export async function listWorkspacePublications(userId: string, workspaceId: str
     pageId: r.pageId,
     title: r.visible ? r.title : null,
     icon: r.visible ? r.icon : null,
-    url: r.visible && !r.archivedAt ? `/s/${r.token}` : null,
+    url: r.visible && !r.archivedAt && served ? `/s/${r.token}` : null,
     inTrash: r.archivedAt !== null,
     indexable: r.indexable,
     inSite: r.inSite,
@@ -425,8 +442,9 @@ export async function publishedRow(
 
 /**
  * Pages from `rootId` down to `pageId` when every page on the way is live and visible to the
- * publisher, and `pageId` lies within MAX_DEPTH levels under the root; null otherwise. Templates
- * (a database's row templates, say) count as not live: they are never published.
+ * publisher, `pageId` lies within MAX_DEPTH levels under the root and the workspace has publishing
+ * on; null otherwise. Templates (a database's row templates, say) count as not live: they are
+ * never published. Everything public asks this: published pages, sites, their files, duplicating.
  */
 export async function chainTo(publisher: string, pageId: string, rootId: string): Promise<PublishedCrumb[] | null> {
   const rows = await db.execute<{
@@ -436,21 +454,24 @@ export async function chainTo(publisher: string, pageId: string, rootId: string)
     kind: PageKind;
     archived: boolean;
     visible: boolean;
+    served: boolean;
     depth: number;
   }>(sql`
     with recursive chain as (
-      select id, parent_id, title, icon, kind, archived_at is not null or in_template as archived, 0 as depth
+      select id, parent_id, workspace_id, title, icon, kind, archived_at is not null or in_template as archived, 0 as depth
       from ${page} where id = ${pageId}
       union all
-      select p.id, p.parent_id, p.title, p.icon, p.kind, p.archived_at is not null or p.in_template, c.depth + 1
+      select p.id, p.parent_id, p.workspace_id, p.title, p.icon, p.kind, p.archived_at is not null or p.in_template, c.depth + 1
       from ${page} p join chain c on p.id = c.parent_id
       where c.id <> ${rootId} and c.depth < ${MAX_DEPTH}
     )
-    select id, title, icon, kind, archived, ${accessRank(publisher, sql`id`)} > 0 as visible, depth
-    from chain order by depth desc
+    select c.id, c.title, c.icon, c.kind, c.archived, ${accessRank(publisher, sql`c.id`)} > 0 as visible,
+      (w.settings->>'publishing') is distinct from 'off' as served, c.depth
+    from chain c join ${workspace} w on w.id = c.workspace_id
+    order by c.depth desc
   `);
   const list = [...rows];
-  if (!list.length || list[0].id !== rootId || list.some((r) => r.archived || !r.visible)) return null;
+  if (!list.length || list[0].id !== rootId || list.some((r) => r.archived || !r.visible || !r.served)) return null;
   return list.map((r) => ({ id: r.id, title: r.title, icon: r.icon, kind: r.kind }));
 }
 

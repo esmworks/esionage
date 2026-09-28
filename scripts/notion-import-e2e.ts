@@ -26,7 +26,7 @@ const { tmpdir } = await import("node:os");
 const { join } = await import("node:path");
 const { randomBytes } = await import("node:crypto");
 
-const uploadDir = await mkdtemp(join(tmpdir(), "esionage-notion-e2e-"));
+const uploadDir = await mkdtemp(join(tmpdir(), "leafdesk-notion-e2e-"));
 process.env.STORAGE_DRIVER = "local";
 process.env.UPLOAD_DIR = uploadDir;
 
@@ -410,7 +410,7 @@ try {
   form.append("parentId", onboarding.id);
   form.append("file", new Blob([Buffer.from(exportZip)]), `Export-${UUID}.zip`);
   form.append("path", `Export-${UUID}.zip`);
-  const request = new Request("http://localhost:5000/api/import", { method: "POST", body: form, headers: { cookie, "x-esionage-import": "1" } });
+  const request = new Request("http://localhost:5000/api/import", { method: "POST", body: form, headers: { cookie, "x-leafdesk-import": "1" } });
   const bytes = await request.arrayBuffer();
   const response = await importRoute.POST(
     new Request(request.url, { method: "POST", body: bytes, headers: { ...Object.fromEntries(request.headers), "content-length": String(bytes.byteLength) } }),
@@ -429,5 +429,5 @@ try {
   await db.delete(user).where(eq(user.id, ownerId));
   await rm(uploadDir, { recursive: true, force: true });
   hocuspocus.closeConnections();
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }

@@ -6,11 +6,11 @@
   },
   "unknownClient": {
     "title": "App desconocida",
-    "body": "La app que solicita acceso no está registrada en Esionage o se ha desactivado. Vuelve atrás e intenta conectarla de nuevo."
+    "body": "La app que solicita acceso no está registrada en Leafdesk o se ha desactivado. Vuelve atrás e intenta conectarla de nuevo."
   },
-  "heading": "{client} quiere acceder a tu cuenta de Esionage",
+  "heading": "{client} quiere acceder a tu cuenta de Leafdesk",
   "identifiedBy": "Esta app se identifica mediante {host}.",
-  "unverified": "Esta app se registró automáticamente y Esionage no la ha revisado. Continúa solo si iniciaste tú esta conexión.",
+  "unverified": "Esta app se registró automáticamente y Leafdesk no la ha revisado. Continúa solo si iniciaste tú esta conexión.",
   "notYou": "¿No eres tú?",
   "willAllow": "Esto permitirá a {client}:",
   "readOnlyHint": "Desmarca esta opción para dar acceso de solo lectura. Cada edición se guarda antes en el historial de la página, así que puedes deshacerla.",

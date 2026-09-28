@@ -9,6 +9,7 @@
     "guests": "Misafirler",
     "teamspaces": "Teamspace'ler",
     "groups": "Gruplar",
+    "analytics": "Analitik",
     "security": "Güvenlik",
     "site": "Site",
     "myAccount": "Hesabım"
@@ -25,7 +26,8 @@
     "title": "Çalışma alanını dışa aktar",
     "description": "Görebildiğiniz tüm sayfaları ZIP olarak indirin: sayfalar Markdown, veritabanları CSV olarak, gösterdikleri dosyalarla birlikte. Çöp kutusundaki sayfalar dahil edilmez; şablonlar Templates klasöründe tutulur.",
     "button": "Dışa aktar",
-    "preparing": "Hazırlanıyor…"
+    "preparing": "Hazırlanıyor…",
+    "disabled": "Bu çalışma alanında dışa aktarma Ayarlar → Güvenlik bölümünden kapatılmış."
   },
   "members": {
     "heading": "Üyeler",
@@ -285,6 +287,34 @@
       "accessDenied": "Grupları yalnızca çalışma alanı sahipleri değiştirebilir."
     }
   },
+  "analytics": {
+    "description": "Bu çalışma alanında kimin ne kadar düzenleme yaptığı; sayfa geçmişinden ve her sayfanın son değişikliğinden sayılır. Bunun için ayrıca bir şey kaydedilmez. Yalnızca sahipler görür.",
+    "periods": "Dönem",
+    "period": "Son {days} gün",
+    "activeMembers": "Etkin üyeler",
+    "activeOf": "{total} üyeden {active}",
+    "edits": "Düzenlemeler",
+    "pagesEdited": "Düzenlenen sayfalar",
+    "howCounted": "Bir düzenleme, sayfanın kaydedilmiş bir sürümü (biri yazarken en çok 10 dakikada bir, ayrıca her uygulama, yapay zekâ veya geri yükleme değişikliğinden önce bir tane) ya da sayfa geçmişinin tutmadığı bir değişikliktir; örneğin bir satırın değerleri.",
+    "peopleHeading": "Kişi başına düzenlemeler",
+    "peopleDescription": "Misafirler düzenlemeleriyle listelenir ama etkin üye sayılmaz.",
+    "pagesHeading": "En çok düzenlenen sayfalar",
+    "pagesDescription": "Açamadığınız sayfalar sayılır ama adları gösterilmez.",
+    "privatePage": "Özel sayfa",
+    "noEdits": "Bu dönemde düzenleme yok.",
+    "neverEdited": "Düzenleme yok",
+    "exportPeople": "Kişi başına düzenlemeleri CSV olarak indir",
+    "exportPages": "En çok düzenlenen sayfaları CSV olarak indir",
+    "columns": {
+      "person": "Kişi",
+      "role": "Rol",
+      "edits": "Düzenleme",
+      "pages": "Sayfa",
+      "lastEdit": "Son düzenleme",
+      "page": "Sayfa",
+      "editors": "Düzenleyen"
+    }
+  },
   "preferences": {
     "description": "Hesabınızın tercihleri: bu tarayıcıdaki görünüm ve e-posta bildirimleri."
   },
@@ -312,11 +342,11 @@
   },
   "mcp": {
     "heading": "Yapay zekâ asistanı bağlayın",
-    "description": "Esionage'ın yerleşik bir MCP sunucusu var. Uzak MCP sunucularını destekleyen asistanlar, siz giriş yapıp erişimi onayladıktan sonra sayfalarınızda ve veritabanlarınızda arama yapabilir, bunları okuyup düzenleyebilir. Bir asistanın yaptığı her düzenleme önce sayfa geçmişine kaydedilir, böylece geri alabilirsiniz.",
+    "description": "Leafdesk'in yerleşik bir MCP sunucusu var. Uzak MCP sunucularını destekleyen asistanlar, siz giriş yapıp erişimi onayladıktan sonra sayfalarınızda ve veritabanlarınızda arama yapabilir, bunları okuyup düzenleyebilir. Bir asistanın yaptığı her düzenleme önce sayfa geçmişine kaydedilir, böylece geri alabilirsiniz.",
     "serverUrl": "Sunucu URL'si",
     "claude": {
       "title": "Claude",
-      "body": "Claude'da Settings > Connectors bölümünü açın, Add custom connector seçeneğini seçip sunucu URL'sini yapıştırın. Claude, giriş yapıp erişime izin verebilmeniz için Esionage'ı tarayıcınızda açar."
+      "body": "Claude'da Settings > Connectors bölümünü açın, Add custom connector seçeneğini seçip sunucu URL'sini yapıştırın. Claude, giriş yapıp erişime izin verebilmeniz için Leafdesk'i tarayıcınızda açar."
     },
     "claudeCode": {
       "title": "Claude Code",
@@ -348,10 +378,11 @@
     "ssoFirst": "Önce çoklu oturum açmayı kurun ve alan adlarını doğrulayın.",
     "invalidDomain": "{detail} izin verilemez: kuruluşunuzun kendi e-posta alan adlarını girin (gmail.com gibi genel e-posta servislerini değil).",
     "requestHandled": "Bu istek zaten sonuçlandırıldı.",
-    "tooManyRequests": "Çok fazla istek gönderildi. Daha sonra tekrar deneyin."
+    "tooManyRequests": "Çok fazla istek gönderildi. Daha sonra tekrar deneyin.",
+    "creationRestricted": "Çalışma alanlarını yalnızca sunucunun yöneticileri oluşturabilir."
   },
   "security": {
-    "description": "İnsanların nasıl giriş yapacağını, bu çalışma alanına kimlerin kişi getirebileceğini, misafirlerin neler yapabileceğini ve kimlerin sayfaları web'de yayınlayabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
+    "description": "İnsanların nasıl giriş yapacağını, bu çalışma alanına kimlerin kişi getirebileceğini, misafirlerin neler yapabileceğini, nelerin dışarı çıkabileceğini (dışa aktarma, bağlı uygulamalar) ve kimlerin sayfaları web'de yayınlayabileceğini belirleyin. Bu ayarları yalnızca sahipler değiştirebilir.",
     "authenticationHeading": "Kimlik doğrulama",
     "requireTwoFactor": {
       "title": "İki adımlı doğrulamayı zorunlu kıl",
@@ -360,6 +391,11 @@
       "withoutCount": "{count, plural, other {Burada # kişi henüz kurmadı.}}"
     },
     "guestsHeading": "Misafirler",
+    "sharingHeading": "Paylaşım",
+    "accessRequests": {
+      "title": "Erişim istekleri",
+      "description": "Göremedikleri bir sayfanın bağlantısını açan kişiler mesajla birlikte erişim isteyebilir. İstek, sayfaya tam erişimi olan kişilere gider. Kapalıyken yalnızca erişimleri olmadığını görürler."
+    },
     "guestInvites": {
       "title": "Kimler misafir davet edebilir",
       "description": "Biri bir sayfayı e-postayla çalışma alanı dışındaki bir kişiyle paylaşınca o kişi misafir olarak katılır ve yalnızca kendisiyle paylaşılan sayfaları görür.",
@@ -373,9 +409,10 @@
     "publishingHeading": "Yayınlama",
     "publishing": {
       "title": "Kimler web'de yayınlayabilir",
-      "description": "Yayınlanan sayfaları bağlantıya sahip herkes okuyabilir, herkese açık formları da doldurabilir. Misafirler hiçbir zaman yayınlayamaz. Web'deki sayfalar ve formlar biri kapatana kadar yayında kalır.",
+      "description": "Yayınlanan sayfaları bağlantıya sahip herkes okuyabilir, herkese açık formları da doldurabilir. Misafirler hiçbir zaman yayınlayamaz. Web'deki sayfalar ve formlar biri kapatana kadar yayında kalır. Kapalıyken kimse yayınlayamaz; web'deki sayfalar, formlar ve site yayınlama yeniden açılana kadar çalışmaz.",
       "owners": "Yalnızca sahipler",
-      "members": "Sahipler ve üyeler"
+      "members": "Sahipler ve üyeler",
+      "off": "Hiç kimse (kapalı)"
     },
     "publications": {
       "title": "Yayındaki sayfalar",
@@ -388,7 +425,8 @@
       "open": "Siteyi aç",
       "unpublish": "Yayından kaldır",
       "confirm": "Bu sayfa yayından kaldırılsın mı? Bağlantı herkes için çalışmayı bırakır.",
-      "indexable": "Arama motorlarına açık"
+      "indexable": "Arama motorlarına açık",
+      "off": "Yayınlama kapalı: bu sayfaların hiçbiri şu anda web'de değil. Siz yayından kaldırmadıkça yayınlama yeniden açıldığında geri gelirler."
     },
     "forms": {
       "title": "Herkese açık formlar",
@@ -403,7 +441,8 @@
       "open": "Formu aç",
       "turnOff": "Kapat",
       "confirm": "Bu formun herkese açık bağlantısı kapatılsın mı? Bağlantı herkes için çalışmayı bırakır.",
-      "stale": "Yanıt almıyor: açan kişinin erişimi kalmadı"
+      "stale": "Yanıt almıyor: açan kişinin erişimi kalmadı",
+      "off": "Yayınlama kapalı: bu formların hiçbiri şu anda yanıt kabul etmiyor. Siz kapatmadıkça yayınlama yeniden açıldığında geri gelirler."
     },
     "ownersOnly": "Bunu yalnızca sahipler değiştirebilir.",
     "loginMethod": {
@@ -551,6 +590,18 @@
       "allowed_domains": "İzin verilen e-posta alan adına sahip kişiler",
       "anyone_with_link": "Katılma bağlantısına sahip herkes",
       "linkHint": "Katılma bağlantısı bu durumda kişileri hemen eklemek yerine bir sahibe sorar."
+    },
+    "dataHeading": "Dışa aktarma ve bağlı uygulamalar",
+    "export": {
+      "title": "Dışa aktarmaya izin ver",
+      "description": "Çalışma alanındaki herkes sayfaları Markdown, CSV veya ZIP olarak indirebilir ve PDF olarak yazdırabilir. Kapalıyken bu seçenekler sahipler dahil herkes için kalkar."
+    },
+    "connectedApps": {
+      "title": "Bağlı uygulamalar ve API anahtarları",
+      "description": "MCP ile bağlanan yapay zekâ asistanlarının ve diğer uygulamaların, ayrıca REST API anahtarlarının bu çalışma alanında neler yapabileceği. Onları bağlayan kişiden fazlasını hiçbir zaman yapamazlar. Erişim yoksa çalışma alanı onlara hiç görünmez.",
+      "full": "Okuma ve düzenleme",
+      "read": "Yalnızca okuma",
+      "off": "Erişim yok"
     }
   },
   "notifications": {
@@ -573,6 +624,9 @@
     "reminderTitle": "Hatırlatmalar",
     "reminderDescription": "Bir sayfadaki tarihe kurduğunuz hatırlatmanın zamanı gelir.",
     "reminderChannel": "Hatırlatmalar: {channel}",
+    "accessRequestTitle": "Erişim istekleri",
+    "accessRequestDescription": "Biri tam erişiminiz olan bir sayfaya erişim istiyor.",
+    "accessRequestChannel": "Erişim istekleri: {channel}",
     "mailOff": "Bu sunucuda e-posta gönderimi kapalı olduğu için şu an e-posta gitmiyor.",
     "joinRequestTitle": "Katılma istekleri",
     "joinRequestDescription": "Biri sahibi olduğunuz bir çalışma alanına katılmak ister ya da bir üye birini davet etmek ister.",

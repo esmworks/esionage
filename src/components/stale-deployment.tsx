@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const RELOADED_AT = "esionage:stale-deployment-reload";
+const RELOADED_AT = "leafdesk:stale-deployment-reload";
 
 /**
  * A tab opened before a redeploy still calls server actions by the old build's ids, which the new

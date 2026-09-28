@@ -3,12 +3,14 @@
     "myAccount": "Mon compte",
     "newWorkspace": "Nouvel espace de travail",
     "settingsAndMembers": "Paramètres et membres",
-    "signOut": "Se déconnecter"
+    "signOut": "Se déconnecter",
+    "admin": "Administration du serveur"
   },
   "nav": {
     "search": "Rechercher",
     "home": "Accueil",
     "inbox": "Boîte de réception",
+    "people": "Personnes",
     "settings": "Paramètres",
     "trash": "Corbeille",
     "templates": "Modèles",
@@ -70,6 +72,7 @@
     "comment": "{actor} a commenté un fil auquel vous participez",
     "mention": "{actor} vous a mentionné",
     "reminder": "Rappel : {date}",
+    "accessRequest": "{actor} demande l’accès à cette page",
     "someone": "Quelqu’un",
     "unread": "Non lue",
     "unreadCount": "{count, plural, one {# notification non lue} other {# notifications non lues}}",

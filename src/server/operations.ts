@@ -520,7 +520,7 @@ export async function updatePage(
     throw new ToolInputError("Provide title and/or markdown.");
   }
   const { page } = await loadPage(ctx, page_id);
-  if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in Esionage before editing.");
+  if (page.archivedAt) throw new ToolInputError("This page is in the trash. Restore it in Leafdesk before editing.");
   const changed: string[] = [];
   if (markdown !== undefined) {
     if (page.kind === "database") {
@@ -556,7 +556,7 @@ export async function archivePage(ctx: OperationContext, { page_id }: Args<"page
     in_trash: true,
     note: page.archivedAt
       ? "The page was already in the trash."
-      : "Moved to the trash with its sub-pages. It can be restored from the trash in Esionage.",
+      : "Moved to the trash with its sub-pages. It can be restored from the trash in Leafdesk.",
   };
 }
 

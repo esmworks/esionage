@@ -350,7 +350,7 @@ async function pointAtCopiedDatabases(tx: Tx, plan: DuplicatePlan) {
   const bodies = await tx
     .select({ id: page.id, ydoc: page.ydoc, markdown: page.contentMarkdown })
     .from(page)
-    .where(and(inArray(page.id, copies), like(page.contentMarkdown, "%<!-- esionage:database %")));
+    .where(and(inArray(page.id, copies), like(page.contentMarkdown, "%<!-- leafdesk:database %")));
   for (const body of bodies) {
     if (!body.ydoc?.byteLength) continue;
     const doc = new Y.Doc();

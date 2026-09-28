@@ -10,7 +10,7 @@ export function proxy(request: NextRequest) {
   const params = new URLSearchParams(request.nextUrl.search);
   params.delete("_rsc");
   const query = params.toString();
-  headers.set("x-esionage-path", request.nextUrl.pathname + (query ? `?${query}` : ""));
+  headers.set("x-leafdesk-path", request.nextUrl.pathname + (query ? `?${query}` : ""));
   return NextResponse.next({ request: { headers } });
 }
 

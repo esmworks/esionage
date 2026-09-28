@@ -48,7 +48,7 @@ import { importCsvAsDatabase } from "./csv";
  * (which the editor shows as page mentions), and images and files it shows by relative path are
  * uploaded to the page and the links pointed at the uploads.
  *
- * Esionage's own export comes back as it went: `Templates/` folders become row templates of their
+ * Leafdesk's own export comes back as it went: `Templates/` folders become row templates of their
  * database and, when importing at the workspace's top level, workspace templates (elsewhere they're
  * a page of that name: templates only live at the top), and the property list the export writes at
  * the top of a row's page is left out of the body when the row's CSV values say the same.
@@ -300,7 +300,7 @@ export async function importPages(actor: WriteActor, input: MarkdownImportInput)
           return null;
         }
         // Uploads are async and this callback isn't: a placeholder now, the file's URL below.
-        const token = `esionage-import-${pending.length}-${Math.random().toString(36).slice(2)}`;
+        const token = `leafdesk-import-${pending.length}-${Math.random().toString(36).slice(2)}`;
         pending.push({ path, token });
         return token;
       });

@@ -9,11 +9,11 @@ import "./globals.css";
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("common");
   return {
-    title: { default: "Esionage", template: "%s · Esionage" },
+    title: { default: "Leafdesk", template: "%s · Leafdesk" },
     description: t("appDescription"),
-    applicationName: "Esionage",
+    applicationName: "Leafdesk",
     // Added to the home screen on iOS it opens without Safari's bars; the manifest covers the rest.
-    appleWebApp: { capable: true, title: "Esionage", statusBarStyle: "default" },
+    appleWebApp: { capable: true, title: "Leafdesk", statusBarStyle: "default" },
     formatDetection: { telephone: false },
   };
 }

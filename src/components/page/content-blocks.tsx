@@ -188,9 +188,9 @@ const CalloutBlock = createReactBlockSpec(calloutBlockConfig, {
       if (editor.isEditable && editor.getBlock(block.id)) editor.updateBlock(block.id, { props: { icon: next ?? "" } });
     };
     return (
-      <div className="esionage-callout">
+      <div className="leafdesk-callout">
         {(icon || editor.isEditable) && (
-          <div contentEditable={false} className="esionage-callout-icon">
+          <div contentEditable={false} className="leafdesk-callout-icon">
             <IconPicker icon={icon || null} onChange={setIcon} disabled={!editor.isEditable}>
               {(toggle) => (
                 <button
@@ -210,7 +210,7 @@ const CalloutBlock = createReactBlockSpec(calloutBlockConfig, {
             </IconPicker>
           </div>
         )}
-        <div ref={contentRef} className="esionage-callout-text" />
+        <div ref={contentRef} className="leafdesk-callout-text" />
       </div>
     );
   },

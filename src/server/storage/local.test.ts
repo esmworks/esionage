@@ -13,7 +13,7 @@ async function text(stream: ReadableStream<Uint8Array> | null) {
 describe("localDriver", () => {
   let root: string;
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "esionage-local-driver-"));
+    root = await mkdtemp(join(tmpdir(), "leafdesk-local-driver-"));
   });
   afterEach(async () => {
     await rm(root, { recursive: true, force: true });

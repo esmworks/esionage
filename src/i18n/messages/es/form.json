@@ -62,7 +62,8 @@
     "notAllowed": "En este espacio de trabajo solo los propietarios pueden publicar en la web. Pide a un propietario que cree el enlace.",
     "failed": "Algo salió mal. Vuelve a intentarlo.",
     "stale": "Este enlace no acepta respuestas: quien lo abrió ya no puede añadir filas a esta base de datos. Vuelve a abrirlo para aceptar respuestas en tu nombre.",
-    "reactivate": "Volver a aceptar respuestas"
+    "reactivate": "Volver a aceptar respuestas",
+    "publishingOff": "La publicación en la web está desactivada en este espacio de trabajo. Los formularios públicos no aceptan respuestas hasta que un propietario la vuelva a activar."
   },
   "errors": {
     "required": "Esta pregunta es obligatoria.",
@@ -78,7 +79,8 @@
     "tooLarge": "Tus respuestas son demasiado largas.",
     "notAllowed": "En este espacio de trabajo solo los propietarios pueden publicar en la web.",
     "inTrash": "Esta base de datos está en la papelera.",
-    "notAForm": "Esta vista no es un formulario."
+    "notAForm": "Esta vista no es un formulario.",
+    "publishingOff": "La publicación en la web está desactivada en este espacio de trabajo."
   },
   "public": {
     "signInTitle": "Inicia sesión para responder",
@@ -88,6 +90,6 @@
     "anonymous": "Las respuestas son anónimas.",
     "notFound": "No se encontró el formulario",
     "notFoundBody": "Este enlace no es válido o el formulario ya no acepta respuestas.",
-    "home": "Ir a Esionage"
+    "home": "Ir a Leafdesk"
   }
 }

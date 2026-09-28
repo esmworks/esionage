@@ -44,7 +44,7 @@ describe("base32", () => {
   });
 
   it("reads the key out of an otpauth URI", () => {
-    const uri = "otpauth://totp/Esionage:a%40example.test?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Esionage&digits=6&period=30";
+    const uri = "otpauth://totp/Leafdesk:a%40example.test?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Leafdesk&digits=6&period=30";
     expect(totpKeyFromUri(uri).equals(KEY)).toBe(true);
     expect(() => totpKeyFromUri("otpauth://totp/x?issuer=y")).toThrow();
   });

@@ -1,23 +1,37 @@
 import { and, eq, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { notification, pageReminder, user, workspace, workspaceJoinRequest } from "@/db/schema";
+import { accessRequest, notification, pageReminder, user, workspace, workspaceJoinRequest } from "@/db/schema";
 import { DEFAULT_LOCALE, isLocale, type Locale } from "@/i18n/config";
 import { env } from "@/lib/env";
 import { commentText } from "@/lib/comments";
 import { pageLabel } from "@/lib/labels";
 import { ownsWorkspace, resolvePageAccess } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
-import { commentEmail, joinRequestEmail, mentionEmail, reminderEmail, sendMail, shareEmail, type OutgoingMail } from "@/server/mail";
+import {
+  accessRequestEmail,
+  commentEmail,
+  joinRequestEmail,
+  mailStatus,
+  mentionEmail,
+  reminderEmail,
+  sendMail,
+  shareEmail,
+  type OutgoingMail,
+} from "@/server/mail";
 import { emailTranslator } from "@/server/mail/templates";
 import { wantsEmail } from "@/server/notification-preferences";
 
 /**
  * Emails people about pages shared with them, comments in their threads, mentions of them, their
- * reminders, and owners about join requests. The queue is the notification itself: `recordShare`,
- * `recordComment`, `recordMentions`, `recordReminder` and `recordJoinRequest` set `email_due_at` (a
- * little ahead, or now for reminders and requests), undoing the share or the mention (or deciding
- * the request) deletes the notification, and the sweep sends what is still there once it falls due.
- * A restart delays these emails instead of losing them.
+ * reminders and requests for access to their pages, and owners about join requests. The queue is
+ * the notification itself: `recordShare`, `recordComment`, `recordMentions`, `recordReminder`,
+ * `recordAccessRequest` and `recordJoinRequest` set `email_due_at` (a little ahead, or now for
+ * reminders and requests), undoing the share or the mention (or answering or deciding the request)
+ * deletes the notification, and the sweep sends what is still there once it falls due. A restart
+ * delays these emails instead of losing them.
+ *
+ * The answer to an access request goes to the requester right away instead (`mailNow`): they may
+ * be outside the workspace, with no inbox to queue it in.
  */
 
 /** How often the server looks for share emails that are due. */
@@ -25,7 +39,17 @@ const SWEEP_INTERVAL_MS = 5_000;
 
 type Due = Pick<
   typeof notification.$inferSelect,
-  "kind" | "userId" | "actorId" | "pageId" | "threadId" | "mentionId" | "joinRequestId" | "workspaceId" | "emailLocale" | "readAt"
+  | "kind"
+  | "userId"
+  | "actorId"
+  | "pageId"
+  | "threadId"
+  | "mentionId"
+  | "accessRequestId"
+  | "joinRequestId"
+  | "workspaceId"
+  | "emailLocale"
+  | "readAt"
 >;
 
 let mailer: (mail: OutgoingMail) => Promise<void> = sendMail;
@@ -38,7 +62,7 @@ async function deliverDue(everything = false) {
     .set({ emailDueAt: null })
     .where(
       and(
-        inArray(notification.kind, ["page_shared", "comment", "mention", "reminder", "join_request"]),
+        inArray(notification.kind, ["page_shared", "comment", "mention", "reminder", "access_request", "join_request"]),
         everything ? isNotNull(notification.emailDueAt) : lte(notification.emailDueAt, new Date()),
       ),
     )
@@ -49,6 +73,7 @@ async function deliverDue(everything = false) {
       pageId: notification.pageId,
       threadId: notification.threadId,
       mentionId: notification.mentionId,
+      accessRequestId: notification.accessRequestId,
       joinRequestId: notification.joinRequestId,
       workspaceId: notification.workspaceId,
       emailLocale: notification.emailLocale,
@@ -93,14 +118,19 @@ async function sendJoinRequest(userId: string, workspaceId: string, joinRequestI
   await mailer({ to: row.recipient, ...content });
 }
 
-/** Sends one email if the person hasn't seen the notification yet, still can open the page and wants it. */
-async function send({ kind, userId, actorId, pageId, threadId, mentionId, joinRequestId, workspaceId, emailLocale, readAt }: Due) {
+/**
+ * Sends one email if the person hasn't seen the notification yet, still can open the page and wants
+ * it. Access requests: only while they can still answer it (full access). Join requests have no
+ * page (see sendJoinRequest).
+ */
+async function send({ kind, userId, actorId, pageId, threadId, mentionId, accessRequestId, joinRequestId, workspaceId, emailLocale, readAt }: Due) {
   if (readAt || kind === "assignment") return;
   const locale = isLocale(emailLocale) ? emailLocale : DEFAULT_LOCALE;
   if (kind === "join_request") return sendJoinRequest(userId, workspaceId, joinRequestId, locale);
   if (!pageId) return;
   const { page: target, level } = await resolvePageAccess(userId, pageId);
   if (!target || target.archivedAt || level === "none") return;
+  if (kind === "access_request" && level !== "full") return;
   if (!(await wantsEmail(userId, kind))) return;
   // The latest comment someone else wrote in the thread; none when the thread or it was deleted since.
   let text = "";
@@ -112,7 +142,7 @@ async function send({ kind, userId, actorId, pageId, threadId, mentionId, joinRe
   }
   const [[recipient], [actor], [space]] = await Promise.all([
     db.select({ email: user.email }).from(user).where(eq(user.id, userId)),
-    actorId ? db.select({ name: user.name }).from(user).where(eq(user.id, actorId)) : [],
+    actorId ? db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, actorId)) : [],
     db.select({ name: workspace.name }).from(workspace).where(eq(workspace.id, workspaceId)),
   ]);
   if (!recipient?.email) return;
@@ -131,6 +161,23 @@ async function send({ kind, userId, actorId, pageId, threadId, mentionId, joinRe
       : [];
     if (!reminder) return;
     await mailer({ to: recipient.email, ...reminderEmail(locale, { date: reminder.date, pageTitle, workspaceName: space?.name ?? "", link }) });
+    return;
+  }
+  if (kind === "access_request") {
+    // Answered since (which deletes the notification too, but the sweep may have taken it first).
+    const [request] = accessRequestId
+      ? await db.select({ message: accessRequest.message }).from(accessRequest).where(eq(accessRequest.id, accessRequestId))
+      : [];
+    if (!request || !actor) return;
+    const content = accessRequestEmail(locale, {
+      requesterName: actor.name,
+      requesterEmail: actor.email,
+      pageTitle,
+      workspaceName: space?.name ?? "",
+      message: request.message,
+      link,
+    });
+    await mailer({ to: recipient.email, ...content });
     return;
   }
   if (kind === "comment") {
@@ -169,9 +216,25 @@ export function startShareEmails() {
   return () => clearInterval(timer);
 }
 
-/** Scripts and tests: send everything queued now instead of after the delay. */
+/** Emails sent right away by mailNow that haven't finished yet. */
+const sending = new Set<Promise<void>>();
+
+/**
+ * Sends an email now, without waiting for it: a slow or failing mail server shouldn't hold up or
+ * undo the change it is about. Does nothing when the server can't send email.
+ */
+export function mailNow(mail: OutgoingMail) {
+  if (mailStatus() === "disabled") return;
+  const delivery: Promise<void> = mailer(mail)
+    .catch((error) => console.error("could not send email", error))
+    .finally(() => sending.delete(delivery));
+  sending.add(delivery);
+}
+
+/** Scripts and tests: send everything queued now instead of after the delay, and wait for mailNow. */
 export async function flushShareEmails() {
   await deliverDue(true);
+  await Promise.all(sending);
 }
 
 /** Scripts and tests: capture emails instead of sending them (null restores sending). */

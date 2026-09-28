@@ -1,15 +1,15 @@
 {
-  "footer": "Este correo lo envió Esionage en {appUrl}.",
+  "footer": "Este correo lo envió Leafdesk en {appUrl}.",
   "actionFallback": "Si el botón no funciona, pega este enlace en tu navegador:",
   "test": {
-    "subject": "Correo de prueba de Esionage",
+    "subject": "Correo de prueba de Leafdesk",
     "heading": "El envío de correos funciona",
-    "body": "Este es un mensaje de prueba de tu servidor de Esionage en {appUrl}. Si puedes leerlo, el correo está bien configurado."
+    "body": "Este es un mensaje de prueba de tu servidor de Leafdesk en {appUrl}. Si puedes leerlo, el correo está bien configurado."
   },
   "invitation": {
-    "subject": "{inviter} te invitó a “{workspace}” en Esionage",
+    "subject": "{inviter} te invitó a “{workspace}” en Leafdesk",
     "heading": "Únete a “{workspace}”",
-    "body": "{inviter} te invitó a unirte a “{workspace}” en Esionage como {role}.",
+    "body": "{inviter} te invitó a unirte a “{workspace}” en Leafdesk como {role}.",
     "expires": "El enlace es válido durante 7 días. Regístrate con {email} para aceptar.",
     "action": "Aceptar invitación",
     "roles": {
@@ -19,9 +19,9 @@
     }
   },
   "passwordReset": {
-    "subject": "Restablece tu contraseña de Esionage",
+    "subject": "Restablece tu contraseña de Leafdesk",
     "heading": "Restablece tu contraseña",
-    "body": "Hola, {name}: alguien ha pedido restablecer la contraseña de tu cuenta de Esionage. Si fuiste tú, elige una nueva contraseña con el botón de abajo.",
+    "body": "Hola, {name}: alguien ha pedido restablecer la contraseña de tu cuenta de Leafdesk. Si fuiste tú, elige una nueva contraseña con el botón de abajo.",
     "expires": "El enlace es válido durante {minutes} minutos y solo una vez. Si no lo pediste, ignora este correo; tu contraseña no cambiará.",
     "action": "Elegir una nueva contraseña"
   },
@@ -71,23 +71,44 @@
     "action": "Abrir página",
     "optOut": "Recibes estos correos porque configuraste un recordatorio. Puedes desactivarlos en Mi cuenta > Preferencias."
   },
+  "accessRequest": {
+    "subject": "{requester} pidió acceso a “{page}”",
+    "heading": "{requester} pidió acceso a “{page}”",
+    "body": "{requester} ({email}) quiere abrir “{page}” en {workspace}.",
+    "message": "Su mensaje: “{message}”",
+    "answer": "Comparte la página con esta persona eligiendo lo que puede hacer, o rechaza la solicitud. Puedes responder desde tu bandeja de entrada o desde Compartir en la página.",
+    "action": "Abrir página",
+    "optOut": "Recibes estos correos porque tienes acceso total a la página. Puedes desactivarlos en Mi cuenta > Preferencias."
+  },
+  "accessApproved": {
+    "subject": "Ya puedes abrir “{page}”",
+    "heading": "{actor} aprobó tu solicitud",
+    "body": "Ahora puedes {level} “{page}” en {workspace}.",
+    "action": "Abrir página"
+  },
+  "accessDeclined": {
+    "subject": "Se rechazó tu solicitud de acceso",
+    "heading": "Se rechazó tu solicitud",
+    "body": "Se rechazó tu solicitud de acceso a esta página: {link}",
+    "hint": "Si aún la necesitas, pregunta a quien te envió el enlace."
+  },
   "emailChange": {
     "subject": "Confirma tu nueva dirección de correo",
     "heading": "Confirma tu nueva dirección de correo",
-    "body": "Hola, {name}: pediste usar esta dirección para tu cuenta de Esionage en lugar de {old}. Confírmala con el botón de abajo.",
+    "body": "Hola, {name}: pediste usar esta dirección para tu cuenta de Leafdesk en lugar de {old}. Confírmala con el botón de abajo.",
     "expires": "El enlace es válido durante {hours} horas y solo una vez. Si no lo pediste, ignora este correo; no cambiará nada.",
     "action": "Confirmar dirección de correo"
   },
   "emailChanged": {
-    "subject": "La dirección de correo de tu cuenta de Esionage ha cambiado",
+    "subject": "La dirección de correo de tu cuenta de Leafdesk ha cambiado",
     "heading": "Tu dirección de correo ha cambiado",
-    "body": "Hola, {name}: la dirección de correo de tu cuenta de Esionage cambió de {old} a {new}. A partir de ahora, inicia sesión con la nueva dirección.",
+    "body": "Hola, {name}: la dirección de correo de tu cuenta de Leafdesk cambió de {old} a {new}. A partir de ahora, inicia sesión con la nueva dirección.",
     "warning": "Si no hiciste este cambio, ponte en contacto de inmediato con un propietario de tu espacio de trabajo."
   },
   "passwordChanged": {
-    "subject": "Tu contraseña de Esionage ha cambiado",
+    "subject": "Tu contraseña de Leafdesk ha cambiado",
     "heading": "Tu contraseña ha cambiado",
-    "body": "Hola, {name}: la contraseña de tu cuenta de Esionage se acaba de cambiar.",
+    "body": "Hola, {name}: la contraseña de tu cuenta de Leafdesk se acaba de cambiar.",
     "warning": "Si no hiciste este cambio, restablece tu contraseña desde la página de inicio de sesión y ponte en contacto con un propietario de tu espacio de trabajo."
   },
   "joinRequest": {
@@ -133,5 +154,12 @@
     "body": "Hola, {name}: confirma que esta dirección es tuya con el botón de abajo.",
     "ignore": "Si no creaste una cuenta de Leafdesk, puedes ignorar este correo.",
     "action": "Verificar dirección de correo"
+  },
+  "passwordResetRequired": {
+    "subject": "Elige una contraseña nueva de Leafdesk",
+    "heading": "Elige una contraseña nueva",
+    "body": "Hola, {name}: un administrador de este servidor de Leafdesk te pidió que elijas una contraseña nueva. Tu contraseña anterior ya no sirve para iniciar sesión.",
+    "expires": "El enlace funciona durante {minutes} minutos y una sola vez. Si vuelves a iniciar sesión con tu contraseña anterior, recibirás uno nuevo.",
+    "action": "Elegir una contraseña nueva"
   }
 }

@@ -9,7 +9,7 @@
   "page": {
     "documentTitle": "Hors ligne",
     "heading": "Vous êtes hors ligne",
-    "body": "Esionage ne parvient pas à joindre le serveur pour le moment. Les pages que vous avez ouvertes sur cet appareil sont listées ci-dessous et s’ouvrent depuis la copie de ce navigateur.",
+    "body": "Leafdesk ne parvient pas à joindre le serveur pour le moment. Les pages que vous avez ouvertes sur cet appareil sont listées ci-dessous et s’ouvrent depuis la copie de ce navigateur.",
     "saved": "Enregistrées sur cet appareil",
     "unsynced": "Modifications pas encore synchronisées",
     "empty": "Aucune page n’est encore enregistrée sur cet appareil. Les pages que vous ouvrez en ligne sont conservées pour une utilisation hors ligne.",

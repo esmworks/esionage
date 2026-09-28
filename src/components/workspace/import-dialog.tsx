@@ -216,7 +216,7 @@ export function ImportDialog({
     }
     setBusy(true);
     try {
-      const response = await fetch("/api/import", { method: "POST", body: form, headers: { "X-Esionage-Import": "1" } });
+      const response = await fetch("/api/import", { method: "POST", body: form, headers: { "X-Leafdesk-Import": "1" } });
       const body = await response.json().catch(() => null);
       if (!response.ok) setError(errorText(body));
       else setResult(body as ImportResult);

@@ -147,7 +147,7 @@ try {
   await setPagePermission(ids.owner, secret.id, null, "none");
 
   // Writing mentions as Markdown
-  const body = `Ask @${ids.editor} about ${link(target.id, "whatever")} and ${link(secret.id)}, see ${link(gone.id)} by @2026-10-01.\n\n${link(target.id)} <!-- esionage:page-link -->`;
+  const body = `Ask @${ids.editor} about ${link(target.id, "whatever")} and ${link(secret.id)}, see ${link(gone.id)} by @2026-10-01.\n\n${link(target.id)} <!-- leafdesk:page-link -->`;
   await getCollab().replaceContent(plan.id, body, owner);
   const mentions = await mentionsOf(plan.id);
   check(
@@ -165,7 +165,7 @@ try {
     "the stored Markdown names no page titles",
     stored,
   );
-  check(stored.includes(`@${ids.editor}`) && stored.includes("@2026-10-01") && stored.includes("<!-- esionage:page-link -->"), "…and writes people, dates and page links", stored);
+  check(stored.includes(`@${ids.editor}`) && stored.includes("@2026-10-01") && stored.includes("<!-- leafdesk:page-link -->"), "…and writes people, dates and page links", stored);
 
   // Backlinks
   const links = await db.select().from(pageLink).where(eq(pageLink.sourceId, plan.id));
@@ -406,7 +406,7 @@ try {
   hocuspocus.closeConnections();
   await db.delete(workspace).where(inArray(workspace.id, [workspaceId, otherWorkspace]));
   await db.delete(user).where(inArray(user.id, userIds));
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }
 
 // Nothing is left open, yet the process sometimes stays up after the websocket part (seen with

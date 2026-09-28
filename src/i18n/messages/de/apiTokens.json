@@ -1,6 +1,6 @@
 {
   "heading": "Persönliche Zugriffstoken",
-  "description": "Mit Token können Skripte und andere Programme die Esionage-REST-API in deinem Namen und mit deinem Zugriff auf Seiten nutzen. Halte sie geheim wie ein Passwort.",
+  "description": "Mit Token können Skripte und andere Programme die Leafdesk-REST-API in deinem Namen und mit deinem Zugriff auf Seiten nutzen. Halte sie geheim wie ein Passwort.",
   "docs": "API-Dokumentation",
   "empty": "Du hast noch keine Token.",
   "create": "Neues Token",

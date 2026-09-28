@@ -365,11 +365,11 @@ try {
   check(refsOk, "…whose references all resolve");
   const docs = await fetch(`${BASE}/docs/api`);
   const html = await docs.text();
-  check(docs.status === 200 && html.includes("Esionage REST API") && html.includes("/databases/{database_id}/query"), "GET /docs/api renders the reference");
+  check(docs.status === 200 && html.includes("Leafdesk REST API") && html.includes("/databases/{database_id}/query"), "GET /docs/api renders the reference");
 
   console.log(`\n${passed} checks passed`);
 } finally {
   await db.delete(workspace).where(inArray(workspace.id, [wsA, wsB, wsBob]));
   await db.delete(user).where(inArray(user.id, userIds));
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }

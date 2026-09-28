@@ -1,4 +1,4 @@
-import { ArrowLeft, KeyRound, Plug, SlidersHorizontal, UserRound, type LucideIcon } from "lucide-react";
+import { ArrowLeft, KeyRound, Plug, ShieldCheck, SlidersHorizontal, UserRound, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -18,6 +18,7 @@ import { NotificationSettings } from "@/components/settings/notification-setting
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config";
 import { FRESH_SIGN_IN_MINUTES, proofKindFor } from "@/lib/account";
+import { isInstanceAdmin } from "@/lib/instance-admin";
 import { getAccountOverview, deletionPlanFor, emailChangeEnabled } from "@/server/account";
 import { getAccountSecurity } from "@/server/account-security";
 import { mailStatus } from "@/server/mail";
@@ -91,6 +92,18 @@ export default async function AccountPage({
               </li>
             );
           })}
+          {/* Instance admins (ADMIN_EMAILS) reach the server's administration from here too. */}
+          {isInstanceAdmin(session.user) && (
+            <li className="shrink-0">
+              <Link
+                href={from ? `/admin?from=${encodeURIComponent(from.id)}` : "/admin"}
+                className="flex h-7 items-center gap-2 rounded-md px-2 whitespace-nowrap text-fg-muted hover:bg-bg-hover hover:text-fg"
+              >
+                <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
+                {t("nav.admin")}
+              </Link>
+            </li>
+          )}
         </ul>
       </nav>
 

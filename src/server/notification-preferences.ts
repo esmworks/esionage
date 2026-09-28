@@ -16,6 +16,7 @@ const COLUMNS = {
   comment: { inbox: "commentInbox", email: "commentEmails" },
   mention: { inbox: "mentionInbox", email: "mentionEmails" },
   reminder: { inbox: "reminderInbox", email: "reminderEmails" },
+  access_request: { inbox: "accessRequestInbox", email: "accessRequestEmails" },
   join_request: { inbox: "joinRequestInbox", email: "joinRequestEmails" },
 } as const satisfies Record<NotificationKind, Record<NotificationChannel, keyof typeof userPreference.$inferSelect>>;
 

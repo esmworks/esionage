@@ -23,7 +23,7 @@ const { join } = await import("node:path");
 const { Readable } = await import("node:stream");
 const { randomBytes } = await import("node:crypto");
 
-const uploadDir = await mkdtemp(join(tmpdir(), "esionage-files-property-e2e-"));
+const uploadDir = await mkdtemp(join(tmpdir(), "leafdesk-files-property-e2e-"));
 process.env.STORAGE_DRIVER = "local";
 process.env.UPLOAD_DIR = uploadDir;
 
@@ -441,6 +441,6 @@ try {
   await db.delete(user).where(inArray(user.id, userIds));
   await rm(uploadDir, { recursive: true, force: true });
   hocuspocus.closeConnections();
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }
 

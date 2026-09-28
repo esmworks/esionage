@@ -33,10 +33,10 @@ export type FindMeta = {
   reveal?: boolean;
 };
 
-export const findKey = new PluginKey<FindState>("esionageFind");
+export const findKey = new PluginKey<FindState>("leafdeskFind");
 
-const MATCH = "esionage-find-match";
-const CURRENT = "esionage-find-match esionage-find-current";
+const MATCH = "leafdesk-find-match";
+const CURRENT = "leafdesk-find-match leafdesk-find-current";
 
 const EMPTY: FindState = {
   query: "",
@@ -99,7 +99,7 @@ function apply(tr: Transaction, prev: FindState, state: EditorState): FindState 
 
 /** Scrolls the current match to the middle of the window unless it's already comfortably in view. */
 function reveal(view: EditorView) {
-  const el = view.dom.querySelector<HTMLElement>(".esionage-find-current");
+  const el = view.dom.querySelector<HTMLElement>(".leafdesk-find-current");
   if (!el) return;
   const rect = el.getBoundingClientRect();
   // The sticky page header and the find bar cover the top of the window.

@@ -9,6 +9,7 @@
     "guests": "Invités",
     "teamspaces": "Espaces d’équipe",
     "groups": "Groupes",
+    "analytics": "Statistiques",
     "security": "Sécurité",
     "site": "Site",
     "myAccount": "Mon compte"
@@ -25,7 +26,8 @@
     "title": "Exporter l’espace de travail",
     "description": "Téléchargez toutes les pages que vous pouvez voir dans un fichier ZIP : les pages en Markdown, les bases de données en CSV et les fichiers qu’elles affichent. Les pages de la corbeille sont exclues ; les modèles sont placés dans un dossier Modèles.",
     "button": "Exporter",
-    "preparing": "Préparation…"
+    "preparing": "Préparation…",
+    "disabled": "L’exportation est désactivée pour cet espace de travail dans Paramètres → Sécurité."
   },
   "members": {
     "heading": "Membres",
@@ -285,8 +287,36 @@
       "accessDenied": "Seuls les propriétaires de l’espace de travail peuvent modifier les groupes."
     }
   },
+  "analytics": {
+    "description": "Le volume de modifications dans cet espace de travail, compté à partir de l’historique des pages et de la dernière modification de chaque page. Rien de plus n’est enregistré. Seuls les propriétaires le voient.",
+    "periods": "Période",
+    "period": "{days} derniers jours",
+    "activeMembers": "Membres actifs",
+    "activeOf": "{active} sur {total}",
+    "edits": "Modifications",
+    "pagesEdited": "Pages modifiées",
+    "howCounted": "Une modification est une version enregistrée d’une page (au plus une toutes les 10 minutes pendant la saisie, et une avant chaque changement par une application, l’IA ou une restauration) ou un changement que l’historique ne conserve pas, comme les valeurs d’une ligne.",
+    "peopleHeading": "Modifications par personne",
+    "peopleDescription": "Les invités figurent avec leurs modifications, mais ne comptent pas comme membres actifs.",
+    "pagesHeading": "Pages les plus modifiées",
+    "pagesDescription": "Les pages que vous ne pouvez pas ouvrir sont comptées, mais pas nommées.",
+    "privatePage": "Page privée",
+    "noEdits": "Aucune modification sur cette période.",
+    "neverEdited": "Aucune modification",
+    "exportPeople": "Télécharger les modifications par personne en CSV",
+    "exportPages": "Télécharger les pages les plus modifiées en CSV",
+    "columns": {
+      "person": "Personne",
+      "role": "Rôle",
+      "edits": "Modifications",
+      "pages": "Pages",
+      "lastEdit": "Dernière modification",
+      "page": "Page",
+      "editors": "Contributeurs"
+    }
+  },
   "preferences": {
-    "description": "Les préférences de votre compte : l’apparence d’Esionage dans ce navigateur et les e-mails que vous recevez."
+    "description": "Les préférences de votre compte : l’apparence de Leafdesk dans ce navigateur et les e-mails que vous recevez."
   },
   "language": {
     "heading": "Langue",
@@ -312,11 +342,11 @@
   },
   "mcp": {
     "heading": "Connecter un assistant IA",
-    "description": "Esionage intègre un serveur MCP. Les assistants compatibles avec les serveurs MCP distants peuvent rechercher, lire et modifier vos pages et bases de données une fois que vous vous êtes connecté et avez autorisé l’accès. Chaque modification d’un assistant est d’abord enregistrée dans l’historique de la page, vous pouvez donc l’annuler.",
+    "description": "Leafdesk intègre un serveur MCP. Les assistants compatibles avec les serveurs MCP distants peuvent rechercher, lire et modifier vos pages et bases de données une fois que vous vous êtes connecté et avez autorisé l’accès. Chaque modification d’un assistant est d’abord enregistrée dans l’historique de la page, vous pouvez donc l’annuler.",
     "serverUrl": "URL du serveur",
     "claude": {
       "title": "Claude",
-      "body": "Ouvrez Paramètres, puis Connecteurs, choisissez Ajouter un connecteur personnalisé et collez l’URL du serveur. Claude ouvre Esionage dans votre navigateur pour que vous puissiez vous connecter et autoriser l’accès."
+      "body": "Ouvrez Paramètres, puis Connecteurs, choisissez Ajouter un connecteur personnalisé et collez l’URL du serveur. Claude ouvre Leafdesk dans votre navigateur pour que vous puissiez vous connecter et autoriser l’accès."
     },
     "claudeCode": {
       "title": "Claude Code",
@@ -348,10 +378,11 @@
     "ssoFirst": "Configurez d'abord l'authentification unique et vérifiez ses domaines.",
     "invalidDomain": "{detail} ne peut pas être autorisé : saisissez les domaines de messagerie propres à votre organisation (pas des services publics comme gmail.com).",
     "requestHandled": "Cette demande a déjà été traitée.",
-    "tooManyRequests": "Trop de demandes. Réessayez plus tard."
+    "tooManyRequests": "Trop de demandes. Réessayez plus tard.",
+    "creationRestricted": "Seuls les administrateurs du serveur peuvent créer des espaces de travail."
   },
   "security": {
-    "description": "Choisissez comment les personnes se connectent, qui peut faire entrer des personnes dans cet espace de travail, ce que les invités peuvent faire et qui peut publier des pages sur le Web. Seuls les propriétaires peuvent modifier ces paramètres.",
+    "description": "Choisissez comment les personnes se connectent, qui peut faire entrer des personnes dans cet espace de travail, ce que les invités peuvent faire, ce qui peut en sortir (exportations, applications connectées) et qui peut publier des pages sur le Web. Seuls les propriétaires peuvent modifier ces paramètres.",
     "authenticationHeading": "Authentification",
     "requireTwoFactor": {
       "title": "Exiger la vérification en deux étapes",
@@ -360,6 +391,11 @@
       "withoutCount": "{count, plural, one {# personne ici ne l’a pas encore configurée.} other {# personnes ici ne l’ont pas encore configurée.}}"
     },
     "guestsHeading": "Invités",
+    "sharingHeading": "Partage",
+    "accessRequests": {
+      "title": "Demandes d’accès",
+      "description": "Les personnes qui ouvrent le lien d’une page qu’elles ne peuvent pas voir peuvent demander l’accès, avec un message. La demande va aux personnes qui ont un accès complet à la page. Désactivé : elles voient seulement qu’elles n’y ont pas accès."
+    },
     "guestInvites": {
       "title": "Qui peut ajouter des invités",
       "description": "Les personnes extérieures à l’espace de travail le rejoignent en tant qu’invités lorsque quelqu’un partage une page avec elles par e-mail. Elles ne voient que les pages partagées avec elles.",
@@ -373,9 +409,10 @@
     "publishingHeading": "Publication",
     "publishing": {
       "title": "Qui peut publier sur le Web",
-      "description": "Toute personne disposant du lien peut lire les pages publiées et remplir les formulaires publics. Les invités ne peuvent jamais publier. Les pages et formulaires déjà en ligne y restent jusqu’à ce que quelqu’un les désactive.",
+      "description": "Toute personne disposant du lien peut lire les pages publiées et remplir les formulaires publics. Les invités ne peuvent jamais publier. Les pages et formulaires déjà en ligne y restent jusqu’à ce que quelqu’un les désactive. Désactivé : personne ne peut publier, et les pages, formulaires et le site déjà en ligne cessent de fonctionner jusqu’à ce que la publication soit réactivée.",
       "owners": "Propriétaires uniquement",
-      "members": "Propriétaires et membres"
+      "members": "Propriétaires et membres",
+      "off": "Personne (désactivé)"
     },
     "publications": {
       "title": "Pages publiées",
@@ -388,7 +425,8 @@
       "open": "Ouvrir le site",
       "unpublish": "Annuler la publication",
       "confirm": "Annuler la publication de cette page ? Le lien cessera de fonctionner pour tout le monde.",
-      "indexable": "Moteurs de recherche autorisés"
+      "indexable": "Moteurs de recherche autorisés",
+      "off": "La publication est désactivée : aucune de ces pages n’est en ligne pour le moment. Elles reviendront quand la publication sera réactivée, sauf si vous les retirez."
     },
     "forms": {
       "title": "Formulaires publics",
@@ -403,7 +441,8 @@
       "open": "Ouvrir le formulaire",
       "turnOff": "Désactiver",
       "confirm": "Désactiver le lien public de ce formulaire ? Il cessera de fonctionner pour tout le monde.",
-      "stale": "N’accepte aucune réponse : la personne qui l’a ouvert a perdu son accès"
+      "stale": "N’accepte aucune réponse : la personne qui l’a ouvert a perdu son accès",
+      "off": "La publication est désactivée : aucun de ces formulaires n’accepte de réponses pour le moment. Ils reviendront quand la publication sera réactivée, sauf si vous les désactivez."
     },
     "ownersOnly": "Seuls les propriétaires peuvent modifier ce paramètre.",
     "loginMethod": {
@@ -551,6 +590,18 @@
       "allowed_domains": "Les personnes ayant un domaine de messagerie autorisé",
       "anyone_with_link": "Toute personne ayant le lien d'accès",
       "linkHint": "Le lien d'accès demande alors l'accord d'un propriétaire au lieu d'ajouter les personnes tout de suite."
+    },
+    "dataHeading": "Exportation et applications connectées",
+    "export": {
+      "title": "Autoriser l’exportation",
+      "description": "Tout le monde dans l’espace de travail peut télécharger des pages en Markdown, CSV ou ZIP et les imprimer en PDF. Désactivé : ces options disparaissent pour tout le monde, propriétaires compris."
+    },
+    "connectedApps": {
+      "title": "Applications connectées et jetons d’API",
+      "description": "Ce que les assistants IA et autres applications connectées via MCP, ainsi que les jetons de l’API REST, peuvent faire dans cet espace de travail. Ils n’ont jamais plus de droits que la personne qui les a connectés. Sans accès, l’espace de travail leur est caché.",
+      "full": "Lecture et modification",
+      "read": "Lecture seule",
+      "off": "Aucun accès"
     }
   },
   "notifications": {
@@ -573,6 +624,9 @@
     "reminderTitle": "Rappels",
     "reminderDescription": "Un rappel que vous avez défini sur une date dans une page arrive à échéance.",
     "reminderChannel": "Rappels : {channel}",
+    "accessRequestTitle": "Demandes d’accès",
+    "accessRequestDescription": "Quelqu’un demande l’accès à une page à laquelle vous avez un accès complet.",
+    "accessRequestChannel": "Demandes d’accès : {channel}",
     "mailOff": "Ce serveur ne peut pas envoyer d’e-mails pour le moment, aucun n’est donc envoyé.",
     "joinRequestTitle": "Demandes d'accès",
     "joinRequestDescription": "Quelqu'un demande à rejoindre un espace de travail dont vous êtes propriétaire, ou un membre demande à inviter quelqu'un.",

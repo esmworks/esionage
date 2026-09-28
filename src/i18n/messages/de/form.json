@@ -62,7 +62,8 @@
     "notAllowed": "In diesem Workspace können nur Inhaber im Web veröffentlichen. Bitte einen Inhaber, den Link zu erstellen.",
     "failed": "Etwas ist schiefgelaufen. Versuch es noch einmal.",
     "stale": "Über diesen Link gehen keine Antworten ein: Die Person, die ihn aktiviert hat, kann dieser Datenbank keine Zeilen mehr hinzufügen. Aktiviere ihn erneut, um Antworten in deinem Namen anzunehmen.",
-    "reactivate": "Wieder Antworten annehmen"
+    "reactivate": "Wieder Antworten annehmen",
+    "publishingOff": "In diesem Workspace ist das Veröffentlichen im Web ausgeschaltet. Öffentliche Formulare nehmen erst wieder Antworten an, wenn ein Inhaber es einschaltet."
   },
   "errors": {
     "required": "Diese Frage ist erforderlich.",
@@ -78,7 +79,8 @@
     "tooLarge": "Deine Antworten sind zu lang.",
     "notAllowed": "In diesem Workspace können nur Inhaber im Web veröffentlichen.",
     "inTrash": "Diese Datenbank liegt im Papierkorb.",
-    "notAForm": "Diese Ansicht ist kein Formular."
+    "notAForm": "Diese Ansicht ist kein Formular.",
+    "publishingOff": "In diesem Workspace ist das Veröffentlichen im Web ausgeschaltet."
   },
   "public": {
     "signInTitle": "Zum Antworten anmelden",
@@ -88,6 +90,6 @@
     "anonymous": "Antworten sind anonym.",
     "notFound": "Formular nicht gefunden",
     "notFoundBody": "Dieser Link ist ungültig, oder das Formular nimmt keine Antworten mehr an.",
-    "home": "Zu Esionage"
+    "home": "Zu Leafdesk"
   }
 }

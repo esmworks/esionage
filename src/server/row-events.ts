@@ -14,7 +14,7 @@ export type RowChange = {
 
 type Listener = (change: RowChange) => void;
 
-const KEY = "__esionageRowListeners";
+const KEY = "__leafdeskRowListeners";
 const listeners = ((globalThis as Record<string, unknown>)[KEY] ??= new Map<string, Listener>()) as Map<string, Listener>;
 
 /** Registers (or replaces) the listener named `name`. */

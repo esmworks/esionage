@@ -1,6 +1,6 @@
 {
   "heading": "Personal access tokens",
-  "description": "Tokens let scripts and other programs use the Esionage REST API as you, with your access to pages. Keep them secret, like a password.",
+  "description": "Tokens let scripts and other programs use the Leafdesk REST API as you, with your access to pages. Keep them secret, like a password.",
   "docs": "API documentation",
   "empty": "You have no tokens yet.",
   "create": "New token",

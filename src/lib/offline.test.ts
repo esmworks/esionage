@@ -23,10 +23,10 @@ const page = (id: string, at = 0): RecentPage => ({ id, workspaceId: "ws", title
 
 describe("offline storage names", () => {
   it("keeps every user's data under their own id", () => {
-    expect(pageStoreName("u1", "p1")).toBe("esionage-u1-page-p1");
-    expect(snapshotStoreName("u1")).toBe("esionage-u1-cache");
-    expect(pageCacheName("u1")).toBe("esionage-pages-u1");
-    expect(offlineStateKey("u1")).toBe("esionage:offline:u1");
+    expect(pageStoreName("u1", "p1")).toBe("leafdesk-u1-page-p1");
+    expect(snapshotStoreName("u1")).toBe("leafdesk-u1-cache");
+    expect(pageCacheName("u1")).toBe("leafdesk-pages-u1");
+    expect(offlineStateKey("u1")).toBe("leafdesk:offline:u1");
   });
 
   it("finds what another user left behind, and nothing else", () => {
@@ -38,10 +38,10 @@ describe("offline storage names", () => {
     expect(belongsToSomeoneElse(pageStoreName("u10", "p1"), "u1")).toBe(true);
     expect(belongsToSomeoneElse(pageCacheName("u10"), "u1")).toBe(true);
     // Not offline data at all: settings, the static cache, the service worker's own metadata.
-    for (const name of ["esionage:expanded", "esionage-static-1", "esionage-meta", "other-app"]) {
+    for (const name of ["leafdesk:expanded", "leafdesk-static-1", "leafdesk-meta", "other-app"]) {
       expect(belongsToSomeoneElse(name, "u1"), name).toBe(false);
     }
-    expect(isOfflineStore("esionage:expanded")).toBe(false);
+    expect(isOfflineStore("leafdesk:expanded")).toBe(false);
     expect(isOfflineStore(offlineStateKey("u2"))).toBe(true);
   });
 });
@@ -59,9 +59,9 @@ describe("pages the service worker keeps", () => {
   });
 
   it("reads the user a page was rendered for", () => {
-    expect(readUserMarker('<head><meta name="esionage-user" content="u_1-x"/></head>')).toBe("u_1-x");
+    expect(readUserMarker('<head><meta name="leafdesk-user" content="u_1-x"/></head>')).toBe("u_1-x");
     expect(readUserMarker('<meta name="description" content="x">')).toBeNull();
-    expect(readUserMarker('<meta name="esionage-user" content="a&quot;b">')).toBeNull();
+    expect(readUserMarker('<meta name="leafdesk-user" content="a&quot;b">')).toBeNull();
   });
 
   it("public/sw.js uses the same rules", () => {
@@ -70,8 +70,8 @@ describe("pages the service worker keeps", () => {
     const marker = /const USER_MARKER = (\/.+\/);/.exec(sw)?.[1];
     expect(pagePath).toBe(PAGE_PATH.toString());
     const swMarker = new Function(`return ${marker}`)() as RegExp;
-    expect(swMarker.exec('<meta name="esionage-user" content="u1">')?.[1]).toBe("u1");
-    expect(sw).toContain('const PAGE_CACHE_PREFIX = "esionage-pages-"');
+    expect(swMarker.exec('<meta name="leafdesk-user" content="u1">')?.[1]).toBe("u1");
+    expect(sw).toContain('const PAGE_CACHE_PREFIX = "leafdesk-pages-"');
   });
 });
 

@@ -9,6 +9,7 @@
     "guests": "Guests",
     "teamspaces": "Teamspaces",
     "groups": "Groups",
+    "analytics": "Analytics",
     "security": "Security",
     "site": "Site",
     "myAccount": "My account"
@@ -25,7 +26,8 @@
     "title": "Export workspace",
     "description": "Download every page you can see as a ZIP: pages as Markdown, databases as CSV, and the files they show. Pages in the trash are left out; templates are kept in a Templates folder.",
     "button": "Export",
-    "preparing": "Preparing…"
+    "preparing": "Preparing…",
+    "disabled": "Export is turned off for this workspace in Settings → Security."
   },
   "members": {
     "heading": "Members",
@@ -285,8 +287,36 @@
       "accessDenied": "Only workspace owners can change groups."
     }
   },
+  "analytics": {
+    "description": "How much people edited in this workspace, counted from page history and each page's latest change. Nothing extra is tracked. Only owners see this.",
+    "periods": "Period",
+    "period": "Last {days} days",
+    "activeMembers": "Active members",
+    "activeOf": "{active} of {total}",
+    "edits": "Edits",
+    "pagesEdited": "Pages edited",
+    "howCounted": "An edit is a saved version of a page (at most one every 10 minutes while someone types, and one before each app, AI or restore change) or a change page history doesn't keep, such as a row's values.",
+    "peopleHeading": "Edits per person",
+    "peopleDescription": "Guests are listed with their edits but don't count as active members.",
+    "pagesHeading": "Most edited pages",
+    "pagesDescription": "Pages you can't open are counted but not named.",
+    "privatePage": "Private page",
+    "noEdits": "No edits in this period.",
+    "neverEdited": "No edits",
+    "exportPeople": "Download edits per person as CSV",
+    "exportPages": "Download most edited pages as CSV",
+    "columns": {
+      "person": "Person",
+      "role": "Role",
+      "edits": "Edits",
+      "pages": "Pages",
+      "lastEdit": "Last edit",
+      "page": "Page",
+      "editors": "Editors"
+    }
+  },
   "preferences": {
-    "description": "Your account's preferences: how Esionage looks in this browser and which emails you get."
+    "description": "Your account's preferences: how Leafdesk looks in this browser and which emails you get."
   },
   "language": {
     "heading": "Language",
@@ -312,11 +342,11 @@
   },
   "mcp": {
     "heading": "Connect an AI assistant",
-    "description": "Esionage has a built-in MCP server. Assistants that support remote MCP servers can search, read and edit your pages and databases after you sign in and approve access. Every edit an assistant makes is saved to page history first, so you can undo it.",
+    "description": "Leafdesk has a built-in MCP server. Assistants that support remote MCP servers can search, read and edit your pages and databases after you sign in and approve access. Every edit an assistant makes is saved to page history first, so you can undo it.",
     "serverUrl": "Server URL",
     "claude": {
       "title": "Claude",
-      "body": "Open Settings, then Connectors, choose Add custom connector and paste the server URL. Claude opens Esionage in your browser so you can sign in and allow access."
+      "body": "Open Settings, then Connectors, choose Add custom connector and paste the server URL. Claude opens Leafdesk in your browser so you can sign in and allow access."
     },
     "claudeCode": {
       "title": "Claude Code",
@@ -348,10 +378,11 @@
     "ssoFirst": "Set up single sign-on and verify its domains first.",
     "invalidDomain": "{detail} can't be allowed: enter your organization's own email domains (not public mail services like gmail.com).",
     "requestHandled": "This request was already handled.",
-    "tooManyRequests": "Too many requests. Try again later."
+    "tooManyRequests": "Too many requests. Try again later.",
+    "creationRestricted": "Only the server's administrators can create workspaces."
   },
   "security": {
-    "description": "Decide how people sign in, who can bring people into this workspace, what guests can do and who can publish pages to the web. Only owners can change these settings.",
+    "description": "Decide how people sign in, who can bring people into this workspace, what guests can do, what can leave it (exports, connected apps) and who can publish pages to the web. Only owners can change these settings.",
     "authenticationHeading": "Authentication",
     "requireTwoFactor": {
       "title": "Require two-step verification",
@@ -360,6 +391,11 @@
       "withoutCount": "{count, plural, one {# person here hasn't set it up yet.} other {# people here haven't set it up yet.}}"
     },
     "guestsHeading": "Guests",
+    "sharingHeading": "Sharing",
+    "accessRequests": {
+      "title": "Access requests",
+      "description": "People who open a link to a page they can't see can ask for access, with a message. The people with full access to the page get the request. Off: they only see that they don't have access."
+    },
     "guestInvites": {
       "title": "Who can invite guests",
       "description": "People outside the workspace join as guests when someone shares a page with them by email. They see only the pages shared with them.",
@@ -373,9 +409,10 @@
     "publishingHeading": "Publishing",
     "publishing": {
       "title": "Who can publish to the web",
-      "description": "Published pages can be read, and public forms filled in, by anyone with the link. Guests can never publish. Pages and forms already on the web stay there until someone turns them off.",
+      "description": "Published pages can be read, and public forms filled in, by anyone with the link. Guests can never publish. Pages and forms already on the web stay there until someone turns them off. Off: nobody can publish, and pages, forms and the site already on the web stop working until publishing is turned back on.",
       "owners": "Owners only",
-      "members": "Owners and members"
+      "members": "Owners and members",
+      "off": "Nobody (off)"
     },
     "publications": {
       "title": "Published pages",
@@ -388,7 +425,8 @@
       "open": "Open site",
       "unpublish": "Unpublish",
       "confirm": "Unpublish this page? The link stops working for everyone.",
-      "indexable": "Search engines allowed"
+      "indexable": "Search engines allowed",
+      "off": "Publishing is turned off: none of these pages are on the web right now. They come back when publishing is turned on again, unless you unpublish them."
     },
     "forms": {
       "title": "Public forms",
@@ -403,7 +441,8 @@
       "open": "Open form",
       "turnOff": "Turn off",
       "confirm": "Turn off this form's public link? It stops working for everyone.",
-      "stale": "Takes no answers: whoever opened it lost access"
+      "stale": "Takes no answers: whoever opened it lost access",
+      "off": "Publishing is turned off: none of these forms take answers right now. They come back when publishing is turned on again, unless you turn them off."
     },
     "ownersOnly": "Only owners can change this.",
     "loginMethod": {
@@ -551,6 +590,18 @@
       "allowed_domains": "People with an allowed email domain",
       "anyone_with_link": "Anyone with the join link",
       "linkHint": "The join link then asks an owner instead of adding people right away."
+    },
+    "dataHeading": "Export and connected apps",
+    "export": {
+      "title": "Allow export",
+      "description": "Everyone in the workspace can download pages as Markdown, CSV or ZIP and print them to PDF. Off: those options are gone for everyone, owners included."
+    },
+    "connectedApps": {
+      "title": "Connected apps and API tokens",
+      "description": "What AI assistants and other apps connected over MCP, and REST API tokens, may do in this workspace. They never get more than the person who connected them. With no access, the workspace is hidden from them.",
+      "full": "Read and edit",
+      "read": "Read only",
+      "off": "No access"
     }
   },
   "notifications": {
@@ -573,6 +624,9 @@
     "reminderTitle": "Reminders",
     "reminderDescription": "A reminder you set on a date in a page is due.",
     "reminderChannel": "Reminders: {channel}",
+    "accessRequestTitle": "Access requests",
+    "accessRequestDescription": "Someone asks for access to a page you have full access to.",
+    "accessRequestChannel": "Access requests: {channel}",
     "mailOff": "This server can't send email right now, so none go out.",
     "joinRequestTitle": "Join requests",
     "joinRequestDescription": "Someone asks to join a workspace you own, or a member asks to invite someone.",

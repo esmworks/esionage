@@ -116,8 +116,8 @@ describe("email domains", () => {
 
 describe("setup details", () => {
   it("names the DNS record that proves a domain", () => {
-    expect(domainRecordName("example.com")).toBe("_esionage-sso.example.com");
-    expect(domainRecordValue("tok")).toBe("esionage-sso=tok");
+    expect(domainRecordName("example.com")).toBe("_leafdesk-sso.example.com");
+    expect(domainRecordValue("tok")).toBe("leafdesk-sso=tok");
   });
 
   it("gives the identity provider the plugin's addresses", () => {

@@ -1,6 +1,6 @@
 {
   "title": "Account security",
-  "description": "How you sign in to Esionage. These settings are for your account and apply in every workspace.",
+  "description": "How you sign in to Leafdesk. These settings are for your account and apply in every workspace.",
   "connectedAppsNote": "Apps you connected over MCP keep their access when you change these settings; they use their own tokens. Disconnect them under Connected apps.",
   "fields": {
     "password": "Password"
@@ -53,7 +53,7 @@
     "newCodes": "Your new recovery codes. Keep them somewhere safe; you won't see them again.",
     "copy": "Copy codes",
     "download": "Download",
-    "fileHeading": "Esionage recovery codes. Each code signs you in once."
+    "fileHeading": "Leafdesk recovery codes. Each code signs you in once."
   },
   "passkeys": {
     "heading": "Passkeys",

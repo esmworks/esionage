@@ -29,11 +29,22 @@ import { assignableRoles, linkAccess, memberInviteMode } from "@/lib/membership-
 import { TRASH_RETENTION_CHOICES } from "@/lib/retention";
 import { parseDomains } from "@/lib/sso-config";
 import { env } from "@/lib/env";
+import { canCreateWorkspace } from "@/lib/instance-admin";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
-import { AccessError, findMembership, FULL_RANK, getMembership, isGuest, requireMember, requireMembership } from "@/server/access";
+import {
+  AccessError,
+  findMembership,
+  FULL_RANK,
+  getMembership,
+  isGuest,
+  requireMember,
+  requireMembership,
+  workspacesHiddenFromApp,
+} from "@/server/access";
 import { joinRecordOf, rememberDeparture, requestInvitation, requestToJoinFrom, settleJoinRequest } from "@/server/join-requests";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
+import { CONNECTED_APPS_MODES } from "@/server/connected-app";
 import { dropFromGroups } from "@/server/groups";
 import { dropFromTeamspaces, setUpGeneralTeamspace } from "@/server/teamspaces";
 
@@ -58,6 +69,10 @@ async function generalTeamspaceName() {
   }
 }
 
+/**
+ * Every account's own workspace, made at sign-up (and on the home page for someone who left all
+ * of theirs). WORKSPACE_CREATION doesn't apply: everyone needs somewhere to land.
+ */
 export async function createPersonalWorkspace(userId: string, userName: string) {
   const [name, general] = await Promise.all([personalWorkspaceName(userName), generalTeamspaceName()]);
   await db.transaction(async (tx) => {
@@ -89,7 +104,8 @@ export type WorkspaceErrorCode =
   | "invalidSetting"
   | "invalidDomain"
   | "requestHandled"
-  | "tooManyRequests";
+  | "tooManyRequests"
+  | "creationRestricted";
 
 /**
  * An expected failure the user can act on. `code` is stable and translated by the UI; the
@@ -108,7 +124,24 @@ export class WorkspaceError extends Error {
   }
 }
 
+/**
+ * Whether this account may create workspaces beyond its personal one (WORKSPACE_CREATION, see
+ * lib/instance-admin.ts). Looked up by id, so every caller gets the same answer.
+ */
+export async function mayCreateWorkspace(userId: string) {
+  if (env.workspaceCreation === "everyone") return true;
+  const [row] = await db
+    .select({ email: user.email, emailVerified: user.emailVerified })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+  return canCreateWorkspace(row, env.workspaceCreation);
+}
+
 export async function createWorkspace(userId: string, name: string) {
+  if (!(await mayCreateWorkspace(userId))) {
+    throw new WorkspaceError("creationRestricted", "Only the server's administrators can create workspaces.");
+  }
   const clean = name.trim().slice(0, 80);
   if (!clean) throw new WorkspaceError("nameRequired", "Give the workspace a name.");
   const general = await generalTeamspaceName();
@@ -120,14 +153,30 @@ export async function createWorkspace(userId: string, name: string) {
   });
 }
 
+/** How many workspaces each of these accounts is in, as a guest too (the instance admin's list). */
+export async function workspaceCounts(userIds: string[]): Promise<Map<string, number>> {
+  if (!userIds.length) return new Map();
+  const rows = await db
+    .select({ userId: workspaceMember.userId, count: sql<number>`count(*)::int` })
+    .from(workspaceMember)
+    .where(inArray(workspaceMember.userId, userIds))
+    .groupBy(workspaceMember.userId);
+  return new Map(rows.map((r) => [r.userId, r.count]));
+}
+
 /** The user's workspaces with their role, oldest first. */
+/** The user's workspaces, oldest first; for a connected app, without those hidden from it. */
 export async function listWorkspaces(userId: string) {
-  return db
-    .select({ id: workspace.id, name: workspace.name, icon: workspace.icon, role: workspaceMember.role })
-    .from(workspace)
-    .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, workspace.id))
-    .where(eq(workspaceMember.userId, userId))
-    .orderBy(asc(workspace.createdAt));
+  const [rows, hidden] = await Promise.all([
+    db
+      .select({ id: workspace.id, name: workspace.name, icon: workspace.icon, role: workspaceMember.role })
+      .from(workspace)
+      .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, workspace.id))
+      .where(eq(workspaceMember.userId, userId))
+      .orderBy(asc(workspace.createdAt)),
+    workspacesHiddenFromApp(userId),
+  ]);
+  return hidden.size ? rows.filter((w) => !hidden.has(w.id)) : rows;
 }
 
 export async function getWorkspace(userId: string, workspaceId: string) {
@@ -887,7 +936,7 @@ export async function countMembersWithoutTwoFactor(actorId: string, workspaceId:
 const SETTING_VALUES: { [K in Exclude<keyof WorkspaceSettings, "allowedDomains">]: readonly WorkspaceSettings[K][] } = {
   guestInvites: ["owners", "members"],
   guestPrivatePages: [false, true],
-  publishing: ["owners", "members"],
+  publishing: ["owners", "members", "off"],
   requireTwoFactor: [false, true],
   teamspaceCreation: ["owners", "members"],
   loginMethod: ["any", "sso"],
@@ -896,6 +945,9 @@ const SETTING_VALUES: { [K in Exclude<keyof WorkspaceSettings, "allowedDomains">
   memberInvites: ["owners", "members_with_approval", "any_member"],
   domainJoin: ["join", "request"],
   joinRequests: ["nobody", "allowed_domains", "anyone_with_link"],
+  export: [true, false],
+  connectedApps: CONNECTED_APPS_MODES,
+  accessRequests: [true, false],
 };
 
 /**
@@ -1034,13 +1086,34 @@ export async function memberInviteAccess(userId: string, workspaceId: string): P
 }
 
 /**
- * Whether the user may publish pages of the workspace to the web (on top of full access to the
- * page): owners always, members when the workspace allows it, guests never.
+ * Pure: whether someone with this role may publish under the workspace's publishing setting:
+ * owners unless publishing is off, members when it allows them, guests never.
+ */
+export function mayPublish(role: WorkspaceRole, publishing: WorkspaceSettings["publishing"]) {
+  if (publishing === "off" || isGuest(role)) return false;
+  return role === "owner" || publishing === "members";
+}
+
+/**
+ * Whether the user may publish pages (and open forms) of the workspace to the web, on top of full
+ * access to the page (see mayPublish).
  */
 export async function canPublish(userId: string, workspaceId: string) {
   const [membership, settings] = await Promise.all([getMembership(userId, workspaceId), workspaceSettings(workspaceId)]);
-  if (!membership) return false;
-  return membership.role === "owner" || (membership.role === "member" && settings.publishing === "members");
+  return membership ? mayPublish(membership.role, settings.publishing) : false;
+}
+
+/**
+ * Whether the workspace serves what is published: not while publishing is off, which keeps the
+ * publications and the site to bring them back when it is turned on again.
+ */
+export async function publishingOn(workspaceId: string) {
+  return (await workspaceSettings(workspaceId)).publishing !== "off";
+}
+
+/** Whether the workspace lets people export its pages (Markdown, CSV, ZIP, the print view). */
+export async function exportAllowed(workspaceId: string) {
+  return (await workspaceSettings(workspaceId)).export !== false;
 }
 
 /**

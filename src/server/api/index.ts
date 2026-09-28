@@ -11,15 +11,15 @@ export const API_VERSION = "1.0.0";
 let document: unknown;
 export const openApiDocument = () => (document ??= buildOpenApiDocument(API_ROUTES, { appUrl: env.appUrl, version: API_VERSION }));
 
-const globalForApi = globalThis as unknown as { __esionageApiLimiter?: SlidingWindowLimiter | null };
+const globalForApi = globalThis as unknown as { __leafdeskApiLimiter?: SlidingWindowLimiter | null };
 
 function limiter() {
-  if (globalForApi.__esionageApiLimiter === undefined) {
+  if (globalForApi.__leafdeskApiLimiter === undefined) {
     const limit = rateLimitFromEnv();
     // One per process (dev reloads keep it), like the limits on public forms.
-    globalForApi.__esionageApiLimiter = limit > 0 ? new SlidingWindowLimiter(limit, 60_000) : null;
+    globalForApi.__leafdeskApiLimiter = limit > 0 ? new SlidingWindowLimiter(limit, 60_000) : null;
   }
-  return globalForApi.__esionageApiLimiter;
+  return globalForApi.__leafdeskApiLimiter;
 }
 
 export const handleApiRequest = (request: Request) =>

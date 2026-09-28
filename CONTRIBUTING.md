@@ -1,4 +1,4 @@
-# Contributing to Esionage
+# Contributing to Leafdesk
 
 Issues and pull requests are welcome. For code, the [Development](README.md#development) section
 of the README has the setup; run `pnpm typecheck`, `pnpm lint`, `pnpm test` and `pnpm i18n:check` before
@@ -6,7 +6,7 @@ opening a pull request (CI runs them too, plus a build and the end-to-end script
 
 ## Translations
 
-Esionage's interface is available in English, Turkish, German, Spanish and French. English is the
+Leafdesk's interface is available in English, Turkish, German, Spanish and French. English is the
 source language: every other language is compared with it, and any text a language lacks is shown
 in English until someone translates it.
 
@@ -42,7 +42,7 @@ by next-intl:
   placeholder (`l'{name}`). Use the typographic apostrophe `’` instead.
 - In `templates.json` keep the Markdown structure (`##`, `- [ ] `, blank lines); the property and
   option names become the names in the created database.
-- Product and technical names stay as they are: Esionage, MCP, Markdown, CSV, formula function
+- Product and technical names stay as they are: Leafdesk, MCP, Markdown, CSV, formula function
   names, keyboard keys. The Turkish files are a complete example of what gets translated.
 
 ### Checking a translation

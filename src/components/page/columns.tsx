@@ -35,13 +35,13 @@ const EditorColumnNode = ColumnNode.extend({
     return ({ node: initial, getPos, view, editor }) => {
       let node = initial;
       const dom = document.createElement("div");
-      dom.className = "esionage-column";
+      dom.className = "leafdesk-column";
       dom.setAttribute("data-node-type", COLUMN_BLOCK);
       // BlockNote's side menu lines up with the column's first child: the blocks, not the handle.
       const contentDOM = document.createElement("div");
-      contentDOM.className = "esionage-column-content";
+      contentDOM.className = "leafdesk-column-content";
       const handle = document.createElement("div");
-      handle.className = "esionage-column-resize";
+      handle.className = "leafdesk-column-resize";
       handle.contentEditable = "false";
       handle.setAttribute("aria-hidden", "true");
       dom.append(contentDOM, handle);
@@ -71,7 +71,7 @@ const EditorColumnNode = ColumnNode.extend({
         const total = columnWidth(node.attrs.width) + columnWidth(nextNode.attrs.width);
         const min = Math.min(MIN_COLUMN_PX, pxTotal / 2);
         let share = columnWidth(node.attrs.width) / total;
-        dom.classList.add("esionage-column-resizing");
+        dom.classList.add("leafdesk-column-resizing");
         const move = (e: PointerEvent) => {
           share = Math.min(Math.max(px + e.clientX - startX, min), pxTotal - min) / pxTotal;
           // A preview on the elements; the document changes once, when the drag ends.
@@ -96,7 +96,7 @@ const EditorColumnNode = ColumnNode.extend({
           window.removeEventListener("pointermove", move);
           window.removeEventListener("pointerup", up);
           window.removeEventListener("pointercancel", up);
-          dom.classList.remove("esionage-column-resizing");
+          dom.classList.remove("leafdesk-column-resizing");
           stop = null;
         };
         window.addEventListener("pointermove", move);
@@ -188,10 +188,10 @@ function madeColumns(transactions: readonly Transaction[]): Set<number> {
 }
 
 const ColumnCleanup = createExtension(() => ({
-  key: "esionageColumnCleanup",
+  key: "leafdeskColumnCleanup",
   prosemirrorPlugins: [
     new Plugin({
-      key: new PluginKey("esionageColumnCleanup"),
+      key: new PluginKey("leafdeskColumnCleanup"),
       appendTransaction(transactions, oldState, newState) {
         if (!transactions.some((tr) => tr.docChanged) || transactions.some((tr) => tr.getMeta(ySyncPluginKey))) return null;
         // Column lists with an empty column, and those columns' places, ids and lines.

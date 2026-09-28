@@ -263,7 +263,7 @@ export async function duplicatePublishedPage(
 
     await db.transaction(async (tx) => {
       // The quota again, under the lock uploads take, now that the bytes are stored.
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`esionage:file-quota:${target}`}))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`leafdesk:file-quota:${target}`}))`);
       if (copiedFiles.length) {
         const [used] = await tx
           .select({ used: sql<string>`coalesce(sum(${file.size}), 0)` })

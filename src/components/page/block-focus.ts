@@ -7,7 +7,7 @@ import { useEffect } from "react";
  * editor to that block and highlight it for a moment. On the page already, the link's owner sends
  * FOCUS_BLOCK_EVENT with the id instead of navigating.
  */
-export const FOCUS_BLOCK_EVENT = "esionage:focus-block";
+export const FOCUS_BLOCK_EVENT = "leafdesk:focus-block";
 const HASH = /^#block-([\w-]{1,100})$/;
 const FOCUS_CLASS = "block-focus";
 
@@ -16,7 +16,7 @@ function focusBlock(id: string): () => void {
   let tries = 0;
   let clear: ReturnType<typeof setTimeout> | undefined;
   const timer = setInterval(() => {
-    const el = document.querySelector<HTMLElement>(`.esionage-editor .bn-block-outer[data-id="${CSS.escape(id)}"]`);
+    const el = document.querySelector<HTMLElement>(`.leafdesk-editor .bn-block-outer[data-id="${CSS.escape(id)}"]`);
     if (el) {
       clearInterval(timer);
       el.scrollIntoView({ block: "center", behavior: "smooth" });

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { PageLevel } from "@/db/schema";
 import { AccessError, resolvePageAccess } from "@/server/access";
+import { listAccessRequests } from "@/server/access-requests";
 import { getCollab } from "@/server/collab/bridge";
 import { listGroups } from "@/server/groups";
 import {
@@ -22,7 +23,10 @@ import { canInviteGuests, listMembers } from "@/server/workspaces";
 export type SharingErrorCode = "notMember" | "lastFullAccess" | "invalidEmail" | "invitesRestricted" | "accessDenied" | "generic";
 export type SharingResult<T = unknown> = { ok: true; data?: T } | { ok: false; code: SharingErrorCode };
 
-/** Who the page is shared with, plus the workspace members and groups it can be shared with. */
+/**
+ * Who the page is shared with, plus the workspace members and groups it can be shared with and,
+ * for those who manage it, the requests for access waiting on it.
+ */
 export async function getSharingAction(pageId: string) {
   const userId = await requireUserId();
   const { page: target, level } = await resolvePageAccess(userId, pageId);
@@ -31,12 +35,13 @@ export async function getSharingAction(pageId: string) {
     if (error instanceof AccessError) return [];
     throw error;
   };
-  const [permissions, canInvite, members, groups] = await Promise.all([
+  const [permissions, canInvite, members, groups, requests] = await Promise.all([
     listPagePermissions(userId, pageId),
     canInviteGuests(userId, target.workspaceId),
     // Guests can't see who is in the workspace, so they get no one to pick from.
     listMembers(userId, target.workspaceId).catch(noneForGuests),
     listGroups(userId, target.workspaceId).catch(noneForGuests),
+    level === "full" ? listAccessRequests(userId, pageId) : [],
   ]);
   return {
     ...permissions,
@@ -44,6 +49,7 @@ export async function getSharingAction(pageId: string) {
     canInvite,
     members: members.map((m) => ({ userId: m.userId, name: m.name, email: m.email, image: m.image, role: m.role })),
     groupOptions: groups.map((g) => ({ groupId: g.id, name: g.name, memberCount: g.memberCount })),
+    requests,
   };
 }
 

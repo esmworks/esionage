@@ -1,6 +1,6 @@
 {
   "heading": "Kişisel erişim anahtarları",
-  "description": "Anahtarlar, betiklerin ve diğer programların Esionage REST API'sini sizin adınıza, sayfalara sizin erişiminizle kullanmasını sağlar. Onları bir parola gibi gizli tutun.",
+  "description": "Anahtarlar, betiklerin ve diğer programların Leafdesk REST API'sini sizin adınıza, sayfalara sizin erişiminizle kullanmasını sağlar. Onları bir parola gibi gizli tutun.",
   "docs": "API belgeleri",
   "empty": "Henüz anahtarınız yok.",
   "create": "Yeni anahtar",

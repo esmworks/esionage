@@ -4,27 +4,46 @@
 
 ### Added
 
-- **Membership policies and join requests** (#56), in Settings → Security → Members: *who can
-  add members* (owners only, the default; members with an owner's approval; owners and members,
-  members adding members only), *allowed email domains* (subdomains included, public mail domains
-  refused) that *join as members* or *ask to join*, and *who can ask to join* (nobody, the allowed
-  domains, or anyone with the join link, which then asks instead of admitting). The domain rule
-  runs for verified addresses on sign-up, sign-in, email verification and email change, once per
-  person and workspace: leaving, removal (by an owner or SCIM) and declined requests are
-  remembered, so nobody is pulled back in. Someone who joins through a domain on sign-up gets no
-  personal workspace. The workspace switcher lists workspaces a person's domain lets them join or
-  ask to join. Owners approve or decline in Settings → Members → Requests; each request is in
-  every owner's inbox (new notification kind `join_request`, with its own inbox and email
-  preferences, also in MCP `list_notifications`) and emailed to them; the person who asked gets
-  the decision by email in their language. A member's approved request goes out as their
-  invitation. One pending request per person (or invited address) and workspace; 10 requests an
-  hour per person, 100 invitation requests an hour per member. **Email verification:** with email
-  available, email and password sign-ups get a verification link (resend it in My account →
-  Profile); without SMTP in production, only provider-vouched addresses (GitHub, Google, SSO,
-  SCIM) count as verified. `scripts/auth-e2e.ts` and `scripts/account-e2e.ts` expect the
-  verification email. Migration `0028_membership_policies` (`workspace_join_request`, notification
-  `join_request_id`, `page_id` nullable for join requests). New checks:
-  `scripts/membership-e2e.ts` (106), `src/lib/membership-policy.test.ts`.
+- **Membership policies and join requests** (#56), in Settings → Security → Members: *who can add
+  members* (owners only, the default; members with an owner's approval; owners and members, members
+  adding members only), *allowed email domains* (subdomains included, public mail domains refused)
+  that *join as members* or *ask to join*, and *who can ask to join* (nobody, the allowed domains,
+  or anyone with the join link, which then asks instead of admitting). The domain rule runs for
+  verified addresses on sign-up, sign-in, email verification (a password reset through the emailed
+  link counts, see #59) and email change, once per person and workspace: leaving, removal (by an
+  owner or SCIM) and declined requests are remembered, so nobody is pulled back in. Someone who
+  joins through a domain on sign-up gets no personal workspace. The workspace switcher lists
+  workspaces a person's domain lets them join or ask to join. Owners approve or decline in Settings
+  → Members → Requests; each request is in every owner's inbox (new notification kind
+  `join_request`, with its own inbox and email preferences, also in MCP `list_notifications`) and
+  emailed to them; the person who asked gets the decision by email in their language. A member's
+  approved request goes out as their invitation. MCP `invite_member` follows the same rule (a
+  member's invitation there answers `status: "requested"` while approval is on). One pending request
+  per person (or invited address) and workspace; 10 requests an hour per person, 100 invitation
+  requests an hour per member. **Email verification:** with email available, email and password
+  sign-ups get a verification link (resend it in My account → Profile); without SMTP in production,
+  only provider-vouched addresses (GitHub, Google, SSO, SCIM) count as verified.
+  `scripts/auth-e2e.ts` and `scripts/account-e2e.ts` expect the verification email. Migration
+  `0030_membership_policies` (`workspace_join_request`, notification `join_request_id`, `page_id`
+  nullable for join requests). New checks: `scripts/membership-e2e.ts` (106),
+  `src/lib/membership-policy.test.ts`.
+- **Instance administrators** (#59): accounts whose verified email is listed in `ADMIN_EMAILS`
+  (comma-separated, any case; no role in the database) get Server administration at `/admin`,
+  a 404 for everyone else. It lists the accounts (name, email, verified, workspaces, last active,
+  two-step verification) with a search, signs one account or everyone but the administrator's
+  own browser out (closing their live collaboration connections too), and requires a new
+  password of one account or of everyone with a password: their sessions end, their next
+  password sign-in gets no session, and they choose a new one through an emailed reset link
+  (with SMTP) or right on the sign-in page (without; with a two-step code when they have it on).
+  The old password can't be chosen again; any password change clears the requirement; accounts
+  without a password are not affected. `WORKSPACE_CREATION=admins` keeps creating workspaces to
+  administrators (hidden from others and refused by the server; the personal workspace at sign-up
+  is still created). New command `pnpm auth:verify-email <email>`; a password reset through the
+  emailed link now also marks the address verified. Better Auth's admin plugin was not used: it
+  needs a role column and has neither required resets nor an instance-wide sign-out. Migration
+  `0029_instance_admin` (`user.password_reset_required`). MCP: `list_users` returns `joined_at`;
+  new `invite_member` tool (owners only, needs write access). New checks: `scripts/admin-e2e.ts`
+  (in CI), `src/lib/instance-admin.test.ts`, more in `mcp-e2e.ts` and `tools.test.ts`.
 - **Semantic search** (#43; optional, on with `AI_EMBEDDINGS_MODEL`): search also finds pages by
   meaning, merged with full-text results by reciprocal rank fusion, in the search dialog (marked
   *Similar meaning*), MCP `search` and REST `GET /search` (each result has `match: "text"` or
@@ -57,7 +76,7 @@
   `OIDC_CLIENT_SECRET` (`OIDC_NAME`, `OIDC_DOMAINS`), and one OpenID Connect or SAML 2.0
   connection per workspace, set up by owners in Settings → Security. A workspace connection signs
   people in only for its email domains, once each is verified with a DNS TXT record
-  (`_esionage-sso.<domain>`); public mail domains can't be claimed and a domain belongs to one
+  (`_leafdesk-sso.<domain>`); public mail domains can't be claimed and a domain belongs to one
   connection. "Continue with SSO" on the sign-in page routes an email to its provider. The first
   sign-in creates the account (only in those domains) and joins the workspace as a member;
   two-step verification still asks for its code afterwards. New workspace setting *How members
@@ -184,7 +203,7 @@
   and dark theme colours, iOS home-screen meta tags, and a hand-written service worker
   (`public/sw.js`, production only; `pnpm dev` unregisters a leftover one). It caches the app's
   hashed scripts, the icons and an offline page, and keeps the HTML of the last 50 signed-in pages
-  per user (read from `<meta name="esionage-user">`) for use only when the network fails; a
+  per user (read from `<meta name="leafdesk-user">`) for use only when the network fails; a
   different user's page drops the previous user's copies, a 404 drops that page, and API
   responses, uploads, server actions and the websocket are never touched. Offline, pages never
   opened go to `/offline`, which lists the pages kept on the device, and the start URL goes to the
@@ -324,7 +343,7 @@
     relative path are uploaded to it and the links pointed at the uploads; images inside a line of
     text get lines of their own. CSV files in the upload become databases, and pages in their
     folder become the bodies of the rows with the same title (or new rows). Notion's layout is
-    understood (`Export-…` folder, split exports with ZIPs inside, `_all.csv`), and so is Esionage's
+    understood (`Export-…` folder, split exports with ZIPs inside, `_all.csv`), and so is Leafdesk's
     own export: its `Templates/` folders become the database's row templates and, when importing
     at the top level, workspace templates again (under a page they're pages of a "Templates"
     page), and the property list at the top of a row's page is left out of the row's body when it
@@ -335,7 +354,7 @@
     few repeating values, else text) and changeable in the dialog, or its rows are added to an
     existing database with a column → property mapping (options a select, multi-select or status
     column names are added; people and related rows are found by name or email). Comma, semicolon
-    and tab separators, UTF-8 or Windows-1254 text, and Esionage's own CSV export read back.
+    and tab separators, UTF-8 or Windows-1254 text, and Leafdesk's own CSV export read back.
   - All or nothing: limits (100 MB upload, 300 MB unpacked, 2,000 files, 500 pages, 5,000 rows,
     100 columns) are checked first, and a failure midway deletes what the import made. What it
     left out is reported in the dialog: cells that didn't fit their property (left empty),
@@ -392,8 +411,8 @@
   Google Maps in a sandboxed, lazy iframe whose address is always rebuilt from the pasted URL;
   other links become bookmarks. Both show on published pages. In Markdown (export, MCP) a bookmark
   is a `[Title](url)` line, which a rewrite of the page turns back into that bookmark (other link
-  lines stay links; `<!-- esionage:bookmark -->` after a link makes a new one), and an embed is
-  `[url](url) <!-- esionage:embed -->`. Uploaded PDFs show in place (see PDF preview).
+  lines stay links; `<!-- leafdesk:bookmark -->` after a link makes a new one), and an embed is
+  `[url](url) <!-- leafdesk:embed -->`. Uploaded PDFs show in place (see PDF preview).
 - **File uploads:** image, video, audio and file blocks now take files: drop, paste or pick one
   and it is uploaded instead of asking for a URL. Files are stored on a local volume by default or
   in S3-compatible storage (AWS S3, Cloudflare R2, MinIO) with `S3_BUCKET` and its credentials.
@@ -418,7 +437,7 @@
   finds new mentions, links and reminders when it saves a page, whoever made the change.
 - **Mentions in Markdown and MCP:** a page mention is a link to the page
   (`[Title](/w/<workspace>/p/<page>)`, any link to a page of the app becomes one), a Link to page
-  block is that link alone on its line followed by `<!-- esionage:page-link -->`, a person is
+  block is that link alone on its line followed by `<!-- leafdesk:page-link -->`, a person is
   `@Name` and a date `@2026-10-01`. Exports and MCP's `get_page` show each linked page's current
   title, or "No access"; writing the Markdown back keeps mentions (nobody is notified twice) and
   reminders. `get_page` lists the pages linking to a page under `linked_from`, and
@@ -449,8 +468,8 @@
   contents that follows the page's headings and scrolls to them, and a breadcrumb of the pages above.
   All are in the slash menu and show on published pages. In Markdown (export, MCP) a callout is a
   GitHub alert (`> [!NOTE]`), equations are `$…$` and `$$…$$`, a diagram is a ```` ```mermaid ````
-  fence, and the table of contents and breadcrumb are `<!-- esionage:toc -->` and
-  `<!-- esionage:breadcrumb -->` lines; all of them are read back into blocks.
+  fence, and the table of contents and breadcrumb are `<!-- leafdesk:toc -->` and
+  `<!-- leafdesk:breadcrumb -->` lines; all of them are read back into blocks.
 - **Columns** (#16): "2 columns" and "3 columns" in the slash menu place blocks side by side;
   inside a column the menu offers "Add column" instead (up to five). Blocks move into, out of and
   between columns with the side menu's drag handle; a column whose last block is dragged away or
@@ -459,8 +478,8 @@
   column's share, so it syncs, undoes and keeps its proportion at any width). On screens narrower
   than 640px they stack, in the editor and on published pages, where tables of contents, diagrams,
   embeds and databases inside columns show in place. In Markdown (export, MCP) columns are marker
-  lines around their blocks (`<!-- esionage:columns -->`, `<!-- esionage:column -->` before each
-  column, optionally `width=2`, and `<!-- esionage:/columns -->`), so plain Markdown readers see
+  lines around their blocks (`<!-- leafdesk:columns -->`, `<!-- leafdesk:column -->` before each
+  column, optionally `width=2`, and `<!-- leafdesk:/columns -->`), so plain Markdown readers see
   the blocks in order and writing a body back keeps its columns. Built on BlockNote's own column
   support in its core; its multi-column package (GPL-3.0 or commercial) is not used. No migration.
 - **"Can comment" access:** share a page so people can read and comment on it without editing it.
@@ -551,9 +570,50 @@
   The cleanup runs on production servers; `RETENTION_JOB=on|off` overrides that (a dev server
   leaves the data alone unless it is `on`).
   New checks: `scripts/retention-e2e.ts` (35), `src/lib/retention.test.ts`.
+- **People directory and analytics** (#62): *People* in the sidebar (`/w/[id]/people`) shows the
+  workspace's owners and members as cards with their role, email, teamspaces, groups and up to
+  three pages they edited in the last 90 days, searchable by any of those. Each card shows only
+  what the viewer may see: private teamspaces they aren't in stay off it, like in the members
+  list, and so do pages they can't open. Guests aren't listed and get a 404. Owners get
+  Settings > Analytics: active members, edits per person and the 20 most edited pages over the
+  last 7, 30 or 90 days, each table downloadable as CSV. Edits are counted from what is already
+  stored, page history versions (at most one per page every 10 minutes of typing, not versions
+  saved by hand) and each page's latest change for what history doesn't keep, such as row values;
+  nothing new is recorded and no migration is needed. Pages the owner can't open are counted as
+  *Private page*, without their title. New checks: `scripts/people-e2e.ts` (32),
+  `src/lib/analytics.test.ts`, `src/lib/people.test.ts`.
+- **Request access to a page** (#57): a signed-in person who opens a link to a page they can't
+  see gets a "You don't have access" screen instead of a 404, with *Request access* and an
+  optional message (500 characters). The screen shows nothing of the page or its workspace, and a
+  page that doesn't exist gets the same screen and the same answer; a request is stored only for
+  a page that exists, isn't in the trash and has requests on. People outside the workspace see it
+  without the sidebar and can ask too. Everyone with full access to the page gets an inbox
+  notification (new kind `access_request`, with its own inbox and email preferences) and an email,
+  and answers from the inbox or from *Requests* at the top of the Share panel (the Share button
+  shows how many wait): share at a level (view, comment, edit, full), which brings someone from
+  outside in as a guest when the guest invite policy lets the approver, or decline. Answering, or
+  sharing the page with the requester some other way, removes the request and every notification
+  about it; the requester gets an email either way, in their language, and a declined one names
+  neither the page nor who declined. One pending request per person and page; each person may ask
+  10 times an hour, every ask counting whatever the page. Owners turn requests off in Settings >
+  Security > Sharing (`workspace.settings.accessRequests`, on by default); the screen then has no
+  button. Migration `0028_access_requests`. New checks: `scripts/access-requests-e2e.ts` (84),
+  `src/lib/access-requests.test.ts`, access request emails in `src/server/mail/mail.test.ts`.
 
 ### Changed
 
+- **New logo and colors.** The block-leaf mark and the leafdesk wordmark replace the letter badge
+  on the sign-in, consent, offline and workspace security pages, in light and dark versions; the
+  favicon, app icons (including the maskable one) and the README use them too. The accent color
+  is now green (`#2f7d4f`, `#6cc38a` in dark mode), in emails as well. The source SVGs are in
+  `brand/`.
+- **Renamed the project to Leafdesk.** The repository is now `esmworks/leafdesk` and the image
+  `ghcr.io/esmworks/leafdesk`. Stored names changed too, with no fallback for the old ones: the
+  compose image tag variable is now `LEAFDESK_VERSION`; the bundled database user, password and name
+  default to `leafdesk`; markdown markers are `<!-- leafdesk:… -->`; SSO domains are verified
+  with a `_leafdesk-sso.<domain>` TXT record; offline edits, service worker caches and browser
+  settings use `leafdesk` keys. An existing installation needs a new database (or
+  `EXTERNAL_DATABASE_URL` pointing at the old one) and its SSO domains verified again.
 - ESLint 9 with Next.js's rules (`eslint-config-next`): `pnpm lint`, also a CI step, fails on
   warnings too. The React Compiler checks are off (the app doesn't use it), and so are the rules
   for `<img>` (images come from any origin) and for full page loads after signing in or out (on
@@ -599,8 +659,8 @@
 - **Migrations** (0001–0008) run automatically when the container starts. Existing pages,
   databases, members and connected AI apps keep working, and every member keeps full access to
   existing pages.
-- **Docker image:** releases are published to `ghcr.io/esmworks/esionage`. `docker-compose.yml`
-  runs that image. Set `ESIONAGE_VERSION` to pin a version.
+- **Docker image:** releases are published to `ghcr.io/esmworks/leafdesk`. `docker-compose.yml`
+  runs that image. Set `LEAFDESK_VERSION` to pin a version.
 
 ### Added
 

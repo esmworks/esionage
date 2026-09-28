@@ -20,7 +20,7 @@ function linkParagraph(url: string, text: string) {
 
 function marker(type: string) {
   const dom = document.createElement("div");
-  dom.setAttribute("data-esionage-web", type);
+  dom.setAttribute("data-leafdesk-web", type);
   return { dom };
 }
 

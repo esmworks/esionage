@@ -147,7 +147,7 @@ export function SelectBox({
 /**
  * The bar that floats over a table while rows are selected: edit a property of every selected
  * row, duplicate them, export them as CSV or move them to the trash. Viewers only get export;
- * guests don't get the trash. The server checks every row again and reports rows it skipped.
+ * guests don't get the trash, and nobody gets export while the workspace has it turned off. The server checks every row again and reports rows it skipped.
  */
 export function BulkActionBar({
   workspaceId,
@@ -158,6 +158,7 @@ export function BulkActionBar({
   api,
   readOnly,
   guest,
+  exportable = true,
 }: {
   workspaceId: string;
   databaseId: string;
@@ -167,6 +168,7 @@ export function BulkActionBar({
   api: DatabaseApi;
   readOnly?: boolean;
   guest?: boolean;
+  exportable?: boolean;
 }) {
   const t = useTranslations("database.bulk");
   const edit = useFloating<HTMLButtonElement>();
@@ -193,6 +195,8 @@ export function BulkActionBar({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ rows: ids }),
         });
+        // Export turned off since the table loaded (the bar hides the button while it is off).
+        if (res.status === 403 && (await res.json().catch(() => null))?.error === "disabled") return api.showError(t("exportDisabled"));
         if (!res.ok) throw new Error(String(res.status));
         const name = /filename\*=UTF-8''([^;]+)/.exec(res.headers.get("Content-Disposition") ?? "")?.[1];
         const url = URL.createObjectURL(await res.blob());
@@ -236,10 +240,12 @@ export function BulkActionBar({
           </button>
         </>
       )}
-      <button type="button" disabled={busy} onClick={exportCsv} className={action} title={t("export")}>
-        <Download className="h-3.5 w-3.5 text-fg-muted" />
-        <span className="max-sm:sr-only">{t("export")}</span>
-      </button>
+      {exportable && (
+        <button type="button" disabled={busy} onClick={exportCsv} className={action} title={t("export")}>
+          <Download className="h-3.5 w-3.5 text-fg-muted" />
+          <span className="max-sm:sr-only">{t("export")}</span>
+        </button>
+      )}
       {!readOnly && !guest && (
         <button
           type="button"

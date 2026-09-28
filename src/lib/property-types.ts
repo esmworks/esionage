@@ -37,7 +37,7 @@ export function holdsPeople(type: string) {
   return type === "person" || type === "created_by" || type === "last_edited_by";
 }
 
-/** Types Esionage fills in from the row itself (who and when): never stored, never written. */
+/** Types Leafdesk fills in from the row itself (who and when): never stored, never written. */
 export function isComputed(type: string) {
   return type === "created_by" || type === "created_time" || type === "last_edited_by" || type === "last_edited_time";
 }

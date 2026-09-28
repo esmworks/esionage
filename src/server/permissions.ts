@@ -1,6 +1,7 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  accessRequest,
   memberGroup,
   memberGroupMember,
   PAGE_LEVELS,
@@ -18,7 +19,7 @@ import { isEmail, normalizeEmail } from "@/lib/emails";
 import { AccessError, FULL_RANK, getMembership, hasLevel, requirePageAccess, resolvePageAccess } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 import { afterAccessLoss, groupMemberIds, requireGroupIn } from "@/server/groups";
-import { recordShare, withdrawShare } from "@/server/notifications";
+import { recordShare, signalInbox, withdrawShare } from "@/server/notifications";
 import { addGuest, canInviteGuests, type InvitationDelivery, inviteGuest } from "@/server/workspaces";
 
 /**
@@ -283,8 +284,16 @@ export async function setPagePermission(actorId: string, pageId: string, princip
   await dropLostEditors(target.workspaceId, principal);
   if (!principal) return;
   if (level === "none") await withdrawShare(target.workspaceId, principal, pageId);
-  else if (!previous || PAGE_LEVELS.indexOf(level) > PAGE_LEVELS.indexOf(previous.level)) {
-    await recordShare(actorId, target.workspaceId, principal, pageId);
+  else {
+    // Sharing the page answers their request for it, whichever way it was shared.
+    const answered = await db
+      .delete(accessRequest)
+      .where(and(eq(accessRequest.pageId, pageId), eq(accessRequest.requesterId, principal)))
+      .returning({ id: accessRequest.id });
+    if (answered.length) signalInbox(target.workspaceId);
+    if (!previous || PAGE_LEVELS.indexOf(level) > PAGE_LEVELS.indexOf(previous.level)) {
+      await recordShare(actorId, target.workspaceId, principal, pageId);
+    }
   }
 }
 

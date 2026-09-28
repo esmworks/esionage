@@ -138,7 +138,7 @@ describe("redirect helpers", () => {
   it("uses the public origin as the passkey relying party", () => {
     expect(passkeyRelyingParty("https://notes.example.com:8443/")).toEqual({
       rpID: "notes.example.com",
-      rpName: "Esionage",
+      rpName: "Leafdesk",
       origin: "https://notes.example.com:8443",
     });
   });
@@ -158,8 +158,8 @@ describe("plugin wiring", () => {
   it("runs the code challenge before the OAuth provider resumes an authorization", () => {
     const ids = baseAuthOptions().plugins.map((plugin) => plugin.id);
     expect(ids.indexOf("two-factor")).toBeGreaterThanOrEqual(0);
-    expect(ids.indexOf("two-factor")).toBeLessThan(ids.indexOf("esionage-social-two-factor"));
-    expect(ids.indexOf("esionage-social-two-factor")).toBeLessThan(ids.indexOf("oauth-provider"));
+    expect(ids.indexOf("two-factor")).toBeLessThan(ids.indexOf("leafdesk-social-two-factor"));
+    expect(ids.indexOf("leafdesk-social-two-factor")).toBeLessThan(ids.indexOf("oauth-provider"));
     expect(ids).toContain("passkey");
   });
 
@@ -333,7 +333,7 @@ describe("Better Auth with our two-step setup", () => {
     await googleSignIn(jar);
     const register = await call(jar, "/passkey/generate-register-options");
     expect(register.status).toBe(200);
-    expect(await register.json()).toMatchObject({ rp: { id: "localhost", name: "Esionage" }, user: { name: "social@example.test" } });
+    expect(await register.json()).toMatchObject({ rp: { id: "localhost", name: "Leafdesk" }, user: { name: "social@example.test" } });
 
     // A registration signed for another origin is refused before anything is stored.
     const verify = await call(jar, "/passkey/verify-registration", {

@@ -65,7 +65,7 @@ export function takeAll(entries: [SlidingWindowLimiter, string][], now = Date.no
   return 0;
 }
 
-const SHARED = "__esionageLimiters";
+const SHARED = "__leafdeskLimiters";
 
 /**
  * A limiter kept on `globalThis` under `name`, so every bundle that imports this module (Next

@@ -6,11 +6,11 @@
   },
   "unknownClient": {
     "title": "Bilinmeyen uygulama",
-    "body": "Erişim isteyen uygulama Esionage'a kayıtlı değil ya da devre dışı bırakılmış. Geri dönüp yeniden bağlanmayı deneyin."
+    "body": "Erişim isteyen uygulama Leafdesk'e kayıtlı değil ya da devre dışı bırakılmış. Geri dönüp yeniden bağlanmayı deneyin."
   },
-  "heading": "{client}, Esionage hesabınıza erişmek istiyor",
+  "heading": "{client}, Leafdesk hesabınıza erişmek istiyor",
   "identifiedBy": "Bu uygulamanın kimliği {host} üzerinden doğrulanıyor.",
-  "unverified": "Bu uygulama kendini otomatik olarak kaydetti ve Esionage tarafından incelenmedi. Yalnızca bu bağlantıyı siz başlattıysanız devam edin.",
+  "unverified": "Bu uygulama kendini otomatik olarak kaydetti ve Leafdesk tarafından incelenmedi. Yalnızca bu bağlantıyı siz başlattıysanız devam edin.",
   "notYou": "Siz değil misiniz?",
   "willAllow": "{client} uygulamasına şu izinler verilecek:",
   "readOnlyHint": "Salt okunur erişim vermek için işareti kaldırın. Her düzenleme önce sayfa geçmişine kaydedilir, böylece geri alabilirsiniz.",

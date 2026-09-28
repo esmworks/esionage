@@ -3,12 +3,14 @@
     "myAccount": "My account",
     "newWorkspace": "New workspace",
     "settingsAndMembers": "Settings & members",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "admin": "Server administration"
   },
   "nav": {
     "search": "Search",
     "home": "Home",
     "inbox": "Inbox",
+    "people": "People",
     "settings": "Settings",
     "trash": "Trash",
     "templates": "Templates",
@@ -70,6 +72,7 @@
     "comment": "{actor} commented in a thread you're in",
     "mention": "{actor} mentioned you",
     "reminder": "Reminder: {date}",
+    "accessRequest": "{actor} asked for access to this page",
     "someone": "Someone",
     "unread": "Unread",
     "unreadCount": "{count, plural, one {# unread notification} other {# unread notifications}}",

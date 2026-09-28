@@ -2,15 +2,16 @@
   "metaTitle": "My account",
   "title": "My account",
   "back": "Back to {workspace}",
-  "backHome": "Back to Esionage",
+  "backHome": "Back to Leafdesk",
   "nav": {
     "profile": "Profile",
     "security": "Security",
     "preferences": "Preferences",
-    "apps": "Connected apps"
+    "apps": "Connected apps",
+    "admin": "Server administration"
   },
   "apps": {
-    "description": "Apps you have allowed to use Esionage on your behalf, for example AI assistants connected over MCP. They reach every workspace you are in."
+    "description": "Apps you have allowed to use Leafdesk on your behalf, for example AI assistants connected over MCP. They reach every workspace you are in."
   },
   "profile": {
     "description": "How you appear to others in every workspace, the email you sign in with, and deleting your account.",
@@ -26,7 +27,7 @@
   },
   "email": {
     "heading": "Email",
-    "description": "You sign in with this address, and emails from Esionage go to it.",
+    "description": "You sign in with this address, and emails from Leafdesk go to it.",
     "mailOff": "You sign in with this address. Changing it needs a confirmation email, and email isn't set up on this server; ask its administrator to set SMTP_URL.",
     "change": "Change email",
     "pendingTitle": "Waiting for confirmation from {email}",
@@ -108,7 +109,7 @@
   "confirmEmail": {
     "metaTitle": "Confirm email address",
     "title": "Confirm your new email address",
-    "body": "Your Esionage account will use {new} instead of {old}. From then on you sign in with the new address.",
+    "body": "Your Leafdesk account will use {new} instead of {old}. From then on you sign in with the new address.",
     "confirm": "Confirm email address",
     "done": "Done. Your account now uses {email}.",
     "invalidTitle": "This link doesn't work",
@@ -137,6 +138,8 @@
     "currentSession": "Use Sign out in the menu to end this session.",
     "sessionNotFound": "That session has already ended.",
     "avatarType": "Use a PNG, JPEG, WebP or GIF image.",
-    "avatarTooLarge": "The picture is too large (2 MB at most)."
+    "avatarTooLarge": "The picture is too large (2 MB at most).",
+    "samePassword": "Choose a password different from the old one.",
+    "resetStepExpired": "This step has expired. Sign in with your old password again."
   }
 }

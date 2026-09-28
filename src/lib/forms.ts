@@ -26,7 +26,7 @@ export const MAX_LIST_ANSWER = 100;
 export const MAX_SUBMISSION_BYTES = 64 * 1024;
 
 /**
- * Property types a form can ask for. Values Esionage fills in itself (created by, last edited…)
+ * Property types a form can ask for. Values Leafdesk fills in itself (created by, last edited…)
  * never are; types added later stay out until they are listed here.
  */
 const ASKABLE: readonly PropertyType[] = [

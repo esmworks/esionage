@@ -9,6 +9,7 @@
     "guests": "Gäste",
     "teamspaces": "Teamspaces",
     "groups": "Gruppen",
+    "analytics": "Analysen",
     "security": "Sicherheit",
     "site": "Website",
     "myAccount": "Mein Konto"
@@ -25,7 +26,8 @@
     "title": "Workspace exportieren",
     "description": "Lade alle Seiten, die du sehen kannst, als ZIP herunter: Seiten als Markdown, Datenbanken als CSV und die darin angezeigten Dateien. Seiten im Papierkorb werden ausgelassen; Vorlagen landen in einem Ordner „Templates“.",
     "button": "Exportieren",
-    "preparing": "Wird vorbereitet…"
+    "preparing": "Wird vorbereitet…",
+    "disabled": "Der Export ist für diesen Workspace unter Einstellungen → Sicherheit ausgeschaltet."
   },
   "members": {
     "heading": "Mitglieder",
@@ -285,8 +287,36 @@
       "accessDenied": "Nur Workspace-Inhaber können Gruppen ändern."
     }
   },
+  "analytics": {
+    "description": "Wie viel in diesem Arbeitsbereich bearbeitet wurde, gezählt aus dem Seitenverlauf und der letzten Änderung jeder Seite. Dafür wird nichts zusätzlich erfasst. Nur Inhaber sehen das.",
+    "periods": "Zeitraum",
+    "period": "Letzte {days} Tage",
+    "activeMembers": "Aktive Mitglieder",
+    "activeOf": "{active} von {total}",
+    "edits": "Bearbeitungen",
+    "pagesEdited": "Bearbeitete Seiten",
+    "howCounted": "Eine Bearbeitung ist eine gespeicherte Version einer Seite (höchstens eine alle 10 Minuten, während jemand tippt, und eine vor jeder Änderung durch eine App, die KI oder eine Wiederherstellung) oder eine Änderung, die der Seitenverlauf nicht aufbewahrt, etwa die Werte einer Zeile.",
+    "peopleHeading": "Bearbeitungen pro Person",
+    "peopleDescription": "Gäste werden mit ihren Bearbeitungen aufgeführt, zählen aber nicht als aktive Mitglieder.",
+    "pagesHeading": "Am häufigsten bearbeitete Seiten",
+    "pagesDescription": "Seiten, die du nicht öffnen kannst, werden gezählt, aber nicht genannt.",
+    "privatePage": "Private Seite",
+    "noEdits": "Keine Bearbeitungen in diesem Zeitraum.",
+    "neverEdited": "Keine Bearbeitungen",
+    "exportPeople": "Bearbeitungen pro Person als CSV herunterladen",
+    "exportPages": "Am häufigsten bearbeitete Seiten als CSV herunterladen",
+    "columns": {
+      "person": "Person",
+      "role": "Rolle",
+      "edits": "Bearbeitungen",
+      "pages": "Seiten",
+      "lastEdit": "Letzte Bearbeitung",
+      "page": "Seite",
+      "editors": "Bearbeiter"
+    }
+  },
   "preferences": {
-    "description": "Die Präferenzen deines Kontos: wie Esionage in diesem Browser aussieht und welche E-Mails du erhältst."
+    "description": "Die Präferenzen deines Kontos: wie Leafdesk in diesem Browser aussieht und welche E-Mails du erhältst."
   },
   "language": {
     "heading": "Sprache",
@@ -312,11 +342,11 @@
   },
   "mcp": {
     "heading": "KI-Assistenten verbinden",
-    "description": "Esionage hat einen integrierten MCP-Server. Assistenten, die Remote-MCP-Server unterstützen, können deine Seiten und Datenbanken durchsuchen, lesen und bearbeiten, nachdem du dich angemeldet und den Zugriff genehmigt hast. Jede Änderung eines Assistenten wird vorher im Seitenverlauf gespeichert, sodass du sie rückgängig machen kannst.",
+    "description": "Leafdesk hat einen integrierten MCP-Server. Assistenten, die Remote-MCP-Server unterstützen, können deine Seiten und Datenbanken durchsuchen, lesen und bearbeiten, nachdem du dich angemeldet und den Zugriff genehmigt hast. Jede Änderung eines Assistenten wird vorher im Seitenverlauf gespeichert, sodass du sie rückgängig machen kannst.",
     "serverUrl": "Server-URL",
     "claude": {
       "title": "Claude",
-      "body": "Öffne die Einstellungen, dann Connectors, wähle „Add custom connector“ und füge die Server-URL ein. Claude öffnet Esionage in deinem Browser, damit du dich anmelden und den Zugriff erlauben kannst."
+      "body": "Öffne die Einstellungen, dann Connectors, wähle „Add custom connector“ und füge die Server-URL ein. Claude öffnet Leafdesk in deinem Browser, damit du dich anmelden und den Zugriff erlauben kannst."
     },
     "claudeCode": {
       "title": "Claude Code",
@@ -348,10 +378,11 @@
     "ssoFirst": "Richte zuerst Single Sign-on ein und bestätige seine Domains.",
     "invalidDomain": "{detail} kann nicht zugelassen werden: Gib die eigenen E-Mail-Domains deiner Organisation ein (keine öffentlichen Maildienste wie gmail.com).",
     "requestHandled": "Diese Anfrage wurde bereits bearbeitet.",
-    "tooManyRequests": "Zu viele Anfragen. Versuche es später noch einmal."
+    "tooManyRequests": "Zu viele Anfragen. Versuche es später noch einmal.",
+    "creationRestricted": "Nur die Administratoren des Servers können Workspaces anlegen."
   },
   "security": {
-    "description": "Lege fest, wie sich Personen anmelden, wer andere in diesen Workspace holen darf, was Gäste tun können und wer Seiten im Web veröffentlichen darf. Nur Inhaber können diese Einstellungen ändern.",
+    "description": "Lege fest, wie sich Personen anmelden, wer andere in diesen Workspace holen darf, was Gäste tun können, was ihn verlassen darf (Exporte, verbundene Apps) und wer Seiten im Web veröffentlichen darf. Nur Inhaber können diese Einstellungen ändern.",
     "authenticationHeading": "Authentifizierung",
     "requireTwoFactor": {
       "title": "Bestätigung in zwei Schritten verlangen",
@@ -360,6 +391,11 @@
       "withoutCount": "{count, plural, one {# Person hier hat sie noch nicht eingerichtet.} other {# Personen hier haben sie noch nicht eingerichtet.}}"
     },
     "guestsHeading": "Gäste",
+    "sharingHeading": "Teilen",
+    "accessRequests": {
+      "title": "Zugriffsanfragen",
+      "description": "Wer den Link zu einer Seite öffnet, die er nicht sehen kann, kann mit einer Nachricht um Zugriff bitten. Die Anfrage geht an die Personen mit vollem Zugriff auf die Seite. Aus: Sie sehen nur, dass sie keinen Zugriff haben."
+    },
     "guestInvites": {
       "title": "Wer Gäste einladen darf",
       "description": "Personen außerhalb des Workspace treten als Gäste bei, wenn jemand eine Seite per E-Mail mit ihnen teilt. Gäste sehen nur die Seiten, die mit ihnen geteilt wurden.",
@@ -373,9 +409,10 @@
     "publishingHeading": "Veröffentlichen",
     "publishing": {
       "title": "Wer im Web veröffentlichen darf",
-      "description": "Veröffentlichte Seiten können von allen mit dem Link gelesen und öffentliche Formulare ausgefüllt werden. Gäste können nie veröffentlichen. Seiten und Formulare, die bereits im Web sind, bleiben dort, bis jemand sie deaktiviert.",
+      "description": "Veröffentlichte Seiten können von allen mit dem Link gelesen und öffentliche Formulare ausgefüllt werden. Gäste können nie veröffentlichen. Seiten und Formulare, die bereits im Web sind, bleiben dort, bis jemand sie deaktiviert. Aus: Niemand kann veröffentlichen, und Seiten, Formulare und die Website im Web funktionieren nicht mehr, bis das Veröffentlichen wieder eingeschaltet wird.",
       "owners": "Nur Inhaber",
-      "members": "Inhaber und Mitglieder"
+      "members": "Inhaber und Mitglieder",
+      "off": "Niemand (aus)"
     },
     "publications": {
       "title": "Veröffentlichte Seiten",
@@ -388,7 +425,8 @@
       "open": "Website öffnen",
       "unpublish": "Veröffentlichung aufheben",
       "confirm": "Veröffentlichung dieser Seite aufheben? Der Link funktioniert dann für niemanden mehr.",
-      "indexable": "Suchmaschinen erlaubt"
+      "indexable": "Suchmaschinen erlaubt",
+      "off": "Das Veröffentlichen ist ausgeschaltet: Keine dieser Seiten ist gerade im Web. Sie sind wieder da, sobald es eingeschaltet wird, außer du nimmst sie offline."
     },
     "forms": {
       "title": "Öffentliche Formulare",
@@ -403,7 +441,8 @@
       "open": "Formular öffnen",
       "turnOff": "Deaktivieren",
       "confirm": "Öffentlichen Link dieses Formulars deaktivieren? Er funktioniert dann für niemanden mehr.",
-      "stale": "Nimmt keine Antworten an: Die Person, die es aktiviert hat, hat keinen Zugriff mehr"
+      "stale": "Nimmt keine Antworten an: Die Person, die es aktiviert hat, hat keinen Zugriff mehr",
+      "off": "Das Veröffentlichen ist ausgeschaltet: Keines dieser Formulare nimmt gerade Antworten an. Sie sind wieder da, sobald es eingeschaltet wird, außer du deaktivierst sie."
     },
     "ownersOnly": "Nur Inhaber können das ändern.",
     "loginMethod": {
@@ -551,6 +590,18 @@
       "allowed_domains": "Personen mit einer zugelassenen E-Mail-Domain",
       "anyone_with_link": "Alle mit dem Beitrittslink",
       "linkHint": "Der Beitrittslink fragt dann einen Eigentümer, statt Personen sofort hinzuzufügen."
+    },
+    "dataHeading": "Export und verbundene Apps",
+    "export": {
+      "title": "Export erlauben",
+      "description": "Alle im Workspace können Seiten als Markdown, CSV oder ZIP herunterladen und als PDF drucken. Aus: Diese Optionen gibt es für niemanden mehr, auch nicht für Inhaber."
+    },
+    "connectedApps": {
+      "title": "Verbundene Apps und API-Token",
+      "description": "Was KI-Assistenten und andere über MCP verbundene Apps sowie REST-API-Token in diesem Workspace tun dürfen. Sie dürfen nie mehr als die Person, die sie verbunden hat. Ohne Zugriff ist der Workspace für sie unsichtbar.",
+      "full": "Lesen und bearbeiten",
+      "read": "Nur lesen",
+      "off": "Kein Zugriff"
     }
   },
   "notifications": {
@@ -573,6 +624,9 @@
     "reminderTitle": "Erinnerungen",
     "reminderDescription": "Eine Erinnerung, die du für ein Datum auf einer Seite eingerichtet hast, ist fällig.",
     "reminderChannel": "Erinnerungen: {channel}",
+    "accessRequestTitle": "Zugriffsanfragen",
+    "accessRequestDescription": "Jemand bittet um Zugriff auf eine Seite, auf die du vollen Zugriff hast.",
+    "accessRequestChannel": "Zugriffsanfragen: {channel}",
     "mailOff": "Dieser Server kann gerade keine E-Mails senden, daher werden keine verschickt.",
     "joinRequestTitle": "Beitrittsanfragen",
     "joinRequestDescription": "Jemand möchte einem Workspace beitreten, den du besitzt, oder ein Mitglied möchte jemanden einladen.",

@@ -223,7 +223,7 @@ function figma(url: URL): EmbedTarget | null {
   const file = new URL(`https://www.figma.com/${parts[0]}/${parts[1]}`);
   const node = url.searchParams.get("node-id");
   if (node && /^[\w:-]{1,64}$/.test(node)) file.searchParams.set("node-id", node);
-  const params = new URLSearchParams({ embed_host: "esionage", url: file.href });
+  const params = new URLSearchParams({ embed_host: "leafdesk", url: file.href });
   return { provider: "figma", src: `https://www.figma.com/embed?${params}`, height: 450 };
 }
 
@@ -340,9 +340,9 @@ export function embedFor(input: unknown): EmbedTarget | null {
 
 /**
  * In Markdown a bookmark is a plain link on a line of its own, `[Title](url)`, which every
- * renderer shows as a link; an embed is its link and a marker, `[url](url) <!-- esionage:embed -->`
+ * renderer shows as a link; an embed is its link and a marker, `[url](url) <!-- leafdesk:embed -->`
  * (see lib/content-markdown). A link line reads back as an ordinary link, except where the page
- * already has a bookmark of that URL: see restoreBookmarks. `<!-- esionage:bookmark -->` after a
+ * already has a bookmark of that URL: see restoreBookmarks. `<!-- leafdesk:bookmark -->` after a
  * link makes a new bookmark, whose details the editor fetches when someone who may edit opens it.
  */
 

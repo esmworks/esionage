@@ -1,23 +1,26 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { DatabasePage } from "@/components/database/database-page";
 import { RowProperties } from "@/components/database/row-properties";
+import { NoAccess } from "@/components/page/no-access";
 import { PageView } from "@/components/page/page-view";
 import { pageLabel } from "@/lib/labels";
 import { AccessError, WorkspacePolicyError } from "@/server/access";
+import { accessRequestsOffered } from "@/server/access-requests";
 import { getPageHeaderInfo } from "@/server/page-meta";
 import { getBreadcrumbs, getPage } from "@/server/pages";
 import { policyGatePath, requireUser, requireWorkspaceSession } from "@/server/session";
 
 type Params = { params: Promise<{ workspaceId: string; pageId: string }> };
 
+/** The page, or null when it doesn't exist or the user may not see it (the two look the same). */
 async function load(userId: string, pageId: string) {
   try {
     return await getPage(userId, pageId);
   } catch (error) {
     if (error instanceof WorkspacePolicyError) redirect(policyGatePath(error.workspaceId, error.hold));
-    if (error instanceof AccessError) notFound();
+    if (error instanceof AccessError) return null;
     throw error;
   }
 }
@@ -25,15 +28,22 @@ async function load(userId: string, pageId: string) {
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const user = await requireUser();
   const { pageId } = await params;
-  const [p, t] = await Promise.all([load(user.id, pageId), getTranslations("common")]);
+  const [p, t] = await Promise.all([load(user.id, pageId), getTranslations()]);
+  if (!p) return { title: t("page.noAccess.metaTitle") };
   await requireWorkspaceSession(p.workspaceId);
-  return { title: pageLabel(p.title, t("untitled")) };
+  return { title: pageLabel(p.title, t("common.untitled")) };
 }
 
 export default async function PageRoute({ params }: Params) {
   const user = await requireUser();
   const { workspaceId, pageId } = await params;
   const p = await load(user.id, pageId);
+  if (!p) {
+    // Decided by the workspace in the address, never by the page, so a page that doesn't exist
+    // gets the same screen as one the user can't see.
+    const canRequest = await accessRequestsOffered(workspaceId);
+    return <NoAccess key={pageId} pageId={pageId} email={user.email} canRequest={canRequest} />;
+  }
   await requireWorkspaceSession(p.workspaceId);
   if (p.workspaceId !== workspaceId) redirect(`/w/${p.workspaceId}/p/${p.id}`);
 
@@ -56,7 +66,7 @@ export default async function PageRoute({ params }: Params) {
       wide={p.kind === "database"}
     >
       {p.kind === "database" ? (
-        <DatabasePage workspaceId={workspaceId} databaseId={p.id} canEdit={canEdit && !archived} guest={info.guest} />
+        <DatabasePage workspaceId={workspaceId} databaseId={p.id} canEdit={canEdit && !archived} guest={info.guest} exportable={info.exportable} />
       ) : isRow ? (
         <RowProperties workspaceId={workspaceId} databaseId={parent.id} rowId={p.id} readOnly={archived || !canEdit} />
       ) : null}

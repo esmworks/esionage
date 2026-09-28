@@ -1,12 +1,12 @@
 /*
- * Esionage service worker: the installable app's shell and the offline copies of pages (#44, #10).
+ * Leafdesk service worker: the installable app's shell and the offline copies of pages (#44, #10).
  * Registered in production builds only (components/offline/install-app.tsx).
  *
  * - Scripts, styles and fonts under /_next/static are content-hashed: served from the cache first.
  * - Icons, the manifest and the offline page: from the cache, refreshed in the background.
  * - Pages (/w/<workspace> and /w/<workspace>/p/<page>): always from the network while it answers.
- *   The HTML of the pages a signed-in user opens is kept per user (`esionage-pages-<user id>`, read
- *   from the page's <meta name="esionage-user">) and served only when the network fails. When a
+ *   The HTML of the pages a signed-in user opens is kept per user (`leafdesk-pages-<user id>`, read
+ *   from the page's <meta name="leafdesk-user">) and served only when the network fails. When a
  *   different user's page comes in, the previous user's copies are dropped; signing out deletes
  *   them from the page (components/offline/offline-store.ts).
  * - Everything else (API routes, uploads, server actions, RSC requests, the collab websocket) is
@@ -15,16 +15,16 @@
  * Bump VERSION when changing this file's caching of static files.
  */
 const VERSION = "1";
-const STATIC_CACHE = `esionage-static-${VERSION}`;
-const META_CACHE = "esionage-meta";
-const PAGE_CACHE_PREFIX = "esionage-pages-";
+const STATIC_CACHE = `leafdesk-static-${VERSION}`;
+const META_CACHE = "leafdesk-meta";
+const PAGE_CACHE_PREFIX = "leafdesk-pages-";
 const OFFLINE_URL = "/offline";
 const SHELL = ["/manifest.webmanifest", "/icons/icon.svg", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/maskable-512.png"];
 const MAX_PAGES = 50;
 const MAX_STATIC = 800;
 // Keep in sync with src/lib/offline.ts (PAGE_PATH, readUserMarker); offline.test.ts compares them.
 const PAGE_PATH = /^\/w\/[\w-]+(?:\/p\/[\w-]+)?\/?$/;
-const USER_MARKER = /<meta\s+name="esionage-user"\s+content="([\w-]+)"/;
+const USER_MARKER = /<meta\s+name="leafdesk-user"\s+content="([\w-]+)"/;
 const ASSET = /\/_next\/static\/[^"'\s)\\]+/g;
 
 self.addEventListener("install", (event) => {
@@ -43,7 +43,7 @@ self.addEventListener("activate", (event) => {
     (async () => {
       const names = await caches.keys();
       await Promise.all(
-        names.filter((n) => n.startsWith("esionage-static-") && n !== STATIC_CACHE).map((n) => caches.delete(n)),
+        names.filter((n) => n.startsWith("leafdesk-static-") && n !== STATIC_CACHE).map((n) => caches.delete(n)),
       );
       await trim(await caches.open(STATIC_CACHE));
       await self.clients.claim();
@@ -94,14 +94,14 @@ async function navigate(event, url) {
 
 async function readMeta() {
   const cache = await caches.open(META_CACHE);
-  const stored = await cache.match("/__esionage/meta");
+  const stored = await cache.match("/__leafdesk/meta");
   const meta = stored ? await stored.json().catch(() => null) : null;
   return { owner: (meta && meta.owner) || null, recent: (meta && Array.isArray(meta.recent) && meta.recent) || [] };
 }
 
 async function writeMeta(meta) {
   const cache = await caches.open(META_CACHE);
-  await cache.put("/__esionage/meta", new Response(JSON.stringify(meta), { headers: { "content-type": "application/json" } }));
+  await cache.put("/__leafdesk/meta", new Response(JSON.stringify(meta), { headers: { "content-type": "application/json" } }));
 }
 
 async function dropPageCaches() {

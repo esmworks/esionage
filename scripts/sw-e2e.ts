@@ -1,7 +1,7 @@
 /**
  * Checks public/sw.js in a real browser: headless Chrome with a throwaway profile, against a small
  * stand-in server that serves the worker and pages shaped like the app's (a signed-in page carries
- * <meta name="esionage-user">). The server can "go offline" (it drops every connection).
+ * <meta name="leafdesk-user">). The server can "go offline" (it drops every connection).
  * - a signed-in page opened before opens offline from the copy, with its scripts;
  * - a page never opened sends people to /offline, which works offline too; the app's start URL
  *   ("/") goes to the last page opened;
@@ -47,7 +47,7 @@ function html(res: ServerResponse, body: string, status = 200) {
 
 const register = `<script>navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });</script>`;
 const signedIn = (userId: string, title: string) =>
-  `<meta name="esionage-user" content="${userId}"><title>${title}</title>${register}<script src="/_next/static/chunks/app-1.js"></script><body><h1>${title}</h1></body>`;
+  `<meta name="leafdesk-user" content="${userId}"><title>${title}</title>${register}<script src="/_next/static/chunks/app-1.js"></script><body><h1>${title}</h1></body>`;
 
 const app = createServer((req, res) => {
   if (offline) {
@@ -95,7 +95,7 @@ const origin = `http://127.0.0.1:${(app.address() as { port: number }).port}`;
 // ---------------------------------------------------------------------------------------------
 // Headless Chrome over the DevTools protocol (Node's WebSocket, no dependencies).
 
-const profile = mkdtempSync(join(tmpdir(), "esionage-sw-e2e-"));
+const profile = mkdtempSync(join(tmpdir(), "leafdesk-sw-e2e-"));
 const chrome = spawn(CHROME, [
   "--headless=new",
   "--remote-debugging-port=0",
@@ -181,9 +181,9 @@ try {
   await evaluate(`fetch("/api/data").then((r) => r.json())`);
   await settle();
   let keys = await cacheKeys();
-  check(JSON.stringify(keys["esionage-pages-user-1"]?.sort()) === JSON.stringify(["/w/ws1/p/a", "/w/ws1/p/b"]), "signed-in pages are kept under their user", keys);
+  check(JSON.stringify(keys["leafdesk-pages-user-1"]?.sort()) === JSON.stringify(["/w/ws1/p/a", "/w/ws1/p/b"]), "signed-in pages are kept under their user", keys);
   check(!Object.values(keys).flat().some((p) => p.includes("signed-out") || p.startsWith("/api/")), "signed-out pages and API responses are not kept", keys);
-  const statics = keys["esionage-static-1"] ?? [];
+  const statics = keys["leafdesk-static-1"] ?? [];
   check(statics.includes("/offline") && statics.includes("/_next/static/chunks/offline-1.js"), "the offline page and its scripts are ready", statics);
   check(statics.includes("/_next/static/chunks/app-1.js"), "the app's scripts are kept", statics);
 
@@ -204,13 +204,13 @@ try {
   await go("/w/ws1/p/b");
   await settle();
   keys = await cacheKeys();
-  check(JSON.stringify(keys["esionage-pages-user-1"]) === JSON.stringify(["/w/ws1/p/a"]), "a page that answers 404 (deleted, no access) is dropped", keys);
+  check(JSON.stringify(keys["leafdesk-pages-user-1"]) === JSON.stringify(["/w/ws1/p/a"]), "a page that answers 404 (deleted, no access) is dropped", keys);
 
   // Someone else signs in on this browser: nothing of the first user stays.
   await go("/w/ws2/p/c");
   await settle();
   keys = await cacheKeys();
-  check(!keys["esionage-pages-user-1"] && JSON.stringify(keys["esionage-pages-user-2"]) === JSON.stringify(["/w/ws2/p/c"]), "another user's page drops the previous user's copies", keys);
+  check(!keys["leafdesk-pages-user-1"] && JSON.stringify(keys["leafdesk-pages-user-2"]) === JSON.stringify(["/w/ws2/p/c"]), "another user's page drops the previous user's copies", keys);
   offline = true;
   await go("/w/ws1/p/a");
   now = await page();

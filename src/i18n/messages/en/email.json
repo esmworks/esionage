@@ -1,15 +1,15 @@
 {
-  "footer": "This email was sent by Esionage at {appUrl}.",
+  "footer": "This email was sent by Leafdesk at {appUrl}.",
   "actionFallback": "If the button doesn't work, paste this link into your browser:",
   "test": {
-    "subject": "Test email from Esionage",
+    "subject": "Test email from Leafdesk",
     "heading": "Email delivery works",
-    "body": "This is a test message from your Esionage server at {appUrl}. If you can read it, email is set up correctly."
+    "body": "This is a test message from your Leafdesk server at {appUrl}. If you can read it, email is set up correctly."
   },
   "invitation": {
-    "subject": "{inviter} invited you to “{workspace}” on Esionage",
+    "subject": "{inviter} invited you to “{workspace}” on Leafdesk",
     "heading": "Join “{workspace}”",
-    "body": "{inviter} invited you to join “{workspace}” on Esionage as {role}.",
+    "body": "{inviter} invited you to join “{workspace}” on Leafdesk as {role}.",
     "expires": "The link works for 7 days. Sign up with {email} to accept.",
     "action": "Accept invitation",
     "roles": {
@@ -19,9 +19,9 @@
     }
   },
   "passwordReset": {
-    "subject": "Reset your Esionage password",
+    "subject": "Reset your Leafdesk password",
     "heading": "Reset your password",
-    "body": "Hi {name}, someone asked to reset the password of your Esionage account. If it was you, choose a new password with the button below.",
+    "body": "Hi {name}, someone asked to reset the password of your Leafdesk account. If it was you, choose a new password with the button below.",
     "expires": "The link works for {minutes} minutes and only once. If you didn't ask for this, ignore this email; your password stays the same.",
     "action": "Choose a new password"
   },
@@ -71,23 +71,44 @@
     "action": "Open page",
     "optOut": "You get these because you set a reminder. You can turn them off in My account > Preferences."
   },
+  "accessRequest": {
+    "subject": "{requester} asked for access to “{page}”",
+    "heading": "{requester} asked for access to “{page}”",
+    "body": "{requester} ({email}) would like to open “{page}” in {workspace}.",
+    "message": "Their message: “{message}”",
+    "answer": "Share the page with them, picking what they can do, or decline the request. You can answer from your inbox or from Share on the page.",
+    "action": "Open page",
+    "optOut": "You get these because you have full access to the page. You can turn them off in My account > Preferences."
+  },
+  "accessApproved": {
+    "subject": "You can now open “{page}”",
+    "heading": "{actor} approved your request",
+    "body": "You can now {level} “{page}” in {workspace}.",
+    "action": "Open page"
+  },
+  "accessDeclined": {
+    "subject": "Your request for access was declined",
+    "heading": "Your request was declined",
+    "body": "Your request for access to this page was declined: {link}",
+    "hint": "If you still need it, ask the person who sent you the link."
+  },
   "emailChange": {
     "subject": "Confirm your new email address",
     "heading": "Confirm your new email address",
-    "body": "Hi {name}, you asked to use this address for your Esionage account instead of {old}. Confirm it with the button below.",
+    "body": "Hi {name}, you asked to use this address for your Leafdesk account instead of {old}. Confirm it with the button below.",
     "expires": "The link works for {hours} hours and only once. If you didn’t ask for this, ignore this email; nothing changes.",
     "action": "Confirm email address"
   },
   "emailChanged": {
-    "subject": "The email address of your Esionage account changed",
+    "subject": "The email address of your Leafdesk account changed",
     "heading": "Your email address changed",
-    "body": "Hi {name}, the email address of your Esionage account changed from {old} to {new}. From now on, sign in with the new address.",
+    "body": "Hi {name}, the email address of your Leafdesk account changed from {old} to {new}. From now on, sign in with the new address.",
     "warning": "If you didn’t make this change, contact an owner of your workspace right away."
   },
   "passwordChanged": {
-    "subject": "Your Esionage password changed",
+    "subject": "Your Leafdesk password changed",
     "heading": "Your password changed",
-    "body": "Hi {name}, the password of your Esionage account was just changed.",
+    "body": "Hi {name}, the password of your Leafdesk account was just changed.",
     "warning": "If you didn’t make this change, reset your password from the sign-in page and contact an owner of your workspace."
   },
   "joinRequest": {
@@ -133,5 +154,12 @@
     "body": "Hi {name}, confirm that this address is yours with the button below.",
     "ignore": "If you didn't create a Leafdesk account, you can ignore this email.",
     "action": "Verify email address"
+  },
+  "passwordResetRequired": {
+    "subject": "Choose a new Leafdesk password",
+    "heading": "Choose a new password",
+    "body": "Hi {name}, an administrator of this Leafdesk server asked you to choose a new password. Your old password no longer signs you in.",
+    "expires": "The link works for {minutes} minutes and only once. Signing in with your old password again sends a new one.",
+    "action": "Choose a new password"
   }
 }

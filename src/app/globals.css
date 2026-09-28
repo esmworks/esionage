@@ -12,10 +12,15 @@
   --fg-muted: #6b6d75;
   --fg-faint: #9a9ca3;
   --border: #e4e4e7;
-  --accent: #2f6fed;
+  /* Brand green (brand/): links, primary buttons and focus rings. */
+  --accent: #2f7d4f;
   --accent-fg: #ffffff;
   --danger: #d03b3b;
-  --ring: rgba(47, 111, 237, 0.35);
+  --ring: rgba(47, 125, 79, 0.35);
+  /* The logo's colors (components/brand/logo.tsx). */
+  --logo-leaf: #4aa56a;
+  --logo-block: #16301f;
+  --logo-text: #13201a;
   --scrollbar: rgba(31, 32, 35, 0.16);
   --scrollbar-hover: rgba(31, 32, 35, 0.32);
   /* Page history changes, in the green and red of the option palette below. */
@@ -38,10 +43,13 @@
     --fg-muted: #a1a3aa;
     --fg-faint: #6f727a;
     --border: #2f3034;
-    --accent: #5b8ff5;
+    --accent: #6cc38a;
     --accent-fg: #0d1117;
     --danger: #ef6b6b;
-    --ring: rgba(91, 143, 245, 0.4);
+    --ring: rgba(108, 195, 138, 0.4);
+    --logo-leaf: #9ed8ab;
+    --logo-block: #f3efe3;
+    --logo-text: #f3efe3;
     --scrollbar: rgba(232, 232, 234, 0.16);
     --scrollbar-hover: rgba(232, 232, 234, 0.3);
     --added-bg: #2d5a41;
@@ -359,19 +367,19 @@
 }
 
 /* Find in page: every match is tinted, the current one stronger and outlined. */
-.esionage-find-match {
+.leafdesk-find-match {
   background: rgba(250, 204, 21, 0.35);
   border-radius: 2px;
 }
-.esionage-find-match.esionage-find-current {
+.leafdesk-find-match.leafdesk-find-current {
   background: rgba(249, 115, 22, 0.55);
   box-shadow: 0 0 0 1px rgba(234, 88, 12, 0.8);
 }
 @media (prefers-color-scheme: dark) {
-  .esionage-find-match {
+  .leafdesk-find-match {
     background: rgba(234, 179, 8, 0.3);
   }
-  .esionage-find-match.esionage-find-current {
+  .leafdesk-find-match.leafdesk-find-current {
     background: rgba(249, 115, 22, 0.5);
     box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.9);
   }
@@ -392,20 +400,20 @@
 .bn-block-content[data-content-type="callout"]:not([data-background-color]) {
   box-shadow: inset 0 0 0 1px var(--border);
 }
-.esionage-callout {
+.leafdesk-callout {
   display: flex;
   align-items: flex-start;
   gap: 8px;
   width: 100%;
 }
-.esionage-callout-icon {
+.leafdesk-callout-icon {
   flex-shrink: 0;
   margin-block: -2px;
   font-size: 1.15em;
   line-height: 1.75rem;
   user-select: none;
 }
-.esionage-callout-text {
+.leafdesk-callout-text {
   flex: 1;
   min-width: 0;
 }
@@ -418,7 +426,7 @@
 }
 
 /* A file block showing a PDF in place takes the full width, not just its file name's. */
-.bn-block-content[data-content-type="file"] .bn-file-block-content-wrapper:has([data-esionage-pdf]) {
+.bn-block-content[data-content-type="file"] .bn-file-block-content-wrapper:has([data-leafdesk-pdf]) {
   width: 100%;
 }
 
@@ -427,17 +435,17 @@
  * the row. The gap leaves room for a block's side menu and the resize handle in its middle. On
  * phones the columns stack.
  */
-.esionage-columns {
+.leafdesk-columns {
   display: flex;
   gap: 40px;
   width: 100%;
 }
-.esionage-column {
+.leafdesk-column {
   position: relative;
   flex: 1 1 0;
   min-width: 0;
 }
-.esionage-column-resize {
+.leafdesk-column-resize {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -446,7 +454,7 @@
   cursor: col-resize;
   z-index: 1;
 }
-.esionage-column-resize::after {
+.leafdesk-column-resize::after {
   content: "";
   position: absolute;
   top: 4px;
@@ -457,32 +465,32 @@
   background: transparent;
   transition: background 120ms;
 }
-.esionage-column-resize:hover::after,
-.esionage-column-resizing > .esionage-column-resize::after {
+.leafdesk-column-resize:hover::after,
+.leafdesk-column-resizing > .leafdesk-column-resize::after {
   background: var(--fg-faint);
 }
-.esionage-column:last-child > .esionage-column-resize,
-.bn-editor[contenteditable="false"] .esionage-column-resize {
+.leafdesk-column:last-child > .leafdesk-column-resize,
+.bn-editor[contenteditable="false"] .leafdesk-column-resize {
   display: none;
 }
-.esionage-column-resizing {
+.leafdesk-column-resizing {
   user-select: none;
 }
 @media (max-width: 639px) {
-  .esionage-columns {
+  .leafdesk-columns {
     flex-direction: column;
     gap: 0;
   }
-  .esionage-column {
+  .leafdesk-column {
     flex: none !important;
   }
-  .esionage-column-resize {
+  .leafdesk-column-resize {
     display: none;
   }
 }
 
 /* A table of contents jumps to a heading below the sticky page header. */
-.esionage-editor .bn-block-outer {
+.leafdesk-editor .bn-block-outer {
   scroll-margin-top: 4rem;
 }
 
@@ -490,7 +498,7 @@
  * Mentions: inline text with a small icon, no chip background until hovered. Page mentions are
  * underlined like links; ones that can't be opened (no access, deleted) are muted.
  */
-.esionage-mention {
+.leafdesk-mention {
   border-radius: 3px;
   padding: 0 2px;
   margin: 0 -1px;
@@ -500,10 +508,10 @@
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
-.esionage-mention:hover {
+.leafdesk-mention:hover {
   background: var(--bg-hover);
 }
-.esionage-mention-icon {
+.leafdesk-mention-icon {
   display: inline-block;
   width: 0.95em;
   height: 0.95em;
@@ -511,21 +519,21 @@
   vertical-align: -0.12em;
   color: var(--fg-muted);
 }
-.esionage-mention-emoji {
+.leafdesk-mention-emoji {
   margin-right: 0.2em;
 }
-.esionage-mention-page .esionage-mention-label {
+.leafdesk-mention-page .leafdesk-mention-label {
   font-weight: 500;
   text-decoration: underline;
   text-decoration-color: var(--fg-faint);
   text-underline-offset: 2px;
 }
-.esionage-mention-muted,
-.esionage-mention-muted .esionage-mention-icon {
+.leafdesk-mention-muted,
+.leafdesk-mention-muted .leafdesk-mention-icon {
   color: var(--fg-faint);
   cursor: default;
 }
-.esionage-mention-muted .esionage-mention-label {
+.leafdesk-mention-muted .leafdesk-mention-label {
   text-decoration: none;
   font-weight: 400;
 }
@@ -544,7 +552,7 @@
 }
 
 /* A passage a link pointed at (the AI chat's citations, see components/page/block-focus.ts). */
-.esionage-editor .bn-block-outer.block-focus > .bn-block > .bn-block-content {
+.leafdesk-editor .bn-block-outer.block-focus > .bn-block > .bn-block-content {
   border-radius: 4px;
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   transition: background-color 0.6s;

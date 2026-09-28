@@ -35,7 +35,7 @@ export default async function PublicFormRoute({ params }: Params) {
     <div className="flex min-h-full flex-col bg-bg text-fg">
       <header className="flex h-11 items-center justify-end border-b border-border px-3">
         <Link href="/" className="text-sm font-semibold tracking-tight text-fg-faint hover:text-fg-muted">
-          esionage
+          leafdesk
         </Link>
       </header>
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 pt-10 pb-24 sm:pt-14">

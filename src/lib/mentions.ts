@@ -16,7 +16,7 @@
  *                                          this app becomes a mention; its text is ignored on the
  *                                          way in (the stored Markdown writes "page", readers get the
  *                                          live title, see labelPageLinks in server/mentions.ts).
- *   [Roadmap](/w/<ws>/p/<page>) <!-- esionage:page-link -->
+ *   [Roadmap](/w/<ws>/p/<page>) <!-- leafdesk:page-link -->
  *                                          a "Link to page" block: that link alone on its line,
  *                                          followed by the marker.
  *   @Ada Lovelace                          a person: "@" and their name as the workspace knows it.
@@ -29,7 +29,7 @@ import { COLLAB_FRAGMENT } from "./collab-constants";
 
 export const MENTION = "mention";
 export const PAGE_LINK_BLOCK = "pageLink";
-export const PAGE_LINK_MARKER = "<!-- esionage:page-link -->";
+export const PAGE_LINK_MARKER = "<!-- leafdesk:page-link -->";
 
 export type MentionKind = "user" | "page" | "date";
 

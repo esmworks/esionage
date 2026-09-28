@@ -185,9 +185,9 @@ try {
   // Only one cleanup at a time: another connection holding the lock makes this run skip.
   const holder = await db.$client.reserve();
   try {
-    await holder`select pg_advisory_lock(hashtext('esionage:retention'))`;
+    await holder`select pg_advisory_lock(hashtext('leafdesk:retention'))`;
     check((await runRetention({ now, workspaceIds: inRun })) === null, "a cleanup doesn't start while another one runs");
-    await holder`select pg_advisory_unlock(hashtext('esionage:retention'))`;
+    await holder`select pg_advisory_unlock(hashtext('leafdesk:retention'))`;
   } finally {
     holder.release();
   }
@@ -267,5 +267,5 @@ try {
   for (const { key } of left) await getStorage().delete(key).catch(() => {});
   await db.delete(workspace).where(inArray(workspace.id, workspaceIds));
   await db.delete(user).where(inArray(user.id, userIds));
-  await (globalThis as unknown as { __esionageSql?: { end(): Promise<void> } }).__esionageSql?.end();
+  await (globalThis as unknown as { __leafdeskSql?: { end(): Promise<void> } }).__leafdeskSql?.end();
 }
