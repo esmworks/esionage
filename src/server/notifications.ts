@@ -295,8 +295,8 @@ export async function recordReminder(userId: string, pageId: string, mentionId: 
 
 /**
  * Tells everyone in the workspace with full access to the page that `requesterId` asked for access
- * (request `requestId`), and emails them right away. The requester's interface language is the
- * only one known (see requestLocale), so the email uses it. Returns who was told.
+ * (request `requestId`), and emails them right away. The email is in each approver's language, else
+ * in the requester's (`locale`, see server/share-emails.ts). Returns who was told.
  */
 export async function recordAccessRequest(
   workspaceId: string,

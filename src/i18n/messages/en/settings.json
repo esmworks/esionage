@@ -323,7 +323,7 @@
     "heading": "Language",
     "label": "Interface language",
     "followBrowser": "Follow browser",
-    "note": "This setting applies to this browser only."
+    "note": "This setting applies to this browser only. Emails to you are in the language you last picked or signed in with."
   },
   "leaveWorkspace": {
     "title": "Leave workspace",

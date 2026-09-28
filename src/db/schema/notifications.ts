@@ -9,6 +9,12 @@ export const userPreference = pgTable("user_preference", {
   userId: text("user_id")
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
+  /**
+   * The interface language they last used: the one they picked, else their browser's, as of their
+   * last sign-in or change in the language picker (see server/mail/locale.ts). The interface itself
+   * still goes by the browser's cookie; this is the language of emails to them. Null until then.
+   */
+  locale: text("locale"),
   /** Email me when someone assigns me to a database row. */
   assignmentEmails: boolean("assignment_emails").notNull().default(true),
   /** Show assignments in my inbox. */

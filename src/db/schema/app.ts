@@ -158,6 +158,13 @@ export const workspaceMember = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     role: text("role").$type<WorkspaceRole>().notNull().default("member"),
+    /**
+     * Who brought them in: the person who added them or shared a page with them, who sent the
+     * invitation they redeemed, or the owner who approved their request. Null when they came in on
+     * their own (join link, allowed email domain, single sign-on, SCIM), made the workspace, or the
+     * inviter's account is gone.
+     */
+    invitedBy: text("invited_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.workspaceId, t.userId] }), index("workspace_member_user_idx").on(t.userId)],

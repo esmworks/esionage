@@ -225,6 +225,13 @@
       "when": 1790640000000,
       "tag": "0031_audit_log",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790650000000,
+      "tag": "0032_recipient_locale_and_inviter",
+      "breakpoints": true
     }
   ]
 }

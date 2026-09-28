@@ -323,7 +323,7 @@
     "heading": "Idioma",
     "label": "Idioma de la interfaz",
     "followBrowser": "Usar el del navegador",
-    "note": "Este ajuste solo se aplica a este navegador."
+    "note": "Este ajuste solo se aplica a este navegador. Los correos que recibes llegan en el idioma que elegiste o con el que iniciaste sesión por última vez."
   },
   "leaveWorkspace": {
     "title": "Salir del espacio de trabajo",

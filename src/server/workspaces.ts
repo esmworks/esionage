@@ -384,7 +384,7 @@ export async function addMemberAs(
   const inserted = await db.transaction(async (tx) => {
     const rows = await tx
       .insert(workspaceMember)
-      .values({ workspaceId, userId: target.id, role })
+      .values({ workspaceId, userId: target.id, role, invitedBy: actorId })
       .onConflictDoNothing()
       .returning({ userId: workspaceMember.userId });
     await tx
@@ -438,7 +438,7 @@ export async function addGuest(actorId: string, workspaceId: string, userId: str
   await db.transaction(async (tx) => {
     const rows = await tx
       .insert(workspaceMember)
-      .values({ workspaceId, userId, role: "guest" })
+      .values({ workspaceId, userId, role: "guest", invitedBy: actorId })
       .onConflictDoNothing()
       .returning({ userId: workspaceMember.userId });
     if (rows.length) {
@@ -587,6 +587,7 @@ export async function acceptInvitation(token: string, userId: string, userEmail:
         workspaceId: workspaceInvitation.workspaceId,
         email: workspaceInvitation.email,
         role: workspaceInvitation.role,
+        invitedBy: workspaceInvitation.invitedBy,
       })
       .from(workspaceInvitation)
       .where(and(eq(workspaceInvitation.token, token), gt(workspaceInvitation.expiresAt, new Date())))
@@ -597,7 +598,7 @@ export async function acceptInvitation(token: string, userId: string, userEmail:
     }
     await tx
       .insert(workspaceMember)
-      .values({ workspaceId: invitation.workspaceId, userId, role: invitation.role })
+      .values({ workspaceId: invitation.workspaceId, userId, role: invitation.role, invitedBy: invitation.invitedBy })
       .onConflictDoNothing();
     await tx.delete(workspaceInvitation).where(eq(workspaceInvitation.id, invitation.id));
     await claimPageInvitations(tx, invitation.workspaceId, userId, invitation.email);
@@ -677,7 +678,7 @@ async function linkDecision(
 ) {
   const [[invitation], [account], record] = await Promise.all([
     reader
-      .select({ role: workspaceInvitation.role, expiresAt: workspaceInvitation.expiresAt })
+      .select({ role: workspaceInvitation.role, invitedBy: workspaceInvitation.invitedBy, expiresAt: workspaceInvitation.expiresAt })
       .from(workspaceInvitation)
       .where(and(eq(workspaceInvitation.workspaceId, ws.id), eq(workspaceInvitation.email, email))),
     reader.select({ emailVerified: user.emailVerified }).from(user).where(eq(user.id, userId)),
@@ -706,9 +707,9 @@ export type LinkJoinResult = { workspaceId: string; status: "joined" | "requeste
 
 /**
  * Joins the workspace of a join link. People join as members, unless an unexpired invitation for
- * their email gives them another role; that invitation is used up. While the workspace takes join
- * requests from anyone with the link, the link files a request instead for those who can't join
- * directly (see linkAccess).
+ * their email gives them another role; that invitation is used up, and its sender invited them
+ * (the link alone invites nobody). While the workspace takes join requests from anyone with the
+ * link, the link files a request instead for those who can't join directly (see linkAccess).
  */
 export async function joinWithLink(token: string, userId: string, userEmail: string): Promise<LinkJoinResult> {
   const email = normalizeEmail(userEmail);
@@ -728,7 +729,10 @@ export async function joinWithLink(token: string, userId: string, userEmail: str
       .delete(workspaceInvitation)
       .where(and(eq(workspaceInvitation.workspaceId, ws.id), eq(workspaceInvitation.email, email)));
     const role = live?.role ?? "member";
-    await tx.insert(workspaceMember).values({ workspaceId: ws.id, userId, role }).onConflictDoNothing();
+    await tx
+      .insert(workspaceMember)
+      .values({ workspaceId: ws.id, userId, role, invitedBy: live?.invitedBy ?? null })
+      .onConflictDoNothing();
     await claimPageInvitations(tx, ws.id, userId, email);
     await recordAudit(
       { workspaceId: ws.id, actorId: userId, action: "member.joined", target: { type: "user", id: userId }, details: { role, via: "link" } },
@@ -1119,14 +1123,25 @@ export async function ssoAvailable(workspaceId: string) {
  * Adds someone to the workspace as a member on their own behalf (single sign-on through the
  * workspace's connection, or its identity provider over SCIM). Someone already in the workspace
  * keeps their role. Pending page invitations for their address come along, as when an owner adds
- * them. Returns whether they were added.
+ * them. They came in on their own, so nobody invited them, unless an unexpired invitation to the
+ * workspace was waiting for their address: its sender did. Returns whether they were added.
  */
 export async function joinAsMember(workspaceId: string, userId: string, email: string, via: "sso" | "scim" | "domain") {
   const clean = normalizeEmail(email);
   const joined = await db.transaction(async (tx) => {
+    const [invitation] = await tx
+      .select({ invitedBy: workspaceInvitation.invitedBy })
+      .from(workspaceInvitation)
+      .where(
+        and(
+          eq(workspaceInvitation.workspaceId, workspaceId),
+          eq(workspaceInvitation.email, clean),
+          gt(workspaceInvitation.expiresAt, new Date()),
+        ),
+      );
     const rows = await tx
       .insert(workspaceMember)
-      .values({ workspaceId, userId, role: "member" })
+      .values({ workspaceId, userId, role: "member", invitedBy: invitation?.invitedBy ?? null })
       .onConflictDoNothing()
       .returning({ userId: workspaceMember.userId });
     if (!rows.length) return false;

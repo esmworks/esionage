@@ -53,8 +53,8 @@ export type Guest = {
   /** When they joined, or were invited. */
   addedAt: Date;
   /**
-   * Who sent the invitation, or for someone who joined, who first shared a page with them (see
-   * `listGuests`). Null when that isn't known: an owner added them without sharing anything yet.
+   * Who sent the invitation, or for someone who joined, who brought them in (see `listGuests`).
+   * Null when that isn't known.
    */
   invitedBy: { id: string; name: string } | null;
   /** Invited but not joined: when their invitation link stops working. */
@@ -130,9 +130,11 @@ export async function listGuests(actorId: string, workspaceId: string): Promise<
   const { isOwner } = await requireGuestManager(actorId, workspaceId);
   const inviter = alias(user, "inviter");
   const [members, invited, entries, pending] = await Promise.all([
-    // The membership doesn't record who brought them in. Guests arrive by a page being shared with
-    // their address, so it is the author of their oldest entry by someone else (an entry changed
-    // since counts from the change, by whoever changed it).
+    // Who brought them in, as the membership records it (`invited_by`). Where it doesn't (the
+    // inviter's account is gone, or they joined before it was recorded and the migration found
+    // nothing better), the author of their oldest entry by someone else, since guests arrive by a
+    // page being shared with their address (an entry changed since counts from the change, by
+    // whoever changed it).
     db.execute<{
       user_id: string;
       name: string;
@@ -143,17 +145,18 @@ export async function listGuests(actorId: string, workspaceId: string): Promise<
       invited_by_name: string | null;
     }>(sql`
       select wm.user_id, u.name, u.email, u.image, wm.created_at as added_at,
-        first_share.created_by as invited_by_id, inviter.name as invited_by_name
+        inviter.id as invited_by_id, inviter.name as invited_by_name
       from ${workspaceMember} wm
       join ${user} u on u.id = wm.user_id
       left join lateral (
         select pp.created_by from ${pagePermission} pp
-        where pp.workspace_id = wm.workspace_id and pp.user_id = wm.user_id
+        where wm.invited_by is null
+          and pp.workspace_id = wm.workspace_id and pp.user_id = wm.user_id
           and pp.created_by is not null and pp.created_by <> wm.user_id
         order by pp.created_at
         limit 1
       ) first_share on true
-      left join ${user} inviter on inviter.id = first_share.created_by
+      left join ${user} inviter on inviter.id = coalesce(wm.invited_by, first_share.created_by)
       where wm.workspace_id = ${workspaceId} and wm.role = 'guest'
     `),
     db

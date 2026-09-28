@@ -14,7 +14,6 @@ import {
   type WorkspaceRole,
   type WorkspaceSettings,
 } from "@/db/schema";
-import { DEFAULT_LOCALE, isLocale } from "@/i18n/config";
 import { normalizeEmail } from "@/lib/emails";
 import { env } from "@/lib/env";
 import { type Access, automaticAccess, domainAccess, onAllowedDomain } from "@/lib/membership-policy";
@@ -23,7 +22,7 @@ import { emailDomain } from "@/lib/sso-config";
 import { AccessError, findMembership, requireMembership } from "@/server/access";
 import { recordAudit } from "@/server/audit";
 import { joinRequestDecidedEmail, mailStatus, sendMail, type OutgoingMail } from "@/server/mail";
-import { requestLocale } from "@/server/mail/locale";
+import { recipientLocale, requestLocale } from "@/server/mail/locale";
 import { recordJoinRequest, withdrawJoinRequest } from "@/server/notifications";
 import {
   type AddMemberResult,
@@ -395,7 +394,7 @@ export async function approveJoinRequest(actorId: string, workspaceId: string, r
     const email = normalizeEmail(account?.email ?? request.email);
     const added = await tx
       .insert(workspaceMember)
-      .values({ workspaceId, userId: request.userId!, role: "member" })
+      .values({ workspaceId, userId: request.userId!, role: "member", invitedBy: actorId })
       .onConflictDoNothing()
       .returning({ userId: workspaceMember.userId });
     await tx
@@ -475,8 +474,8 @@ export function setJoinRequestMailer(send: ((mail: OutgoingMail) => Promise<void
 }
 
 /**
- * Tells whoever asked how the owner decided, in the language they used when asking. Never throws:
- * the decision stands either way.
+ * Tells whoever asked how the owner decided, in their language, else the one they used when asking.
+ * Never throws: the decision stands either way.
  */
 async function emailDecision(workspaceId: string, request: Decided, approved: boolean) {
   if (mailStatus() === "disabled" || !request.requestedBy) return;
@@ -486,7 +485,7 @@ async function emailDecision(workspaceId: string, request: Decided, approved: bo
       db.select({ name: workspace.name }).from(workspace).where(eq(workspace.id, workspaceId)),
     ]);
     if (!recipient) return;
-    const locale = isLocale(request.locale) ? request.locale : DEFAULT_LOCALE;
+    const locale = await recipientLocale(request.requestedBy, request.locale);
     const link = request.kind === "join" ? `${env.appUrl}/w/${workspaceId}` : `${env.appUrl}/w/${workspaceId}/settings?tab=members`;
     const content = joinRequestDecidedEmail(locale, {
       kind: request.kind,

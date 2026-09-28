@@ -1,7 +1,6 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accessRequest, user, workspace } from "@/db/schema";
-import { DEFAULT_LOCALE, isLocale } from "@/i18n/config";
 import { ACCESS_REQUEST_LIMIT, cleanRequestMessage, type ApprovalLevel } from "@/lib/access-requests";
 import { env } from "@/lib/env";
 import { pageLabel } from "@/lib/labels";
@@ -9,7 +8,7 @@ import { sharedLimiter, takeAll } from "@/lib/rate-limit";
 import { AccessError, findMembership, pageAccessOf, requirePageAccess, workspaceRoleOf } from "@/server/access";
 import { recordAudit } from "@/server/audit";
 import { accessApprovedEmail, accessDeclinedEmail } from "@/server/mail";
-import { requestLocale } from "@/server/mail/locale";
+import { recipientLocale, requestLocale } from "@/server/mail/locale";
 import { emailTranslator } from "@/server/mail/templates";
 import { recordAccessRequest, signalInbox, skipShareEmail } from "@/server/notifications";
 import { setPagePermission, sharePageByEmail } from "@/server/permissions";
@@ -116,7 +115,10 @@ export async function countAccessRequests(pageId: string) {
   return row?.n ?? 0;
 }
 
-/** A request `actorId` may answer (full access to its page); AccessError for any other id. */
+/**
+ * A request `actorId` may answer (full access to its page); AccessError for any other id. With the
+ * language of the answer to the requester: theirs, else the one they asked in.
+ */
 async function answerable(actorId: string, requestId: string) {
   const [request] = await db
     .select({
@@ -133,7 +135,7 @@ async function answerable(actorId: string, requestId: string) {
     .limit(1);
   if (!request) throw new AccessError();
   const target = await requirePageAccess(actorId, request.pageId, "full");
-  return { request, target, locale: isLocale(request.locale) ? request.locale : DEFAULT_LOCALE };
+  return { request, target, locale: await recipientLocale(request.requesterId, request.locale) };
 }
 
 async function forget(workspaceId: string, requestId: string) {

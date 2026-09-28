@@ -3,8 +3,9 @@
  * (owners only, members with an owner's approval, any member), allowed email domains joining or
  * asking on sign-in and from the workspace switcher, verified and unverified addresses, people who
  * left or were removed, the join link asking an owner, one pending request per person, rate limits,
- * owners approving and declining both kinds of request, their inbox and emails, and the emails the
- * person who asked gets. Creates its own users and workspace and deletes them afterwards.
+ * owners approving and declining both kinds of request, their inbox and emails, the emails the
+ * person who asked gets, and who each membership records as having invited them (nobody for those
+ * who came in on their own). Creates its own users and workspace and deletes them afterwards.
  *
  *   pnpm tsx scripts/membership-e2e.ts
  *
@@ -117,6 +118,15 @@ const isMember = async (p: Person) =>
       .from(workspaceMember)
       .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, p.id)))
   )[0]?.role ?? null;
+
+/** Who the membership says brought them in (`workspace_member.invited_by`). */
+const inviterOf = async (p: Person) =>
+  (
+    await db
+      .select({ invitedBy: workspaceMember.invitedBy })
+      .from(workspaceMember)
+      .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, p.id)))
+  )[0]?.invitedBy ?? null;
 
 const record = async (p: Person) =>
   (
@@ -237,6 +247,7 @@ try {
   const [accountRequest] = await requestsOf(people.invitee.email);
   const added = await approveJoinRequest(people.owner.id, workspaceId, accountRequest.id);
   check(added?.kind === "added" && (await isMember(people.invitee)) === "member", "approving adds someone who already has an account", added);
+  check((await inviterOf(people.invitee)) === people.member.id, "…invited by the member who asked", await inviterOf(people.invitee));
 
   const [declinedInvite] = await requestsOf(`new3@${RUN}.test`);
   await declineJoinRequest(people.owner.id, workspaceId, declinedInvite.id);
@@ -266,6 +277,7 @@ try {
   check((await applyDomainPolicies(people.ursula.id)).length === 0 && (await isMember(people.ursula)) === null, "an unverified address never joins on its own");
   check((await applyDomainPolicies(people.lookalike.id)).length === 0, "a look-alike domain doesn't join");
   check((await applyDomainPolicies(people.dana.id)).includes(workspaceId), "signing in joins the workspace of a verified allowed domain");
+  check((await inviterOf(people.dana)) === null, "…invited by nobody");
   check((await isMember(people.dana)) === "member" && (await record(people.dana))?.status === "accepted", "…as a member, remembered");
   check((await applyDomainPolicies(people.sub.id)).includes(workspaceId), "subdomains of an allowed domain join too");
 
@@ -316,6 +328,7 @@ try {
   await db.update(workspaceJoinRequest).set({ locale: "tr" }).where(eq(workspaceJoinRequest.id, ursulaRequest.id));
   await approveJoinRequest(people.owner2.id, workspaceId, ursulaRequest.id);
   check((await isMember(people.ursula)) === "member" && (await record(people.ursula))?.status === "accepted", "approving lets them in as a member");
+  check((await inviterOf(people.ursula)) === people.owner2.id, "…invited by the owner who approved", await inviterOf(people.ursula));
   const ursulaMail = decisionMails.find((m) => m.to === people.ursula.email);
   check(ursulaMail?.subject.includes("katıldınız") && ursulaMail.text.includes(`/w/${workspaceId}`), "…and emails them in their language, with a link in", ursulaMail);
   check((await requestNotifications(people.owner.id)).every((n) => n.joinRequestId !== ursulaRequest.id), "…and clears the other owners' inboxes");
@@ -338,6 +351,7 @@ try {
   const [ritaAgain] = await requestsOf(people.rita.email);
   await addMember(people.owner.id, workspaceId, people.rita.email, "member");
   check((await record(people.rita))?.status === "accepted" && (await requestsOf(people.rita.email)).length === 0, "an owner adding someone settles their request");
+  check((await inviterOf(people.rita)) === people.owner.id, "…and the owner who added them invited them");
   check((await requestNotifications(people.owner.id)).every((n) => n.joinRequestId !== ritaAgain.id), "…and clears it from the inbox");
 
   // The join link
@@ -346,6 +360,7 @@ try {
   check(!!token, "the join link is on");
   check((await joinLinkAccess(token!, people.outsider.id, people.outsider.email)) === "join", "the join link admits anyone while it doesn't ask");
   check((await joinWithLink(token!, people.outsider.id, people.outsider.email)).status === "joined", "…and does");
+  check((await inviterOf(people.outsider)) === null, "…with nobody as their inviter: the link invites nobody");
   await removeMember(people.owner.id, workspaceId, people.outsider.id);
   check((await joinWithLink(token!, people.outsider.id, people.outsider.email)).status === "joined", "…even someone removed before: the owners shared it");
   await removeMember(people.owner.id, workspaceId, people.outsider.id);
@@ -366,6 +381,7 @@ try {
   await db.insert(user).values({ id: later.id, name: later.id, email: laterEmail, emailVerified: false });
   check((await joinLinkAccess(token!, later.id, laterEmail)) === "join", "someone invited still joins through the link");
   check((await joinWithLink(token!, later.id, laterEmail)).status === "joined" && (await isMember(later)) === "guest", "…with their invitation's role");
+  check((await inviterOf(later)) === people.owner.id, "…and invited by whoever sent the invitation");
 
   await settings({ domainJoin: "join" });
   check((await joinWithLink(token!, people.vera.id, people.vera.email)).status === "joined", "a verified allowed domain still joins through the link");

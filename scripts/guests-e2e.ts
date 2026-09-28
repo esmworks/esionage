@@ -2,10 +2,10 @@
  * End-to-end check of Settings > Guests against the database: who may see the list, which pages a
  * guest is listed with (only their own entries, not the subpages those open, not entries that take
  * access away, pages in the trash marked), what a viewer who can't see a page gets of it (a
- * count, never its title or id), who invited whom, pending page invitations, and the actions the
- * tab offers (taking back page access and page invitations, making a guest a member, removing a
- * guest, withdrawing an invitation) with who may do each. Creates its own users and workspace and
- * deletes them afterwards.
+ * count, never its title or id), who invited whom (as the membership records it, else who shared
+ * first), pending page invitations, and the actions the tab offers (taking back page access and
+ * page invitations, making a guest a member, removing a guest, withdrawing an invitation) with who
+ * may do each. Creates its own users and workspace and deletes them afterwards.
  *
  *   pnpm tsx scripts/guests-e2e.ts
  *
@@ -75,13 +75,23 @@ const ids = {
   alice: `${RUN}-alice`,
   gina: `${RUN}-gina`,
   gus: `${RUN}-gus`,
+  gil: `${RUN}-gil`,
   outsider: `${RUN}-outsider`,
 };
 const emailOf = (id: string) => `${id}@example.test`;
 const newcomer = emailOf(`${RUN}-newcomer`);
 const userIds = Object.values(ids);
 const workspaceId = `${RUN}-ws`;
-const { owner, alice, gina, gus, outsider } = ids;
+const { owner, alice, gina, gus, gil, outsider } = ids;
+
+/** Who the membership says brought them in (`workspace_member.invited_by`). */
+async function inviterOf(userId: string) {
+  const [row] = await db
+    .select({ invitedBy: workspaceMember.invitedBy })
+    .from(workspaceMember)
+    .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, userId)));
+  return row?.invitedBy ?? null;
+}
 
 async function guestsFor(viewer: string) {
   const guests = await listGuests(viewer, workspaceId);
@@ -175,6 +185,23 @@ try {
     check(n.invitationId === null, "members don't get the workspace invitation");
     const csv = toCsv(guestsCsvRows(guests, (id) => `/p/${id}`));
     check(!csv.includes(X) && !csv.includes(`${RUN} X`) && csv.includes(`${RUN} R`), "the CSV has what the list has, and no more");
+  }
+
+  // ── Who invited them ───────────────────────────────────────────────────────────────────────
+  // Gina was put in the workspace directly, so her membership names nobody and the list falls back
+  // to who shared first (checked above). Sharing a page with Gus brought him in, which is recorded.
+  check((await inviterOf(gina)) === null && (await inviterOf(gus)) === owner, "the membership records who brought a guest in");
+  // Alice brings Gil in by sharing S; then her entry goes and the owner shares R with him. The
+  // oldest entry by someone else is now the owner's, but Alice invited him.
+  check((await sharePageByEmail(alice, S, emailOf(gil), "view")).kind === "added", "setup: Alice brings Gil in by sharing S");
+  check((await inviterOf(gil)) === alice, "…and is recorded as his inviter");
+  await removePagePermission(alice, S, gil);
+  await setPagePermission(owner, R, gil, "view");
+  {
+    const g = (await guestsFor(owner)).of(gil)!;
+    check(g.pages.map((p) => p.pageId).join() === R && g.pages[0].by?.id === owner, "setup: Gil's only entry is now the owner's", g.pages);
+    check(g.invitedBy?.id === alice && g.invitedBy.name === alice, "the list shows the stored inviter, not who shared first", g.invitedBy);
+    check((await guestsFor(alice)).of(gil)?.invitedBy?.id === alice, "…for members too");
   }
 
   // ── Actions ────────────────────────────────────────────────────────────────────────────────

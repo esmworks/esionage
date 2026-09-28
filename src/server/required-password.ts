@@ -7,6 +7,7 @@ import { account, user, verification } from "@/db/schema";
 import { requestLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
 import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetRequiredEmail, sendMail } from "@/server/mail";
+import { recipientLocale } from "@/server/mail/locale";
 
 /**
  * "Require a password reset at next sign-in" (set by an instance admin, see
@@ -113,7 +114,7 @@ async function emailResetLink(userId: string, to: { name: string; email: string 
   // Better Auth checks the token there and continues to /reset-password?token=, as for "Forgot password".
   const base = ctx?.context?.baseURL ?? `${env.appUrl}/api/auth`;
   const url = `${base}/reset-password/${token}?callbackURL=${encodeURIComponent("/reset-password")}`;
-  const locale = ctx?.request ? requestLocale(ctx.request.headers) : "en";
+  const locale = await recipientLocale(userId, ctx?.request ? requestLocale(ctx.request.headers) : null);
   void sendMail({ to: to.email, ...passwordResetRequiredEmail(locale, { name: to.name, url }) }).catch((error) =>
     console.error("could not send required password reset email", error),
   );
