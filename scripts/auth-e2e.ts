@@ -66,16 +66,19 @@ async function sessionOf(jar: Jar) {
 }
 
 /**
- * Production builds rate limit sign-in (3 per 10 s per IP, rolling), and in CI this run follows
- * the MCP e2e's sign-ins; wait out a 429 instead of failing on it.
+ * Production builds rate limit sign-up and sign-in (3 per 10 s per IP, rolling), and in CI this run
+ * follows the MCP e2e's sign-ups and sign-ins; wait out a 429 instead of failing on it.
  */
-async function signIn(password: string) {
+async function authPostWaiting(path: string, body: unknown, jar = new Jar()) {
   for (let attempt = 0; ; attempt++) {
-    const jar = new Jar();
-    const res = await authPost("/sign-in/email", { email: EMAIL, password }, { jar });
+    const res = await authPost(path, body, { jar });
     if (res.status !== 429 || attempt === 2) return { ...res, jar };
     await new Promise((r) => setTimeout(r, (res.retryAfter || 10) * 1000 + 250));
   }
+}
+
+function signIn(password: string) {
+  return authPostWaiting("/sign-in/email", { email: EMAIL, password });
 }
 
 type MailpitMessage = { ID: string; Subject: string; Text: string; HTML: string; To: { Address: string }[] };
@@ -97,7 +100,7 @@ function resetLinkIn(text: string) {
 }
 
 async function main() {
-  const signUp = await authPost("/sign-up/email", { name: "Reset Tester", email: EMAIL, password: OLD_PASSWORD }, { jar: new Jar() });
+  const signUp = await authPostWaiting("/sign-up/email", { name: "Reset Tester", email: EMAIL, password: OLD_PASSWORD });
   check(signUp.status === 200, "sign up a fresh account", signUp.body);
   // Signing up with a password emails the link that verifies the address (allowed email domains
   // only let verified addresses in); it is not the email this script follows.

@@ -82,14 +82,25 @@ class Jar {
   }
 }
 
+/**
+ * Production builds rate limit sign-up and sign-in (3 per 10 s per IP, rolling), and in CI this run
+ * follows the other e2e scripts' sign-ups; wait out a 429 instead of failing on it.
+ */
 async function authPost(path: string, body: unknown, jar: Jar) {
-  const res = await fetch(`${BASE}/api/auth${path}`, {
-    method: "POST",
-    headers: { "content-type": "application/json", origin: BASE, cookie: jar.header() },
-    body: JSON.stringify(body),
-  });
-  jar.store(res);
-  return { status: res.status, body: (await res.json().catch(() => null)) as any };
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${BASE}/api/auth${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: BASE, cookie: jar.header() },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 429 && attempt < 2) {
+      const retryAfter = Number(res.headers.get("x-retry-after") ?? res.headers.get("retry-after") ?? 0);
+      await new Promise((r) => setTimeout(r, (retryAfter || 10) * 1000 + 250));
+      continue;
+    }
+    jar.store(res);
+    return { status: res.status, body: (await res.json().catch(() => null)) as any };
+  }
 }
 
 async function sessionOf(jar: Jar) {
