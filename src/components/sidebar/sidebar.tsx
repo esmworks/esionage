@@ -19,6 +19,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  SquarePen,
   Trash2,
   Upload,
   UserRound,
@@ -68,6 +69,7 @@ const FOLDED_KEY = "leafdesk:folded-sections";
 /** Teamspaces the user opened: like pages, and as in Notion, a teamspace stays closed until opened. */
 const OPEN_TEAMSPACES_KEY = "leafdesk:open-teamspaces";
 const TEAMSPACES_GROUP = "teamspaces";
+const FAVORITES_SECTION = "favorites";
 /** Top-level pages "Private" and "Shared" show before a "More" row, as Notion does. */
 const SECTION_LIMIT = 10;
 
@@ -616,6 +618,34 @@ export function Sidebar({
                 </>
               )}
             </Popover>
+            <IconButton
+              label={unread > 0 ? `${t("nav.inbox")} · ${t("inbox.unreadCount", { count: unread })}` : t("nav.inbox")}
+              title={needsServer(t("nav.inbox"))}
+              onClick={() => setInboxOpen(true)}
+              disabled={offline}
+              className="relative h-7 w-7 disabled:opacity-50"
+            >
+              <Inbox className="h-4 w-4" />
+              {unread > 0 && (
+                <span
+                  aria-hidden
+                  className="absolute -top-0.5 -right-0.5 min-w-3.5 rounded-full bg-accent px-0.5 text-center text-[9px] leading-3.5 font-semibold text-white tabular-nums"
+                >
+                  {unread > 9 ? "9+" : unread}
+                </span>
+              )}
+            </IconButton>
+            {topLevel && (
+              <IconButton
+                label={t("pages.newPage")}
+                title={needsServer(t("pages.newPage"))}
+                onClick={() => create(null, "page", undefined)}
+                disabled={offline}
+                className="h-7 w-7 disabled:opacity-50"
+              >
+                <SquarePen className="h-4 w-4" />
+              </IconButton>
+            )}
             {sidebar &&
               (sidebar.collapsed ? (
                 // Floating over the page: offer to pin it back (desktop only; phones use the drawer).
@@ -634,8 +664,8 @@ export function Sidebar({
                 title={`${t("toggle.close")} (⌘\\)`}
                 onClick={sidebar.toggle}
                 className={cn(
-                  "h-7 w-7 md:opacity-0 md:group-hover/head:opacity-100 md:focus-visible:opacity-100",
-                  sidebar.collapsed && "md:hidden",
+                  "h-7 w-7 md:hidden md:group-hover/head:inline-flex md:focus-visible:inline-flex",
+                  sidebar.collapsed && "md:!hidden",
                 )}
               >
                 <ChevronsLeft className="h-4 w-4" />
@@ -643,22 +673,45 @@ export function Sidebar({
             )}
           </div>
 
-          <div className="mt-1 space-y-px">
-            {offline && (
-              <p role="status" className="flex items-center gap-2 px-2 py-1 text-xs text-fg-muted" title={tOffline("hint")}>
-                <CloudOff className="h-3.5 w-3.5 shrink-0" />
-                {tOffline("banner")}
-              </p>
-            )}
-            <SidebarButton
-              icon={<Search className="h-4 w-4" />}
-              onClick={() => setSearchOpen(true)}
-              hint="⌘K"
-              disabled={offline}
-              title={needsServer(t("nav.search"))}
-            >
-              {t("nav.search")}
-            </SidebarButton>
+          {offline && (
+            <p role="status" className="mt-1 flex items-center gap-2 px-2 py-1 text-xs text-fg-muted" title={tOffline("hint")}>
+              <CloudOff className="h-3.5 w-3.5 shrink-0" />
+              {tOffline("banner")}
+            </p>
+          )}
+          {/* Looks like a search field; opens the search dialog. */}
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            disabled={offline}
+            title={needsServer(t("nav.search"))}
+            className="mt-1.5 flex h-8 w-full items-center gap-2 rounded-md border border-border bg-bg px-2 text-left text-fg-muted shadow-xs hover:border-fg-faint hover:text-fg disabled:cursor-default disabled:opacity-50"
+          >
+            <Search className="h-4 w-4 shrink-0" />
+            <span className="flex-1 truncate">{t("nav.search")}</span>
+            <kbd className="font-sans text-xs text-fg-faint pointer-coarse:hidden">⌘K</kbd>
+          </button>
+          <div className="mt-1.5 space-y-px">
+            <div className="group/home flex items-center gap-0.5">
+              <SidebarButton icon={<House className="h-4 w-4" />} href={`/w/${workspaceId}`} active={pathname === `/w/${workspaceId}`}>
+                {t("nav.home")}
+              </SidebarButton>
+              {/* The people directory, like the members list, isn't for guests. */}
+              {!guest && (
+                <Link
+                  href={`/w/${workspaceId}/people`}
+                  aria-label={t("nav.people")}
+                  title={t("nav.people")}
+                  aria-current={pathname === `/w/${workspaceId}/people` ? "page" : undefined}
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-hover hover:text-fg",
+                    pathname === `/w/${workspaceId}/people` && "bg-bg-active text-fg",
+                  )}
+                >
+                  <Users className="h-4 w-4" />
+                </Link>
+              )}
+            </div>
             {aiChat && (
               <SidebarButton
                 icon={<Sparkles className="h-4 w-4" />}
@@ -669,61 +722,10 @@ export function Sidebar({
                 {tAi("open")}
               </SidebarButton>
             )}
-            <SidebarButton icon={<House className="h-4 w-4" />} href={`/w/${workspaceId}`} active={pathname === `/w/${workspaceId}`}>
-              {t("nav.home")}
-            </SidebarButton>
-            <SidebarButton
-              icon={<Inbox className="h-4 w-4" />}
-              onClick={() => setInboxOpen(true)}
-              badge={unread > 0 ? { count: unread, label: t("inbox.unreadCount", { count: unread }) } : undefined}
-              disabled={offline}
-              title={needsServer(t("nav.inbox"))}
-            >
-              {t("nav.inbox")}
-            </SidebarButton>
-            {/* The people directory, like the members list, isn't for guests. */}
-            {!guest && (
-              <SidebarButton
-                icon={<Users className="h-4 w-4" />}
-                href={`/w/${workspaceId}/people`}
-                active={pathname === `/w/${workspaceId}/people`}
-              >
-                {t("nav.people")}
-              </SidebarButton>
-            )}
-            <SidebarButton
-              icon={<Settings className="h-4 w-4" />}
-              href={`/w/${workspaceId}/settings`}
-              active={pathname.startsWith(`/w/${workspaceId}/settings`)}
-            >
-              {t("nav.settings")}
-            </SidebarButton>
           </div>
         </div>
 
-        {favorites.length > 0 && (
-          <div className="shrink-0 px-2 pt-2">
-            <div className="px-2 pb-1 text-xs font-medium text-fg-muted">{t("pages.favorites")}</div>
-            <ul className="max-h-48 space-y-px overflow-y-auto" aria-label={t("pages.favorites")}>
-              {favorites.map((f) => (
-                <li key={f.id}>
-                  <Link
-                    href={`/w/${workspaceId}/p/${f.id}`}
-                    className={cn(
-                      "flex h-7 items-center gap-2 rounded-md px-2 text-sm hover:bg-bg-hover",
-                      activeId === f.id ? "bg-bg-active font-medium text-fg" : "text-fg-muted",
-                    )}
-                  >
-                    <PageIcon icon={f.icon} kind={f.kind} className="text-sm" />
-                    <span className="truncate">{pageLabel(f.title, tc("untitled"))}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="pt-2" />
+        <div className="pt-1" />
         {moveError && (
           <p role="alert" className="mx-4 mb-1 text-xs text-danger">
             {t("pages.moveFailed")}
@@ -735,6 +737,28 @@ export function Sidebar({
           </p>
         )}
         <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label={t("pages.heading")}>
+          {favorites.length > 0 && (
+            <SectionGroup label={t("pages.favorites")} open={!folded.has(FAVORITES_SECTION)} onToggle={() => fold(FAVORITES_SECTION)}>
+              <ul className="space-y-px">
+                {favorites.map((f) => (
+                  <li key={f.id}>
+                    <Link
+                      href={`/w/${workspaceId}/p/${f.id}`}
+                      className={cn(
+                        "flex h-7 items-center gap-0.5 rounded-md pl-1 hover:bg-bg-hover",
+                        activeId === f.id && "bg-bg-active font-medium",
+                      )}
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+                        <PageIcon icon={f.icon} kind={f.kind} className="text-sm" />
+                      </span>
+                      <span className="truncate pl-0.5">{pageLabel(f.title, tc("untitled"))}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </SectionGroup>
+          )}
           {!guest && (
             <SectionGroup
               label={t("teamspaces.heading")}
@@ -872,32 +896,38 @@ export function Sidebar({
           {guest && tree.length === 0 && !topLevel && <p className="px-2 py-1.5 text-fg-muted">{t("pages.nothingShared")}</p>}
         </nav>
 
-        <div className="space-y-px border-t border-border p-2">
+        <div className="flex items-center gap-0.5 border-t border-border px-2 py-1.5">
+          <FooterButton
+            icon={<Settings className="h-4 w-4" />}
+            label={t("nav.settings")}
+            href={`/w/${workspaceId}/settings`}
+            active={pathname.startsWith(`/w/${workspaceId}/settings`)}
+          />
           {/* Templates live here rather than in the page tree; making pages from them needs the top level. */}
           {topLevel && (
-            <SidebarButton icon={<LayoutTemplate className="h-4 w-4" />} onClick={() => openTemplates(undefined)}
+            <FooterButton
+              icon={<LayoutTemplate className="h-4 w-4" />}
+              label={t("nav.templates")}
+              onClick={() => openTemplates(undefined)}
               disabled={offline}
               title={needsServer(t("nav.templates"))}
-            >
-              {t("nav.templates")}
-            </SidebarButton>
+            />
           )}
-          <SidebarButton icon={<Upload className="h-4 w-4" />} onClick={() => openImport(undefined)}
+          <FooterButton
+            icon={<Upload className="h-4 w-4" />}
+            label={t("nav.import")}
+            onClick={() => openImport(undefined)}
             disabled={offline}
             title={needsServer(t("nav.import"))}
-          >
-            {t("nav.import")}
-          </SidebarButton>
-          <SidebarButton
+          />
+          <FooterButton
             icon={<Trash2 className="h-4 w-4" />}
+            label={t("nav.trash")}
             onClick={() => setTrashOpen(true)}
             disabled={offline}
             title={needsServer(t("nav.trash"))}
-          >
-            {t("nav.trash")}
-          </SidebarButton>
+          />
         </div>
-
       </aside>
       {/* Outside the aside: its slide transform would otherwise anchor these fixed dialogs. */}
       <SearchDialog workspaceId={workspaceId} open={searchOpen} onClose={() => setSearchOpen(false)} />
@@ -1303,6 +1333,41 @@ function SidebarButton({
   ) : (
     <button type="button" onClick={onClick} className={className} disabled={disabled} title={title}>
       {content}
+    </button>
+  );
+}
+
+/** An icon in the sidebar's bottom bar; its name shows as a tooltip. */
+function FooterButton({
+  icon,
+  label,
+  href,
+  onClick,
+  active,
+  disabled,
+  title,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  href?: string;
+  onClick?: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  /** Tooltip instead of the label, e.g. why it is disabled. */
+  title?: string;
+}) {
+  const className = cn(
+    "flex h-8 w-8 items-center justify-center rounded-md text-fg-muted hover:bg-bg-hover hover:text-fg",
+    "disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-fg-muted",
+    active && "bg-bg-active text-fg hover:bg-bg-active",
+  );
+  return href ? (
+    <Link href={href} aria-label={label} title={title ?? label} aria-current={active ? "page" : undefined} className={className}>
+      {icon}
+    </Link>
+  ) : (
+    <button type="button" aria-label={label} title={title ?? label} onClick={onClick} disabled={disabled} className={className}>
+      {icon}
     </button>
   );
 }
