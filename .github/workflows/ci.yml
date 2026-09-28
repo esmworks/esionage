@@ -80,6 +80,9 @@ jobs:
       - name: Person properties end-to-end
         run: pnpm tsx scripts/person-e2e.ts
 
+      - name: People directory and analytics end-to-end
+        run: pnpm tsx scripts/people-e2e.ts
+
       - name: Trash end-to-end
         run: pnpm tsx scripts/trash-e2e.ts
 

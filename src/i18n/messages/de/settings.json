@@ -9,6 +9,7 @@
     "guests": "Gäste",
     "teamspaces": "Teamspaces",
     "groups": "Gruppen",
+    "analytics": "Analysen",
     "security": "Sicherheit",
     "site": "Website",
     "myAccount": "Mein Konto"
@@ -262,6 +263,34 @@
       "nameTaken": "Eine andere Gruppe hat bereits diesen Namen.",
       "notMember": "Nur Inhaber und Mitglieder des Workspace können in seinen Gruppen sein.",
       "accessDenied": "Nur Workspace-Inhaber können Gruppen ändern."
+    }
+  },
+  "analytics": {
+    "description": "Wie viel in diesem Arbeitsbereich bearbeitet wurde, gezählt aus dem Seitenverlauf und der letzten Änderung jeder Seite. Dafür wird nichts zusätzlich erfasst. Nur Inhaber sehen das.",
+    "periods": "Zeitraum",
+    "period": "Letzte {days} Tage",
+    "activeMembers": "Aktive Mitglieder",
+    "activeOf": "{active} von {total}",
+    "edits": "Bearbeitungen",
+    "pagesEdited": "Bearbeitete Seiten",
+    "howCounted": "Eine Bearbeitung ist eine gespeicherte Version einer Seite (höchstens eine alle 10 Minuten, während jemand tippt, und eine vor jeder Änderung durch eine App, die KI oder eine Wiederherstellung) oder eine Änderung, die der Seitenverlauf nicht aufbewahrt, etwa die Werte einer Zeile.",
+    "peopleHeading": "Bearbeitungen pro Person",
+    "peopleDescription": "Gäste werden mit ihren Bearbeitungen aufgeführt, zählen aber nicht als aktive Mitglieder.",
+    "pagesHeading": "Am häufigsten bearbeitete Seiten",
+    "pagesDescription": "Seiten, die du nicht öffnen kannst, werden gezählt, aber nicht genannt.",
+    "privatePage": "Private Seite",
+    "noEdits": "Keine Bearbeitungen in diesem Zeitraum.",
+    "neverEdited": "Keine Bearbeitungen",
+    "exportPeople": "Bearbeitungen pro Person als CSV herunterladen",
+    "exportPages": "Am häufigsten bearbeitete Seiten als CSV herunterladen",
+    "columns": {
+      "person": "Person",
+      "role": "Rolle",
+      "edits": "Bearbeitungen",
+      "pages": "Seiten",
+      "lastEdit": "Letzte Bearbeitung",
+      "page": "Seite",
+      "editors": "Bearbeiter"
     }
   },
   "preferences": {

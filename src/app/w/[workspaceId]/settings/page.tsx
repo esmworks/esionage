@@ -1,8 +1,9 @@
-import { Boxes, ContactRound, Globe, Settings, Shield, UserRound, Users, UsersRound, type LucideIcon } from "lucide-react";
+import { Boxes, ChartColumn, ContactRound, Globe, Settings, Shield, UserRound, Users, UsersRound, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AnalyticsPanel } from "@/components/settings/analytics-panel";
 import { GroupsPanel } from "@/components/settings/groups-panel";
 import { GuestsPanel } from "@/components/settings/guests-panel";
 import { AiSettings } from "@/components/settings/ai-settings";
@@ -31,10 +32,12 @@ import { SitePages, SiteSettings } from "@/components/settings/site-settings";
 import { TeamspacesPanel } from "@/components/settings/teamspaces-panel";
 import { WorkspaceExport } from "@/components/settings/workspace-export";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
+import { parseAnalyticsPeriod } from "@/lib/analytics";
 import { isStrongSession } from "@/lib/auth-security";
 import { type SettingsTab, visibleSettingsTabs } from "@/lib/settings-tabs";
 import { AccessError, isGuest } from "@/server/access";
 import { aiInfo, embeddingModel } from "@/server/ai";
+import { workspaceAnalytics } from "@/server/analytics";
 import { listWorkspaceFormPublications } from "@/server/forms";
 import { groupsByMember, listGroups } from "@/server/groups";
 import { listGuests } from "@/server/guests";
@@ -69,6 +72,7 @@ const ICONS: Record<SettingsTab, LucideIcon> = {
   guests: ContactRound,
   teamspaces: Boxes,
   groups: UsersRound,
+  analytics: ChartColumn,
   security: Shield,
   site: Globe,
 };
@@ -93,7 +97,7 @@ export default async function SettingsPage({
   const isOwner = workspace.role === "owner";
   const guest = isGuest(workspace.role);
   const managesGuests = !guest && (await canInviteGuests(user.id, workspaceId));
-  const tabs = visibleSettingsTabs({ guest, managesGuests });
+  const tabs = visibleSettingsTabs({ guest, managesGuests, owner: isOwner });
   const tab: SettingsTab = tabs.find((name) => name === query.tab) ?? "general";
   const t = await getTranslations("settings");
   const navLink = (active: boolean) =>
@@ -158,6 +162,7 @@ export default async function SettingsPage({
           {tab === "guests" && <GuestsTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "teamspaces" && <TeamspacesTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "groups" && <GroupsTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
+          {tab === "analytics" && <AnalyticsTab workspaceId={workspaceId} userId={user.id} days={query.days} />}
           {tab === "security" && <SecurityTab workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
           {tab === "site" && (
             <SiteTab workspaceId={workspaceId} workspaceName={workspace.name} userId={user.id} isOwner={isOwner} />
@@ -358,6 +363,13 @@ async function GroupsTab({ workspaceId, userId, isOwner }: { workspaceId: string
       members={members.map(({ userId: id, name, email, image, role }) => ({ userId: id, name, email, image, role }))}
     />
   );
+}
+
+/** Settings > Analytics, for owners (the tab isn't offered to anyone else, and the report refuses them). */
+async function AnalyticsTab({ workspaceId, userId, days }: { workspaceId: string; userId: string; days: unknown }) {
+  const now = new Date();
+  const report = await workspaceAnalytics(userId, workspaceId, parseAnalyticsPeriod(days), now);
+  return <AnalyticsPanel workspaceId={workspaceId} report={report} now={now} />;
 }
 
 async function TeamspacesTab({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {

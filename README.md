@@ -79,6 +79,11 @@ approve them over OAuth.
   their groups, the highest level wins. Guests can't be in groups, and people leave their groups
   when they leave the workspace or become guests. The member list shows each person's groups.
   An identity provider can manage groups over SCIM.
+- **People directory and analytics**: a *People* page with a card for each owner and member (their
+  teamspaces, groups and recently edited pages, as far as the viewer may see them), and, for
+  owners, Settings → Analytics: active members, edits per person and the most edited pages over
+  7, 30 or 90 days, with CSV export. Counted from page history and last edits; nothing extra is
+  tracked.
 - **Publish to the web**: a read-only public link for a page and its subpages, kept out of search
   engines unless you allow them. Published databases show the views you pick (tables, boards,
   lists, galleries) and visitors switch between them. Owners decide whether members may publish,

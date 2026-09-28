@@ -7,7 +7,7 @@ import * as Y from "yjs";
 import { db } from "@/db";
 import { databaseProperty, page, pageSnapshot, type SnapshotReason } from "@/db/schema";
 import { blocksToPlainText } from "@/lib/blocks";
-import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
+import { AUTO_SNAPSHOT_INTERVAL_MS, COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { CommentError, plainComment, plainThread, THREADS_MAP, type CommentOp, type PlainThread } from "@/lib/comments";
 import { markdownImageHint, PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { migrateDocTitle, readDocTitle, writeDocTitle } from "@/lib/collab-title";
@@ -43,7 +43,6 @@ type Context = {
   ssoProviderId?: string | null;
 };
 
-const AUTO_SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
 const debug = process.env.COLLAB_DEBUG ? (...args: unknown[]) => console.log("[collab]", ...args) : () => {};
 
 const pageDocName = (pageId: string) => `page:${pageId}`;

@@ -1,0 +1,14 @@
+{
+  "metaTitle": "People",
+  "heading": "People",
+  "description": "The owners and members of this workspace, with their teamspaces, groups and pages they edited lately. Guests aren't listed.",
+  "search": "Search by name, email, teamspace or group",
+  "count": "{count, plural, one {# person} other {# people}}",
+  "noMatches": "No one matches your search.",
+  "you": "(you)",
+  "teamspaces": "Teamspaces",
+  "groups": "Groups",
+  "recentPages": "Recently edited",
+  "none": "None",
+  "noRecentPages": "No recent edits you can open."
+}

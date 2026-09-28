@@ -9,6 +9,7 @@
     "guests": "Guests",
     "teamspaces": "Teamspaces",
     "groups": "Groups",
+    "analytics": "Analytics",
     "security": "Security",
     "site": "Site",
     "myAccount": "My account"
@@ -262,6 +263,34 @@
       "nameTaken": "Another group already has this name.",
       "notMember": "Only owners and members of the workspace can be in its groups.",
       "accessDenied": "Only workspace owners can change groups."
+    }
+  },
+  "analytics": {
+    "description": "How much people edited in this workspace, counted from page history and each page's latest change. Nothing extra is tracked. Only owners see this.",
+    "periods": "Period",
+    "period": "Last {days} days",
+    "activeMembers": "Active members",
+    "activeOf": "{active} of {total}",
+    "edits": "Edits",
+    "pagesEdited": "Pages edited",
+    "howCounted": "An edit is a saved version of a page (at most one every 10 minutes while someone types, and one before each app, AI or restore change) or a change page history doesn't keep, such as a row's values.",
+    "peopleHeading": "Edits per person",
+    "peopleDescription": "Guests are listed with their edits but don't count as active members.",
+    "pagesHeading": "Most edited pages",
+    "pagesDescription": "Pages you can't open are counted but not named.",
+    "privatePage": "Private page",
+    "noEdits": "No edits in this period.",
+    "neverEdited": "No edits",
+    "exportPeople": "Download edits per person as CSV",
+    "exportPages": "Download most edited pages as CSV",
+    "columns": {
+      "person": "Person",
+      "role": "Role",
+      "edits": "Edits",
+      "pages": "Pages",
+      "lastEdit": "Last edit",
+      "page": "Page",
+      "editors": "Editors"
     }
   },
   "preferences": {
