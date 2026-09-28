@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import { cleanGroupName, GroupError } from "@/lib/groups";
 import { AccessError, isGuest, requireMember, requireMembership } from "@/server/access";
+import { recordAudit } from "@/server/audit";
 import { getCollab } from "@/server/collab/bridge";
 import { listTeamspaces } from "@/server/teamspaces";
 import { handOverOrphanedPages } from "@/server/workspaces";
@@ -48,6 +49,14 @@ export type GroupSummary = {
   provisioned: boolean;
   createdAt: Date;
 };
+
+/** People's names (or addresses) for the audit log. */
+async function namesOf(reader: Pick<typeof db, "select">, userIds: string[]) {
+  if (!userIds.length) return [];
+  const rows = await reader.select({ id: user.id, name: user.name, email: user.email }).from(user).where(inArray(user.id, userIds));
+  const byId = new Map(rows.map((r) => [r.id, r.name || r.email]));
+  return userIds.map((id) => byId.get(id) ?? "");
+}
 
 const isUniqueViolation = (error: unknown) =>
   (error as { code?: string }).code === "23505" || (error as { cause?: { code?: string } }).cause?.code === "23505";
@@ -153,6 +162,16 @@ export async function createGroup(actorId: string, workspaceId: string, name: st
       if (wanted.length) {
         await tx.insert(memberGroupMember).values(wanted.map((id) => ({ groupId: row.id, workspaceId, userId: id })));
       }
+      await recordAudit(
+        {
+          workspaceId,
+          actorId,
+          action: "group.created",
+          target: { type: "group", id: row.id, label: row.name },
+          details: { names: await namesOf(tx, wanted) },
+        },
+        tx,
+      );
       return row;
     });
   } catch (error) {
@@ -184,18 +203,30 @@ export async function changeGroup(actorId: string, groupId: string, changes: Gro
         .update(memberGroup)
         .set({ ...(name !== undefined ? { name } : {}), updatedAt: new Date() })
         .where(eq(memberGroup.id, groupId));
+      const label = name ?? found.name;
+      const event = { workspaceId: found.workspaceId, actorId, target: { type: "group" as const, id: groupId, label } };
+      if (name !== undefined && name !== found.name) {
+        await recordAudit({ ...event, action: "group.renamed", details: { from: found.name, to: name } }, tx);
+      }
       if (add.length) {
-        await tx
+        const added = await tx
           .insert(memberGroupMember)
           .values(add.map((id) => ({ groupId, workspaceId: found.workspaceId, userId: id })))
-          .onConflictDoNothing();
+          .onConflictDoNothing()
+          .returning({ userId: memberGroupMember.userId });
+        if (added.length) {
+          await recordAudit({ ...event, action: "group.members_added", details: { names: await namesOf(tx, added.map((a) => a.userId)) } }, tx);
+        }
       }
       if (!remove.length) return [];
       const gone = await tx
         .delete(memberGroupMember)
         .where(and(eq(memberGroupMember.groupId, groupId), inArray(memberGroupMember.userId, remove)))
         .returning({ userId: memberGroupMember.userId });
-      if (gone.length) await handOverOrphanedPages(tx, found.workspaceId, actorId);
+      if (gone.length) {
+        await handOverOrphanedPages(tx, found.workspaceId, actorId);
+        await recordAudit({ ...event, action: "group.members_removed", details: { names: await namesOf(tx, gone.map((g) => g.userId)) } }, tx);
+      }
       return gone.map((g) => g.userId);
     });
   } catch (error) {
@@ -234,7 +265,12 @@ export async function deleteGroup(actorId: string, groupId: string) {
   await db.transaction(async (tx) => {
     await tx.delete(memberGroup).where(eq(memberGroup.id, groupId));
     await handOverOrphanedPages(tx, found.workspaceId, actorId);
+    await recordAudit(
+      { workspaceId: found.workspaceId, actorId, action: "group.deleted", target: { type: "group", id: groupId, label: found.name } },
+      tx,
+    );
   });
+
   await afterAccessLoss(found.workspaceId, members);
 }
 

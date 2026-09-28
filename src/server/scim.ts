@@ -12,6 +12,7 @@ import {
   workspaceSso,
 } from "@/db/schema";
 import { cleanName } from "@/lib/account";
+import { CLIENT_IP_HEADER } from "@/lib/client-ip";
 import { env } from "@/lib/env";
 import { sharedLimiter } from "@/lib/rate-limit";
 import {
@@ -40,6 +41,7 @@ import {
 import { domainsFromColumn, emailInDomains } from "@/lib/sso-config";
 import { AccessError, isGuest, requireMembership } from "@/server/access";
 import { generateTokenSecret, hashToken } from "@/server/api/tokens";
+import { recordAudit, runAsAuditOrigin } from "@/server/audit";
 import { changeGroup, createGroup, deleteGroup, GroupError } from "@/server/groups";
 import { joinAsMember, oldestOwner, removeMemberByProvider, WorkspaceError } from "@/server/workspaces";
 
@@ -103,6 +105,7 @@ export async function createScimToken(actorId: string, workspaceId: string, name
     .insert(scimToken)
     .values({ workspaceId, name: clean, prefix: secret.slice(0, SCIM_TOKEN_PREFIX.length + 4), tokenHash: hashToken(secret), createdBy: actorId })
     .returning({ id: scimToken.id, name: scimToken.name, prefix: scimToken.prefix, createdAt: scimToken.createdAt, lastUsedAt: scimToken.lastUsedAt });
+  await recordAudit({ workspaceId, actorId, action: "scim.token_created", target: { type: "scim_token", id: row.id, label: row.name } });
   return { secret, token: row as ScimTokenInfo };
 }
 
@@ -120,7 +123,10 @@ export async function revokeScimToken(actorId: string, workspaceId: string, toke
   const deleted = await db
     .delete(scimToken)
     .where(and(eq(scimToken.id, tokenId), eq(scimToken.workspaceId, workspaceId)))
-    .returning({ id: scimToken.id });
+    .returning({ id: scimToken.id, name: scimToken.name });
+  for (const token of deleted) {
+    await recordAudit({ workspaceId, actorId, action: "scim.token_revoked", target: { type: "scim_token", id: token.id, label: token.name } });
+  }
   return deleted.length > 0;
 }
 
@@ -242,7 +248,7 @@ async function applyChanges(workspaceId: string, record: { id: string; email: st
   }
   if (changes.active === true && record.role !== "owner" && record.role !== "member") {
     if (record.role === "guest") await promoteGuest(workspaceId, record.id);
-    else await joinAsMember(workspaceId, record.id, record.email);
+    else await joinAsMember(workspaceId, record.id, record.email, "scim");
   }
   if (changes.active === false && record.role === "member") await removeMemberByProvider(workspaceId, record.id);
   const active = changes.active ?? (record.role === "owner" || record.role === "member");
@@ -254,10 +260,20 @@ async function applyChanges(workspaceId: string, record: { id: string; email: st
 }
 
 async function promoteGuest(workspaceId: string, userId: string) {
-  await db
+  const promoted = await db
     .update(workspaceMember)
     .set({ role: "member" })
-    .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, userId), eq(workspaceMember.role, "guest")));
+    .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, userId), eq(workspaceMember.role, "guest")))
+    .returning({ userId: workspaceMember.userId });
+  if (promoted.length) {
+    await recordAudit({
+      workspaceId,
+      actorId: null,
+      action: "member.role_changed",
+      target: { type: "user", id: userId },
+      details: { from: "guest", to: "member", via: "scim" },
+    });
+  }
 }
 
 async function createUser(workspaceId: string, resource: Record<string, unknown>) {
@@ -515,8 +531,22 @@ export async function handleScimRequest(request: Request): Promise<Response> {
   const wait = limiter.retryAfter(principal.tokenId);
   if (wait > 0) return errorResponse(new ScimError(429, "Too many requests."), { "Retry-After": String(Math.ceil(wait / 1000)) });
   limiter.hit(principal.tokenId);
-  const { workspaceId } = principal;
+  // What the request changes is recorded as the identity provider's, through this token.
+  const origin = {
+    kind: "scim" as const,
+    tokenId: principal.tokenId,
+    ip: request.headers.get(CLIENT_IP_HEADER),
+    userAgent: request.headers.get("user-agent"),
+  };
+  return runAsAuditOrigin(origin, () => serveScim(request, principal.workspaceId, { url, baseUrl, path, method }));
+}
 
+/** An authenticated SCIM request of the workspace's identity provider. */
+async function serveScim(
+  request: Request,
+  workspaceId: string,
+  { url, baseUrl, path, method }: { url: URL; baseUrl: string; path: string; method: string },
+): Promise<Response> {
   try {
     const [, collection, id, ...rest] = path.split("/");
     if (rest.length) throw new ScimError(404, "There is no such endpoint.");

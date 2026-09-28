@@ -11,6 +11,7 @@
     "groups": "Groups",
     "analytics": "Analytics",
     "security": "Security",
+    "audit": "Audit log",
     "site": "Site",
     "myAccount": "My account"
   },
@@ -602,6 +603,221 @@
       "full": "Read and edit",
       "read": "Read only",
       "off": "No access"
+    }
+  },
+  "audit": {
+    "description": "A record of who changed what in this workspace: members and roles, invitations, sharing, teamspaces and groups, settings, security, deletions, publishing, connected apps and exports. Only owners can see it.",
+    "filters": "Filter the audit log",
+    "actor": "Who",
+    "anyone": "Anyone",
+    "category": "What",
+    "allCategories": "All changes",
+    "from": "From",
+    "to": "To",
+    "apply": "Apply",
+    "clear": "Clear filters",
+    "eventsHeading": "Events",
+    "retention": "Newest first. Events are kept for one year.",
+    "export": "Download as CSV",
+    "noMatches": "No events match these filters.",
+    "empty": "Nothing has been recorded yet.",
+    "columns": {
+      "time": "Time",
+      "actor": "Who",
+      "event": "What happened",
+      "source": "From where"
+    },
+    "device": "{browser} on {os}",
+    "noSource": "Unknown",
+    "paging": "Pages of the audit log",
+    "newer": "Newer",
+    "older": "Older",
+    "page": "Page {page}",
+    "actors": {
+      "deletedUser": "Deleted user",
+      "unnamed": "unnamed",
+      "apiToken": "{name} (API token {via})",
+      "connectedApp": "{name} (through {via})",
+      "scim": "Identity provider (SCIM token {via})",
+      "system": "System"
+    },
+    "actorKinds": {
+      "scim": "Identity provider (SCIM)",
+      "system": "System (automatic)"
+    },
+    "categories": {
+      "members": "Members and roles",
+      "invitations": "Invitations and join requests",
+      "sharing": "Page sharing",
+      "teamspaces": "Teamspaces",
+      "groups": "Groups",
+      "settings": "Workspace settings",
+      "security": "Single sign-on and SCIM",
+      "pages": "Deleting and publishing",
+      "integrations": "Connected apps and API tokens",
+      "exports": "Exports"
+    },
+    "change": "{name}: {from} → {to}",
+    "untitled": "Untitled",
+    "everyone": "everyone in the workspace",
+    "roles": {
+      "owner": "owner",
+      "member": "member",
+      "guest": "guest"
+    },
+    "teamspaceRoles": {
+      "owner": "teamspace owner",
+      "member": "member"
+    },
+    "levels": {
+      "none": "No access",
+      "view": "Can view",
+      "comment": "Can comment",
+      "edit": "Can edit",
+      "full": "Full access"
+    },
+    "teamspaceFields": {
+      "name": "name",
+      "icon": "icon",
+      "description": "description",
+      "access": "access"
+    },
+    "via": {
+      "invitation": "an invitation",
+      "link": "the join link",
+      "domain": "their email domain",
+      "sso": "single sign-on",
+      "scim": "SCIM",
+      "join_request": "a join request",
+      "share": "a shared page",
+      "account_deleted": "account deleted"
+    },
+    "formats": {
+      "zip": "ZIP",
+      "csv": "CSV",
+      "markdown": "Markdown",
+      "pdf": "PDF"
+    },
+    "settingNames": {
+      "guestInvites": "Who can invite guests",
+      "guestPrivatePages": "Guests can create private pages",
+      "publishing": "Who can publish to the web",
+      "requireTwoFactor": "Require two-step verification",
+      "teamspaceCreation": "Who can create teamspaces",
+      "loginMethod": "How members sign in",
+      "ai": "AI features",
+      "trashRetentionDays": "Delete pages in the trash after",
+      "export": "Allow export",
+      "connectedApps": "Connected apps and API tokens",
+      "accessRequests": "Access requests",
+      "memberInvites": "Who can add members",
+      "allowedDomains": "Allowed email domains",
+      "domainJoin": "When someone from these domains signs in",
+      "joinRequests": "Who can ask to join"
+    },
+    "values": {
+      "on": "On",
+      "off": "Off",
+      "unset": "Not set",
+      "never": "Never",
+      "days": "{days, plural, one {# day} other {# days}}",
+      "none": "None",
+      "owners": "Owners only",
+      "members": "Owners and members",
+      "any": "Any way",
+      "sso": "Single sign-on only",
+      "full": "Read and edit",
+      "read": "Read only",
+      "join": "Joins as a member",
+      "request": "Asks to join",
+      "nobody": "Nobody",
+      "allowed_domains": "People with an allowed email domain",
+      "anyone_with_link": "Anyone with the join link",
+      "members_with_approval": "Members, with an owner’s approval",
+      "any_member": "Owners and members"
+    },
+    "actions": {
+      "member": {
+        "added": "Added {target} as {role}",
+        "joined": "Joined as {role} through {via}",
+        "removed": "Removed {target} ({role})",
+        "left": "Left the workspace",
+        "role_changed": "Changed the role of {target} from {from} to {to}",
+        "ownership_transferred": "Made {target} an owner and stepped down to member"
+      },
+      "invitation": {
+        "sent": "Invited {target} as {role}",
+        "revoked": "Revoked the invitation of {target}",
+        "accepted": "Accepted the invitation for {target} and joined as {role}"
+      },
+      "join_link": {
+        "enabled": "Turned on the join link",
+        "disabled": "Turned off the join link",
+        "regenerated": "Replaced the join link (the old one stopped working)"
+      },
+      "join_request": {
+        "approved": "{kind, select, invite {Approved the request to invite {target} as {role}} other {Approved the request of {target} to join as {role}}}",
+        "declined": "{kind, select, invite {Declined the request to invite {target}} other {Declined the request of {target} to join}}"
+      },
+      "page": {
+        "permission_changed": "Set the access of {subject} to {target}: {level}",
+        "permission_removed": "Removed {subject} from the sharing of {target}",
+        "deleted": "Deleted {target} for good",
+        "published": "Published {target} to the web",
+        "unpublished": "Unpublished {target}",
+        "publication_revoked": "Took {target} off the web (published by {subject})"
+      },
+      "access_request": {
+        "approved": "Approved the access request of {subject} for {target}: {level}",
+        "declined": "Declined the access request of {subject} for {target}"
+      },
+      "teamspace": {
+        "created": "Created the teamspace {target}",
+        "updated": "Changed the {fields} of the teamspace {target}",
+        "archived": "Archived the teamspace {target}",
+        "restored": "Restored the teamspace {target}",
+        "member_added": "Added {names} to the teamspace {target} as {role}",
+        "member_removed": "Removed {subject} from the teamspace {target}",
+        "role_changed": "Changed the role of {subject} in the teamspace {target} to {role}",
+        "group_added": "Added the groups {names} to the teamspace {target}",
+        "group_removed": "Removed the group {subject} from the teamspace {target}"
+      },
+      "group": {
+        "created": "Created the group {target}",
+        "renamed": "Renamed the group {from} to {to}",
+        "deleted": "Deleted the group {target}",
+        "members_added": "Added {names} to the group {target}",
+        "members_removed": "Removed {names} from the group {target}"
+      },
+      "workspace": {
+        "renamed": "Renamed the workspace from {from} to {to}",
+        "settings_changed": "Changed settings: {settings}"
+      },
+      "sso": {
+        "configured": "Saved the single sign-on connection ({protocol}) for {domains}",
+        "domains_verified": "Verified the single sign-on domains {domains}",
+        "removed": "Removed the single sign-on connection"
+      },
+      "scim": {
+        "token_created": "Created the SCIM token {target}",
+        "token_revoked": "Revoked the SCIM token {target}"
+      },
+      "site": {
+        "saved": "Saved the site at {slug}",
+        "removed": "Took down the site at {slug}"
+      },
+      "connected_app": {
+        "connected": "Connected the app {target}",
+        "revoked": "Disconnected the app {target}"
+      },
+      "api_token": {
+        "created": "Created the API token {target}",
+        "revoked": "Revoked the API token {target}"
+      },
+      "export": {
+        "workspace": "Exported the workspace ({count, plural, one {# page} other {# pages}})",
+        "page": "Exported {target} as {format}"
+      }
     }
   },
   "notifications": {

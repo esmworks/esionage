@@ -41,6 +41,7 @@ import {
   requireMembership,
   workspacesHiddenFromApp,
 } from "@/server/access";
+import { changedValues, recordAudit } from "@/server/audit";
 import { joinRecordOf, rememberDeparture, requestInvitation, requestToJoinFrom, settleJoinRequest } from "@/server/join-requests";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
@@ -193,7 +194,22 @@ export async function renameWorkspace(userId: string, workspaceId: string, name:
   await requireMembership(userId, workspaceId, "owner");
   const clean = name.trim().slice(0, 80);
   if (!clean) throw new WorkspaceError("nameRequired", "Give the workspace a name.");
-  await db.update(workspace).set({ name: clean }).where(eq(workspace.id, workspaceId));
+  await db.transaction(async (tx) => {
+    const [before] = await tx.select({ name: workspace.name }).from(workspace).where(eq(workspace.id, workspaceId)).for("update");
+    await tx.update(workspace).set({ name: clean }).where(eq(workspace.id, workspaceId));
+    if (before && before.name !== clean) {
+      await recordAudit(
+        {
+          workspaceId,
+          actorId: userId,
+          action: "workspace.renamed",
+          target: { type: "workspace", id: workspaceId, label: clean },
+          details: { from: before.name, to: clean },
+        },
+        tx,
+      );
+    }
+  });
 }
 
 /** Everyone in the workspace, guests included. Guests themselves can't list it. */
@@ -361,6 +377,8 @@ export async function addMemberAs(
       });
     const link = invitationLink(token);
     const delivery = await emailInvitation(actorId, workspaceId, { email: clean, role, link });
+    // After the upsert and the email: the invitation stands either way.
+    await recordAudit({ workspaceId, actorId, action: "invitation.sent", target: { type: "email", id: clean, label: clean }, details: { role } });
     return { kind: "invited", email: clean, link, delivery };
   }
   const inserted = await db.transaction(async (tx) => {
@@ -372,7 +390,10 @@ export async function addMemberAs(
     await tx
       .delete(workspaceInvitation)
       .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.email, clean)));
-    if (rows.length) await claimPageInvitations(tx, workspaceId, target.id, clean);
+    if (rows.length) {
+      await claimPageInvitations(tx, workspaceId, target.id, clean);
+      await recordAudit({ workspaceId, actorId, action: "member.added", target: { type: "user", id: target.id }, details: { role } }, tx);
+    }
     return rows;
   });
   if (inserted.length) await settleJoinRequest(workspaceId, target.id);
@@ -407,6 +428,7 @@ export async function inviteGuest(actorId: string, workspaceId: string, email: s
     });
   const link = invitationLink(token);
   const delivery = await emailInvitation(actorId, workspaceId, { email: clean, role, link });
+  await recordAudit({ workspaceId, actorId, action: "invitation.sent", target: { type: "email", id: clean, label: clean }, details: { role } });
   return { link, delivery };
 }
 
@@ -419,7 +441,13 @@ export async function addGuest(actorId: string, workspaceId: string, userId: str
       .values({ workspaceId, userId, role: "guest" })
       .onConflictDoNothing()
       .returning({ userId: workspaceMember.userId });
-    if (rows.length) await claimPageInvitations(tx, workspaceId, userId, normalizeEmail(email));
+    if (rows.length) {
+      await claimPageInvitations(tx, workspaceId, userId, normalizeEmail(email));
+      await recordAudit(
+        { workspaceId, actorId, action: "member.added", target: { type: "user", id: userId }, details: { role: "guest", via: "share" } },
+        tx,
+      );
+    }
   });
 }
 
@@ -501,12 +529,16 @@ export async function revokeInvitation(actorId: string, workspaceId: string, inv
     const revoked = await tx
       .delete(workspaceInvitation)
       .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.id, invitationId)))
-      .returning({ email: workspaceInvitation.email });
+      .returning({ email: workspaceInvitation.email, role: workspaceInvitation.role });
     // Pages shared with them by email go with the invitation.
-    for (const { email } of revoked) {
+    for (const { email, role } of revoked) {
       await tx
         .delete(pageInvitation)
         .where(and(eq(pageInvitation.workspaceId, workspaceId), eq(pageInvitation.email, email)));
+      await recordAudit(
+        { workspaceId, actorId, action: "invitation.revoked", target: { type: "email", id: email, label: email }, details: { role } },
+        tx,
+      );
     }
   });
 }
@@ -569,6 +601,16 @@ export async function acceptInvitation(token: string, userId: string, userEmail:
       .onConflictDoNothing();
     await tx.delete(workspaceInvitation).where(eq(workspaceInvitation.id, invitation.id));
     await claimPageInvitations(tx, invitation.workspaceId, userId, invitation.email);
+    await recordAudit(
+      {
+        workspaceId: invitation.workspaceId,
+        actorId: userId,
+        action: "invitation.accepted",
+        target: { type: "email", id: invitation.email, label: invitation.email },
+        details: { role: invitation.role },
+      },
+      tx,
+    );
     return invitation.workspaceId;
   });
   await settleJoinRequest(workspaceId, userId);
@@ -594,11 +636,24 @@ export async function setJoinLink(actorId: string, workspaceId: string, mode: "e
   await requireMembership(actorId, workspaceId, "owner");
   const token =
     mode === "disable" ? null : mode === "regenerate" ? newToken() : sql`coalesce(${workspace.inviteLinkToken}, ${newToken()})`;
-  const [row] = await db
-    .update(workspace)
-    .set({ inviteLinkToken: token })
-    .where(eq(workspace.id, workspaceId))
-    .returning({ token: workspace.inviteLinkToken });
+  const row = await db.transaction(async (tx) => {
+    const [before] = await tx
+      .select({ token: workspace.inviteLinkToken })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+      .for("update");
+    const [after] = await tx
+      .update(workspace)
+      .set({ inviteLinkToken: token })
+      .where(eq(workspace.id, workspaceId))
+      .returning({ token: workspace.inviteLinkToken });
+    // Turning on a link that was on already (or off one that was off) changes nothing to record.
+    if (before && (mode === "regenerate" || Boolean(before.token) !== Boolean(after?.token))) {
+      const action = mode === "regenerate" ? "join_link.regenerated" : mode === "disable" ? "join_link.disabled" : "join_link.enabled";
+      await recordAudit({ workspaceId, actorId, action, target: { type: "join_link" } }, tx);
+    }
+    return after;
+  });
   return row?.token ? joinLink(row.token) : null;
 }
 
@@ -672,8 +727,13 @@ export async function joinWithLink(token: string, userId: string, userEmail: str
     await tx
       .delete(workspaceInvitation)
       .where(and(eq(workspaceInvitation.workspaceId, ws.id), eq(workspaceInvitation.email, email)));
-    await tx.insert(workspaceMember).values({ workspaceId: ws.id, userId, role: live?.role ?? "member" }).onConflictDoNothing();
+    const role = live?.role ?? "member";
+    await tx.insert(workspaceMember).values({ workspaceId: ws.id, userId, role }).onConflictDoNothing();
     await claimPageInvitations(tx, ws.id, userId, email);
+    await recordAudit(
+      { workspaceId: ws.id, actorId: userId, action: "member.joined", target: { type: "user", id: userId }, details: { role, via: "link" } },
+      tx,
+    );
     return { workspaceId: ws.id, access, joined: true };
   });
   const { workspaceId, access, joined } = outcome;
@@ -719,6 +779,12 @@ export async function setMemberRole(actorId: string, workspaceId: string, target
       await dropFromTeamspaces(tx, workspaceId, targetId, actorId);
       await dropFromGroups(tx, workspaceId, targetId);
     }
+    if (current.role !== role) {
+      await recordAudit(
+        { workspaceId, actorId, action: "member.role_changed", target: { type: "user", id: targetId }, details: { from: current.role, to: role } },
+        tx,
+      );
+    }
     return current.role;
   });
   // Open editors keep the access checked when they connected. Owners and members see pages alike,
@@ -757,6 +823,16 @@ export async function transferOwnership(actorId: string, workspaceId: string, ta
       .returning({ userId: workspaceMember.userId });
     // Another owner demoted the actor meanwhile: nothing to hand over.
     if (!demoted.length) throw new AccessError();
+    await recordAudit(
+      {
+        workspaceId,
+        actorId,
+        action: "member.ownership_transferred",
+        target: { type: "user", id: targetId },
+        details: { from: target.role },
+      },
+      tx,
+    );
   });
 }
 
@@ -787,6 +863,16 @@ export async function removeMember(actorId: string, workspaceId: string, targetI
     // An allowed email domain doesn't bring them back on their next sign-in; someone an owner
     // removed can't come back through it on their own either, only ask (see domainAccess).
     await rememberDeparture(tx, workspaceId, targetId, actorId === targetId ? "accepted" : "declined", actorId);
+    await recordAudit(
+      {
+        workspaceId,
+        actorId,
+        action: actorId === targetId ? "member.left" : "member.removed",
+        target: { type: "user", id: targetId },
+        details: { role: current.role },
+      },
+      tx,
+    );
   });
   await getCollab().disconnectUser(targetId, workspaceId);
 }
@@ -841,6 +927,11 @@ export async function withdrawFromWorkspaces(tx: Tx, userId: string): Promise<{ 
     await tx.delete(workspace).where(inArray(workspace.id, deleted));
   }
   for (const { id } of plan.left) {
+    // Recorded while the account is still there: the event keeps their name, the id is cleared.
+    await recordAudit(
+      { workspaceId: id, actorId: userId, action: "member.left", target: { type: "user", id: userId }, details: { via: "account_deleted" } },
+      tx,
+    );
     await tx.delete(workspaceMember).where(and(eq(workspaceMember.workspaceId, id), eq(workspaceMember.userId, userId)));
     const heir = await oldestOwner(tx, id);
     if (heir) await handOverOrphanedPages(tx, id, heir);
@@ -985,10 +1076,21 @@ export async function updateWorkspaceSettings(
     if (!allowed.includes(value)) throw new WorkspaceError("invalidSetting", `Unknown setting ${key}=${String(value)}`);
     Object.assign(clean, { [key]: value });
   }
-  await db
-    .update(workspace)
-    .set({ settings: sql`${workspace.settings} || ${JSON.stringify(clean)}::jsonb` })
-    .where(eq(workspace.id, workspaceId));
+  await db.transaction(async (tx) => {
+    const [before] = await tx.select({ settings: workspace.settings }).from(workspace).where(eq(workspace.id, workspaceId)).for("update");
+    await tx
+      .update(workspace)
+      .set({ settings: sql`${workspace.settings} || ${JSON.stringify(clean)}::jsonb` })
+      .where(eq(workspace.id, workspaceId));
+    // Only the keys whose value changed, defaults filled in on both sides.
+    const changes = changedValues({ ...DEFAULT_WORKSPACE_SETTINGS, ...before?.settings }, clean);
+    if (Object.keys(changes).length) {
+      await recordAudit(
+        { workspaceId, actorId, action: "workspace.settings_changed", target: { type: "workspace", id: workspaceId }, details: { changes } },
+        tx,
+      );
+    }
+  });
   // AI off: the workspace's content leaves the semantic search index too (see semantic-index.ts).
   if (clean.ai === false) {
     await db.delete(pageChunk).where(eq(pageChunk.workspaceId, workspaceId));
@@ -1019,7 +1121,7 @@ export async function ssoAvailable(workspaceId: string) {
  * keeps their role. Pending page invitations for their address come along, as when an owner adds
  * them. Returns whether they were added.
  */
-export async function joinAsMember(workspaceId: string, userId: string, email: string) {
+export async function joinAsMember(workspaceId: string, userId: string, email: string, via: "sso" | "scim" | "domain") {
   const clean = normalizeEmail(email);
   const joined = await db.transaction(async (tx) => {
     const rows = await tx
@@ -1032,6 +1134,18 @@ export async function joinAsMember(workspaceId: string, userId: string, email: s
       .delete(workspaceInvitation)
       .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.email, clean)));
     await claimPageInvitations(tx, workspaceId, userId, clean);
+    // They joined on their own, through single sign-on or their email domain, or their identity
+    // provider added them (a SCIM request is recorded as its own, see server/audit.ts).
+    await recordAudit(
+      {
+        workspaceId,
+        actorId: userId,
+        action: via === "scim" ? "member.added" : "member.joined",
+        target: { type: "user", id: userId },
+        details: { role: "member", via },
+      },
+      tx,
+    );
     return true;
   });
   if (joined) await settleJoinRequest(workspaceId, userId);
@@ -1059,7 +1173,12 @@ export async function removeMemberByProvider(workspaceId: string, userId: string
     await dropFromTeamspaces(tx, workspaceId, userId, heir);
     if (heir) await handOverOrphanedPages(tx, workspaceId, heir);
     await rememberDeparture(tx, workspaceId, userId, "declined", null);
+    await recordAudit(
+      { workspaceId, actorId: null, action: "member.removed", target: { type: "user", id: userId }, details: { role: current.role, via: "scim" } },
+      tx,
+    );
     return true;
+
   });
   if (removed) await getCollab().disconnectUser(userId, workspaceId);
   return removed;

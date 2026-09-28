@@ -21,6 +21,7 @@ import { type Access, automaticAccess, domainAccess, onAllowedDomain } from "@/l
 import { sharedLimiter, takeAll } from "@/lib/rate-limit";
 import { emailDomain } from "@/lib/sso-config";
 import { AccessError, findMembership, requireMembership } from "@/server/access";
+import { recordAudit } from "@/server/audit";
 import { joinRequestDecidedEmail, mailStatus, sendMail, type OutgoingMail } from "@/server/mail";
 import { requestLocale } from "@/server/mail/locale";
 import { recordJoinRequest, withdrawJoinRequest } from "@/server/notifications";
@@ -232,7 +233,7 @@ async function domainWorkspaces(account: Account, workspaceId?: string): Promise
 
 /** Joins through an allowed domain: a member, their record accepted. Returns whether they were added. */
 async function joinThroughDomain(workspaceId: string, account: Account) {
-  const joined = await joinAsMember(workspaceId, account.id, account.email);
+  const joined = await joinAsMember(workspaceId, account.id, account.email, "domain");
   await db
     .insert(workspaceJoinRequest)
     .values({
@@ -380,7 +381,9 @@ export async function approveJoinRequest(actorId: string, workspaceId: string, r
   let result: AddMemberResult | null = null;
   const request = await db.transaction(async (tx) => {
     const request = await takePending(tx, workspaceId, requestId);
+    await recordAudit({ workspaceId, actorId, ...decisionEvent(request, "join_request.approved") }, tx);
     if (request.kind === "invite") {
+      // The invitation (or the addition) that follows is recorded on its own, by addMemberAs.
       await tx.delete(workspaceJoinRequest).where(eq(workspaceJoinRequest.id, request.id));
       return request;
     }
@@ -390,11 +393,27 @@ export async function approveJoinRequest(actorId: string, workspaceId: string, r
       .where(eq(workspaceJoinRequest.id, request.id));
     const [account] = await tx.select({ email: user.email }).from(user).where(eq(user.id, request.userId!));
     const email = normalizeEmail(account?.email ?? request.email);
-    await tx.insert(workspaceMember).values({ workspaceId, userId: request.userId!, role: "member" }).onConflictDoNothing();
+    const added = await tx
+      .insert(workspaceMember)
+      .values({ workspaceId, userId: request.userId!, role: "member" })
+      .onConflictDoNothing()
+      .returning({ userId: workspaceMember.userId });
     await tx
       .delete(workspaceInvitation)
       .where(and(eq(workspaceInvitation.workspaceId, workspaceId), eq(workspaceInvitation.email, email)));
     await claimPageInvitations(tx, workspaceId, request.userId!, email);
+    if (added.length) {
+      await recordAudit(
+        {
+          workspaceId,
+          actorId,
+          action: "member.added",
+          target: { type: "user", id: request.userId! },
+          details: { role: "member", via: "join_request" },
+        },
+        tx,
+      );
+    }
     return request;
   });
   if (request.kind === "invite") {
@@ -418,6 +437,7 @@ export async function declineJoinRequest(actorId: string, workspaceId: string, r
   await requireMembership(actorId, workspaceId, "owner");
   const request = await db.transaction(async (tx) => {
     const request = await takePending(tx, workspaceId, requestId);
+    await recordAudit({ workspaceId, actorId, ...decisionEvent(request, "join_request.declined") }, tx);
     if (request.kind === "invite") {
       await tx.delete(workspaceJoinRequest).where(eq(workspaceJoinRequest.id, request.id));
     } else {
@@ -430,6 +450,21 @@ export async function declineJoinRequest(actorId: string, workspaceId: string, r
   });
   await withdrawJoinRequest(workspaceId, request.id);
   await emailDecision(workspaceId, request, false);
+}
+
+/**
+ * The audit event of an owner's decision: about the person who asked to join, or the address a
+ * member asked to invite.
+ */
+function decisionEvent(request: Decided, action: "join_request.approved" | "join_request.declined") {
+  return {
+    action,
+    target:
+      request.kind === "join"
+        ? { type: "user" as const, id: request.userId }
+        : { type: "email" as const, id: request.email, label: request.email },
+    details: { kind: request.kind, role: request.role },
+  };
 }
 
 let mailer: (mail: OutgoingMail) => Promise<void> = sendMail;

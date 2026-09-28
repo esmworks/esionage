@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { page, pagePublication, workspaceSite, type PageKind } from "@/db/schema";
 import { isSiteKey, publishedHref, siteSlugProblem, type PublishedLinks, type SiteSlugProblem } from "@/lib/site";
 import { accessRank, pageVisibleTo, requireMember, requireMembership, requirePageAccess } from "@/server/access";
+import { changedValues, recordAudit } from "@/server/audit";
 import { chainTo, getPublishedPage, type PublishedPage } from "@/server/publication";
 import { publishingOn } from "@/server/workspaces";
 
@@ -94,11 +95,22 @@ export async function saveSite(
   if (taken && taken.workspaceId !== workspaceId) throw new SiteError(`The address "${slug}" is taken`, "slugTaken");
   try {
     await db.transaction(async (tx) => {
+      const [before] = await tx
+        .select({ slug: workspaceSite.slug, title: workspaceSite.title, homePageId: workspaceSite.homePageId })
+        .from(workspaceSite)
+        .where(eq(workspaceSite.workspaceId, workspaceId));
       await tx
         .insert(workspaceSite)
         .values({ workspaceId, slug, title, homePageId })
         .onConflictDoUpdate({ target: workspaceSite.workspaceId, set: { slug, title, homePageId, updatedAt: new Date() } });
       if (homePageId) await tx.update(pagePublication).set({ inSite: true }).where(eq(pagePublication.pageId, homePageId));
+      const changes = changedValues<Record<string, unknown>>(before ?? {}, { slug, title, homePageId });
+      if (!before || Object.keys(changes).length) {
+        await recordAudit(
+          { workspaceId, actorId: userId, action: "site.saved", target: { type: "site", id: slug, label: slug }, details: { slug, created: !before, changes } },
+          tx,
+        );
+      }
     });
   } catch (error) {
     // Another workspace took the slug in the meantime.
@@ -148,7 +160,10 @@ export async function siteForPage(userId: string, pageId: string): Promise<{ url
 /** Takes the site down; its pages keep their own links. Owners only. */
 export async function removeSite(userId: string, workspaceId: string): Promise<void> {
   await requireMembership(userId, workspaceId, "owner");
-  await db.delete(workspaceSite).where(eq(workspaceSite.workspaceId, workspaceId));
+  const removed = await db.delete(workspaceSite).where(eq(workspaceSite.workspaceId, workspaceId)).returning({ slug: workspaceSite.slug });
+  for (const { slug } of removed) {
+    await recordAudit({ workspaceId, actorId: userId, action: "site.removed", target: { type: "site", id: slug, label: slug }, details: { slug } });
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

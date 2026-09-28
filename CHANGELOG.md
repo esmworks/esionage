@@ -2,19 +2,44 @@
 
 ## Unreleased
 
+### Added
+
+- **Audit log** (#61), in Settings → Audit log for owners (members, guests and everyone else get a
+  404): who changed what in the workspace, newest first, 50 to a page, filtered by person (or the
+  identity provider, or the server), kind of change and a range of days in the viewer's time zone,
+  and downloadable as CSV with the same filters (up to 10,000 events). Recorded: members added,
+  joining (join link, email domain, single sign-on, SCIM), removed or leaving, role changes and
+  handing over ownership; invitations sent, revoked and accepted, the join link turned on, off or
+  replaced, join requests approved or declined; page sharing with a person, everyone or a group
+  (and by email), and access requests decided; teamspaces created, changed, archived, restored and
+  their members, roles and groups; groups created, renamed, deleted and their members; the
+  workspace renamed and its settings, with the before and after of each changed setting; single
+  sign-on saved, verified or removed, SCIM tokens created or revoked; pages deleted for good (by a
+  person, or by the trash cleanup as the system), published, unpublished or taken off the web by an
+  owner, the site saved or removed; API tokens created or revoked and apps connected or
+  disconnected (in each workspace they reach); exports (the workspace ZIP, a page as ZIP, Markdown,
+  CSV or the print view). Each event names the person, the API token or connected app they acted
+  through, or the SCIM token, with the request's address and browser, and reads as a sentence in
+  the viewer's language. Recording never fails or holds back a change: it runs in the change's
+  transaction (a savepoint) where there is one, right after it otherwise, and a failure is only
+  logged. The daily retention cleanup prunes events older than a year. Migration `0031_audit_log`
+  (`audit_event`). New checks: `scripts/audit-e2e.ts` (169), `src/lib/audit.test.ts`.
+
 ## 0.3.0 — 2026-09-28
 
 ### Upgrading from 0.2.0
 
 - **New name and image:** the project is now Leafdesk, published as `ghcr.io/esmworks/leafdesk`.
   Download the new `docker-compose.yml` into the same folder as before (the folder name is the
-  Compose project name, so the existing volumes are found), and in `.env` rename
-  `ESIONAGE_VERSION` to `LEAFDESK_VERSION` if you pinned a version.
+  Compose project name, so the existing volumes are found), and in `.env` rename the old
+  `…_VERSION` variable to `LEAFDESK_VERSION` if you pinned a version.
 - **Keep your database:** the bundled PostgreSQL keeps the user, password and database name it was
-  created with, `esionage`, while the new defaults are `leafdesk`. Keep
+  created with (the project's previous name; see `POSTGRES_USER` and `POSTGRES_DB` in your old
+  `docker-compose.yml`), while the new defaults are `leafdesk`. Keep
   `COMPOSE_PROFILES=bundled-db` and add
-  `EXTERNAL_DATABASE_URL=postgres://esionage:<password>@db:5432/esionage` to `.env`, with your
-  `POSTGRES_PASSWORD` (`esionage` if you never set one). Without it the app can't connect.
+  `EXTERNAL_DATABASE_URL=postgres://<old user>:<password>@db:5432/<old database>` to `.env`, with
+  your `POSTGRES_PASSWORD` (the old default password, the same as the old user name, if you never
+  set one). Without it the app can't connect.
 - **Migrations** (0009–0030) run automatically when the container starts.
 - **Uploaded files** are stored in the new `uploads` volume (or S3-compatible storage with
   `S3_BUCKET`).

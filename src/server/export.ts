@@ -12,6 +12,7 @@ import { pageLabel } from "@/lib/labels";
 import { asChecklist, displayValue } from "@/lib/properties";
 import { holdsPeople } from "@/lib/property-types";
 import { accessRank, pageIdColumn, requireMembership, requirePageAccess } from "@/server/access";
+import { recordAudit } from "@/server/audit";
 import { getCollab } from "@/server/collab/bridge";
 import { getDatabaseSnapshot } from "@/server/databases";
 import { resolveEmbeds } from "@/server/embeds";
@@ -128,7 +129,38 @@ export async function databaseCsv(userId: string, databaseId: string, only: stri
   const rows = only ? only.flatMap((id) => byId.get(id) ?? []) : snapshot.rows;
   // "photo.png (https://…/api/files/…)": the link opens for people who can see the row.
   const { header, cells } = databaseTable(snapshot, rows, (f) => `${f.name} (${env.appUrl}${f.url})`);
+  await recordExport(userId, {
+    workspaceId: snapshot.database.workspaceId,
+    page: { id: databaseId, title: snapshot.database.title },
+    format: "csv",
+    rows: rows.length,
+  });
   return { title: snapshot.database.title, csv: toCsv([header, ...cells]) };
+}
+
+export type ExportRecord = {
+  workspaceId: string;
+  /** The page exported; null for the whole workspace. */
+  page: { id: string; title: string } | null;
+  format: "zip" | "csv" | "markdown" | "pdf";
+  /** How many pages (or rows, or files) it holds, when known. */
+  pages?: number;
+  rows?: number;
+  files?: number;
+};
+
+/**
+ * Records an export in the audit log, once it is about to be handed over: the whole workspace
+ * (a ZIP from Settings), or one page as Markdown, CSV, ZIP (with its subpages) or the print view.
+ */
+export async function recordExport(userId: string, { workspaceId, page: exported, format, ...counts }: ExportRecord) {
+  await recordAudit({
+    workspaceId,
+    actorId: userId,
+    action: exported ? "export.page" : "export.workspace",
+    target: exported ? { type: "page", id: exported.id, label: exported.title } : { type: "workspace", id: workspaceId },
+    details: { format, ...counts },
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -509,8 +541,19 @@ export function exportErrorResponse(error: ExportError) {
   );
 }
 
-/** The response streaming the archive for `plan`, holding the export slot until it is sent. */
-export function archiveResponse(userId: string, plan: ExportPlan, labels: ExportLabels, release: () => void) {
+/**
+ * The response streaming the archive for `plan`, holding the export slot until it is sent. The
+ * export is recorded in the audit log first.
+ */
+export async function archiveResponse(userId: string, plan: ExportPlan, labels: ExportLabels, release: () => void) {
+  const root = plan.rootId ? plan.pages.find((p) => p.id === plan.rootId) : null;
+  await recordExport(userId, {
+    workspaceId: plan.workspaceId,
+    page: plan.rootId ? { id: plan.rootId, title: root?.title ?? plan.title } : null,
+    format: "zip",
+    pages: plan.pages.length,
+    files: plan.files.length,
+  });
   const stream = exportArchive(userId, plan, { labels, onDone: release });
   return new Response(stream, {
     headers: {

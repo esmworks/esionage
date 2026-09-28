@@ -11,6 +11,7 @@
     "groups": "Gruppen",
     "analytics": "Analysen",
     "security": "Sicherheit",
+    "audit": "Audit-Log",
     "site": "Website",
     "myAccount": "Mein Konto"
   },
@@ -602,6 +603,221 @@
       "full": "Lesen und bearbeiten",
       "read": "Nur lesen",
       "off": "Kein Zugriff"
+    }
+  },
+  "audit": {
+    "description": "Wer in diesem Workspace was geändert hat: Mitglieder und Rollen, Einladungen, Freigaben, Teamspaces und Gruppen, Einstellungen, Sicherheit, Löschungen, Veröffentlichungen, verbundene Apps und Exporte. Nur Inhaber sehen es.",
+    "filters": "Audit-Log filtern",
+    "actor": "Wer",
+    "anyone": "Alle",
+    "category": "Was",
+    "allCategories": "Alle Änderungen",
+    "from": "Von",
+    "to": "Bis",
+    "apply": "Anwenden",
+    "clear": "Filter zurücksetzen",
+    "eventsHeading": "Ereignisse",
+    "retention": "Neueste zuerst. Ereignisse werden ein Jahr lang aufbewahrt.",
+    "export": "Als CSV herunterladen",
+    "noMatches": "Keine Ereignisse passen zu diesen Filtern.",
+    "empty": "Noch nichts aufgezeichnet.",
+    "columns": {
+      "time": "Zeit",
+      "actor": "Wer",
+      "event": "Was passiert ist",
+      "source": "Woher"
+    },
+    "device": "{browser} unter {os}",
+    "noSource": "Unbekannt",
+    "paging": "Seiten des Audit-Logs",
+    "newer": "Neuer",
+    "older": "Älter",
+    "page": "Seite {page}",
+    "actors": {
+      "deletedUser": "Gelöschter Benutzer",
+      "unnamed": "ohne Namen",
+      "apiToken": "{name} (API-Token {via})",
+      "connectedApp": "{name} (über {via})",
+      "scim": "Identitätsanbieter (SCIM-Token {via})",
+      "system": "System"
+    },
+    "actorKinds": {
+      "scim": "Identitätsanbieter (SCIM)",
+      "system": "System (automatisch)"
+    },
+    "categories": {
+      "members": "Mitglieder und Rollen",
+      "invitations": "Einladungen und Beitrittsanfragen",
+      "sharing": "Freigabe von Seiten",
+      "teamspaces": "Teamspaces",
+      "groups": "Gruppen",
+      "settings": "Workspace-Einstellungen",
+      "security": "Single Sign-on und SCIM",
+      "pages": "Löschen und Veröffentlichen",
+      "integrations": "Verbundene Apps und API-Token",
+      "exports": "Exporte"
+    },
+    "change": "{name}: {from} → {to}",
+    "untitled": "Ohne Titel",
+    "everyone": "alle im Workspace",
+    "roles": {
+      "owner": "Inhaber",
+      "member": "Mitglied",
+      "guest": "Gast"
+    },
+    "teamspaceRoles": {
+      "owner": "Teamspace-Inhaber",
+      "member": "Mitglied"
+    },
+    "levels": {
+      "none": "Kein Zugriff",
+      "view": "Kann ansehen",
+      "comment": "Kann kommentieren",
+      "edit": "Kann bearbeiten",
+      "full": "Vollzugriff"
+    },
+    "teamspaceFields": {
+      "name": "Name",
+      "icon": "Symbol",
+      "description": "Beschreibung",
+      "access": "Zugriff"
+    },
+    "via": {
+      "invitation": "eine Einladung",
+      "link": "den Beitrittslink",
+      "domain": "die E-Mail-Domain",
+      "sso": "Single Sign-on",
+      "scim": "SCIM",
+      "join_request": "eine Beitrittsanfrage",
+      "share": "eine freigegebene Seite",
+      "account_deleted": "Konto gelöscht"
+    },
+    "formats": {
+      "zip": "ZIP",
+      "csv": "CSV",
+      "markdown": "Markdown",
+      "pdf": "PDF"
+    },
+    "settingNames": {
+      "guestInvites": "Wer Gäste einladen darf",
+      "guestPrivatePages": "Gäste können private Seiten erstellen",
+      "publishing": "Wer im Web veröffentlichen darf",
+      "requireTwoFactor": "Bestätigung in zwei Schritten verlangen",
+      "teamspaceCreation": "Wer Teamspaces erstellen darf",
+      "loginMethod": "Wie sich Mitglieder anmelden",
+      "ai": "KI-Funktionen",
+      "trashRetentionDays": "Seiten im Papierkorb löschen nach",
+      "export": "Export erlauben",
+      "connectedApps": "Verbundene Apps und API-Token",
+      "accessRequests": "Zugriffsanfragen",
+      "memberInvites": "Wer Mitglieder hinzufügen kann",
+      "allowedDomains": "Zugelassene E-Mail-Domains",
+      "domainJoin": "Wenn sich jemand aus diesen Domains anmeldet",
+      "joinRequests": "Wer um Beitritt bitten kann"
+    },
+    "values": {
+      "on": "An",
+      "off": "Aus",
+      "unset": "Nicht gesetzt",
+      "never": "Nie",
+      "days": "{days, plural, one {# Tag} other {# Tagen}}",
+      "none": "Keine",
+      "owners": "Nur Inhaber",
+      "members": "Inhaber und Mitglieder",
+      "any": "Jede Methode",
+      "sso": "Nur Single Sign-on",
+      "full": "Lesen und bearbeiten",
+      "read": "Nur lesen",
+      "join": "Tritt als Mitglied bei",
+      "request": "Fragt nach einem Beitritt",
+      "nobody": "Niemand",
+      "allowed_domains": "Personen mit einer zugelassenen E-Mail-Domain",
+      "anyone_with_link": "Alle mit dem Beitrittslink",
+      "members_with_approval": "Mitglieder, mit Zustimmung eines Inhabers",
+      "any_member": "Inhaber und Mitglieder"
+    },
+    "actions": {
+      "member": {
+        "added": "Hat {target} als {role} hinzugefügt",
+        "joined": "Ist als {role} über {via} beigetreten",
+        "removed": "Hat {target} entfernt ({role})",
+        "left": "Hat den Workspace verlassen",
+        "role_changed": "Hat die Rolle von {target} von {from} zu {to} geändert",
+        "ownership_transferred": "Hat {target} zum Inhaber gemacht und ist selbst Mitglied geworden"
+      },
+      "invitation": {
+        "sent": "Hat {target} als {role} eingeladen",
+        "revoked": "Hat die Einladung an {target} zurückgezogen",
+        "accepted": "Hat die Einladung an {target} angenommen und ist als {role} beigetreten"
+      },
+      "join_link": {
+        "enabled": "Hat den Beitrittslink eingeschaltet",
+        "disabled": "Hat den Beitrittslink ausgeschaltet",
+        "regenerated": "Hat den Beitrittslink ersetzt (der alte funktioniert nicht mehr)"
+      },
+      "join_request": {
+        "approved": "{kind, select, invite {Hat die Anfrage genehmigt, {target} als {role} einzuladen} other {Hat die Beitrittsanfrage von {target} als {role} genehmigt}}",
+        "declined": "{kind, select, invite {Hat die Anfrage abgelehnt, {target} einzuladen} other {Hat die Beitrittsanfrage von {target} abgelehnt}}"
+      },
+      "page": {
+        "permission_changed": "Hat den Zugriff von {subject} auf {target} festgelegt: {level}",
+        "permission_removed": "Hat {subject} aus der Freigabe von {target} entfernt",
+        "deleted": "Hat {target} endgültig gelöscht",
+        "published": "Hat {target} im Web veröffentlicht",
+        "unpublished": "Hat die Veröffentlichung von {target} beendet",
+        "publication_revoked": "Hat {target} aus dem Web genommen (veröffentlicht von {subject})"
+      },
+      "access_request": {
+        "approved": "Hat die Zugriffsanfrage von {subject} für {target} genehmigt: {level}",
+        "declined": "Hat die Zugriffsanfrage von {subject} für {target} abgelehnt"
+      },
+      "teamspace": {
+        "created": "Hat den Teamspace {target} erstellt",
+        "updated": "Hat im Teamspace {target} geändert: {fields}",
+        "archived": "Hat den Teamspace {target} archiviert",
+        "restored": "Hat den Teamspace {target} wiederhergestellt",
+        "member_added": "Hat {names} als {role} zum Teamspace {target} hinzugefügt",
+        "member_removed": "Hat {subject} aus dem Teamspace {target} entfernt",
+        "role_changed": "Hat die Rolle von {subject} im Teamspace {target} zu {role} geändert",
+        "group_added": "Hat die Gruppen {names} zum Teamspace {target} hinzugefügt",
+        "group_removed": "Hat die Gruppe {subject} aus dem Teamspace {target} entfernt"
+      },
+      "group": {
+        "created": "Hat die Gruppe {target} erstellt",
+        "renamed": "Hat die Gruppe {from} in {to} umbenannt",
+        "deleted": "Hat die Gruppe {target} gelöscht",
+        "members_added": "Hat {names} zur Gruppe {target} hinzugefügt",
+        "members_removed": "Hat {names} aus der Gruppe {target} entfernt"
+      },
+      "workspace": {
+        "renamed": "Hat den Workspace von {from} in {to} umbenannt",
+        "settings_changed": "Hat Einstellungen geändert: {settings}"
+      },
+      "sso": {
+        "configured": "Hat die Single-Sign-on-Verbindung ({protocol}) für {domains} gespeichert",
+        "domains_verified": "Hat die Single-Sign-on-Domains {domains} bestätigt",
+        "removed": "Hat die Single-Sign-on-Verbindung entfernt"
+      },
+      "scim": {
+        "token_created": "Hat das SCIM-Token {target} erstellt",
+        "token_revoked": "Hat das SCIM-Token {target} widerrufen"
+      },
+      "site": {
+        "saved": "Hat die Website unter {slug} gespeichert",
+        "removed": "Hat die Website unter {slug} entfernt"
+      },
+      "connected_app": {
+        "connected": "Hat die App {target} verbunden",
+        "revoked": "Hat die Verbindung der App {target} getrennt"
+      },
+      "api_token": {
+        "created": "Hat das API-Token {target} erstellt",
+        "revoked": "Hat das API-Token {target} widerrufen"
+      },
+      "export": {
+        "workspace": "Hat den Workspace exportiert ({count, plural, one {# Seite} other {# Seiten}})",
+        "page": "Hat {target} als {format} exportiert"
+      }
     }
   },
   "notifications": {

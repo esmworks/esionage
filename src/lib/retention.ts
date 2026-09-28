@@ -1,7 +1,7 @@
 /**
- * How long deleted pages and page history are kept (see server/retention.ts, which applies it once
- * a day). Shared with the client so the trash can say when each page goes and the settings can
- * describe the rules.
+ * How long deleted pages, page history and audit log events are kept (see server/retention.ts,
+ * which applies it once a day). Shared with the client so the trash can say when each page goes
+ * and the settings can describe the rules.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -47,6 +47,17 @@ export function historyCutoffs(now: Date): { regular: Date; kept: Date } {
     regular: new Date(now.getTime() - HISTORY_RETENTION.maxAgeDays * DAY_MS),
     kept: new Date(now.getTime() - HISTORY_RETENTION.keptAgeDays * DAY_MS),
   };
+}
+
+/**
+ * How long the audit log (Settings > Audit log) keeps an event: a year, long enough to look back
+ * over a yearly access review. Not a setting, so no owner can shorten the trail of what they did.
+ */
+export const AUDIT_RETENTION_DAYS = 365;
+
+/** Events recorded before this time are due. */
+export function auditCutoff(now: Date): Date {
+  return new Date(now.getTime() - AUDIT_RETENTION_DAYS * DAY_MS);
 }
 
 /**

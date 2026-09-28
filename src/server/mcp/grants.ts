@@ -1,6 +1,10 @@
+import type { BetterAuthPlugin } from "better-auth";
+import { createAuthMiddleware, isAPIError } from "better-auth/api";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { oauthAccessToken, oauthClient, oauthConsent, oauthRefreshToken } from "@/db/schema";
+import { memberWorkspaceIds } from "@/server/access";
+import { recordAudit } from "@/server/audit";
 
 /**
  * JWT access tokens are verified statelessly, so revoking an app in settings would not stop
@@ -63,11 +67,64 @@ export async function listConnectedApps(userId: string): Promise<ConnectedApp[]>
   }));
 }
 
+/**
+ * Records in the audit log that the user connected or disconnected an app. An app reaches every
+ * workspace the user is in (each one's connected-apps setting decides what it may do there), so
+ * each of them records it.
+ */
+async function recordConnectedApp(userId: string, clientId: string, action: "connected_app.connected" | "connected_app.revoked", scopes: string[]) {
+  const [client] = await db.select({ name: oauthClient.name }).from(oauthClient).where(eq(oauthClient.clientId, clientId)).limit(1);
+  const label = clientDisplayName(client?.name, clientId);
+  const workspaceIds = await memberWorkspaceIds(userId);
+  await recordAudit(
+    workspaceIds.map((workspaceId) => ({
+      workspaceId,
+      actorId: userId,
+      action,
+      target: { type: "connected_app" as const, id: clientId, label },
+      details: { scopes },
+    })),
+  );
+}
+
+/**
+ * Better Auth plugin: records an app connecting once the user allows it on the consent page (the
+ * consent is stored by then). Clients that skip consent are the server's own and aren't recorded.
+ */
+export function connectedAppAuditPlugin() {
+  return {
+    id: "leafdesk-connected-app-audit",
+    hooks: {
+      after: [
+        {
+          matcher: (ctx) => ctx.path === "/oauth2/consent",
+          handler: createAuthMiddleware(async (ctx) => {
+            const body = (ctx.body ?? {}) as { accept?: unknown; oauth_query?: unknown };
+            const userId = ctx.context.session?.user.id;
+            if (body.accept !== true || !userId || isAPIError(ctx.context.returned)) return;
+            const clientId = new URLSearchParams(typeof body.oauth_query === "string" ? body.oauth_query : "").get("client_id");
+            if (!clientId) return;
+            const [consent] = await db
+              .select({ scopes: oauthConsent.scopes })
+              .from(oauthConsent)
+              .where(and(eq(oauthConsent.userId, userId), eq(oauthConsent.clientId, clientId)))
+              .limit(1);
+            if (consent) await recordConnectedApp(userId, clientId, "connected_app.connected", consent.scopes);
+          }),
+        },
+      ],
+    },
+  } satisfies BetterAuthPlugin;
+}
+
 /** Removes the user's consent for a client and revokes every token it holds for the user. */
 export async function revokeConnectedApp(userId: string, clientId: string) {
   const now = new Date();
-  await db.transaction(async (tx) => {
-    await tx.delete(oauthConsent).where(and(eq(oauthConsent.userId, userId), eq(oauthConsent.clientId, clientId)));
+  const revoked = await db.transaction(async (tx) => {
+    const consents = await tx
+      .delete(oauthConsent)
+      .where(and(eq(oauthConsent.userId, userId), eq(oauthConsent.clientId, clientId)))
+      .returning({ scopes: oauthConsent.scopes });
     await tx
       .update(oauthRefreshToken)
       .set({ revoked: now })
@@ -80,7 +137,10 @@ export async function revokeConnectedApp(userId: string, clientId: string) {
       .where(
         and(eq(oauthAccessToken.userId, userId), eq(oauthAccessToken.clientId, clientId), isNull(oauthAccessToken.revoked)),
       );
+    return consents;
   });
+  // After the commit: one event per workspace of the user, recorded on their own.
+  if (revoked.length) await recordConnectedApp(userId, clientId, "connected_app.revoked", revoked[0].scopes);
 }
 
 /** Like revokeConnectedApp for every app the user has connected, including tokens without consent. */

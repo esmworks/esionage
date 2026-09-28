@@ -17,6 +17,7 @@ import { teamspaceLabel, teamspaceReach } from "@/server/teamspaces";
 import { everyoneFloor } from "@/lib/teamspace-reach";
 import { isEmail, normalizeEmail } from "@/lib/emails";
 import { AccessError, FULL_RANK, getMembership, hasLevel, requirePageAccess, resolvePageAccess } from "@/server/access";
+import { recordAudit } from "@/server/audit";
 import { getCollab } from "@/server/collab/bridge";
 import { afterAccessLoss, groupMemberIds, requireGroupIn } from "@/server/groups";
 import { recordShare, signalInbox, withdrawShare } from "@/server/notifications";
@@ -223,6 +224,15 @@ export async function sharePageByEmail(
       target: [pageInvitation.pageId, pageInvitation.email],
       set: { level, invitedBy: actorId, createdAt: new Date() },
     });
+  // The page waits for them under their address; the guest invitation is recorded by inviteGuest.
+  await recordAudit({
+    workspaceId: target.workspaceId,
+    actorId,
+    action: "page.permission_changed",
+    target: { type: "page", id: pageId },
+    subject: { type: "email", id: clean, label: clean },
+    details: { level },
+  });
   const { link, delivery } = await inviteGuest(actorId, target.workspaceId, clean);
   return { kind: "invited", email: clean, link, delivery };
 }
@@ -235,7 +245,23 @@ export async function removePageInvitation(actorId: string, pageId: string, emai
   const target = await requirePageAccess(actorId, pageId, "full");
   const clean = normalizeEmail(email);
   await db.transaction(async (tx) => {
-    await tx.delete(pageInvitation).where(and(eq(pageInvitation.pageId, pageId), eq(pageInvitation.email, clean)));
+    const removed = await tx
+      .delete(pageInvitation)
+      .where(and(eq(pageInvitation.pageId, pageId), eq(pageInvitation.email, clean)))
+      .returning({ level: pageInvitation.level });
+    for (const { level } of removed) {
+      await recordAudit(
+        {
+          workspaceId: target.workspaceId,
+          actorId,
+          action: "page.permission_removed",
+          target: { type: "page", id: pageId },
+          subject: { type: "email", id: clean, label: clean },
+          details: { previous: level },
+        },
+        tx,
+      );
+    }
     const [left] = await tx
       .select({ id: pageInvitation.id })
       .from(pageInvitation)
@@ -266,12 +292,10 @@ export async function setPagePermission(actorId: string, pageId: string, princip
   if (principal && !(await getMembership(principal, target.workspaceId))) {
     throw new PermissionError("notMember", "Pages can only be shared with workspace members");
   }
-  const [previous] = principal
-    ? await db
-        .select({ level: pagePermission.level })
-        .from(pagePermission)
-        .where(and(eq(pagePermission.pageId, pageId), eq(pagePermission.userId, principal)))
-    : [];
+  const [previous] = await db
+    .select({ level: pagePermission.level })
+    .from(pagePermission)
+    .where(and(eq(pagePermission.pageId, pageId), principal ? eq(pagePermission.userId, principal) : isNull(pagePermission.userId)));
   await changePermissions(target.workspaceId, pageId, async (tx) => {
     await tx
       .insert(pagePermission)
@@ -280,6 +304,19 @@ export async function setPagePermission(actorId: string, pageId: string, princip
         target: [pagePermission.pageId, pagePermission.userId],
         set: { level, createdBy: actorId, createdAt: new Date() },
       });
+    if (previous?.level !== level) {
+      await recordAudit(
+        {
+          workspaceId: target.workspaceId,
+          actorId,
+          action: "page.permission_changed",
+          target: { type: "page", id: pageId },
+          subject: principal ? { type: "user", id: principal } : { type: "everyone" },
+          details: { level, previous: previous?.level ?? null },
+        },
+        tx,
+      );
+    }
   });
   await dropLostEditors(target.workspaceId, principal);
   if (!principal) return;
@@ -304,14 +341,28 @@ export async function setPagePermission(actorId: string, pageId: string, princip
 export async function removePagePermission(actorId: string, pageId: string, principal: string | null) {
   const target = await requirePageAccess(actorId, pageId, "full");
   await changePermissions(target.workspaceId, pageId, async (tx) => {
-    await tx
+    const removed = await tx
       .delete(pagePermission)
       .where(
         and(
           eq(pagePermission.pageId, pageId),
           principal ? eq(pagePermission.userId, principal) : isNull(pagePermission.userId),
         ),
+      )
+      .returning({ level: pagePermission.level });
+    for (const { level } of removed) {
+      await recordAudit(
+        {
+          workspaceId: target.workspaceId,
+          actorId,
+          action: "page.permission_removed",
+          target: { type: "page", id: pageId },
+          subject: principal ? { type: "user", id: principal } : { type: "everyone" },
+          details: { previous: level },
+        },
+        tx,
       );
+    }
   });
   await dropLostEditors(target.workspaceId, principal);
   if (principal) await withdrawShare(target.workspaceId, principal, pageId);
@@ -343,6 +394,19 @@ export async function setPageGroupPermission(actorId: string, pageId: string, gr
         target: [pageGroupPermission.pageId, pageGroupPermission.groupId],
         set: { level, createdBy: actorId, createdAt: new Date() },
       });
+    if (previous?.level !== level) {
+      await recordAudit(
+        {
+          workspaceId: target.workspaceId,
+          actorId,
+          action: "page.permission_changed",
+          target: { type: "page", id: pageId },
+          subject: { type: "group", id: groupId },
+          details: { level, previous: previous?.level ?? null },
+        },
+        tx,
+      );
+    }
   });
   if (previous && rankOf(level) < rankOf(previous.level)) {
     await afterAccessLoss(target.workspaceId, await groupMemberIds(groupId));
@@ -353,10 +417,25 @@ export async function setPageGroupPermission(actorId: string, pageId: string, gr
 export async function removePageGroupPermission(actorId: string, pageId: string, groupId: string) {
   const target = await requirePageAccess(actorId, pageId, "full");
   await changePermissions(target.workspaceId, pageId, async (tx) => {
-    await tx
+    const removed = await tx
       .delete(pageGroupPermission)
-      .where(and(eq(pageGroupPermission.pageId, pageId), eq(pageGroupPermission.groupId, groupId)));
+      .where(and(eq(pageGroupPermission.pageId, pageId), eq(pageGroupPermission.groupId, groupId)))
+      .returning({ level: pageGroupPermission.level });
+    for (const { level } of removed) {
+      await recordAudit(
+        {
+          workspaceId: target.workspaceId,
+          actorId,
+          action: "page.permission_removed",
+          target: { type: "page", id: pageId },
+          subject: { type: "group", id: groupId },
+          details: { previous: level },
+        },
+        tx,
+      );
+    }
   });
+
   await afterAccessLoss(target.workspaceId, await groupMemberIds(groupId));
 }
 

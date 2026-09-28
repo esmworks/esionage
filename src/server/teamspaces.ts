@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { TeamspaceError } from "@/lib/teamspace-error";
 import { AccessError, isGuest, requireMember } from "@/server/access";
+import { changedValues, recordAudit } from "@/server/audit";
 import { getCollab } from "@/server/collab/bridge";
 import { afterAccessLoss, groupMemberIds, requireGroupIn } from "@/server/groups";
 import { handOverOrphanedPages } from "@/server/workspaces";
@@ -37,6 +38,14 @@ import { handOverOrphanedPages } from "@/server/workspaces";
  */
 
 export { TeamspaceError, type TeamspaceErrorCode } from "@/lib/teamspace-error";
+
+/** People's names (or addresses) for the audit log, in the order given. */
+async function namesOf(reader: Pick<typeof db, "select">, userIds: string[]) {
+  if (!userIds.length) return [];
+  const rows = await reader.select({ id: user.id, name: user.name, email: user.email }).from(user).where(inArray(user.id, userIds));
+  const byId = new Map(rows.map((r) => [r.id, r.name || r.email]));
+  return userIds.map((id) => byId.get(id) ?? "");
+}
 
 export const isTeamspaceAccess = (value: unknown): value is TeamspaceAccess =>
   (TEAMSPACE_ACCESS as readonly unknown[]).includes(value);
@@ -271,6 +280,10 @@ export async function createTeamspace(userId: string, workspaceId: string, input
       })
       .returning();
     await tx.insert(teamspaceMember).values({ teamspaceId: row.id, userId, role: "owner" });
+    await recordAudit(
+      { workspaceId, actorId: userId, action: "teamspace.created", target: { type: "teamspace", id: row.id, label: row.name }, details: { access } },
+      tx,
+    );
     return row;
   });
   getCollab().broadcast(`ws:${workspaceId}`, "tree");
@@ -294,6 +307,12 @@ export async function updateTeamspace(
   if (changesDefault && role !== "owner") {
     throw new TeamspaceError("ownersOnly", "Only workspace owners can change which teamspaces everyone is in.");
   }
+  const next = {
+    ...(patch.name !== undefined ? { name: cleanName(patch.name) } : {}),
+    ...(patch.icon !== undefined ? { icon: patch.icon } : {}),
+    ...(patch.description !== undefined ? { description: patch.description.trim().slice(0, MAX_DESCRIPTION) } : {}),
+    access,
+  };
   await db.transaction(async (tx) => {
     if (current.access === "default" && access !== "default") {
       await tx.execute(sql`
@@ -316,14 +335,21 @@ export async function updateTeamspace(
     }
     await tx
       .update(teamspace)
-      .set({
-        ...(patch.name !== undefined ? { name: cleanName(patch.name) } : {}),
-        ...(patch.icon !== undefined ? { icon: patch.icon } : {}),
-        ...(patch.description !== undefined ? { description: patch.description.trim().slice(0, MAX_DESCRIPTION) } : {}),
-        access,
-        updatedAt: new Date(),
-      })
+      .set({ ...next, updatedAt: new Date() })
       .where(eq(teamspace.id, teamspaceId));
+    const changes = changedValues<Record<string, unknown>>(current, next);
+    if (Object.keys(changes).length) {
+      await recordAudit(
+        {
+          workspaceId: current.workspaceId,
+          actorId: userId,
+          action: "teamspace.updated",
+          target: { type: "teamspace", id: teamspaceId, label: next.name ?? current.name },
+          details: { changes },
+        },
+        tx,
+      );
+    }
   });
   // People who lost its pages drop their open editors and reconnect with what they have left.
   const narrower = ACCESS_RANK[access] < ACCESS_RANK[current.access];
@@ -341,6 +367,14 @@ export async function setTeamspaceArchived(userId: string, teamspaceId: string, 
     .update(teamspace)
     .set({ archivedAt: archived ? (current.archivedAt ?? new Date()) : null, updatedAt: new Date() })
     .where(eq(teamspace.id, teamspaceId));
+  if (archived !== (current.archivedAt !== null)) {
+    await recordAudit({
+      workspaceId: current.workspaceId,
+      actorId: userId,
+      action: archived ? "teamspace.archived" : "teamspace.restored",
+      target: { type: "teamspace", id: teamspaceId, label: current.name },
+    });
+  }
   getCollab().broadcast(`ws:${current.workspaceId}`, "tree");
 }
 
@@ -352,7 +386,20 @@ export async function joinTeamspace(userId: string, teamspaceId: string) {
   if (found.access !== "open") {
     throw new TeamspaceError("notJoinable", "Ask an owner of this teamspace to add you.");
   }
-  await db.insert(teamspaceMember).values({ teamspaceId, userId, role: "member" }).onConflictDoNothing();
+  const joined = await db
+    .insert(teamspaceMember)
+    .values({ teamspaceId, userId, role: "member" })
+    .onConflictDoNothing()
+    .returning({ userId: teamspaceMember.userId });
+  if (joined.length) {
+    await recordAudit({
+      workspaceId: found.workspaceId,
+      actorId: userId,
+      action: "teamspace.member_added",
+      target: { type: "teamspace", id: teamspaceId, label: found.name },
+      details: { names: await namesOf(db, [userId]), role: "member" },
+    });
+  }
   getCollab().broadcast(`ws:${found.workspaceId}`, "tree");
 }
 
@@ -383,11 +430,21 @@ export async function addTeamspaceMembers(
   if (missing.length) {
     throw new TeamspaceError("notMember", "Only owners and members of the workspace can join its teamspaces.");
   }
-  await db
+  const added = await db
     .insert(teamspaceMember)
     .values(wanted.map((id) => ({ teamspaceId, userId: id, role: role === "owner" ? ("owner" as const) : ("member" as const) })))
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ userId: teamspaceMember.userId });
   await db.update(teamspace).set({ updatedAt: new Date() }).where(eq(teamspace.id, teamspaceId));
+  if (added.length) {
+    await recordAudit({
+      workspaceId: found.workspaceId,
+      actorId,
+      action: "teamspace.member_added",
+      target: { type: "teamspace", id: teamspaceId, label: found.name },
+      details: { names: await namesOf(db, added.map((a) => a.userId)), role: role === "owner" ? "owner" : "member" },
+    });
+  }
   getCollab().broadcast(`ws:${found.workspaceId}`, "tree");
 }
 
@@ -426,6 +483,17 @@ export async function removeTeamspaceMember(actorId: string, teamspaceId: string
       .delete(teamspaceMember)
       .where(and(eq(teamspaceMember.teamspaceId, teamspaceId), eq(teamspaceMember.userId, targetId)));
     await tx.update(teamspace).set({ updatedAt: new Date() }).where(eq(teamspace.id, teamspaceId));
+    await recordAudit(
+      {
+        workspaceId: found.workspaceId,
+        actorId,
+        action: "teamspace.member_removed",
+        target: { type: "teamspace", id: teamspaceId, label: found.name },
+        subject: { type: "user", id: targetId },
+        details: { role: target.role },
+      },
+      tx,
+    );
   });
   if (found.access !== "default") await getCollab().disconnectTeamspace(teamspaceId, [targetId]);
   getCollab().broadcast(`ws:${found.workspaceId}`, "tree");
@@ -435,6 +503,18 @@ export async function removeTeamspaceMember(actorId: string, teamspaceId: string
 export async function setTeamspaceRole(actorId: string, teamspaceId: string, targetId: string, role: TeamspaceRole) {
   const { teamspace: found } = await manageableTeamspace(actorId, teamspaceId);
   await db.transaction(async (tx) => {
+    const record = () =>
+      recordAudit(
+        {
+          workspaceId: found.workspaceId,
+          actorId,
+          action: "teamspace.role_changed",
+          target: { type: "teamspace", id: teamspaceId, label: found.name },
+          subject: { type: "user", id: targetId },
+          details: { role },
+        },
+        tx,
+      );
     const members = await tx
       .select({ userId: teamspaceMember.userId, role: teamspaceMember.role })
       .from(teamspaceMember)
@@ -443,7 +523,9 @@ export async function setTeamspaceRole(actorId: string, teamspaceId: string, tar
     const target = members.find((m) => m.userId === targetId);
     if (!target && found.access !== "default" && (await ownRow(tx, teamspaceId, targetId))?.direct === false) {
       // In through a group: making them an owner gives them a row of their own.
-      if (role === "owner") await tx.insert(teamspaceMember).values({ teamspaceId, userId: targetId, role: "owner" });
+      if (role !== "owner") return;
+      await tx.insert(teamspaceMember).values({ teamspaceId, userId: targetId, role: "owner" });
+      await record();
       return;
     }
     if (!target) {
@@ -455,7 +537,9 @@ export async function setTeamspaceRole(actorId: string, teamspaceId: string, tar
       if (found.access !== "default" || !person || isGuest(person.role)) {
         throw new TeamspaceError("notMember", "This person isn't in the teamspace.");
       }
-      if (role === "owner") await tx.insert(teamspaceMember).values({ teamspaceId, userId: targetId, role: "owner" });
+      if (role !== "owner") return;
+      await tx.insert(teamspaceMember).values({ teamspaceId, userId: targetId, role: "owner" });
+      await record();
       return;
     }
     if (target.role === role) return;
@@ -473,6 +557,7 @@ export async function setTeamspaceRole(actorId: string, teamspaceId: string, tar
         .set({ role })
         .where(and(eq(teamspaceMember.teamspaceId, teamspaceId), eq(teamspaceMember.userId, targetId)));
     }
+    await record();
   });
   await db.update(teamspace).set({ updatedAt: new Date() }).where(eq(teamspace.id, teamspaceId));
 }
@@ -599,12 +684,23 @@ export async function addTeamspaceGroups(actorId: string, teamspaceId: string, g
   if (found.access === "default") {
     throw new TeamspaceError("everyoneIn", "Everyone is in this teamspace already.");
   }
-  for (const groupId of wanted) await requireGroupIn(found.workspaceId, groupId);
-  await db
+  const groups = new Map<string, string>();
+  for (const groupId of wanted) groups.set(groupId, (await requireGroupIn(found.workspaceId, groupId)).name);
+  const added = await db
     .insert(teamspaceGroup)
     .values(wanted.map((groupId) => ({ teamspaceId, workspaceId: found.workspaceId, groupId })))
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ groupId: teamspaceGroup.groupId });
   await db.update(teamspace).set({ updatedAt: new Date() }).where(eq(teamspace.id, teamspaceId));
+  if (added.length) {
+    await recordAudit({
+      workspaceId: found.workspaceId,
+      actorId,
+      action: "teamspace.group_added",
+      target: { type: "teamspace", id: teamspaceId, label: found.name },
+      details: { names: added.map((a) => groups.get(a.groupId) ?? "") },
+    });
+  }
   getCollab().broadcast(`ws:${found.workspaceId}`, "tree");
 }
 
@@ -617,12 +713,26 @@ export async function removeTeamspaceGroup(actorId: string, teamspaceId: string,
   const { teamspace: found } = await manageableTeamspace(actorId, teamspaceId);
   const members = await groupMemberIds(groupId);
   await db.transaction(async (tx) => {
-    await tx
+    const removed = await tx
       .delete(teamspaceGroup)
-      .where(and(eq(teamspaceGroup.teamspaceId, teamspaceId), eq(teamspaceGroup.groupId, groupId)));
+      .where(and(eq(teamspaceGroup.teamspaceId, teamspaceId), eq(teamspaceGroup.groupId, groupId)))
+      .returning({ groupId: teamspaceGroup.groupId });
     await tx.update(teamspace).set({ updatedAt: new Date() }).where(eq(teamspace.id, teamspaceId));
     await handOverOrphanedPages(tx, found.workspaceId, actorId);
+    if (removed.length) {
+      await recordAudit(
+        {
+          workspaceId: found.workspaceId,
+          actorId,
+          action: "teamspace.group_removed",
+          target: { type: "teamspace", id: teamspaceId, label: found.name },
+          subject: { type: "group", id: groupId },
+        },
+        tx,
+      );
+    }
   });
+
   await afterAccessLoss(found.workspaceId, members);
 }
 

@@ -1,14 +1,15 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { DEFAULT_WORKSPACE_SETTINGS, page, pageSnapshot, workspace } from "@/db/schema";
-import { HISTORY_RETENTION, historyCutoffs } from "@/lib/retention";
+import { auditEvent, DEFAULT_WORKSPACE_SETTINGS, page, pageSnapshot, workspace } from "@/db/schema";
+import { auditCutoff, HISTORY_RETENTION, historyCutoffs } from "@/lib/retention";
 import { deleteTrashedPages } from "@/server/pages";
 
 /**
  * Data retention, applied once a day by the app server (startRetention, from server.ts):
  *  - pages that have been in the trash longer than their workspace's `trashRetentionDays` are
  *    deleted for good, the way "Delete permanently" does it (files included);
- *  - page history is pruned by the rules in lib/retention.ts (HISTORY_RETENTION).
+ *  - page history is pruned by the rules in lib/retention.ts (HISTORY_RETENTION);
+ *  - audit log events older than AUDIT_RETENTION_DAYS are deleted.
  *
  * Each replica has its own daily timer; a session advisory lock keeps two of them from running at
  * once. The work is idempotent, so a replica that runs later the same day only finds what has
@@ -26,6 +27,7 @@ export type RetentionResult = {
   /** Workspaces those entries came from. */
   workspaces: number;
   snapshots: number;
+  auditEvents: number;
 };
 
 const LOCK = "leafdesk:retention";
@@ -63,7 +65,8 @@ export async function purgeExpiredTrash({ now = new Date(), workspaceIds }: Rete
   let trashedPages = 0;
   for (const [workspaceId, ids] of byWorkspace) {
     for (let i = 0; i < ids.length; i += DELETE_BATCH) {
-      trashedPages += (await deleteTrashedPages(workspaceId, ids.slice(i, i + DELETE_BATCH))).length;
+      // No actor: the audit log records these deletes as the server's own.
+      trashedPages += (await deleteTrashedPages(workspaceId, ids.slice(i, i + DELETE_BATCH), null)).length;
     }
   }
   return { trashedPages, workspaces: byWorkspace.size };
@@ -100,10 +103,25 @@ export async function pruneSnapshots({ now = new Date(), workspaceIds }: Retenti
   return deleted.length;
 }
 
+/** Deletes the audit log events older than AUDIT_RETENTION_DAYS at `now`. Returns how many went. */
+export async function pruneAuditEvents({ now = new Date(), workspaceIds }: RetentionOptions = {}) {
+  if (workspaceIds?.length === 0) return 0;
+  const [row] = await db.execute<{ count: number }>(sql`
+    with deleted as (
+      delete from ${auditEvent}
+      where created_at < ${auditCutoff(now).toISOString()}::timestamptz
+        ${workspaceIds ? sql`and workspace_id in ${workspaceIds}` : sql``}
+      returning 1
+    )
+    select count(*)::int as count from deleted
+  `);
+  return Number(row?.count ?? 0);
+}
+
 /**
- * One retention run: the trash, then page history. Returns null when another replica is running
- * it right now. The lock is a session lock, so it is taken on a connection held for the run and
- * goes away with it if the process dies midway.
+ * One retention run: the trash, page history, then the audit log. Returns null when another
+ * replica is running it right now. The lock is a session lock, so it is taken on a connection held
+ * for the run and goes away with it if the process dies midway.
  */
 export async function runRetention(options: RetentionOptions = {}): Promise<RetentionResult | null> {
   const connection = await db.$client.reserve();
@@ -113,7 +131,8 @@ export async function runRetention(options: RetentionOptions = {}): Promise<Rete
     try {
       const trash = await purgeExpiredTrash(options);
       const snapshots = await pruneSnapshots(options);
-      return { ...trash, snapshots };
+      const auditEvents = await pruneAuditEvents(options);
+      return { ...trash, snapshots, auditEvents };
     } finally {
       await connection`select pg_advisory_unlock(hashtext(${LOCK}))`;
     }
@@ -135,8 +154,8 @@ export function startRetention() {
         return;
       }
       console.log(
-        `[retention] deleted ${result.trashedPages} pages from the trash of ${result.workspaces} workspaces ` +
-          `and ${result.snapshots} old page versions`,
+        `[retention] deleted ${result.trashedPages} pages from the trash of ${result.workspaces} workspaces, ` +
+          `${result.snapshots} old page versions and ${result.auditEvents} old audit log events`,
       );
     } catch (error) {
       console.error("[retention] cleanup failed", error);
