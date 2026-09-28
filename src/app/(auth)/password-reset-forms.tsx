@@ -107,6 +107,8 @@ export function ResetPasswordForm({ token }: { token: string }) {
     else if (failure.code === "INVALID_TOKEN") setState("invalid");
     else if (failure.code === "PASSWORD_TOO_SHORT") setError(t("errors.passwordTooShort"));
     else if (failure.code === "PASSWORD_TOO_LONG") setError(t("errors.passwordTooLong"));
+    // An instance admin asked for a new password; the old one doesn't count (server/required-password.ts).
+    else if (failure.code === "PASSWORD_UNCHANGED") setError(t("errors.passwordUnchanged"));
     else if (failure.status === 429) setError(t("errors.tooManyAttempts"));
     else setError(tc("genericError"));
   }

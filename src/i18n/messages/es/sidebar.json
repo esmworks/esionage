@@ -3,7 +3,8 @@
     "myAccount": "Mi cuenta",
     "newWorkspace": "Nuevo espacio de trabajo",
     "settingsAndMembers": "Configuración y miembros",
-    "signOut": "Cerrar sesión"
+    "signOut": "Cerrar sesión",
+    "admin": "Administración del servidor"
   },
   "nav": {
     "search": "Buscar",

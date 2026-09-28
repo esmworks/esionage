@@ -1,4 +1,5 @@
 import { sessionDaysFrom } from "@/lib/session-lifetime";
+import { adminEmailsFrom, workspaceCreationFrom } from "@/lib/instance-admin";
 import { socialProvidersFrom, type SocialProvider } from "@/lib/social-providers";
 import { instanceOidcFrom, ssoTrustedOriginsFrom } from "@/lib/sso-config";
 
@@ -25,6 +26,14 @@ export const env = {
   /** DISABLE_SIGNUP=true closes email/password sign-up; existing accounts can still sign in. */
   get signUpDisabled() {
     return ["1", "true", "yes"].includes((process.env.DISABLE_SIGNUP ?? "").trim().toLowerCase());
+  },
+  /** ADMIN_EMAILS: the instance administrators' addresses (see lib/instance-admin.ts). */
+  get adminEmails() {
+    return adminEmailsFrom(process.env.ADMIN_EMAILS);
+  },
+  /** WORKSPACE_CREATION=everyone|admins: who may create workspaces beyond their personal one. */
+  get workspaceCreation() {
+    return workspaceCreationFrom(process.env.WORKSPACE_CREATION);
   },
   /** GITHUB_CLIENT_ID/SECRET and GOOGLE_CLIENT_ID/SECRET each turn on sign-in with that provider. */
   get socialProviders() {

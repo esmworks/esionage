@@ -263,6 +263,23 @@ export function passwordResetEmail(locale: Locale, reset: { name: string; url: s
   });
 }
 
+/**
+ * Sent when someone signs in with the password an instance admin asked them to replace (see
+ * server/required-password.ts): the same reset link as "Forgot password", with the reason.
+ */
+export function passwordResetRequiredEmail(locale: Locale, reset: { name: string; url: string }): RenderedEmail {
+  const t = emailTranslator(locale);
+  return renderEmail(locale, {
+    subject: t("passwordResetRequired.subject"),
+    heading: t("passwordResetRequired.heading"),
+    paragraphs: [
+      t("passwordResetRequired.body", { name: reset.name }),
+      t("passwordResetRequired.expires", { minutes: PASSWORD_RESET_MINUTES }),
+    ],
+    action: { label: t("passwordResetRequired.action"), url: reset.url },
+  });
+}
+
 /** Sent to the new address: the link that makes it the account's email (see server/account.ts). */
 export function emailChangeEmail(
   locale: Locale,

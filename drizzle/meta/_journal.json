@@ -204,6 +204,13 @@
       "when": 1790610000000,
       "tag": "0028_access_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790620000000,
+      "tag": "0029_instance_admin",
+      "breakpoints": true
     }
   ]
 }

@@ -17,6 +17,12 @@ import {
 import { revokeAllApiTokens } from "@/server/api/tokens";
 import { revokeAllConnectedApps } from "@/server/mcp/grants";
 import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetEmail, sendMail } from "@/server/mail";
+import {
+  afterPasswordReset,
+  clearPasswordResetRequirement,
+  holdRequiredPasswordReset,
+  requiredPasswordPlugin,
+} from "@/server/required-password";
 import { joinThroughSso, resolveSsoProvider, ssoAccountCreation } from "@/server/sso";
 import { acceptInvitation, createPersonalWorkspace, invitationAllowsSignUp, joinWithLink } from "@/server/workspaces";
 
@@ -81,6 +87,7 @@ export const auth = betterAuth({
     sendResetPassword: mailStatus() === "disabled" ? undefined : sendResetPassword,
     resetPasswordTokenExpiresIn: PASSWORD_RESET_MINUTES * 60,
     revokeSessionsOnPasswordReset: true,
+    onPasswordReset: ({ user }) => afterPasswordReset(user.id),
   },
   rateLimit: {
     customRules: {
@@ -140,13 +147,26 @@ export const auth = betterAuth({
           }
         },
       },
+      // Better Auth updates the credential account only to change its password (/change-password);
+      // a new one means an instance admin's "choose a new password" is done.
+      update: {
+        after: async (account) => {
+          if (account?.providerId === "credential") await clearPasswordResetRequirement(account.userId);
+        },
+      },
     },
     session: {
       // How the session was signed in: a passkey sign-in passes "require two-step verification".
-      create: { before: recordAuthMethod },
+      create: {
+        before: async (session, ctx) => {
+          // A password sign-in of an account that has to choose a new password gets no session.
+          await holdRequiredPasswordReset(session, ctx);
+          return recordAuthMethod(session, ctx);
+        },
+      },
     },
   },
-  plugins: [...base.plugins, nextCookies()],
+  plugins: [...base.plugins, requiredPasswordPlugin(), nextCookies()],
 });
 
 export type Session = typeof auth.$Infer.Session;

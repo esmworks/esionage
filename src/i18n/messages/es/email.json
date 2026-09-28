@@ -110,5 +110,12 @@
     "heading": "Tu contraseña ha cambiado",
     "body": "Hola, {name}: la contraseña de tu cuenta de Leafdesk se acaba de cambiar.",
     "warning": "Si no hiciste este cambio, restablece tu contraseña desde la página de inicio de sesión y ponte en contacto con un propietario de tu espacio de trabajo."
+  },
+  "passwordResetRequired": {
+    "subject": "Elige una contraseña nueva de Leafdesk",
+    "heading": "Elige una contraseña nueva",
+    "body": "Hola, {name}: un administrador de este servidor de Leafdesk te pidió que elijas una contraseña nueva. Tu contraseña anterior ya no sirve para iniciar sesión.",
+    "expires": "El enlace funciona durante {minutes} minutos y una sola vez. Si vuelves a iniciar sesión con tu contraseña anterior, recibirás uno nuevo.",
+    "action": "Elegir una contraseña nueva"
   }
 }

@@ -3,7 +3,8 @@
     "myAccount": "My account",
     "newWorkspace": "New workspace",
     "settingsAndMembers": "Settings & members",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "admin": "Server administration"
   },
   "nav": {
     "search": "Search",

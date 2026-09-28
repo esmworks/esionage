@@ -110,5 +110,12 @@
     "heading": "Your password changed",
     "body": "Hi {name}, the password of your Leafdesk account was just changed.",
     "warning": "If you didn’t make this change, reset your password from the sign-in page and contact an owner of your workspace."
+  },
+  "passwordResetRequired": {
+    "subject": "Choose a new Leafdesk password",
+    "heading": "Choose a new password",
+    "body": "Hi {name}, an administrator of this Leafdesk server asked you to choose a new password. Your old password no longer signs you in.",
+    "expires": "The link works for {minutes} minutes and only once. Signing in with your old password again sends a new one.",
+    "action": "Choose a new password"
   }
 }

@@ -3,7 +3,8 @@
     "myAccount": "Hesabım",
     "newWorkspace": "Yeni çalışma alanı",
     "settingsAndMembers": "Ayarlar ve üyeler",
-    "signOut": "Çıkış yap"
+    "signOut": "Çıkış yap",
+    "admin": "Sunucu yönetimi"
   },
   "nav": {
     "search": "Ara",

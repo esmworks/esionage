@@ -123,7 +123,12 @@ jobs:
       - name: Comments end-to-end
         run: pnpm tsx scripts/comments-e2e.ts
 
+      # The admin e2e's administrator, and new workspaces for administrators only (the other policy
+      # is checked against the database).
       - name: Start the server
+        env:
+          ADMIN_EMAILS: admin-e2e@example.test
+          WORKSPACE_CREATION: admins
         run: |
           pnpm start > "$RUNNER_TEMP/server.log" 2>&1 &
           for _ in $(seq 60); do
@@ -144,6 +149,13 @@ jobs:
 
       - name: Password reset end-to-end
         run: pnpm tsx scripts/auth-e2e.ts
+
+      # Last: it signs every session on the server out.
+      - name: Instance administration end-to-end
+        env:
+          ADMIN_EMAILS: admin-e2e@example.test
+          WORKSPACE_CREATION: admins
+        run: pnpm tsx scripts/admin-e2e.ts
 
       - name: Server log
         if: always()

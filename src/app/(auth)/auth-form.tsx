@@ -10,6 +10,8 @@ import { authClient } from "@/lib/auth-client";
 import type { SocialProvider } from "@/lib/social-providers";
 import { SocialSignIn, socialErrorKey } from "./social-sign-in";
 import { SsoSignIn, type SsoOptions } from "./sso-sign-in";
+import { AuthNotice } from "./password-reset-forms";
+import { RequiredPasswordStep, type RequiredPassword } from "./required-password-step";
 import { PasskeySignIn, TwoFactorStep } from "./two-factor-step";
 
 type Mode = "sign-in" | "sign-up";
@@ -66,7 +68,11 @@ export function AuthForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [search, setSearch] = useState("");
-  const [step, setStep] = useState(mode === "sign-in" ? initialStep : "credentials");
+  const [step, setStep] = useState<"credentials" | "two-factor" | "new-password" | "reset-emailed">(
+    mode === "sign-in" ? initialStep : "credentials",
+  );
+  // An instance admin asked for a new password (see server/required-password.ts).
+  const [required, setRequired] = useState<{ email: string } & Partial<RequiredPassword>>({ email: "" });
   const passkeySupported = usePasskeySupport();
   const showPasskey = mode === "sign-in" && passkeySupported === true;
   const showSso = mode === "sign-in" && !invite && !join && !!sso && (sso.byEmail || !!sso.instanceName);
@@ -103,6 +109,15 @@ export function AuthForm({
                 : undefined,
           });
     setPending(false);
+    if (result.error?.code === "PASSWORD_RESET_REQUIRED") {
+      const answer = result.error as { delivery?: string; resetToken?: string; twoFactor?: boolean };
+      if (answer.delivery === "in-app" && answer.resetToken) {
+        setRequired({ email, token: answer.resetToken, twoFactor: answer.twoFactor === true });
+        return setStep("new-password");
+      }
+      setRequired({ email });
+      return setStep("reset-emailed");
+    }
     if (result.error) {
       const code = result.error.code as keyof typeof ERROR_KEYS | undefined;
       if (result.error.status === 429) setError(t("errors.tooManyAttempts"));
@@ -125,6 +140,38 @@ export function AuthForm({
     }
     router.push(next);
     router.refresh();
+  }
+
+  function restart() {
+    setError(null);
+    setStep("credentials");
+  }
+
+  if (step === "new-password" && required.token) {
+    return (
+      <RequiredPasswordStep
+        step={{ token: required.token, twoFactor: required.twoFactor === true }}
+        onRestart={restart}
+        onChanged={async (password) => {
+          // Signing in with the new password asks for the two-step code again, as any sign-in does.
+          const result = await authClient.signIn.email({ email: required.email, password });
+          if (result.error) return restart();
+          const data = result.data as { url?: string; twoFactorRedirect?: boolean } | null;
+          if (data?.twoFactorRedirect) return setStep("two-factor");
+          signedIn(data);
+        }}
+      />
+    );
+  }
+
+  if (step === "reset-emailed") {
+    return (
+      <AuthNotice
+        title={t("requiredPassword.title")}
+        body={t("requiredPassword.emailed", { email: required.email })}
+        link={{ href: "/sign-in", label: t("forgotPassword.backToSignIn") }}
+      />
+    );
   }
 
   if (step === "two-factor") {

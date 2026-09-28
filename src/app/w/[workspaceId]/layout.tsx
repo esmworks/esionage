@@ -5,6 +5,7 @@ import { OfflineProvider } from "@/components/offline/offline-context";
 import { Sidebar } from "@/components/sidebar/sidebar";
 import { FloatingSidebarButton, SidebarProvider } from "@/components/sidebar/sidebar-context";
 import { requestedPageId } from "@/lib/access-requests";
+import { canCreateWorkspace, isInstanceAdmin } from "@/lib/instance-admin";
 import { USER_MARKER } from "@/lib/offline";
 import { parseSidebarCookie, SIDEBAR_COOKIE } from "@/lib/sidebar-layout";
 import { getMembership } from "@/server/access";
@@ -54,6 +55,8 @@ export default async function WorkspaceLayout({
         initialTree={sidebar.tree}
         initialTeamspaces={sidebar.teamspaces}
         canCreateTeamspace={canCreate}
+        canCreateWorkspace={canCreateWorkspace(user)}
+        isInstanceAdmin={isInstanceAdmin(user)}
         initialFavorites={favorites}
         topLevel={topLevel}
         user={{ id: user.id, name: user.name, email: user.email, image: user.image ?? null }}

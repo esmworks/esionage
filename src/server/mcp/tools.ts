@@ -59,6 +59,7 @@ import * as notifications from "@/server/notifications";
 import * as pages from "@/server/pages";
 import * as templates from "@/server/templates";
 import { builtinTemplates } from "@/lib/builtin-templates";
+import { AccessError } from "@/server/access";
 import * as workspaces from "@/server/workspaces";
 import * as ops from "@/server/operations";
 import { filterCombinatorInput, filtersInput, id, rowValue, sortsInput } from "@/server/operations";
@@ -1447,7 +1448,8 @@ export function createMcpServer(principal: McpPrincipal) {
     "list_users",
     {
       title: "List workspace members",
-      description: "List the people in a workspace with their name, email and role (owner, member or guest). Guests can't list them.",
+      description:
+        "List the people in a workspace with their name, email, role (owner, member or guest) and when they joined it (joined_at). Guests can't list them. Owners invite more people with invite_member.",
       inputSchema: z.object({ workspace_id: id("workspace") }),
       annotations: READ,
     },
@@ -1455,9 +1457,68 @@ export function createMcpServer(principal: McpPrincipal) {
       runTool(async () => {
         const members = await workspaces.listMembers(userId, workspace_id);
         return {
-          users: members.map((m) => ({ id: m.userId, name: m.name, email: m.email, role: m.role, is_you: m.userId === userId })),
+          users: members.map((m) => ({
+            id: m.userId,
+            name: m.name,
+            email: m.email,
+            role: m.role,
+            joined_at: m.joinedAt.toISOString(),
+            is_you: m.userId === userId,
+          })),
         };
       }),
+  );
+
+  server.registerTool(
+    "invite_member",
+    {
+      title: "Invite someone to a workspace",
+      description:
+        'Add a person to a workspace by email, as Settings > Members does; only owners can. Someone with an account joins right away (status "added"). Anyone else gets an invitation (status "invited"): an email with a link that works for 7 days, when the server can send email (email_sent says whether it went out), and the link is returned so the user can share it themselves. Inviting the same address again renews the invitation. role is member (default), owner or guest.',
+      inputSchema: z.object({
+        workspace_id: id("workspace"),
+        email: z.string().max(254).describe("The person's email address."),
+        role: z.enum(["member", "owner", "guest"]).default("member").describe("Their role in the workspace (default member)."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      scopeChallenge: requireWrite,
+    },
+    write(async ({ workspace_id, email, role }) => {
+      let result: workspaces.BulkAddResult | undefined;
+      try {
+        // The same path as the members page's "Add members": owners only, one address.
+        [result] = await workspaces.addMembers(userId, workspace_id, [email], role);
+      } catch (error) {
+        if (error instanceof AccessError) {
+          throw new ToolInputError(
+            "Only owners of this workspace can invite people. Check the workspace id with list_workspaces (role shows whether the user is an owner).",
+          );
+        }
+        if (error instanceof workspaces.WorkspaceError) throw new ToolInputError(`${error.message}`);
+        throw error;
+      }
+      if (!result || result.kind === "error") {
+        const reasons: Partial<Record<workspaces.WorkspaceErrorCode, string>> = {
+          invalidEmail: "That isn't a valid email address.",
+          alreadyMember: "This person is already in the workspace; list_users shows their role.",
+        };
+        throw new ToolInputError(reasons[result?.code ?? "invalidEmail"] ?? "This person couldn't be invited.");
+      }
+      if (result.kind === "added") return { status: "added", email: result.email, role };
+      return {
+        status: "invited",
+        email: result.email,
+        role,
+        invitation_link: result.link,
+        email_sent: result.delivery === "sent",
+        ...(result.delivery !== "sent" && {
+          note:
+            result.delivery === "off"
+              ? "This server doesn't send email. Share invitation_link with them."
+              : "Sending the invitation email failed. Share invitation_link with them.",
+        }),
+      };
+    }),
   );
 
   server.registerTool(

@@ -18,6 +18,7 @@ import {
   Plus,
   Search,
   Settings,
+  ShieldCheck,
   Sparkles,
   Trash2,
   Upload,
@@ -96,6 +97,8 @@ export function Sidebar({
   initialTree,
   initialTeamspaces,
   canCreateTeamspace,
+  canCreateWorkspace,
+  isInstanceAdmin,
   initialFavorites,
   topLevel,
   user,
@@ -106,6 +109,10 @@ export function Sidebar({
   /** The teamspaces they are in, each a sidebar section. */
   initialTeamspaces: TeamspaceSummary[];
   canCreateTeamspace: boolean;
+  /** WORKSPACE_CREATION may keep "New workspace" to the server's administrators. */
+  canCreateWorkspace: boolean;
+  /** Listed in ADMIN_EMAILS: the menu links to /admin. */
+  isInstanceAdmin: boolean;
   initialFavorites: FavoritePage[];
   /** Whether they may add top-level pages; a guest's are private to them. */
   topLevel: "shared" | "private" | null;
@@ -579,17 +586,19 @@ export function Sidebar({
                       {w.name}
                     </MenuItem>
                   ))}
-                  <MenuItem
-                    icon={<Plus className="h-4 w-4" />}
-                    disabled={offline}
-                    title={needsServer(t("workspaceMenu.newWorkspace"))}
-                    onClick={() => {
-                      close();
-                      setNewWorkspaceOpen(true);
-                    }}
-                  >
-                    {t("workspaceMenu.newWorkspace")}
-                  </MenuItem>
+                  {canCreateWorkspace && (
+                    <MenuItem
+                      icon={<Plus className="h-4 w-4" />}
+                      disabled={offline}
+                      title={needsServer(t("workspaceMenu.newWorkspace"))}
+                      onClick={() => {
+                        close();
+                        setNewWorkspaceOpen(true);
+                      }}
+                    >
+                      {t("workspaceMenu.newWorkspace")}
+                    </MenuItem>
+                  )}
                   <MenuSeparator />
                   <MenuItem
                     icon={<Settings className="h-4 w-4" />}
@@ -609,6 +618,17 @@ export function Sidebar({
                   >
                     {t("workspaceMenu.myAccount")}
                   </MenuItem>
+                  {isInstanceAdmin && (
+                    <MenuItem
+                      icon={<ShieldCheck className="h-4 w-4" />}
+                      onClick={() => {
+                        close();
+                        router.push(`/admin?from=${encodeURIComponent(workspaceId)}`);
+                      }}
+                    >
+                      {t("workspaceMenu.admin")}
+                    </MenuItem>
+                  )}
                   <InstallAppMenuItem onDone={close} />
                   <MenuItem icon={<LogOut className="h-4 w-4" />} onClick={signOut} disabled={offline} title={needsServer(t("workspaceMenu.signOut"))}>
                     {t("workspaceMenu.signOut")}
@@ -908,7 +928,7 @@ export function Sidebar({
         version={inboxVersion}
         onRead={refreshInbox}
       />
-      <NewWorkspaceDialog open={newWorkspaceOpen} onClose={() => setNewWorkspaceOpen(false)} />
+      {canCreateWorkspace && <NewWorkspaceDialog open={newWorkspaceOpen} onClose={() => setNewWorkspaceOpen(false)} />}
       <TemplatesDialog
         workspaceId={workspaceId}
         open={templatesOpen}

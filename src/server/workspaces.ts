@@ -27,6 +27,7 @@ import { type DeletionPlan, planAccountDeletion, type WorkspaceStanding } from "
 import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
 import { TRASH_RETENTION_CHOICES } from "@/lib/retention";
 import { env } from "@/lib/env";
+import { canCreateWorkspace } from "@/lib/instance-admin";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
 import {
   AccessError,
@@ -65,6 +66,10 @@ async function generalTeamspaceName() {
   }
 }
 
+/**
+ * Every account's own workspace, made at sign-up (and on the home page for someone who left all
+ * of theirs). WORKSPACE_CREATION doesn't apply: everyone needs somewhere to land.
+ */
 export async function createPersonalWorkspace(userId: string, userName: string) {
   const [name, general] = await Promise.all([personalWorkspaceName(userName), generalTeamspaceName()]);
   await db.transaction(async (tx) => {
@@ -93,7 +98,8 @@ export type WorkspaceErrorCode =
   | "joinLinkInvalid"
   | "transferToSelf"
   | "transferToGuest"
-  | "invalidSetting";
+  | "invalidSetting"
+  | "creationRestricted";
 
 /**
  * An expected failure the user can act on. `code` is stable and translated by the UI; the
@@ -109,7 +115,24 @@ export class WorkspaceError extends Error {
   }
 }
 
+/**
+ * Whether this account may create workspaces beyond its personal one (WORKSPACE_CREATION, see
+ * lib/instance-admin.ts). Looked up by id, so every caller gets the same answer.
+ */
+export async function mayCreateWorkspace(userId: string) {
+  if (env.workspaceCreation === "everyone") return true;
+  const [row] = await db
+    .select({ email: user.email, emailVerified: user.emailVerified })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+  return canCreateWorkspace(row, env.workspaceCreation);
+}
+
 export async function createWorkspace(userId: string, name: string) {
+  if (!(await mayCreateWorkspace(userId))) {
+    throw new WorkspaceError("creationRestricted", "Only the server's administrators can create workspaces.");
+  }
   const clean = name.trim().slice(0, 80);
   if (!clean) throw new WorkspaceError("nameRequired", "Give the workspace a name.");
   const general = await generalTeamspaceName();
@@ -119,6 +142,17 @@ export async function createWorkspace(userId: string, name: string) {
     await setUpGeneralTeamspace(tx, ws.id, userId, general);
     return ws;
   });
+}
+
+/** How many workspaces each of these accounts is in, as a guest too (the instance admin's list). */
+export async function workspaceCounts(userIds: string[]): Promise<Map<string, number>> {
+  if (!userIds.length) return new Map();
+  const rows = await db
+    .select({ userId: workspaceMember.userId, count: sql<number>`count(*)::int` })
+    .from(workspaceMember)
+    .where(inArray(workspaceMember.userId, userIds))
+    .groupBy(workspaceMember.userId);
+  return new Map(rows.map((r) => [r.userId, r.count]));
 }
 
 /** The user's workspaces with their role, oldest first. */

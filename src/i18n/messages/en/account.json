@@ -7,7 +7,8 @@
     "profile": "Profile",
     "security": "Security",
     "preferences": "Preferences",
-    "apps": "Connected apps"
+    "apps": "Connected apps",
+    "admin": "Server administration"
   },
   "apps": {
     "description": "Apps you have allowed to use Leafdesk on your behalf, for example AI assistants connected over MCP. They reach every workspace you are in."
@@ -132,6 +133,8 @@
     "currentSession": "Use Sign out in the menu to end this session.",
     "sessionNotFound": "That session has already ended.",
     "avatarType": "Use a PNG, JPEG, WebP or GIF image.",
-    "avatarTooLarge": "The picture is too large (2 MB at most)."
+    "avatarTooLarge": "The picture is too large (2 MB at most).",
+    "samePassword": "Choose a password different from the old one.",
+    "resetStepExpired": "This step has expired. Sign in with your old password again."
   }
 }

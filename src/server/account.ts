@@ -32,6 +32,7 @@ import { getCollab } from "@/server/collab/bridge";
 import { removeStored } from "@/server/files";
 import { emailChangedEmail, emailChangeEmail, mailStatus, passwordChangedEmail, sendMail } from "@/server/mail";
 import { requestLocale } from "@/server/mail/locale";
+import { clearPasswordResetRequirement, consumeResetStep, resetStepUser } from "@/server/required-password";
 import { getStorage } from "@/server/storage";
 import { accountDeletionPlan, withdrawFromWorkspaces } from "@/server/workspaces";
 
@@ -328,6 +329,45 @@ export async function setPassword(current: AccountSession, headers: Headers, inp
     throw error;
   }
   await notify(current.user.email, (locale) => passwordChangedEmail(locale, { name: current.user.name }));
+}
+
+/**
+ * The sign-in page's "choose a new password" step, for an account an instance admin asked to
+ * reset its password on a server without email (see server/required-password.ts). Nobody is
+ * signed in yet: the token from the refused sign-in stands for the right old password, and
+ * accounts with two-step verification also give a code, which a recovery code is used up for.
+ * The new password has to differ from the old one. Signs nobody in; the page then signs in with
+ * the new password as usual.
+ */
+export async function finishRequiredPasswordReset(input: { token: unknown; newPassword: unknown; code: unknown }) {
+  const token = typeof input.token === "string" ? input.token : "";
+  const userId = await resetStepUser(token);
+  if (!userId) throw new AccountError("resetStepExpired");
+  const problem = passwordProblem(input.newPassword);
+  if (problem) throw new AccountError(problem);
+  const newPassword = input.newPassword as string;
+  limit("proof", userId);
+  const codes = await twoFactorOf(userId);
+  if (codes) {
+    if (typeof input.code !== "string" || !input.code.trim()) throw new AccountError("proofRequired");
+    if (!(await consumeCode(input.code, codes))) throw new AccountError("invalidCode");
+  }
+  const { password } = await auth.$context;
+  const hash = await passwordHashOf(userId);
+  if (hash && (await password.verify({ hash, password: newPassword }))) throw new AccountError("samePassword");
+  if (!(await consumeResetStep(token))) throw new AccountError("resetStepExpired");
+  const changed = await db
+    .update(account)
+    .set({ password: await password.hash(newPassword), updatedAt: new Date() })
+    .where(and(eq(account.userId, userId), eq(account.providerId, "credential")))
+    .returning({ id: account.id });
+  if (!changed.length) throw new AccountError("resetStepExpired");
+  await clearPasswordResetRequirement(userId);
+  // It had none (every password sign-in was refused), but one from before the flag may have slipped in.
+  await db.delete(session).where(eq(session.userId, userId));
+  await disconnectEndedSessions(userId);
+  const [owner] = await db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, userId)).limit(1);
+  if (owner) await notify(owner.email, (locale) => passwordChangedEmail(locale, { name: owner.name }));
 }
 
 // ---------------------------------------------------------------------------------------------

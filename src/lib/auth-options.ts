@@ -281,6 +281,13 @@ export function baseAuthOptions({
       enabled: true,
       minPasswordLength: 8,
     },
+    user: {
+      additionalFields: {
+        // An instance admin asked for a new password: the next password sign-in sets one first
+        // (see server/required-password.ts). Cleared when the password changes.
+        passwordResetRequired: { type: "boolean", required: false, input: false, defaultValue: false },
+      },
+    },
     session: {
       // SESSION_MAX_AGE_DAYS: how long a sign-in lasts without use (see lib/session-lifetime).
       ...sessionLifetime(env.sessionDays),

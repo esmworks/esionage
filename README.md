@@ -465,6 +465,49 @@ pnpm auth:reset-2fa person@example.com
 # Docker: docker compose exec app pnpm auth:reset-2fa person@example.com
 ```
 
+## Instance administrators
+
+Whoever runs the server can name the accounts that administer it. There is no role in the
+database: the list below is the only source, and an account counts only once its email address
+is verified.
+
+| Variable | Description |
+|---|---|
+| `ADMIN_EMAILS` | Comma-separated email addresses of the instance administrators, in any case, e.g. `ops@example.com, ada@example.com`. Empty by default: nobody is. |
+| `WORKSPACE_CREATION` | Who may create workspaces: `everyone` (default) or `admins`. Any other value means `admins`. The personal workspace every new account gets at sign-up is still created. |
+
+An address is verified by signing in once with GitHub or Google with it (when the provider
+confirms the address), by resetting the password through the emailed link, or by whoever runs
+the server:
+
+```bash
+pnpm auth:verify-email ops@example.com
+# Docker: docker compose exec app tsx scripts/verify-email.ts ops@example.com
+```
+
+Administrators get **Server administration** in the workspace menu and in My account; for
+everyone else `/admin` doesn't exist (404), and its actions do nothing. With
+`WORKSPACE_CREATION=admins`, "New workspace" is hidden from everyone else and the server
+refuses it. The page has:
+
+- **Accounts:** every account with its email, whether the address is verified, how many
+  workspaces it is in, when it was last active, and whether it uses two-step verification;
+  search by name or email. The first 200 are listed; a search narrows them down.
+- **Sign out everywhere** for one account, and **Sign out everyone** except the administrator's
+  own browser. Both end the sessions and close their live collaboration connections.
+- **Require a new password** for one account, or for everyone with a password (except the
+  administrator, who changes theirs in My account). Their sessions end, and their next password
+  sign-in gets no session. With SMTP, they get an email with a link to choose one (valid for 1
+  hour; another is sent at most every 5 minutes); without it, the sign-in page asks for the new
+  password right away, and for a two-step code when the account has it on. The old password
+  can't be chosen again. Changing the password in My account clears the requirement too.
+  Accounts without a password (GitHub, Google or single sign-on only) are not affected, and
+  neither are other ways in: GitHub, Google, single sign-on and passkeys still sign them in.
+
+Apps connected over MCP and REST API tokens use OAuth or personal access tokens, not sessions,
+so signing people out doesn't disconnect them; the person revokes them under Connected apps.
+Every administrator action is written to the server log (`[admin] …`).
+
 ## Single sign-on (OIDC, SAML) and SCIM
 
 Organizations can sign people in through their own identity provider (Keycloak, Authentik, Okta,
@@ -753,7 +796,10 @@ claude mcp add --transport http leafdesk http://localhost:3000/mcp
 
 The client opens a browser window where you sign in and approve access. The tools cover:
 
-- **Finding things:** `list_workspaces`, `list_teamspaces`, `search`, `list_pages`, `list_recent_pages`, `list_users`, `list_groups` (member groups with their members and teamspaces).
+- **Finding things:** `list_workspaces`, `list_teamspaces`, `search`, `list_pages`, `list_recent_pages`, `list_users` (with when each member joined), `list_groups` (member groups with their members and teamspaces).
+- **Members:** `invite_member` adds someone to a workspace by email, as Settings → Members does
+  (owners only, and not for read-only apps): someone with an account joins right away, anyone
+  else gets an invitation, whose link is returned too.
 - **Teamspaces:** `create_page`, `create_database` and `move_page` take a `teamspace_id` for
   top-level pages (`"private"` for the user's private pages). Without one, a page an AI app
   creates at the top is private to the user, as in Notion's API; the user moves it to share it.
@@ -858,6 +904,7 @@ Useful scripts:
 | `pnpm tsx scripts/security-switches-e2e.ts` | End-to-end check of the workspace security switches (export, publishing, connected apps) through the settings action, the export and public routes, MCP and the REST API, against a running server |
 | `pnpm tsx scripts/auth-e2e.ts` | End-to-end password reset check against a running server with SMTP pointed at [Mailpit](https://mailpit.axllent.org) |
 | `pnpm tsx scripts/two-factor-e2e.ts` | End-to-end two-step verification check (sign-in challenge, recovery codes, workspace policy) against a running server |
+| `pnpm tsx scripts/admin-e2e.ts` | End-to-end instance administration check (`ADMIN_EMAILS`, `WORKSPACE_CREATION`, signing out, required password resets) against a running server with the same two settings; it signs everyone out, so only on a development or CI database |
 
 ## Languages
 

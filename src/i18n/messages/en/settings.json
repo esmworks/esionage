@@ -353,7 +353,8 @@
     "transferToSelf": "Choose someone else to make owner.",
     "transferToGuest": "Make them a member before making them owner.",
     "twoFactorFirst": "Turn on two-step verification for your own account first, or sign in with a passkey.",
-    "ssoFirst": "Set up single sign-on and verify its domains first."
+    "ssoFirst": "Set up single sign-on and verify its domains first.",
+    "creationRestricted": "Only the server's administrators can create workspaces."
   },
   "security": {
     "description": "Decide how people sign in, who can bring people into this workspace, what guests can do, what can leave it (exports, connected apps) and who can publish pages to the web. Only owners can change these settings.",

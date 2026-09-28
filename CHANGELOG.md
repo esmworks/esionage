@@ -4,6 +4,23 @@
 
 ### Added
 
+- **Instance administrators** (#59): accounts whose verified email is listed in `ADMIN_EMAILS`
+  (comma-separated, any case; no role in the database) get Server administration at `/admin`,
+  a 404 for everyone else. It lists the accounts (name, email, verified, workspaces, last active,
+  two-step verification) with a search, signs one account or everyone but the administrator's
+  own browser out (closing their live collaboration connections too), and requires a new
+  password of one account or of everyone with a password: their sessions end, their next
+  password sign-in gets no session, and they choose a new one through an emailed reset link
+  (with SMTP) or right on the sign-in page (without; with a two-step code when they have it on).
+  The old password can't be chosen again; any password change clears the requirement; accounts
+  without a password are not affected. `WORKSPACE_CREATION=admins` keeps creating workspaces to
+  administrators (hidden from others and refused by the server; the personal workspace at sign-up
+  is still created). New command `pnpm auth:verify-email <email>`; a password reset through the
+  emailed link now also marks the address verified. Better Auth's admin plugin was not used: it
+  needs a role column and has neither required resets nor an instance-wide sign-out. Migration
+  `0030_instance_admin` (`user.password_reset_required`). MCP: `list_users` returns `joined_at`;
+  new `invite_member` tool (owners only, needs write access). New checks: `scripts/admin-e2e.ts`
+  (in CI), `src/lib/instance-admin.test.ts`, more in `mcp-e2e.ts` and `tools.test.ts`.
 - **Semantic search** (#43; optional, on with `AI_EMBEDDINGS_MODEL`): search also finds pages by
   meaning, merged with full-text results by reciprocal rank fusion, in the search dialog (marked
   *Similar meaning*), MCP `search` and REST `GET /search` (each result has `match: "text"` or

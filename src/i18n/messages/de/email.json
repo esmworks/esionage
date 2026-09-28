@@ -110,5 +110,12 @@
     "heading": "Dein Passwort wurde geändert",
     "body": "Hallo {name}, das Passwort deines Leafdesk-Kontos wurde gerade geändert.",
     "warning": "Wenn du diese Änderung nicht vorgenommen hast, setze dein Passwort über die Anmeldeseite zurück und wende dich an einen Inhaber deines Workspace."
+  },
+  "passwordResetRequired": {
+    "subject": "Wählen Sie ein neues Leafdesk-Passwort",
+    "heading": "Neues Passwort wählen",
+    "body": "Hallo {name}, ein Administrator dieses Leafdesk-Servers möchte, dass Sie ein neues Passwort wählen. Mit dem alten Passwort können Sie sich nicht mehr anmelden.",
+    "expires": "Der Link gilt {minutes} Minuten und nur einmal. Wenn Sie sich noch einmal mit dem alten Passwort anmelden, bekommen Sie einen neuen.",
+    "action": "Neues Passwort wählen"
   }
 }
