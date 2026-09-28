@@ -167,7 +167,7 @@ export function MembersPanel({
                 </a>
               )}
               {addMembers && (
-                <Button variant="primary" onClick={() => setAdding(true)}>
+                <Button variant="primary" onClick={() => setAdding(true)} className="shrink-0 whitespace-nowrap">
                   {t("addButton")}
                 </Button>
               )}

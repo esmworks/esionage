@@ -23,3 +23,18 @@ export function visibleSettingsTabs({
   if (guest) return ["general"];
   return SETTINGS_TABS.filter((tab) => (tab !== "guests" || managesGuests) && (!OWNER_TABS.includes(tab) || owner));
 }
+
+/**
+ * The person's own settings (see components/account/account-tabs) under a workspace's Settings,
+ * named so they don't clash with the workspace tabs: the account's "security" is "accountSecurity".
+ */
+export const ACCOUNT_SETTINGS_TABS = ["profile", "accountSecurity", "preferences", "apps"] as const;
+export type AccountSettingsTab = (typeof ACCOUNT_SETTINGS_TABS)[number];
+
+export function accountTabForSettings(tab: AccountSettingsTab) {
+  return tab === "accountSecurity" ? "security" : tab;
+}
+
+export function settingsTabForAccount(tab: "profile" | "security" | "preferences" | "apps"): AccountSettingsTab {
+  return tab === "security" ? "accountSecurity" : tab;
+}

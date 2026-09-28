@@ -6,15 +6,15 @@ import {
   ScrollText,
   Settings,
   Shield,
-  UserRound,
+  ShieldCheck,
   Users,
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { getTimeZone, getTranslations } from "next-intl/server";
+import { ACCOUNT_ICONS, AccountTabContent } from "@/components/account/account-tabs";
 import { AnalyticsPanel } from "@/components/settings/analytics-panel";
 import { AuditPanel } from "@/components/settings/audit-panel";
 import { GroupsPanel } from "@/components/settings/groups-panel";
@@ -37,6 +37,7 @@ import {
   TrashRetentionSetting,
 } from "@/components/settings/security-settings";
 import { SettingsGroup, SettingsHeader } from "@/components/settings/section";
+import { SettingsNav } from "@/components/settings/settings-nav";
 import {
   LoginMethodSetting,
   ScimSettings,
@@ -50,7 +51,14 @@ import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { parseAnalyticsPeriod } from "@/lib/analytics";
 import { parseAuditFilters } from "@/lib/audit";
 import { isStrongSession } from "@/lib/auth-security";
-import { type SettingsTab, visibleSettingsTabs } from "@/lib/settings-tabs";
+import { isInstanceAdmin } from "@/lib/instance-admin";
+import {
+  ACCOUNT_SETTINGS_TABS,
+  accountTabForSettings,
+  type AccountSettingsTab,
+  type SettingsTab,
+  visibleSettingsTabs,
+} from "@/lib/settings-tabs";
 import { AccessError, isGuest } from "@/server/access";
 import { aiInfo, embeddingModel } from "@/server/ai";
 import { workspaceAnalytics } from "@/server/analytics";
@@ -84,8 +92,6 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("metaTitle") };
 }
 
-/** Tabs that were here before the account page existed, and where they are now. */
-const ACCOUNT_TABS: Record<string, string> = { preferences: "preferences", accountSecurity: "security", apps: "apps" };
 const ICONS: Record<SettingsTab, LucideIcon> = {
   general: Settings,
   members: Users,
@@ -106,10 +112,8 @@ export default async function SettingsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ workspaceId }, query] = await Promise.all([params, searchParams]);
-  // The person's own settings moved to the account page (outside any workspace); old links land there.
-  const moved = typeof query.tab === "string" && Object.hasOwn(ACCOUNT_TABS, query.tab) ? ACCOUNT_TABS[query.tab] : null;
-  if (moved) redirect(`/account?tab=${moved}&from=${encodeURIComponent(workspaceId)}`);
-  const { user } = await requireWorkspaceSession(workspaceId);
+  const session = await requireWorkspaceSession(workspaceId);
+  const { user } = session;
   const workspace = await getWorkspace(user.id, workspaceId).catch((error) => {
     if (error instanceof AccessError) return null;
     throw error;
@@ -119,53 +123,41 @@ export default async function SettingsPage({
   const guest = isGuest(workspace.role);
   const managesGuests = !guest && (await canInviteGuests(user.id, workspaceId));
   const tabs = visibleSettingsTabs({ guest, managesGuests, owner: isOwner });
-  const tab: SettingsTab = tabs.find((name) => name === query.tab) ?? "general";
-  const t = await getTranslations("settings");
-  const navLink = (active: boolean) =>
-    `flex h-7 items-center gap-2 rounded-md px-2 whitespace-nowrap ${
-      active ? "bg-bg-active font-medium text-fg" : "text-fg-muted hover:bg-bg-hover hover:text-fg"
-    }`;
+  // The person's own settings come first, then the workspace's (the workspace sidebar is hidden here).
+  const accountTab = ACCOUNT_SETTINGS_TABS.find((name) => name === query.tab);
+  const tab: SettingsTab | AccountSettingsTab = accountTab ?? tabs.find((name) => name === query.tab) ?? "general";
+  const [t, ta] = await Promise.all([getTranslations("settings"), getTranslations("account")]);
+  const href = (name: string) => `/w/${workspaceId}/settings?tab=${name}`;
 
   return (
     <div className="flex min-h-full flex-col md:flex-row">
-      <nav
-        aria-label={t("title")}
-        // Same look as the main sidebar next to it: subtle background, 28px rows, plain section labels.
-        className="shrink-0 border-b border-border p-2 text-sm max-md:pl-12 md:sticky md:top-0 md:h-dvh md:w-60 md:overflow-y-auto md:border-r md:border-b-0 md:bg-bg-subtle"
-      >
-        <div className="flex gap-4 overflow-x-auto [scrollbar-width:none] md:flex-col md:gap-3">
-          <div className="shrink-0">
-            <div className="px-2 pt-1 pb-1 text-xs font-medium text-fg-muted">{t("nav.workspace")}</div>
-            <ul className="flex gap-1 md:flex-col md:gap-px">
-              {tabs.map((name) => {
-                const Icon = ICONS[name];
-                return (
-                  <li key={name}>
-                    <Link
-                      href={`/w/${workspaceId}/settings?tab=${name}`}
-                      aria-current={tab === name ? "page" : undefined}
-                      className={navLink(tab === name)}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                      {t(`nav.${name}`)}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-          <div className="shrink-0">
-            <div className="px-2 pt-1 pb-1 text-xs font-medium text-fg-muted">{t("nav.account")}</div>
-            <Link href={`/account?from=${encodeURIComponent(workspaceId)}`} className={navLink(false)}>
-              <UserRound className="h-4 w-4 shrink-0" aria-hidden />
-              {t("nav.myAccount")}
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <SettingsNav
+        label={t("title")}
+        back={{ href: `/w/${workspaceId}`, label: ta("back", { workspace: workspace.name }) }}
+        groups={[
+          {
+            label: ta("title"),
+            items: [
+              ...ACCOUNT_SETTINGS_TABS.map((name) => {
+                const account = accountTabForSettings(name);
+                return { href: href(name), label: ta(`nav.${account}`), icon: ACCOUNT_ICONS[account], active: tab === name };
+              }),
+              // Instance admins (ADMIN_EMAILS) reach the server's administration from here too.
+              ...(isInstanceAdmin(user)
+                ? [{ href: `/admin?from=${encodeURIComponent(workspaceId)}`, label: ta("nav.admin"), icon: ShieldCheck }]
+                : []),
+            ],
+          },
+          {
+            label: t("nav.workspace"),
+            items: tabs.map((name) => ({ href: href(name), label: t(`nav.${name}`), icon: ICONS[name], active: tab === name })),
+          },
+        ]}
+      />
 
       <div className="min-w-0 flex-1 px-4 py-8 sm:px-8 md:py-12">
         <div className="mx-auto max-w-3xl">
+          {accountTab && <AccountTabContent tab={accountTabForSettings(accountTab)} session={session} />}
           {tab === "general" && (
             <>
               <SettingsHeader title={t("nav.general")} description={t("workspace.description")} />

@@ -2,7 +2,6 @@
   "metaTitle": "Paramètres",
   "title": "Paramètres",
   "nav": {
-    "account": "Compte",
     "workspace": "Espace de travail",
     "general": "Général",
     "members": "Membres",
@@ -12,8 +11,7 @@
     "analytics": "Statistiques",
     "security": "Sécurité",
     "audit": "Journal d’audit",
-    "site": "Site",
-    "myAccount": "Mon compte"
+    "site": "Site"
   },
   "workspace": {
     "heading": "Espace de travail",

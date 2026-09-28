@@ -2,7 +2,6 @@
   "metaTitle": "Configuración",
   "title": "Configuración",
   "nav": {
-    "account": "Cuenta",
     "workspace": "Espacio de trabajo",
     "general": "General",
     "members": "Miembros",
@@ -12,8 +11,7 @@
     "analytics": "Analíticas",
     "security": "Seguridad",
     "audit": "Registro de auditoría",
-    "site": "Sitio",
-    "myAccount": "Mi cuenta"
+    "site": "Sitio"
   },
   "workspace": {
     "heading": "Espacio de trabajo",

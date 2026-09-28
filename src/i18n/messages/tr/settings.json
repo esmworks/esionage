@@ -2,7 +2,6 @@
   "metaTitle": "Ayarlar",
   "title": "Ayarlar",
   "nav": {
-    "account": "Hesap",
     "workspace": "Çalışma alanı",
     "general": "Genel",
     "members": "Üyeler",
@@ -12,8 +11,7 @@
     "analytics": "Analitik",
     "security": "Güvenlik",
     "audit": "Denetim kaydı",
-    "site": "Site",
-    "myAccount": "Hesabım"
+    "site": "Site"
   },
   "workspace": {
     "heading": "Çalışma alanı",

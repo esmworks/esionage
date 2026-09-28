@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateAccountPages } from "@/server/account-pages";
 import { revokeConnectedApp } from "@/server/mcp/grants";
 import { requireUserId } from "@/server/session";
 
@@ -8,5 +8,5 @@ import { requireUserId } from "@/server/session";
 export async function revokeConnectedAppAction(clientId: string) {
   const userId = await requireUserId();
   await revokeConnectedApp(userId, clientId);
-  revalidatePath("/account");
+  revalidateAccountPages();
 }
