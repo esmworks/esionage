@@ -177,9 +177,9 @@ docker compose up -d
 Open http://localhost:3000 and create an account. Migrations run automatically when the app
 container starts.
 
-- **Pin a version:** set `LEAFDESK_VERSION=0.2.0` in `.env`. The default is `latest`.
-- **Upgrade:** run `docker compose pull && docker compose up -d`. Coming from 0.1.0, first add
-  `COMPOSE_PROFILES=bundled-db` to `.env` (see [CHANGELOG.md](CHANGELOG.md)).
+- **Pin a version:** set `LEAFDESK_VERSION=0.3.0` in `.env`. The default is `latest`.
+- **Upgrade:** run `docker compose pull && docker compose up -d`. Coming from 0.2.0 (still named
+  Esionage), first follow the upgrade notes in [CHANGELOG.md](CHANGELOG.md).
 - **Build from source:** clone the repository and run `docker compose up -d --build`.
 
 To stop new sign-ups after creating your own account, set `DISABLE_SIGNUP=true` and restart.

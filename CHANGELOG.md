@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 0.3.0 — 2026-09-28
+
+### Upgrading from 0.2.0
+
+- **New name and image:** the project is now Leafdesk, published as `ghcr.io/esmworks/leafdesk`.
+  Download the new `docker-compose.yml` into the same folder as before (the folder name is the
+  Compose project name, so the existing volumes are found), and in `.env` rename
+  `ESIONAGE_VERSION` to `LEAFDESK_VERSION` if you pinned a version.
+- **Keep your database:** the bundled PostgreSQL keeps the user, password and database name it was
+  created with, `esionage`, while the new defaults are `leafdesk`. Keep
+  `COMPOSE_PROFILES=bundled-db` and add
+  `EXTERNAL_DATABASE_URL=postgres://esionage:<password>@db:5432/esionage` to `.env`, with your
+  `POSTGRES_PASSWORD` (`esionage` if you never set one). Without it the app can't connect.
+- **Migrations** (0009–0030) run automatically when the container starts.
+- **Uploaded files** are stored in the new `uploads` volume (or S3-compatible storage with
+  `S3_BUCKET`).
+- **Behind no reverse proxy:** the app now reads visitors' addresses from `X-Forwarded-For`,
+  trusting one proxy by default. Set `TRUSTED_PROXIES=0` when clients reach the app directly.
+
 ### Added
 
 - **Membership policies and join requests** (#56), in Settings → Security → Members: *who can add

@@ -624,7 +624,7 @@ function decodeBase64(input: string): { bytes: Buffer; contentType: string | nul
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
 
 export function createMcpServer(principal: McpPrincipal) {
-  const server = new McpServer({ name: "leafdesk", title: "Leafdesk", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "leafdesk", title: "Leafdesk", version: "0.3.0" }, { instructions: INSTRUCTIONS });
   // Every tool not annotated read-only runs as a write, so a workspace that lets connected apps
   // only read refuses it in its access checks (see connected-app.ts), whatever the tool checks.
   const register = server.registerTool.bind(server) as (name: string, config: unknown, handler: unknown) => unknown;
