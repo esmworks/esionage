@@ -2,6 +2,7 @@
 
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { revalidateAccountPages } from "@/server/account-pages";
 import { getTranslations } from "next-intl/server";
 import type { AccountErrorCode, DeletionPlan, Proof } from "@/lib/account";
 import { auth } from "@/lib/auth";
@@ -78,7 +79,7 @@ export async function changePasswordAction(input: { currentPassword: string; new
   const { currentPassword, newPassword, revokeOthers } = (input ?? {}) as Record<string, unknown>;
   const requestHeaders = await headers();
   const result = await run(() => changePassword(current, requestHeaders, { currentPassword, newPassword, revokeOthers }));
-  if (result.ok) revalidatePath("/account");
+  if (result.ok) revalidateAccountPages();
   return result;
 }
 
@@ -87,7 +88,7 @@ export async function setPasswordAction(input: { newPassword: string; proof: Pro
   const { newPassword, proof } = (input ?? {}) as Record<string, unknown>;
   const requestHeaders = await headers();
   const result = await run(() => setPassword(current, requestHeaders, { newPassword, proof: proofOf(proof) }));
-  if (result.ok) revalidatePath("/account");
+  if (result.ok) revalidateAccountPages();
   return result;
 }
 
@@ -95,14 +96,14 @@ export async function requestEmailChangeAction(input: { newEmail: string; proof:
   const current = await signedIn();
   const { newEmail, proof } = (input ?? {}) as Record<string, unknown>;
   const result = await run(() => requestEmailChange(current, { newEmail, proof: proofOf(proof) }));
-  revalidatePath("/account");
+  revalidateAccountPages();
   return result;
 }
 
 export async function cancelEmailChangeAction() {
   const current = await signedIn();
   await cancelEmailChange(current.user.id);
-  revalidatePath("/account");
+  revalidateAccountPages();
 }
 
 /**
@@ -124,14 +125,14 @@ export async function confirmEmailChangeAction(token: string) {
 export async function revokeSessionAction(sessionId: string) {
   const current = await signedIn();
   const result = await run(() => revokeSession(current, typeof sessionId === "string" ? sessionId : ""));
-  revalidatePath("/account");
+  revalidateAccountPages();
   return result;
 }
 
 export async function revokeOtherSessionsAction() {
   const current = await signedIn();
   const result = await run(() => revokeOtherSessions(current));
-  revalidatePath("/account");
+  revalidateAccountPages();
   return result;
 }
 

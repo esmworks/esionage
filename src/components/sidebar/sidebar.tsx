@@ -59,7 +59,7 @@ import { InboxDialog } from "./inbox-dialog";
 import { NewWorkspaceDialog } from "./new-workspace-dialog";
 import { SearchDialog } from "./search-dialog";
 import { SIDEBAR_WIDTH } from "@/lib/sidebar-layout";
-import { SidebarPeekEdge, useSidebar } from "./sidebar-context";
+import { isSettingsPath, SidebarPeekEdge, useSidebar } from "./sidebar-context";
 import { TrashDialog } from "./trash-dialog";
 import { TemplatesDialog } from "@/components/workspace/templates-dialog";
 import { ImportDialog } from "@/components/workspace/import-dialog";
@@ -504,7 +504,7 @@ export function Sidebar({
     router.refresh();
   }
 
-  const accountPath = `/account?from=${encodeURIComponent(workspaceId)}`;
+  const accountPath = `/w/${workspaceId}/settings?tab=profile`;
   const treeProps: TreeContext = {
     childrenOf: children,
     expanded,
@@ -520,6 +520,8 @@ export function Sidebar({
     canDrop,
     offline,
   };
+
+  if (isSettingsPath(pathname)) return null;
 
   return (
     <>
