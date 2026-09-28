@@ -326,6 +326,7 @@ export function PageView({
                 commentsOpen={commentsOpen && !offline}
                 onCloseComments={() => setCommentsOpen(false)}
                 offline={offline}
+                ai={info.ai && editable && !offline && !page.archived}
               />
             ) : (
               // Without a connection the error above explains why nothing loads.

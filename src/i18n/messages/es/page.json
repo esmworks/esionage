@@ -93,7 +93,8 @@
       "beforeRestore": "Antes de restaurar",
       "manual": "Versión guardada",
       "beforeAiEdit": "Antes de la edición con IA",
-      "beforeAiEditBy": "Antes de la edición de {client}"
+      "beforeAiEditBy": "Antes de la edición de {client}",
+      "beforeAssistantEdit": "Antes de la edición con el asistente de IA"
     },
     "empty": "Todavía no hay versiones. Las versiones se guardan automáticamente mientras editas y antes de que una app de IA cambie esta página.",
     "restore": "Restaurar esta versión",

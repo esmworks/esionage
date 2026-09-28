@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import type { PropertyType, SelectOption, ViewConfig, ViewType } from "@/db/schema";
 import { isDatabaseErrorCode, PropertyValueError } from "@/lib/properties";
 import { AccessError } from "@/server/access";
+import { databaseAi } from "@/server/ai-properties";
 import * as databases from "@/server/databases";
 import { duplicateRows } from "@/server/duplicate";
 import * as pages from "@/server/pages";
@@ -46,11 +47,19 @@ async function run<T>(fn: (userId: string) => Promise<T>): Promise<ActionResult<
 }
 
 export async function loadDatabaseAction(databaseId: string, options: { covers?: boolean } = {}) {
-  return run((userId) => databases.getDatabaseSnapshot(userId, databaseId, { covers: options.covers === true }));
+  return run(async (userId) => {
+    const snapshot = await databases.getDatabaseSnapshot(userId, databaseId, { covers: options.covers === true });
+    const ai = await databaseAi(databaseId, snapshot.properties, snapshot.rows.map((r) => r.id));
+    return { ...snapshot, ai };
+  });
 }
 
 export async function loadRowAction(rowId: string) {
-  return run((userId) => databases.getRow(userId, rowId));
+  return run(async (userId) => {
+    const row = await databases.getRow(userId, rowId);
+    const ai = await databaseAi(row.databaseId, row.properties, [rowId]);
+    return { ...row, ai: { enabled: ai.enabled, states: ai.states[rowId] ?? {} } };
+  });
 }
 
 export async function createRowAction(

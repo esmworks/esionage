@@ -57,6 +57,7 @@ import { computeDerived, loadProperties } from "@/server/derived";
 import { fileForViewer, workspaceFiles } from "@/server/files";
 import { recordAssignments } from "@/server/notifications";
 import { getCollab } from "@/server/collab/bridge";
+import { rowChanged } from "@/server/row-events";
 import { workspacePeople, type WorkspacePerson } from "@/server/workspaces";
 
 export type DatabaseProperty = typeof databaseProperty.$inferSelect;
@@ -477,6 +478,7 @@ export async function updateRowProperties(userId: string, rowId: string, patch: 
     await announceAssignments(userId, row.parentId, [{ rowId, before: row.properties, after: next }]);
   }
   notifyRows(row.parentId);
+  rowChanged({ rowId, databaseId: row.parentId, userId });
   return next;
 }
 
@@ -572,6 +574,7 @@ export async function updateRowsProperties(
   await syncPairedRelationsMany(databaseId, changes);
   await announceAssignments(userId, databaseId, changes);
   notifyRows(databaseId);
+  for (const row of rows) rowChanged({ rowId: row.id, databaseId, userId });
   return { done: rows.map((r) => r.id), skipped };
 }
 

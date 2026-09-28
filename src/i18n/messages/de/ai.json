@@ -1,0 +1,112 @@
+{
+  "assistant": {
+    "askAi": "KI fragen",
+    "askAiSubtext": "Mit KI umschreiben, übersetzen oder weiterschreiben",
+    "askAiAliases": "ki ai assistent schreiben umschreiben verbessern übersetzen",
+    "continueSubtext": "KI schreibt ab hier weiter",
+    "continueAliases": "ki ai weiterschreiben fortsetzen mehr",
+    "summarizeSubtext": "KI fügt eine Zusammenfassung dieser Seite hinzu",
+    "summarizeAliases": "ki ai zusammenfassung zusammenfassen tldr",
+    "group": "KI",
+    "label": "KI-Assistent",
+    "placeholder": "Sag der KI, was sie schreiben soll …",
+    "placeholderSelection": "Sag der KI, was sie mit der Auswahl tun soll …",
+    "send": "Senden",
+    "actions": {
+      "improve": "Text verbessern",
+      "shorten": "Kürzer fassen",
+      "fix": "Rechtschreibung und Grammatik korrigieren",
+      "translate": "Übersetzen …",
+      "continue": "Weiterschreiben",
+      "summarize": "Seite zusammenfassen",
+      "custom": "Deine Anweisung"
+    },
+    "translateInto": "Übersetzen in",
+    "back": "Zurück",
+    "writing": "Schreibt …",
+    "stop": "Stopp",
+    "replace": "Auswahl ersetzen",
+    "insertBelow": "Darunter einfügen",
+    "retry": "Erneut versuchen",
+    "discard": "Verwerfen",
+    "cutOff": "Die Antwort hat die Längengrenze erreicht und ist möglicherweise abgeschnitten.",
+    "reviewNote": "KI kann Fehler machen. Prüfe den Text, bevor du ihn übernimmst.",
+    "stopped": "Gestoppt. Du kannst den bisher geschriebenen Text trotzdem übernehmen.",
+    "applyFailed": "Der Vorschlag konnte der Seite nicht hinzugefügt werden.",
+    "selectionChanged": "Der ausgewählte Text hat sich inzwischen geändert, daher wurde der Vorschlag darunter eingefügt."
+  },
+  "errors": {
+    "disabled": "KI ist in diesem Workspace nicht verfügbar.",
+    "noAccess": "Du kannst diese Seite nicht ändern.",
+    "tooLarge": "Das ist zu viel Text für eine KI-Anfrage. Wähle weniger aus und versuche es erneut.",
+    "rateLimited": "Zu viele KI-Anfragen. Versuche es gleich noch einmal.",
+    "timeout": "Die KI hat zu lange für die Antwort gebraucht. Versuche es erneut.",
+    "aborted": "Die KI-Anfrage wurde abgebrochen.",
+    "provider": "Der KI-Anbieter konnte nicht antworten. Versuche es später erneut oder bitte eine Administratorin oder einen Administrator, die KI-Einstellungen zu prüfen.",
+    "empty": "Die KI hat keine Antwort gegeben. Versuche es erneut oder formuliere anders.",
+    "invalid": "Die KI-Anfrage war unvollständig. Versuche es erneut.",
+    "interrupted": "Der Server wurde neu gestartet, während dies ermittelt wurde. Aktualisiere es erneut."
+  },
+  "autofill": {
+    "addEntry": "KI-Autofill",
+    "configure": "KI-Autofill …",
+    "titleNew": "Neue KI-Autofill-Eigenschaft",
+    "titleFor": "KI-Autofill von {name}",
+    "back": "Zurück",
+    "mode": "KI füllt aus",
+    "modes": {
+      "summary": "Eine Zusammenfassung",
+      "translation": "Eine Übersetzung",
+      "custom": "Deinen eigenen Prompt"
+    },
+    "modeHints": {
+      "summary": "Eine kurze Zusammenfassung der Seite jeder Zeile.",
+      "translation": "Ein Wert der Zeile, übersetzt.",
+      "custom": "Alles, was du beschreibst, mit den Werten der Zeile."
+    },
+    "defaultNames": {
+      "summary": "KI-Zusammenfassung",
+      "translation": "Übersetzung",
+      "custom": "KI-Text"
+    },
+    "source": "Übersetzen",
+    "sourceTitle": "Name",
+    "sourceBody": "Seiteninhalt",
+    "language": "Zielsprache",
+    "prompt": "Prompt",
+    "promptPlaceholder": "Zum Beispiel: Schreibe einen einzeiligen Pitch für '{title}', gerichtet an '{Audience}'.",
+    "promptHint": "Klicke auf eine Eigenschaft, um sie einzufügen; der Wert der Zeile tritt an ihre Stelle.",
+    "includeBody": "Auch den Seiteninhalt der Zeile senden",
+    "auto": "Aktualisieren, wenn sich die Zeile ändert",
+    "autoHint": "Einige Sekunden nachdem sich die Werte oder die Seite einer Zeile ändern, wird ihr Wert neu ermittelt.",
+    "privacy": "Das, woraus der Wert jeder Zeile ermittelt wird, geht an den KI-Anbieter dieses Servers.",
+    "save": "Speichern",
+    "create": "Eigenschaft hinzufügen",
+    "turnOff": "KI-Autofill ausschalten",
+    "updateAll": "Alle Zeilen dieser Ansicht aktualisieren",
+    "updateRow": "Mit KI aktualisieren",
+    "pending": "KI arbeitet daran …",
+    "failed": "KI konnte dies nicht ausfüllen: {reason}",
+    "tooManyRows": "Es können höchstens {max} Zeilen auf einmal aktualisiert werden; die ersten {max} dieser Ansicht werden aktualisiert.",
+    "errors": {
+      "invalidMode": "Wähle, was die KI ausfüllen soll.",
+      "unknownLanguage": "Wähle eine Zielsprache.",
+      "unknownSource": "Wähle, was übersetzt werden soll.",
+      "promptRequired": "Schreibe einen Prompt.",
+      "promptTooLong": "Der Prompt darf höchstens {max} Zeichen lang sein.",
+      "unknownPlaceholder": "Es gibt keine Eigenschaft namens „{name}“.",
+      "notText": "Nur Texteigenschaften können von KI ausgefüllt werden.",
+      "databaseLocked": "Die Datenbank ist gesperrt."
+    }
+  },
+  "settings": {
+    "heading": "KI",
+    "description": "Der KI-Schreibassistent in Seiten und KI-Autofill-Eigenschaften in Datenbanken.",
+    "enabled": "KI-Funktionen",
+    "enabledHint": "Wenn eingeschaltet, können Mitglieder Seiteninhalte und Zeilenwerte, die sie sehen können, an den unten genannten KI-Anbieter senden. Schalte es aus, um die Inhalte dieses Workspace davon fernzuhalten.",
+    "ownersOnly": "Nur Eigentümer können dies ändern.",
+    "provider": "Anbieter",
+    "providerValue": "{provider}, Modell {model}",
+    "notConfigured": "Auf diesem Server ist kein KI-Anbieter eingerichtet, daher sind KI-Funktionen aus. Eine Administratorin oder ein Administrator kann ihn mit den Umgebungsvariablen AI_PROVIDER und AI_MODEL einrichten (siehe README)."
+  }
+}

@@ -1,12 +1,14 @@
 "use client";
 
-import { ArrowDown, ArrowLeft, ArrowUp, Combine, EyeOff, Plus, Settings2, Sigma, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Bot, BotOff, Combine, EyeOff, Plus, RefreshCw, Settings2, Sigma, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem, MenuSeparator } from "@/components/ui";
 import { isComputed, isDerived, PROPERTY_TYPES, STATUS_GROUPS, type StatusGroup } from "@/lib/property-types";
 import { pageLabel } from "@/lib/labels";
 import { SELECT_COLORS, sortStatusOptions, statusColor, statusGroupOf } from "@/lib/properties";
+import type { AiAutofillConfig } from "@/lib/ai";
+import { AutofillEditor } from "./ai-autofill";
 import { FormulaEditor } from "./formula-editor";
 import { RollupEditor } from "./rollup-editor";
 import { OptionChip } from "./property-cell";
@@ -18,15 +20,19 @@ import type { DerivedInput, Property, PropertyType, RelationInput, RollupInput, 
 /** Name + type picker used by the table "+" header and the row page "Add property". */
 export function AddPropertyPanel({
   onCreate,
+  onCreateAutofill,
   onDone,
 }: {
   onCreate: (name: string, type: PropertyType, relation?: RelationInput, derived?: DerivedInput) => void | Promise<unknown>;
+  /** Adds a text property that AI fills in (see ai-autofill.tsx); omitted when AI isn't available. */
+  onCreateAutofill?: (name: string, config: AiAutofillConfig) => void | Promise<unknown>;
   onDone: () => void;
 }) {
   const t = useTranslations("database.propertyMenu");
+  const ta = useTranslations("ai.autofill");
   const typeLabel = usePropertyTypeLabel();
   const [name, setName] = useState("");
-  const [step, setStep] = useState<"type" | "relation" | "formula" | "rollup">("type");
+  const [step, setStep] = useState<"type" | "relation" | "formula" | "rollup" | "autofill">("type");
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
   // A new property without a name is named after its type, in the user's language.
@@ -39,6 +45,19 @@ export function AddPropertyPanel({
     void onCreate(nameFor(type), type);
     onDone();
   };
+  if (step === "autofill" && onCreateAutofill) {
+    return (
+      <AutofillEditor
+        prop={null}
+        name={name.trim()}
+        onBack={() => setStep("type")}
+        onSave={(config) => {
+          void onCreateAutofill(name.trim() || ta(`defaultNames.${config.mode}`), config);
+          onDone();
+        }}
+      />
+    );
+  }
   if (step === "formula") {
     return (
       <FormulaEditor
@@ -96,6 +115,14 @@ export function AddPropertyPanel({
           {typeLabel(type)}
         </MenuItem>
       ))}
+      {onCreateAutofill && (
+        <>
+          <MenuSeparator />
+          <MenuItem icon={<Bot className="h-3.5 w-3.5" />} onClick={() => setStep("autofill")}>
+            {ta("addEntry")}
+          </MenuItem>
+        </>
+      )}
     </div>
   );
 }
@@ -111,6 +138,10 @@ export type PropertyMenuActions = {
   setFormula?: (expression: string) => void;
   /** Rollups: saves new settings. */
   setRollup?: (rollup: RollupInput) => void;
+  /** Text properties, when AI is available: turns AI autofill on, changes it or (null) turns it off. */
+  setAutofill?: (config: AiAutofillConfig | null) => void;
+  /** Autofill properties: works the values of the view's rows out again. */
+  updateAllAutofill?: () => void;
   remove?: () => void;
 };
 
@@ -127,7 +158,8 @@ export function PropertyMenu({
   const t = useTranslations("database.propertyMenu");
   const tc = useTranslations("common");
   const typeLabel = usePropertyTypeLabel();
-  const [page, setPage] = useState<"main" | "options" | "confirm" | "formula" | "rollup">("main");
+  const ta = useTranslations("ai.autofill");
+  const [page, setPage] = useState<"main" | "options" | "confirm" | "formula" | "rollup" | "autofill">("main");
   const [name, setName] = useState(prop?.name ?? "");
   const saved = useRef(prop?.name ?? "");
   const commitName = () => {
@@ -168,6 +200,20 @@ export function PropertyMenu({
         onBack={() => setPage("main")}
         onSave={(rollup) => {
           actions.setRollup?.(rollup);
+          onDone();
+        }}
+      />
+    );
+  }
+
+  if (page === "autofill" && prop && actions.setAutofill) {
+    return (
+      <AutofillEditor
+        prop={prop}
+        name={prop.name}
+        onBack={() => setPage("main")}
+        onSave={(config) => {
+          actions.setAutofill?.(config);
           onDone();
         }}
       />
@@ -273,6 +319,33 @@ export function PropertyMenu({
       {prop?.type === "rollup" && actions.setRollup && (
         <MenuItem icon={<Combine className="h-3.5 w-3.5" />} onClick={() => setPage("rollup")}>
           {t("editRollup")}
+        </MenuItem>
+      )}
+      {prop?.type === "text" && prop.options.ai && actions.updateAllAutofill && (
+        <MenuItem
+          icon={<RefreshCw className="h-3.5 w-3.5" />}
+          onClick={() => {
+            actions.updateAllAutofill?.();
+            onDone();
+          }}
+        >
+          {ta("updateAll")}
+        </MenuItem>
+      )}
+      {prop?.type === "text" && actions.setAutofill && (
+        <MenuItem icon={<Bot className="h-3.5 w-3.5" />} onClick={() => setPage("autofill")}>
+          {ta("configure")}
+        </MenuItem>
+      )}
+      {prop?.type === "text" && prop.options.ai && actions.setAutofill && (
+        <MenuItem
+          icon={<BotOff className="h-3.5 w-3.5" />}
+          onClick={() => {
+            actions.setAutofill?.(null);
+            onDone();
+          }}
+        >
+          {ta("turnOff")}
         </MenuItem>
       )}
       {selectType && actions.setOptions && (

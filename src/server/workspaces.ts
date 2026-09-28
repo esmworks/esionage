@@ -761,6 +761,7 @@ const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettin
   publishing: ["owners", "members"],
   requireTwoFactor: [false, true],
   teamspaceCreation: ["owners", "members"],
+  ai: [true, false],
 };
 
 /**

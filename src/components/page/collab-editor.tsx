@@ -20,6 +20,7 @@ import { X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { commentUsersAction } from "@/app/actions/comments";
+import { AskAiToolbarButton, useAiAssist, useAiSlashItems, type AiAssist } from "./ai-assist";
 import { yUndoPluginKey } from "y-prosemirror";
 import type { UndoManager } from "yjs";
 import { useEditorDictionary } from "@/i18n/blocknote";
@@ -68,6 +69,7 @@ export default function CollabEditor({
   commentsOpen,
   onCloseComments,
   offline = false,
+  ai = false,
 }: {
   pageDoc: PageDoc;
   user: { id: string; name: string };
@@ -86,6 +88,8 @@ export default function CollabEditor({
   onCloseComments: () => void;
   /** The server can't be reached: typing works, commenting (a server action) doesn't. */
   offline?: boolean;
+  /** The AI writing assistant is available (the person may edit, AI is on, the server is reachable). */
+  ai?: boolean;
 }) {
   const locale = useLocale();
   const tc = useTranslations("common");
@@ -171,6 +175,8 @@ export default function CollabEditor({
     threadStore.anchor = () => selectionAnchor(editor);
   }, [threadStore, editor]);
 
+  const assistant = useAiAssist(editor, pageId, ai && editable && !offline);
+
   // Keyed by language so the new editor mounts into a fresh element.
   return (
     <EmbedHostProvider value={host}>
@@ -185,7 +191,13 @@ export default function CollabEditor({
           formattingToolbar={false}
           className="esionage-editor"
         >
-          <SlashMenu editor={editor} onCreateError={setEmbedError} onPickDatabase={setPickAt} onPickPage={setLinkAt} />
+          <SlashMenu
+            editor={editor}
+            onCreateError={setEmbedError}
+            onPickDatabase={setPickAt}
+            onPickPage={setLinkAt}
+            assistant={ai && editable && !offline ? assistant : null}
+          />
           {editable && <MentionMenu editor={editor} workspaceId={workspaceId} pageId={pageId} />}
           <PasteLinkMenu editor={editor} />
           {/* People who may only read get no toolbar; commenting shows it on read-only pages too. */}
@@ -193,6 +205,7 @@ export default function CollabEditor({
             <FormattingToolbarController
               formattingToolbar={() => (
                 <FormattingToolbar>
+                  {ai && editable && !offline && <AskAiToolbarButton key="askAi" onOpen={() => assistant.open()} />}
                   {getFormattingToolbarItems().filter((item) => (canComment && !offline) || item.key !== "addCommentButton")}
                 </FormattingToolbar>
               )}
@@ -200,6 +213,7 @@ export default function CollabEditor({
           )}
           {commentsOpen && <CommentsPanel onClose={onCloseComments} />}
         </BlockNoteView>
+        {assistant.panel}
       </PageTrailProvider>
       {embedError && (
         <div role="alert" className="mx-4 mt-2 md:mx-[54px] flex items-center gap-2 rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-sm">
@@ -257,26 +271,32 @@ function SlashMenu({
   onCreateError,
   onPickDatabase,
   onPickPage,
+  assistant,
 }: {
   editor: PageEditor;
   onCreateError: (message: string) => void;
   onPickDatabase: (at: string) => void;
   onPickPage: (at: string) => void;
+  /** The AI writing assistant, when available: its entries go at the end of the menu. */
+  assistant: AiAssist | null;
 }) {
   const embedItems = useEmbedSlashItems(editor, { onCreateError, onPickDatabase });
   const contentItems = useContentSlashItems(editor);
   const webItems = useWebSlashItems(editor);
   const pageLinkItems = usePageLinkSlashItem(editor, onPickPage);
   const columnItems = useColumnSlashItems(editor);
+  const aiItems = useAiSlashItems(assistant?.open ?? noop, assistant !== null);
   return (
     <SuggestionMenuController
       triggerCharacter="/"
       getItems={async (query) =>
         filterSuggestionItems(
-          withEmbedItems(getDefaultReactSlashMenuItems(editor), [...embedItems(), ...contentItems, ...columnItems(), ...webItems, ...pageLinkItems]),
+          withEmbedItems(getDefaultReactSlashMenuItems(editor), [...embedItems(), ...contentItems, ...columnItems(), ...webItems, ...pageLinkItems, ...aiItems]),
           query,
         )
       }
     />
   );
 }
+
+const noop = () => {};

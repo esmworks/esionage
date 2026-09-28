@@ -29,6 +29,7 @@ const { getStorage } = await import("./src/server/storage");
 // Fails fast on a half-configured S3 setup instead of at the first upload.
 console.log(`file storage: ${getStorage().kind}`);
 const { startReminders } = await import("./src/server/mentions");
+const { startAiProperties } = await import("./src/server/ai-properties");
 
 const { hocuspocus, service } = createCollab();
 registerCollab(service);
@@ -88,6 +89,8 @@ server.listen(port, hostname, () => {
   startShareEmails();
   startFileCleanup();
   startReminders();
+  // Logs the AI provider (or that AI is off) and follows row changes for auto-updating AI values.
+  startAiProperties();
 });
 
 let shuttingDown = false;

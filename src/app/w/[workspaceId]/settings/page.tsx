@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { GroupsPanel } from "@/components/settings/groups-panel";
+import { AiSettings } from "@/components/settings/ai-settings";
 import { LeaveWorkspaceRow } from "@/components/settings/leave-workspace";
 import { MembersPanel } from "@/components/settings/members-panel";
 import { PublicForms } from "@/components/settings/public-forms";
@@ -21,6 +22,7 @@ import { WorkspaceExport } from "@/components/settings/workspace-export";
 import { WorkspaceNameForm } from "@/components/settings/workspace-settings";
 import { isStrongSession } from "@/lib/auth-security";
 import { AccessError, isGuest } from "@/server/access";
+import { aiInfo } from "@/server/ai";
 import { listWorkspaceFormPublications } from "@/server/forms";
 import { groupsByMember, listGroups } from "@/server/groups";
 import { listWorkspacePublications } from "@/server/publication";
@@ -131,6 +133,7 @@ export default async function SettingsPage({
                 {/* Guests can't open the members list, where everyone else leaves from. */}
                 {guest && <LeaveWorkspaceRow workspaceId={workspaceId} userId={user.id} />}
               </SettingsGroup>
+              {!guest && <AiGroup workspaceId={workspaceId} userId={user.id} isOwner={isOwner} />}
               {/* Exporting everything is for owners, like the members list download. */}
               {isOwner && (
                 <SettingsGroup title={t("export.heading")} className="mt-10">
@@ -149,6 +152,16 @@ export default async function SettingsPage({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Settings > General > AI: the workspace's switch and the server's provider (see server/ai). */
+async function AiGroup({ workspaceId, userId, isOwner }: { workspaceId: string; userId: string; isOwner: boolean }) {
+  const [settings, t] = await Promise.all([getWorkspaceSettings(userId, workspaceId), getTranslations("ai.settings")]);
+  return (
+    <SettingsGroup title={t("heading")} description={t("description")} className="mt-10">
+      <AiSettings workspaceId={workspaceId} enabled={settings.ai !== false} canEdit={isOwner} provider={aiInfo()} />
+    </SettingsGroup>
   );
 }
 

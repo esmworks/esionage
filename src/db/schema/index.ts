@@ -7,3 +7,4 @@ export * from "./files";
 export * from "./mentions";
 export * from "./api-tokens";
 export * from "./groups";
+export * from "./ai";

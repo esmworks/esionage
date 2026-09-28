@@ -37,6 +37,11 @@ export interface CollabService {
   appendBlocks(pageId: string, blocks: unknown[], actor: WriteActor, snapshot?: boolean): Promise<void>;
   setTitle(pageId: string, title: string, actor: WriteActor): Promise<void>;
   restoreSnapshot(snapshotId: string, actor: WriteActor): Promise<void>;
+  /**
+   * Saves the page as it is now (the live document when it is open) as a history version, e.g.
+   * before the editor's AI assistant applies a suggestion in the browser.
+   */
+  snapshot(pageId: string, reason: "before_ai_edit" | "manual", actor: WriteActor): Promise<void>;
   /** The page's comment threads, from the live document when it is open. */
   readThreads(pageId: string): Promise<PlainThread[]>;
   /**

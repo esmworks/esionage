@@ -18,6 +18,7 @@ import { AccessError, TwoFactorRequiredError } from "@/server/access";
 import { sessionPassesTwoFactor } from "@/server/account-security";
 import { blocksToMarkdown, markdownToBlocks, serverEditor as editor } from "@/server/blocknote";
 import { mentionablePeople, syncPageReferences } from "@/server/mentions";
+import { rowChanged } from "@/server/row-events";
 import { authorizeCollab, parseDocName as parseName } from "./authorize";
 import type { Channel, CollabService, CommentActor, CommentOpResult, PageContent, WriteActor } from "./bridge";
 import { anchorThread, reanchor, threadQuotes } from "./comment-marks";
@@ -213,6 +214,8 @@ export function createCollab() {
     // Every save, not only edits: a reminder changes the document but not its Markdown.
     await syncPageReferences(pageId, row.workspaceId, blocks, userId ?? null, context?.locale ?? null);
     if (!edited) return;
+    // A database row's title or content changed: AI autofill values that follow it may update.
+    if (row.parentId) rowChanged({ rowId: pageId, databaseId: row.parentId, userId: userId ?? null });
     if (title !== row.title) {
       broadcast(`ws:${row.workspaceId}`, "tree");
       if (row.parentId) broadcast(`db:${row.parentId}`, "rows");
@@ -482,6 +485,10 @@ export function createCollab() {
         );
       });
       old.destroy();
+    },
+
+    async snapshot(pageId, reason, actor) {
+      await transactPage(pageId, actor, (doc) => snapshotBefore(pageId, doc, reason, actor));
     },
 
     broadcast,

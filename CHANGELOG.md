@@ -19,6 +19,32 @@
   Groups column (also in the CSV export). MCP `list_groups` and REST
   `GET /workspaces/{id}/groups` list groups with their members and teamspaces. New checks:
   `scripts/groups-e2e.ts` (79), `src/lib/groups.test.ts`, `src/lib/search-fold.test.ts`.
+- **AI foundation** (optional; off unless `AI_PROVIDER` and `AI_MODEL` are set): one server-side
+  interface in `src/server/ai` for streaming chat with tool calls, embeddings (an OpenAI-compatible
+  `/embeddings` call over `fetch`), per-person and per-workspace rate limits, a maximum input
+  size, timeouts, cancellation and a usage log line per request (feature, model, tokens, cost; no
+  content). Providers: Anthropic, OpenAI, Google, any OpenAI-compatible server, Ollama and LM
+  Studio, through `@earendil-works/pi-ai` 0.87.1 (MIT) with only those APIs registered; tests use
+  its faux provider. Owners can turn AI off per workspace (Settings → General → AI), which also
+  shows the server's provider and model. See the README's AI section for the environment
+  variables, limits and what is sent where.
+- **AI writing assistant** (#40): *Ask AI* in the formatting toolbar and the slash menu (plus
+  *Continue writing* and *Summarize page*): improve writing, fix spelling and grammar, make
+  shorter, translate into a chosen language, or follow your own instruction. The answer streams
+  into a panel (`POST /api/ai/write`, newline-delimited JSON) with *Replace selection*, *Insert
+  below*, *Try again* and *Discard*; *Stop* and closing cancel the request. Applying saves a page
+  history version first ("Before AI assistant edit") and edits through the shared document, so
+  others see it live and Undo reverts it. Only people who can edit the page can use it; offline
+  it is hidden.
+- **AI autofill properties** (#42): a text property can be filled in by AI with a summary of the
+  row's page, a translation (of the name, the page content or another property) or a custom
+  prompt with `{Property}` placeholders and optionally the page content. Values are plain text
+  (filters, sorts, CSV, REST and MCP work as before; `get_database` shows `ai_autofill`), worked
+  out in the background with a concurrency limit and each workspace's rate limit, per row
+  (*Update with AI* on a cell or the row page), for a view (*Update all rows in this view*), and
+  optionally a few seconds after a row changes when its inputs did. Cells show pending and failed
+  values with the reason. Migration `0023_ai_properties` adds the `ai_property_state` table
+  (additive).
 - **German, Spanish and French** (#51): the whole interface, emails and built-in templates in
   Deutsch, Español and Français, next to English and Turkish; the editor's menus use BlockNote's own
   dictionaries for them. The language picker lists each language by its own name. Adding a

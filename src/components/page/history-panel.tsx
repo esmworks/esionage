@@ -61,6 +61,8 @@ export function HistoryPanel({ pageId, onClose, readOnly }: { pageId: string; on
         return t("reasons.auto");
       case "before_restore":
         return t("reasons.beforeRestore");
+      case "before_ai_edit":
+        return t("reasons.beforeAssistantEdit");
       case "manual":
         return t("reasons.manual");
       default:
