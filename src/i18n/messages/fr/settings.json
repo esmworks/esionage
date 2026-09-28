@@ -220,7 +220,8 @@
     "joinLinkInvalid": "Ce lien d’accès n’est pas valide ou a été désactivé.",
     "transferToSelf": "Choisissez une autre personne à nommer propriétaire.",
     "transferToGuest": "Faites-en d’abord un membre avant de le nommer propriétaire.",
-    "twoFactorFirst": "Activez d’abord la vérification en deux étapes pour votre propre compte, ou connectez-vous avec une clé d’accès."
+    "twoFactorFirst": "Activez d’abord la vérification en deux étapes pour votre propre compte, ou connectez-vous avec une clé d’accès.",
+    "ssoFirst": "Configurez d'abord l'authentification unique et vérifiez ses domaines."
   },
   "security": {
     "description": "Choisissez comment les personnes se connectent, qui peut faire entrer des personnes dans cet espace de travail, ce que les invités peuvent faire et qui peut publier des pages sur le Web. Seuls les propriétaires peuvent modifier ces paramètres.",
@@ -277,7 +278,112 @@
       "confirm": "Désactiver le lien public de ce formulaire ? Il cessera de fonctionner pour tout le monde.",
       "stale": "N’accepte aucune réponse : la personne qui l’a ouvert a perdu son accès"
     },
-    "ownersOnly": "Seuls les propriétaires peuvent modifier ce paramètre."
+    "ownersOnly": "Seuls les propriétaires peuvent modifier ce paramètre.",
+    "loginMethod": {
+      "title": "Comment les membres se connectent",
+      "description": "Avec « Authentification unique uniquement », les membres doivent se connecter via le fournisseur d'identité pour ouvrir cet espace de travail. Les propriétaires et les invités peuvent toujours utiliser n'importe quelle méthode, pour qu'un fournisseur d'identité en panne ne vous bloque pas.",
+      "setUpFirst": "Configurez d'abord l'authentification unique ci-dessous.",
+      "any": "N'importe quelle méthode",
+      "sso": "Authentification unique uniquement"
+    },
+    "sso": {
+      "title": "Authentification unique (SSO)",
+      "description": "Connectez le fournisseur d'identité de votre organisation via OpenID Connect ou SAML. Les personnes ayant une adresse dans ses domaines vérifiés peuvent se connecter avec lui ; la première fois, leur compte est créé et elles rejoignent l'espace en tant que membres.",
+      "setup": {
+        "workspaceId": "ID de l'espace de travail",
+        "oidcRedirectUri": "URI de redirection OIDC",
+        "oidcRedirectUriHint": "Ajoutez-la comme URL de redirection (callback) autorisée du client chez votre fournisseur d'identité.",
+        "samlEntityId": "Entity ID SAML (audience)",
+        "samlAcsUrl": "URL ACS SAML",
+        "samlMetadataUrl": "Métadonnées SAML du fournisseur de services"
+      },
+      "connection": {
+        "oidc": "OpenID Connect",
+        "saml": "SAML 2.0",
+        "active": "Actif",
+        "unverified": "Domaines pas encore vérifiés",
+        "domains": "Domaines : {domains}"
+      },
+      "dns": {
+        "body": "Pour prouver que ces domaines vous appartiennent, ajoutez un enregistrement TXT pour chacun chez votre fournisseur DNS, puis vérifiez. D'ici là, personne ne peut se connecter avec cette connexion.",
+        "name": "Nom",
+        "value": "Valeur",
+        "verify": "Vérifier les domaines",
+        "verifying": "Vérification du DNS…",
+        "verified": "Domaines vérifiés. L'authentification unique est active."
+      },
+      "form": {
+        "protocol": "Protocole",
+        "issuer": "URL de l'issuer",
+        "issuerHint": "L'adresse sous laquelle sa configuration OpenID est publiée (…/.well-known/openid-configuration).",
+        "clientId": "Client ID",
+        "clientSecret": "Client secret",
+        "secretKept": "Inchangé",
+        "samlSource": "Informations du fournisseur d'identité",
+        "metadata": "XML de métadonnées",
+        "manual": "Saisir manuellement",
+        "metadataXml": "XML de métadonnées du fournisseur d'identité",
+        "metadataKept": "Laissez vide pour conserver les métadonnées enregistrées",
+        "entryPoint": "URL SSO",
+        "idpEntityId": "Entity ID du fournisseur d'identité",
+        "certificate": "Certificat de signature",
+        "certificateKept": "Laissez vide pour conserver le certificat enregistré",
+        "domains": "Domaines e-mail",
+        "domainsHint": "Séparés par des virgules, par exemple example.com, example.org. Les sous-domaines sont inclus.",
+        "save": "Enregistrer",
+        "saving": "Enregistrement…"
+      },
+      "saved": "Enregistré.",
+      "edit": "Modifier",
+      "remove": "Supprimer",
+      "confirmRemove": "Supprimer l'authentification unique",
+      "errors": {
+        "invalidDomain": "{detail} ne peut pas être utilisé : saisissez les domaines e-mail propres à votre organisation (pas de messageries publiques comme gmail.com).",
+        "noDomains": "Ajoutez au moins un domaine e-mail.",
+        "invalidIssuer": "L'issuer doit être une adresse https.",
+        "discoveryFailed": "Impossible de lire la configuration OpenID du fournisseur à {detail}. Vérifiez l'adresse de l'issuer.",
+        "clientIdRequired": "Saisissez le client ID.",
+        "secretRequired": "Saisissez le client secret.",
+        "invalidSaml": "Collez le XML de métadonnées du fournisseur d'identité, ou saisissez son URL SSO, son entity ID et son certificat de signature.",
+        "noConnection": "Configurez d'abord l'authentification unique.",
+        "dnsMismatch": "L'enregistrement TXT de {detail} est introuvable ou a une autre valeur. Les changements DNS peuvent mettre un moment à apparaître.",
+        "domainTaken": "{detail} est déjà utilisé pour l'authentification unique ailleurs sur ce serveur.",
+        "name": "Donnez au jeton un nom de 100 caractères au maximum.",
+        "limit": "Un espace de travail peut avoir au plus 20 jetons SCIM. Révoquez-en un d'abord.",
+        "ownersOnly": "Seuls les propriétaires de l'espace de travail peuvent faire cela.",
+        "generic": "Une erreur s'est produite. Veuillez réessayer."
+      }
+    },
+    "scim": {
+      "title": "Provisionnement des utilisateurs (SCIM)",
+      "description": "Laissez votre fournisseur d'identité ajouter, modifier et retirer des membres via SCIM 2.0. Les groupes ne sont pas encore pris en charge.",
+      "baseUrl": "URL de base SCIM",
+      "managed": "{count, plural, =0 {Personne n'est encore géré par SCIM.} one {# personne est gérée par SCIM.} other {# personnes sont gérées par SCIM.}}",
+      "tokens": "Jetons",
+      "tokensDescription": "Le fournisseur d'identité en envoie un comme jeton bearer. Chacun ne vaut que pour cet espace de travail.",
+      "empty": "Aucun jeton pour l'instant.",
+      "lastUsed": "Dernière utilisation le {date, date, medium}",
+      "neverUsed": "Jamais utilisé",
+      "create": "Nouveau jeton",
+      "revoke": "Révoquer",
+      "confirmRevoke": "Révoquer {name}",
+      "form": {
+        "title": "Nouveau jeton SCIM",
+        "name": "Nom",
+        "namePlaceholder": "Par exemple : Okta",
+        "submit": "Créer le jeton"
+      },
+      "created": {
+        "title": "Copiez votre jeton",
+        "body": "Collez-le maintenant chez votre fournisseur d'identité. Il ne sera plus affiché.",
+        "done": "Terminé"
+      },
+      "errors": {
+        "name": "Donnez au jeton un nom de 100 caractères au maximum.",
+        "limit": "Un espace de travail peut avoir au plus 20 jetons SCIM. Révoquez-en un d'abord.",
+        "generic": "Une erreur s'est produite. Veuillez réessayer."
+      }
+    }
   },
   "notifications": {
     "heading": "Notifications",

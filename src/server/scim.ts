@@ -350,7 +350,10 @@ export async function handleScimRequest(request: Request): Promise<Response> {
           name: schemaId.endsWith("User") ? "User" : "Group",
           attributes: [],
         }));
-        return scimJson(200, id ? (schemas.find((s) => s.id === id) ?? schemas[0]) : listResponse(schemas, schemas.length, 1));
+        if (!id) return scimJson(200, listResponse(schemas, schemas.length, 1));
+        const schema = schemas.find((s) => s.id === id);
+        if (!schema) throw new ScimError(404, `No schema ${id}.`);
+        return scimJson(200, schema);
       }
       case "Users": {
         if (!id) {

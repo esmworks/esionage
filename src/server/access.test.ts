@@ -60,7 +60,14 @@ describe("pageVisibleTo", () => {
  */
 describe("access checks stay in one place", () => {
   const root = join(__dirname, "..");
-  const ALLOWED = new Set(["server/access.ts", "server/permissions.ts", "server/workspaces.ts", "server/teamspaces.ts"]);
+  // server/scim.ts is member management too: an identity provider adding and removing members.
+  const ALLOWED = new Set([
+    "server/access.ts",
+    "server/permissions.ts",
+    "server/workspaces.ts",
+    "server/teamspaces.ts",
+    "server/scim.ts",
+  ]);
 
   function sources(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

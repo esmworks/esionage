@@ -88,10 +88,15 @@ export function closedSignUpGuard(check?: InvitationCheck) {
  * else's unverified email beforehand (pre-account-takeover). When a sign-in links a provider
  * account to such a user by email, the provider has just proven who owns the address, so the
  * earlier password, sessions and app grants go; the owner can set a password by resetting it by
- * email. Better Auth links the account before it creates the new session, so that one survives.
+ * email. Better Auth links the account before it creates the new session, so only sessions from
+ * before the link go: single sign-on runs this hook after its transaction, when the new session
+ * already exists.
  */
 export function claimOnEmailLink(revokeAppGrants?: (userId: string) => Promise<void>) {
-  return async (account: { id: string; userId: string; providerId: string }, ctx: GenericEndpointContext | null) => {
+  return async (
+    account: { id: string; userId: string; providerId: string; createdAt?: Date | string },
+    ctx: GenericEndpointContext | null,
+  ) => {
     if (!ctx || account.providerId === "credential") return;
     // An explicit /link-social by the signed-in user, not a link by email.
     if ((await getOAuthState())?.link) return;
@@ -102,7 +107,10 @@ export function claimOnEmailLink(revokeAppGrants?: (userId: string) => Promise<v
     // No other account: the user was created by this same sign-in, there is nothing to claim.
     if (others.length === 0) return;
     for (const other of others) if (other.providerId === "credential") await adapter.deleteAccount(other.id);
-    await adapter.deleteUserSessions(account.userId);
+    const linkedAt = account.createdAt ? new Date(account.createdAt).getTime() : Number.POSITIVE_INFINITY;
+    for (const old of await adapter.listSessions(account.userId)) {
+      if (new Date(old.createdAt).getTime() < linkedAt) await adapter.deleteSession(old.token);
+    }
     await revokeAppGrants?.(account.userId);
     await adapter.updateUser(account.userId, { emailVerified: true });
   };
@@ -146,10 +154,14 @@ export function socialAuthOptions(providers: Partial<Record<SocialProvider, Soci
 /**
  * The SSO plugin's own provider management (register, update, list, domain verification) works
  * per user or per organization; workspaces manage their one connection through server/sso.ts,
- * owners only, so those endpoints are off. What stays: starting a sign-in, the OIDC callback, and
- * SAML's assertion consumer and metadata.
+ * owners only, so those endpoints are off. What stays: starting a sign-in, the per-provider OIDC
+ * callback, and SAML's assertion consumer and metadata.
+ *
+ * Also off: the shared OIDC callback (`/sso/callback`, for the unused `redirectURI` option), which
+ * would finish a sign-in outside the paths the two-step challenge and the session's provider
+ * record look at, and SAML single logout (not enabled).
  */
-export const SSO_DISABLED_PATHS = [
+export const SSO_DISABLED_ENDPOINTS: ReadonlySet<string> = new Set([
   "/sso/register",
   "/sso/providers",
   "/sso/get-provider",
@@ -157,9 +169,13 @@ export const SSO_DISABLED_PATHS = [
   "/sso/delete-provider",
   "/sso/request-domain-verification",
   "/sso/verify-domain",
+  "/sso/callback",
   "/sso/saml2/sp/slo/:providerId",
   "/sso/saml2/logout/:providerId",
-];
+]);
+
+/** `disabledPaths` compares literal request paths, so it only covers the ones without parameters. */
+export const SSO_DISABLED_PATHS = [...SSO_DISABLED_ENDPOINTS].filter((path) => !path.includes(":"));
 
 export type SsoCallbacks = {
   /** Picks the provider for an email typed on the sign-in page ("Continue with SSO"). */
@@ -225,6 +241,8 @@ export function baseAuthOptions({
   sso: ssoCallbacks = {},
 }: { invitationAllowsSignUp?: InvitationCheck; instanceOidc?: InstanceOidc | null; sso?: SsoCallbacks } = {}) {
   const before = createAuthMiddleware(async (ctx) => {
+    // Hooks see the route pattern, so this also covers the ones with parameters.
+    if (SSO_DISABLED_ENDPOINTS.has(ctx.path)) throw APIError.from("NOT_FOUND", { message: "Not found", code: "NOT_FOUND" });
     if (ctx.path === "/sign-in/sso") {
       const body = await routeSsoSignIn(ctx.body, ssoCallbacks.resolveProvider);
       if (body) return { context: { body } };

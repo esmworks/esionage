@@ -82,5 +82,14 @@
     "signedInAs": "Has iniciado sesión como {email}.",
     "signOut": "Cerrar sesión",
     "otherWorkspaces": "Tus otros espacios de trabajo"
+  },
+  "ssoGate": {
+    "metaTitle": "Se requiere inicio de sesión único",
+    "title": "{workspace} requiere inicio de sesión único",
+    "body": "Los miembros de este espacio de trabajo inician sesión con el proveedor de identidad de su organización. Continúa con él para abrir el espacio de trabajo.",
+    "continue": "Continuar con SSO",
+    "signedInAs": "Has iniciado sesión como {email}.",
+    "signOut": "Cerrar sesión",
+    "otherWorkspaces": "Tus otros espacios de trabajo"
   }
 }
