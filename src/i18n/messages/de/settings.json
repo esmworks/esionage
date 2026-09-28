@@ -273,7 +273,8 @@
     "joinLinkInvalid": "Dieser Beitrittslink ist ungültig oder wurde deaktiviert.",
     "transferToSelf": "Wähle eine andere Person, die Inhaber werden soll.",
     "transferToGuest": "Mach die Person zuerst zum Mitglied, bevor du sie zum Inhaber machst.",
-    "twoFactorFirst": "Aktiviere zuerst die Bestätigung in zwei Schritten für dein eigenes Konto oder melde dich mit einem Passkey an."
+    "twoFactorFirst": "Aktiviere zuerst die Bestätigung in zwei Schritten für dein eigenes Konto oder melde dich mit einem Passkey an.",
+    "ssoFirst": "Richte zuerst Single Sign-on ein und bestätige seine Domains."
   },
   "security": {
     "description": "Lege fest, wie sich Personen anmelden, wer andere in diesen Workspace holen darf, was Gäste tun können und wer Seiten im Web veröffentlichen darf. Nur Inhaber können diese Einstellungen ändern.",
@@ -330,7 +331,112 @@
       "confirm": "Öffentlichen Link dieses Formulars deaktivieren? Er funktioniert dann für niemanden mehr.",
       "stale": "Nimmt keine Antworten an: Die Person, die es aktiviert hat, hat keinen Zugriff mehr"
     },
-    "ownersOnly": "Nur Inhaber können das ändern."
+    "ownersOnly": "Nur Inhaber können das ändern.",
+    "loginMethod": {
+      "title": "Wie sich Mitglieder anmelden",
+      "description": "Mit „Nur Single Sign-on“ müssen sich Mitglieder über den Identitätsanbieter anmelden, um diesen Workspace zu öffnen. Inhaber und Gäste können weiterhin jede Methode nutzen, damit ein gestörter Identitätsanbieter dich nicht aussperrt.",
+      "setUpFirst": "Richte zuerst unten Single Sign-on ein.",
+      "any": "Jede Methode",
+      "sso": "Nur Single Sign-on"
+    },
+    "sso": {
+      "title": "Single Sign-on (SSO)",
+      "description": "Verbinde den Identitätsanbieter deiner Organisation über OpenID Connect oder SAML. Wer eine Adresse in seinen bestätigten Domains hat, kann sich damit anmelden; beim ersten Mal wird das Konto angelegt und die Person tritt als Mitglied bei.",
+      "setup": {
+        "workspaceId": "Workspace-ID",
+        "oidcRedirectUri": "OIDC-Weiterleitungs-URI",
+        "oidcRedirectUriHint": "Trage sie beim Client deines Identitätsanbieters als erlaubte Weiterleitungs-URL (Callback) ein.",
+        "samlEntityId": "SAML-Entity-ID (Audience)",
+        "samlAcsUrl": "SAML-ACS-URL",
+        "samlMetadataUrl": "SAML-Metadaten des Dienstanbieters"
+      },
+      "connection": {
+        "oidc": "OpenID Connect",
+        "saml": "SAML 2.0",
+        "active": "Aktiv",
+        "unverified": "Domains noch nicht bestätigt",
+        "domains": "Domains: {domains}"
+      },
+      "dns": {
+        "body": "Um zu zeigen, dass dir diese Domains gehören, lege bei deinem DNS-Anbieter für jede einen TXT-Eintrag an und bestätige dann. Bis dahin kann sich niemand über diese Verbindung anmelden.",
+        "name": "Name",
+        "value": "Wert",
+        "verify": "Domains bestätigen",
+        "verifying": "DNS wird geprüft …",
+        "verified": "Domains bestätigt. Single Sign-on ist aktiv."
+      },
+      "form": {
+        "protocol": "Protokoll",
+        "issuer": "Issuer-URL",
+        "issuerHint": "Die Adresse, unter der die OpenID-Konfiguration liegt (…/.well-known/openid-configuration).",
+        "clientId": "Client-ID",
+        "clientSecret": "Client-Secret",
+        "secretKept": "Unverändert",
+        "samlSource": "Angaben zum Identitätsanbieter",
+        "metadata": "Metadaten-XML",
+        "manual": "Manuell eingeben",
+        "metadataXml": "Metadaten-XML des Identitätsanbieters",
+        "metadataKept": "Leer lassen, um die gespeicherten Metadaten zu behalten",
+        "entryPoint": "SSO-URL",
+        "idpEntityId": "Entity-ID des Identitätsanbieters",
+        "certificate": "Signaturzertifikat",
+        "certificateKept": "Leer lassen, um das gespeicherte Zertifikat zu behalten",
+        "domains": "E-Mail-Domains",
+        "domainsHint": "Durch Kommas getrennt, zum Beispiel example.com, example.org. Subdomains sind eingeschlossen.",
+        "save": "Speichern",
+        "saving": "Wird gespeichert …"
+      },
+      "saved": "Gespeichert.",
+      "edit": "Bearbeiten",
+      "remove": "Entfernen",
+      "confirmRemove": "Single Sign-on entfernen",
+      "errors": {
+        "invalidDomain": "{detail} kann nicht verwendet werden: Gib die eigenen E-Mail-Domains deiner Organisation ein (keine öffentlichen Maildienste wie gmail.com).",
+        "noDomains": "Füge mindestens eine E-Mail-Domain hinzu.",
+        "invalidIssuer": "Der Issuer muss eine https-Adresse sein.",
+        "discoveryFailed": "Die OpenID-Konfiguration des Anbieters unter {detail} konnte nicht gelesen werden. Prüfe die Issuer-Adresse.",
+        "clientIdRequired": "Gib die Client-ID ein.",
+        "secretRequired": "Gib das Client-Secret ein.",
+        "invalidSaml": "Füge die Metadaten-XML des Identitätsanbieters ein oder gib seine SSO-URL, Entity-ID und sein Signaturzertifikat ein.",
+        "noConnection": "Richte zuerst Single Sign-on ein.",
+        "dnsMismatch": "Der TXT-Eintrag für {detail} wurde nicht gefunden oder hat einen anderen Wert. DNS-Änderungen können eine Weile brauchen.",
+        "domainTaken": "{detail} wird auf diesem Server bereits anderswo für Single Sign-on verwendet.",
+        "name": "Gib dem Token einen Namen mit höchstens 100 Zeichen.",
+        "limit": "Ein Workspace kann höchstens 20 SCIM-Tokens haben. Widerrufe zuerst eines.",
+        "ownersOnly": "Das können nur Inhaber des Workspaces.",
+        "generic": "Etwas ist schiefgelaufen. Bitte versuche es noch einmal."
+      }
+    },
+    "scim": {
+      "title": "Benutzerbereitstellung (SCIM)",
+      "description": "Lass deinen Identitätsanbieter Mitglieder über SCIM 2.0 hinzufügen, ändern und entfernen. Gruppen werden noch nicht unterstützt.",
+      "baseUrl": "SCIM-Basis-URL",
+      "managed": "{count, plural, =0 {Noch niemand wird über SCIM verwaltet.} one {# Person wird über SCIM verwaltet.} other {# Personen werden über SCIM verwaltet.}}",
+      "tokens": "Tokens",
+      "tokensDescription": "Der Identitätsanbieter sendet eines als Bearer-Token. Jedes gilt nur für diesen Workspace.",
+      "empty": "Noch keine Tokens.",
+      "lastUsed": "Zuletzt verwendet am {date, date, medium}",
+      "neverUsed": "Nie verwendet",
+      "create": "Neues Token",
+      "revoke": "Widerrufen",
+      "confirmRevoke": "{name} widerrufen",
+      "form": {
+        "title": "Neues SCIM-Token",
+        "name": "Name",
+        "namePlaceholder": "Zum Beispiel: Okta",
+        "submit": "Token erstellen"
+      },
+      "created": {
+        "title": "Kopiere dein Token",
+        "body": "Füge es jetzt bei deinem Identitätsanbieter ein. Es wird nicht noch einmal angezeigt.",
+        "done": "Fertig"
+      },
+      "errors": {
+        "name": "Gib dem Token einen Namen mit höchstens 100 Zeichen.",
+        "limit": "Ein Workspace kann höchstens 20 SCIM-Tokens haben. Widerrufe zuerst eines.",
+        "generic": "Etwas ist schiefgelaufen. Bitte versuche es noch einmal."
+      }
+    }
   },
   "notifications": {
     "heading": "Benachrichtigungen",

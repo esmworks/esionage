@@ -4,6 +4,25 @@
 
 ### Added
 
+- **Single sign-on and SCIM** (#38), with Better Auth's SSO plugin (`@better-auth/sso` 1.7.6):
+  an instance-wide OpenID Connect provider from `OIDC_ISSUER`, `OIDC_CLIENT_ID`,
+  `OIDC_CLIENT_SECRET` (`OIDC_NAME`, `OIDC_DOMAINS`), and one OpenID Connect or SAML 2.0
+  connection per workspace, set up by owners in Settings → Security. A workspace connection signs
+  people in only for its email domains, once each is verified with a DNS TXT record
+  (`_esionage-sso.<domain>`); public mail domains can't be claimed and a domain belongs to one
+  connection. "Continue with SSO" on the sign-in page routes an email to its provider. The first
+  sign-in creates the account (only in those domains) and joins the workspace as a member;
+  two-step verification still asks for its code afterwards. New workspace setting *How members
+  sign in*: *Any method* or *Single sign-on only*, enforced like "require two-step verification"
+  (pages, exports, actions, API routes, live collaboration; a new `/sso-required/<id>` page), with
+  owners and guests exempt. SCIM 2.0 at `/scim/v2` with workspace SCIM tokens (hashed, revocable):
+  `Users` list/filter/get/create/replace/patch/delete, where `active: false` removes someone from
+  the workspace and owners can't be deactivated; `Groups` lists none and answers changes with 501.
+  The SSO box lists the workspace ID, OIDC redirect URI, SAML entity ID, ACS and metadata URLs to
+  copy. The plugin's own provider management, its shared callback and SAML single logout are off.
+  Migration `0024_sso`. New checks: `scripts/sso-e2e.ts` (69, against a mock OIDC provider it
+  runs itself), `scripts/scim-e2e.ts` (59), `src/lib/sso-config.test.ts`, `src/lib/scim.test.ts`,
+  `src/server/sso.test.ts`. Not tried against real identity providers; SAML only in unit tests.
 - **Member groups** (#37): workspace owners create groups in Settings → Groups (rename, add and
   remove members, delete); everyone sees the list and who is in each group. A page can be shared
   with a group from the share panel like a person (`page_group_permission`, inherited by subpages

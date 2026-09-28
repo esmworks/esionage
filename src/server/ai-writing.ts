@@ -6,7 +6,7 @@
  */
 import * as z from "zod";
 import { EDITOR_ACTIONS, isAiLanguage, SELECTION_ACTIONS } from "@/lib/ai";
-import { AccessError, requirePageAccess } from "@/server/access";
+import { AccessError, requirePageAccess, WorkspacePolicyError } from "@/server/access";
 import { aiConfig, AiError, stream, type AiStream } from "@/server/ai";
 import { editorPrompt } from "@/server/ai/prompts";
 import { getCollab } from "@/server/collab/bridge";
@@ -39,7 +39,7 @@ export type EditorActionInput = z.infer<typeof editorActionInput>;
 /** The page, when the person may edit it and the workspace has AI on; throws AiError otherwise. */
 async function editablePage(userId: string, pageId: string) {
   const found = await requirePageAccess(userId, pageId, "edit").catch((error) => {
-    if (error instanceof AccessError && error.name !== "TwoFactorRequiredError") throw new AiError("noAccess", "Page not found");
+    if (error instanceof AccessError && !(error instanceof WorkspacePolicyError)) throw new AiError("noAccess", "Page not found");
     throw error;
   });
   if (found.archivedAt || found.kind !== "page") throw new AiError("noAccess", "Page not found");

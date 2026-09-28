@@ -273,7 +273,8 @@
     "joinLinkInvalid": "Este enlace para unirse no es válido o se desactivó.",
     "transferToSelf": "Elige a otra persona para hacerla propietaria.",
     "transferToGuest": "Hazla miembro antes de hacerla propietaria.",
-    "twoFactorFirst": "Primero activa la verificación en dos pasos en tu propia cuenta o inicia sesión con una llave de acceso."
+    "twoFactorFirst": "Primero activa la verificación en dos pasos en tu propia cuenta o inicia sesión con una llave de acceso.",
+    "ssoFirst": "Primero configura el inicio de sesión único y verifica sus dominios."
   },
   "security": {
     "description": "Decide cómo inician sesión las personas, quién puede traer personas a este espacio de trabajo, qué pueden hacer los invitados y quién puede publicar páginas en la web. Solo los propietarios pueden cambiar estos ajustes.",
@@ -330,7 +331,112 @@
       "confirm": "¿Desactivar el enlace público de este formulario? Dejará de funcionar para todos.",
       "stale": "No acepta respuestas: quien lo abrió perdió el acceso"
     },
-    "ownersOnly": "Solo los propietarios pueden cambiar esto."
+    "ownersOnly": "Solo los propietarios pueden cambiar esto.",
+    "loginMethod": {
+      "title": "Cómo inician sesión los miembros",
+      "description": "Con «Solo inicio de sesión único», los miembros deben iniciar sesión con el proveedor de identidad para abrir este espacio de trabajo. Los propietarios y los invitados pueden seguir usando cualquier método, para que un proveedor de identidad averiado no te deje fuera.",
+      "setUpFirst": "Primero configura el inicio de sesión único más abajo.",
+      "any": "Cualquier método",
+      "sso": "Solo inicio de sesión único"
+    },
+    "sso": {
+      "title": "Inicio de sesión único (SSO)",
+      "description": "Conecta el proveedor de identidad de tu organización mediante OpenID Connect o SAML. Quien tenga una dirección en sus dominios verificados puede iniciar sesión con él; la primera vez se crea su cuenta y se une como miembro.",
+      "setup": {
+        "workspaceId": "ID del espacio de trabajo",
+        "oidcRedirectUri": "URI de redirección OIDC",
+        "oidcRedirectUriHint": "Añádela como URL de redirección (callback) permitida del cliente en tu proveedor de identidad.",
+        "samlEntityId": "Entity ID de SAML (audience)",
+        "samlAcsUrl": "URL ACS de SAML",
+        "samlMetadataUrl": "Metadatos SAML del proveedor de servicios"
+      },
+      "connection": {
+        "oidc": "OpenID Connect",
+        "saml": "SAML 2.0",
+        "active": "Activo",
+        "unverified": "Dominios aún sin verificar",
+        "domains": "Dominios: {domains}"
+      },
+      "dns": {
+        "body": "Para demostrar que estos dominios son tuyos, añade un registro TXT para cada uno en tu proveedor de DNS y luego verifica. Hasta entonces nadie puede iniciar sesión con esta conexión.",
+        "name": "Nombre",
+        "value": "Valor",
+        "verify": "Verificar dominios",
+        "verifying": "Comprobando el DNS…",
+        "verified": "Dominios verificados. El inicio de sesión único está activo."
+      },
+      "form": {
+        "protocol": "Protocolo",
+        "issuer": "URL del issuer",
+        "issuerHint": "La dirección en la que se publica su configuración OpenID (…/.well-known/openid-configuration).",
+        "clientId": "Client ID",
+        "clientSecret": "Client secret",
+        "secretKept": "Sin cambios",
+        "samlSource": "Datos del proveedor de identidad",
+        "metadata": "XML de metadatos",
+        "manual": "Introducir a mano",
+        "metadataXml": "XML de metadatos del proveedor de identidad",
+        "metadataKept": "Déjalo vacío para conservar los metadatos guardados",
+        "entryPoint": "URL de SSO",
+        "idpEntityId": "Entity ID del proveedor de identidad",
+        "certificate": "Certificado de firma",
+        "certificateKept": "Déjalo vacío para conservar el certificado guardado",
+        "domains": "Dominios de correo",
+        "domainsHint": "Separados por comas, por ejemplo example.com, example.org. Incluye los subdominios.",
+        "save": "Guardar",
+        "saving": "Guardando…"
+      },
+      "saved": "Guardado.",
+      "edit": "Editar",
+      "remove": "Quitar",
+      "confirmRemove": "Quitar el inicio de sesión único",
+      "errors": {
+        "invalidDomain": "No se puede usar {detail}: introduce los dominios de correo propios de tu organización (no servicios de correo públicos como gmail.com).",
+        "noDomains": "Añade al menos un dominio de correo.",
+        "invalidIssuer": "El issuer debe ser una dirección https.",
+        "discoveryFailed": "No se pudo leer la configuración OpenID del proveedor en {detail}. Revisa la dirección del issuer.",
+        "clientIdRequired": "Introduce el client ID.",
+        "secretRequired": "Introduce el client secret.",
+        "invalidSaml": "Pega el XML de metadatos del proveedor de identidad, o introduce su URL de SSO, su entity ID y su certificado de firma.",
+        "noConnection": "Primero configura el inicio de sesión único.",
+        "dnsMismatch": "No se encontró el registro TXT de {detail} o tiene otro valor. Los cambios de DNS pueden tardar un poco en verse.",
+        "domainTaken": "{detail} ya se usa para inicio de sesión único en otro lugar de este servidor.",
+        "name": "Ponle al token un nombre de 100 caracteres como máximo.",
+        "limit": "Un espacio de trabajo puede tener como máximo 20 tokens SCIM. Revoca uno primero.",
+        "ownersOnly": "Solo los propietarios del espacio de trabajo pueden hacer esto.",
+        "generic": "Algo salió mal. Inténtalo de nuevo."
+      }
+    },
+    "scim": {
+      "title": "Aprovisionamiento de usuarios (SCIM)",
+      "description": "Permite que tu proveedor de identidad añada, actualice y quite miembros mediante SCIM 2.0. Los grupos aún no se admiten.",
+      "baseUrl": "URL base de SCIM",
+      "managed": "{count, plural, =0 {Todavía nadie se gestiona por SCIM.} one {# persona se gestiona por SCIM.} other {# personas se gestionan por SCIM.}}",
+      "tokens": "Tokens",
+      "tokensDescription": "El proveedor de identidad envía uno como token bearer. Cada uno sirve solo para este espacio de trabajo.",
+      "empty": "Aún no hay tokens.",
+      "lastUsed": "Usado por última vez el {date, date, medium}",
+      "neverUsed": "Nunca usado",
+      "create": "Nuevo token",
+      "revoke": "Revocar",
+      "confirmRevoke": "Revocar {name}",
+      "form": {
+        "title": "Nuevo token SCIM",
+        "name": "Nombre",
+        "namePlaceholder": "Por ejemplo: Okta",
+        "submit": "Crear token"
+      },
+      "created": {
+        "title": "Copia tu token",
+        "body": "Pégalo ahora en tu proveedor de identidad. No se volverá a mostrar.",
+        "done": "Listo"
+      },
+      "errors": {
+        "name": "Ponle al token un nombre de 100 caracteres como máximo.",
+        "limit": "Un espacio de trabajo puede tener como máximo 20 tokens SCIM. Revoca uno primero.",
+        "generic": "Algo salió mal. Inténtalo de nuevo."
+      }
+    }
   },
   "notifications": {
     "heading": "Notificaciones",

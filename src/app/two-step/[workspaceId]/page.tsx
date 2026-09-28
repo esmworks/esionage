@@ -2,12 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { isStrongSession } from "@/lib/auth-security";
 import { getAccountSecurity } from "@/server/account-security";
-import { findMembership } from "@/server/access";
+import { findMembership, policyHoldFor } from "@/server/access";
 import { listWorkspaces } from "@/server/pages";
-import { requireSession } from "@/server/session";
-import { workspaceSettings } from "@/server/workspaces";
+import { blockedByWorkspacePolicy, policyGatePath, requireSession } from "@/server/session";
 import { TwoStepGate } from "./two-step-gate";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -23,13 +21,16 @@ export default async function TwoStepPage({ params }: { params: Promise<{ worksp
   const session = await requireSession();
   const { workspaceId } = await params;
   if (!(await findMembership(session.user.id, workspaceId))) notFound();
-  const [settings, workspaces, security, t] = await Promise.all([
-    workspaceSettings(workspaceId),
+  const hold = await blockedByWorkspacePolicy(session, workspaceId);
+  if (hold !== "two-factor") redirect(hold ? policyGatePath(workspaceId, hold) : `/w/${workspaceId}`);
+  const [workspaces, security, afterPasskey, t] = await Promise.all([
     listWorkspaces(session.user.id),
     getAccountSecurity(session.user.id),
+    // A passkey sign-in is a new session that didn't come through single sign-on: in a workspace
+    // that also requires it, that would only trade this page for the single sign-on one.
+    policyHoldFor(session.user.id, workspaceId, { strong: true, ssoProviderId: null }),
     getTranslations("security.gate"),
   ]);
-  if (!settings.requireTwoFactor || isStrongSession(session)) redirect(`/w/${workspaceId}`);
   const current = workspaces.find((w) => w.id === workspaceId);
   const others = workspaces.filter((w) => w.id !== workspaceId);
 
@@ -46,6 +47,7 @@ export default async function TwoStepPage({ params }: { params: Promise<{ worksp
             workspaceName={current?.name ?? ""}
             hasPassword={security.hasPassword}
             hasPasskeys={security.passkeys.length > 0}
+            passkeyAllowed={afterPasskey === null}
             email={session.user.email}
           />
         </div>

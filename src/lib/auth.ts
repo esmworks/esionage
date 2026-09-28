@@ -1,8 +1,10 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { db, schema } from "@/db";
-import { recordAuthMethod } from "@/lib/auth-security";
+import { isSsoSignInPath, recordAuthMethod } from "@/lib/auth-security";
+import { workspaceOfProvider } from "@/lib/sso-config";
 import { requestLocale } from "@/i18n/config";
 import { env } from "@/lib/env";
 import {
@@ -15,11 +17,48 @@ import {
 import { revokeAllApiTokens } from "@/server/api/tokens";
 import { revokeAllConnectedApps } from "@/server/mcp/grants";
 import { mailStatus, PASSWORD_RESET_MINUTES, passwordResetEmail, sendMail } from "@/server/mail";
+import { joinThroughSso, resolveSsoProvider, ssoAccountCreation } from "@/server/sso";
 import { acceptInvitation, createPersonalWorkspace, invitationAllowsSignUp, joinWithLink } from "@/server/workspaces";
 
 export { MCP_SCOPES } from "@/lib/auth-options";
 
-const base = baseAuthOptions({ invitationAllowsSignUp });
+const base = baseAuthOptions({
+  invitationAllowsSignUp,
+  instanceOidc: env.instanceOidc,
+  sso: { resolveProvider: resolveSsoProvider },
+});
+
+type HookContext = { path?: string; params?: unknown } | null | undefined;
+
+/** The provider of a single sign-on that is creating or signing in a user, or null. */
+function ssoProviderOf(ctx: HookContext) {
+  if (!isSsoSignInPath(ctx?.path)) return null;
+  const id = (ctx?.params as { providerId?: unknown } | undefined)?.providerId;
+  return typeof id === "string" ? id : null;
+}
+
+const signUpGuard = closedSignUpGuard(invitationAllowsSignUp);
+
+/**
+ * `databaseHooks.user.create.before`. A single sign-on creates accounts by its own rules (see
+ * ssoAccountCreation: the instance provider always, a workspace connection for its verified
+ * domains only, closed sign-up or not) and marks the address verified when the provider vouches for
+ * it. Everything else goes through closed sign-up.
+ */
+async function beforeUserCreate(user: { email: string } & Record<string, unknown>, ctx: HookContext) {
+  const providerId = ssoProviderOf(ctx);
+  if (providerId !== null) {
+    const decision = await ssoAccountCreation(providerId, user.email);
+    if (!decision.allowed) {
+      throw APIError.from("FORBIDDEN", {
+        message: "This single sign-on can't create an account for that email address",
+        code: "sso_sign_up_not_allowed",
+      });
+    }
+    return { data: { ...user, emailVerified: user.emailVerified === true || decision.emailVerified } };
+  }
+  await signUpGuard(user, ctx as Parameters<typeof signUpGuard>[1]);
+}
 
 /**
  * Emails a reset link. Not awaited, so the endpoint answers equally fast whether or not an
@@ -50,11 +89,15 @@ export const auth = betterAuth({
     },
   },
   ...socialAuthOptions(env.socialProviders),
+  // Identity providers on a private network that SSO may call (the instance issuer, SSO_TRUSTED_ORIGINS).
+  trustedOrigins: env.ssoTrustedOrigins,
   databaseHooks: {
     user: {
       create: {
-        before: closedSignUpGuard(invitationAllowsSignUp),
+        before: beforeUserCreate,
         after: async (user, ctx) => {
+          // A workspace connection's sign-in joins that workspace instead (account.create.after).
+          if (workspaceOfProvider(ssoProviderOf(ctx))) return;
           // Signing up from an invitation link joins that workspace instead of creating a
           // personal one; if the invitation was revoked meanwhile, fall back to a personal one.
           const token = await signUpTokenOf(ctx, "invite");
@@ -83,10 +126,19 @@ export const auth = betterAuth({
     account: {
       // Claiming an account by email also ends what was granted before: app grants and API tokens.
       create: {
-        after: claimOnEmailLink(async (userId) => {
-          await revokeAllConnectedApps(userId);
-          await revokeAllApiTokens(userId);
-        }),
+        after: async (account, ctx) => {
+          await claimOnEmailLink(async (userId) => {
+            await revokeAllConnectedApps(userId);
+            await revokeAllApiTokens(userId);
+          })(account, ctx);
+          // The first sign-in through a workspace's connection (a new account, or an existing one
+          // linked by email) joins that workspace. Only the first: someone an owner removed later
+          // stays out; their identity provider brings them back over SCIM.
+          if (workspaceOfProvider(ssoProviderOf(ctx)) && account.providerId === ssoProviderOf(ctx)) {
+            const owner = await ctx?.context.internalAdapter.findUserById(account.userId);
+            if (owner) await joinThroughSso(account.providerId, owner);
+          }
+        },
       },
     },
     session: {

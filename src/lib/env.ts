@@ -1,4 +1,5 @@
 import { socialProvidersFrom, type SocialProvider } from "@/lib/social-providers";
+import { instanceOidcFrom, ssoTrustedOriginsFrom } from "@/lib/sso-config";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -26,6 +27,14 @@ export const env = {
   },
   get enabledSocialProviders(): SocialProvider[] {
     return Object.keys(this.socialProviders) as SocialProvider[];
+  },
+  /** OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET turn on the instance-wide SSO provider. */
+  get instanceOidc() {
+    return instanceOidcFrom(process.env);
+  },
+  /** Identity provider origins on a private network that SSO may call (see ssoTrustedOriginsFrom). */
+  get ssoTrustedOrigins() {
+    return ssoTrustedOriginsFrom(process.env);
   },
 };
 

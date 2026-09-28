@@ -5,10 +5,10 @@ import { DatabasePage } from "@/components/database/database-page";
 import { RowProperties } from "@/components/database/row-properties";
 import { PageView } from "@/components/page/page-view";
 import { pageLabel } from "@/lib/labels";
-import { AccessError, TwoFactorRequiredError } from "@/server/access";
+import { AccessError, WorkspacePolicyError } from "@/server/access";
 import { getPageHeaderInfo } from "@/server/page-meta";
 import { getBreadcrumbs, getPage } from "@/server/pages";
-import { requireUser, requireWorkspaceSession, twoStepPath } from "@/server/session";
+import { policyGatePath, requireUser, requireWorkspaceSession } from "@/server/session";
 
 type Params = { params: Promise<{ workspaceId: string; pageId: string }> };
 
@@ -16,7 +16,7 @@ async function load(userId: string, pageId: string) {
   try {
     return await getPage(userId, pageId);
   } catch (error) {
-    if (error instanceof TwoFactorRequiredError) redirect(twoStepPath(error.workspaceId));
+    if (error instanceof WorkspacePolicyError) redirect(policyGatePath(error.workspaceId, error.hold));
     if (error instanceof AccessError) notFound();
     throw error;
   }

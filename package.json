@@ -22,6 +22,7 @@
     "@better-auth/mcp": "^1.7.6",
     "@better-auth/oauth-provider": "1.7.6",
     "@better-auth/passkey": "1.7.6",
+    "@better-auth/sso": "1.7.6",
     "@blocknote/core": "^0.55.0",
     "@blocknote/mantine": "^0.55.0",
     "@blocknote/react": "^0.55.0",

@@ -9,6 +9,7 @@ import { usePasskeySupport } from "@/components/security/passkeys";
 import { authClient } from "@/lib/auth-client";
 import type { SocialProvider } from "@/lib/social-providers";
 import { SocialSignIn, socialErrorKey } from "./social-sign-in";
+import { SsoSignIn, type SsoOptions } from "./sso-sign-in";
 import { PasskeySignIn, TwoFactorStep } from "./two-factor-step";
 
 type Mode = "sign-in" | "sign-up";
@@ -38,6 +39,7 @@ export function AuthForm({
   title,
   socialProviders = [],
   initialStep = "credentials",
+  sso,
 }: {
   mode: Mode;
   signUpEnabled?: boolean;
@@ -52,6 +54,8 @@ export function AuthForm({
   socialProviders?: SocialProvider[];
   /** "two-factor" when a social sign-in came back needing a code (`?step=two-factor`). */
   initialStep?: "credentials" | "two-factor";
+  /** Single sign-on on the sign-in page (instance provider, "Continue with SSO"). */
+  sso?: SsoOptions;
 }) {
   const router = useRouter();
   const t = useTranslations("auth");
@@ -65,12 +69,14 @@ export function AuthForm({
   const [step, setStep] = useState(mode === "sign-in" ? initialStep : "credentials");
   const passkeySupported = usePasskeySupport();
   const showPasskey = mode === "sign-in" && passkeySupported === true;
+  const showSso = mode === "sign-in" && !invite && !join && !!sso && (sso.byEmail || !!sso.instanceName);
   useEffect(() => {
     // A social sign-in that failed comes back here with `?error=`.
     const params = new URLSearchParams(window.location.search);
     const code = params.get("error");
     if (!code) return setSearch(window.location.search);
-    setError(t(`errors.${socialErrorKey(code)}`));
+    // Single sign-on reports some errors as phrases ("account not linked").
+    setError(t(`errors.${socialErrorKey(code.trim().toLowerCase().replace(/\s+/g, "_"))}`));
     params.delete("error");
     params.delete("error_description");
     setSearch(params.size ? `?${params}` : "");
@@ -194,7 +200,7 @@ export function AuthForm({
       <Button type="submit" variant="primary" className="w-full" disabled={pending}>
         {pending ? t("pending") : t(`${text}.submit`)}
       </Button>
-      {(showPasskey || socialProviders.length > 0) && (
+      {(showPasskey || socialProviders.length > 0 || showSso) && (
         <div className="space-y-4">
           <div className="flex items-center gap-3 text-xs text-fg-muted">
             <span className="h-px flex-1 bg-border" />
@@ -214,6 +220,7 @@ export function AuthForm({
                 onError={setError}
               />
             )}
+            {showSso && sso && <SsoSignIn options={sso} callbackURL={next} onError={setError} />}
           </div>
         </div>
       )}
