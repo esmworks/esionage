@@ -475,9 +475,10 @@ async function main() {
   check((await signIn(newEmail, PASSWORD)).status === 200, "the new address signs in");
   check((await signIn(emailOf("emily"), PASSWORD)).status !== 200, "…the old one doesn't");
   if (MAILPIT) {
-    const notices = await waitForMail(emailOf("emily"), 1);
+    // Each sign-up also emailed a verification link.
+    const notices = await waitForMail(emailOf("emily"), 2);
     check(notices.some((m) => m.Text.includes(newEmail)), "the old address is told about the change", notices.map((m) => m.Subject));
-    const passwordNotices = await waitForMail(emailOf("ada"), 2);
+    const passwordNotices = await waitForMail(emailOf("ada"), 3);
     check(passwordNotices.filter((m) => /password/i.test(m.Subject)).length === 2, "each password change sends a notice", passwordNotices.map((m) => m.Subject));
   }
 

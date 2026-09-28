@@ -11,6 +11,7 @@ import { parseSidebarCookie, SIDEBAR_COOKIE } from "@/lib/sidebar-layout";
 import { getMembership } from "@/server/access";
 import { isEnabled as aiConfigured } from "@/server/ai";
 import { aiAvailable } from "@/server/ai-writing";
+import { joinableWorkspaces } from "@/server/join-requests";
 import { listFavorites } from "@/server/page-meta";
 import { getSidebar, listWorkspaces } from "@/server/pages";
 import { requestedPath, requireSession, requireWorkspaceSession } from "@/server/session";
@@ -37,8 +38,9 @@ export default async function WorkspaceLayout({
     }
     notFound();
   }
-  const [workspaces, sidebar, favorites, topLevel, canCreate, cookieStore, ai] = await Promise.all([
+  const [workspaces, joinable, sidebar, favorites, topLevel, canCreate, cookieStore, ai] = await Promise.all([
     listWorkspaces(user.id),
+    joinableWorkspaces(user.id),
     getSidebar(user.id, workspaceId),
     listFavorites(user.id, workspaceId),
     topLevelAccess(user.id, workspaceId),
@@ -52,6 +54,7 @@ export default async function WorkspaceLayout({
       <Sidebar
         workspaceId={workspaceId}
         workspaces={workspaces}
+        joinable={joinable}
         initialTree={sidebar.tree}
         initialTeamspaces={sidebar.teamspaces}
         canCreateTeamspace={canCreate}

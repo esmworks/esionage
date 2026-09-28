@@ -25,7 +25,9 @@ import {
 import { isLocale, type Locale } from "@/i18n/config";
 import { type DeletionPlan, planAccountDeletion, type WorkspaceStanding } from "@/lib/account";
 import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
+import { assignableRoles, linkAccess, memberInviteMode } from "@/lib/membership-policy";
 import { TRASH_RETENTION_CHOICES } from "@/lib/retention";
+import { parseDomains } from "@/lib/sso-config";
 import { env } from "@/lib/env";
 import { canCreateWorkspace } from "@/lib/instance-admin";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
@@ -39,6 +41,7 @@ import {
   requireMembership,
   workspacesHiddenFromApp,
 } from "@/server/access";
+import { joinRecordOf, rememberDeparture, requestInvitation, requestToJoinFrom, settleJoinRequest } from "@/server/join-requests";
 import { turkishGenitive } from "@/lib/turkish";
 import { getCollab } from "@/server/collab/bridge";
 import { CONNECTED_APPS_MODES } from "@/server/connected-app";
@@ -99,19 +102,25 @@ export type WorkspaceErrorCode =
   | "transferToSelf"
   | "transferToGuest"
   | "invalidSetting"
+  | "invalidDomain"
+  | "requestHandled"
+  | "tooManyRequests"
   | "creationRestricted";
 
 /**
  * An expected failure the user can act on. `code` is stable and translated by the UI; the
- * English `message` is for logs.
+ * English `message` is for logs. `detail` fills the translation's `{detail}` (the domain that
+ * can't be allowed, …).
  */
 export class WorkspaceError extends Error {
   readonly code: WorkspaceErrorCode;
+  readonly detail: string;
 
-  constructor(code: WorkspaceErrorCode, message: string) {
+  constructor(code: WorkspaceErrorCode, message: string, detail = "") {
     super(message);
     this.name = "WorkspaceError";
     this.code = code;
+    this.detail = detail;
   }
 }
 
@@ -245,7 +254,9 @@ export type InvitationDelivery = "sent" | "failed" | "off";
 
 export type AddMemberResult =
   | { kind: "added" }
-  | { kind: "invited"; email: string; link: string; delivery: InvitationDelivery };
+  | { kind: "invited"; email: string; link: string; delivery: InvitationDelivery }
+  /** The workspace wants members' invitations approved: an owner decides (see server/join-requests.ts). */
+  | { kind: "requested"; email: string };
 
 /** The inviter's interface language; the invitee has none yet. */
 async function requestLocale(): Promise<Locale> {
@@ -283,8 +294,21 @@ async function emailInvitation(
 }
 
 /**
+ * How `actorId` may add members (Settings > Security, "Who can add members"): right away, through a
+ * request an owner approves, or not at all (AccessError), and with which roles. Members add members
+ * only. Throws for guests and people outside the workspace.
+ */
+async function memberInviteModeFor(actorId: string, workspaceId: string, role?: WorkspaceRole) {
+  const [{ role: actorRole }, settings] = await Promise.all([requireMembership(actorId, workspaceId), workspaceSettings(workspaceId)]);
+  const mode = memberInviteMode(actorRole, settings);
+  if (mode === "denied" || (role !== undefined && !assignableRoles(actorRole).includes(role))) throw new AccessError();
+  return mode;
+}
+
+/**
  * Adds the account that uses this email. Without one, creates (or renews) an invitation and emails
- * its link when the server can send email; the owner can always share the link themselves.
+ * its link when the server can send email; the owner can always share the link themselves. While
+ * the workspace wants members' invitations approved, a member's addition becomes a request instead.
  */
 export async function addMember(
   actorId: string,
@@ -292,7 +316,33 @@ export async function addMember(
   email: string,
   role: WorkspaceRole,
 ): Promise<AddMemberResult> {
-  await requireMembership(actorId, workspaceId, "owner");
+  const mode = await memberInviteModeFor(actorId, workspaceId, role);
+  const clean = normalizeEmail(email);
+  if (mode === "request") {
+    const [existing] = await db
+      .select({ one: sql<number>`1` })
+      .from(workspaceMember)
+      .innerJoin(user, eq(user.id, workspaceMember.userId))
+      .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(sql`lower(${user.email})`, clean)))
+      .limit(1);
+    if (existing) throw new WorkspaceError("alreadyMember", "This person is already a member.");
+    await requestInvitation(actorId, workspaceId, clean, role);
+    return { kind: "requested", email: clean };
+  }
+  return addMemberAs(actorId, workspaceId, clean, role);
+}
+
+/**
+ * What adding a member does once allowed: adds the account with this email, or invites it in the
+ * name of `actorId`. No access check: addMember, and an owner approving a member's request
+ * (server/join-requests.ts, where the invitation names the member who asked), check first.
+ */
+export async function addMemberAs(
+  actorId: string,
+  workspaceId: string,
+  email: string,
+  role: WorkspaceRole,
+): Promise<Exclude<AddMemberResult, { kind: "requested" }>> {
   const clean = normalizeEmail(email);
   const [target] = await db
     .select({ id: user.id })
@@ -325,6 +375,7 @@ export async function addMember(
     if (rows.length) await claimPageInvitations(tx, workspaceId, target.id, clean);
     return rows;
   });
+  if (inserted.length) await settleJoinRequest(workspaceId, target.id);
   if (!inserted.length) throw new WorkspaceError("alreadyMember", "This person is already a member.");
   return { kind: "added" };
 }
@@ -373,7 +424,7 @@ export async function addGuest(actorId: string, workspaceId: string, userId: str
 }
 
 /** Turns pages shared with `email` before they had an account into their page permissions. */
-async function claimPageInvitations(
+export async function claimPageInvitations(
   tx: Pick<typeof db, "execute" | "delete">,
   workspaceId: string,
   userId: string,
@@ -397,7 +448,7 @@ export type BulkAddResult =
 
 /**
  * Adds several people at once, reporting each address separately so one bad address doesn't
- * stop the rest. Owners only.
+ * stop the rest. Owners, and members as "Who can add members" allows (see addMember).
  */
 export async function addMembers(
   actorId: string,
@@ -405,7 +456,7 @@ export async function addMembers(
   emails: string[],
   role: WorkspaceRole,
 ): Promise<BulkAddResult[]> {
-  await requireMembership(actorId, workspaceId, "owner");
+  await memberInviteModeFor(actorId, workspaceId, role);
   const unique = [...new Set(emails.map(normalizeEmail).filter(Boolean))];
   if (!unique.length) throw new WorkspaceError("emailRequired", "Enter at least one email address.");
   if (unique.length > MAX_BULK_EMAILS) {
@@ -497,7 +548,7 @@ export async function invitationAllowsSignUp(token: string, email: string) {
  * so a forwarded link can't be used by someone else. Returns the workspace id.
  */
 export async function acceptInvitation(token: string, userId: string, userEmail: string) {
-  return db.transaction(async (tx) => {
+  const workspaceId = await db.transaction(async (tx) => {
     const [invitation] = await tx
       .select({
         id: workspaceInvitation.id,
@@ -520,6 +571,8 @@ export async function acceptInvitation(token: string, userId: string, userEmail:
     await claimPageInvitations(tx, invitation.workspaceId, userId, invitation.email);
     return invitation.workspaceId;
   });
+  await settleJoinRequest(workspaceId, userId);
+  return workspaceId;
 }
 
 /** The workspace's join link, or null while it is turned off. Owners only. */
@@ -560,26 +613,77 @@ export async function findJoinLink(token: string) {
   return row ?? null;
 }
 
+/** What the join link lets this person do (linkAccess), and their live invitation if they have one. */
+async function linkDecision(
+  reader: Pick<typeof db, "select">,
+  ws: { id: string; settings: Partial<WorkspaceSettings> },
+  userId: string,
+  email: string,
+) {
+  const [[invitation], [account], record] = await Promise.all([
+    reader
+      .select({ role: workspaceInvitation.role, expiresAt: workspaceInvitation.expiresAt })
+      .from(workspaceInvitation)
+      .where(and(eq(workspaceInvitation.workspaceId, ws.id), eq(workspaceInvitation.email, email))),
+    reader.select({ emailVerified: user.emailVerified }).from(user).where(eq(user.id, userId)),
+    joinRecordOf(reader, ws.id, userId),
+  ]);
+  const live = invitation && invitation.expiresAt > new Date() ? invitation : null;
+  const settings = { ...DEFAULT_WORKSPACE_SETTINGS, ...ws.settings };
+  const access = linkAccess(settings, { email, emailVerified: account?.emailVerified === true, record, invited: live !== null });
+  return { access, live };
+}
+
+/** For the join page: what opening the link would do for this signed-in person, before they choose. */
+export async function joinLinkAccess(token: string, userId: string, userEmail: string) {
+  const [ws] = token
+    ? await db.select({ id: workspace.id, settings: workspace.settings }).from(workspace).where(eq(workspace.inviteLinkToken, token)).limit(1)
+    : [];
+  if (!ws) return null;
+  return (await linkDecision(db, ws, userId, normalizeEmail(userEmail))).access;
+}
+
+/**
+ * - `joined`: in the workspace now (or already was).
+ * - `requested`: the link asked an owner instead (see linkAccess); `pending`: had asked already.
+ */
+export type LinkJoinResult = { workspaceId: string; status: "joined" | "requested" | "pending" };
+
 /**
  * Joins the workspace of a join link. People join as members, unless an unexpired invitation for
- * their email gives them another role; that invitation is used up. Returns the workspace id.
+ * their email gives them another role; that invitation is used up. While the workspace takes join
+ * requests from anyone with the link, the link files a request instead for those who can't join
+ * directly (see linkAccess).
  */
-export async function joinWithLink(token: string, userId: string, userEmail: string) {
-  return db.transaction(async (tx) => {
+export async function joinWithLink(token: string, userId: string, userEmail: string): Promise<LinkJoinResult> {
+  const email = normalizeEmail(userEmail);
+  const outcome = await db.transaction(async (tx) => {
     const [ws] = token
-      ? await tx.select({ id: workspace.id }).from(workspace).where(eq(workspace.inviteLinkToken, token)).limit(1)
+      ? await tx
+          .select({ id: workspace.id, settings: workspace.settings })
+          .from(workspace)
+          .where(eq(workspace.inviteLinkToken, token))
+          .limit(1)
       : [];
     if (!ws) throw new WorkspaceError("joinLinkInvalid", "This join link is invalid or was turned off.");
-    const email = normalizeEmail(userEmail);
-    const [invitation] = await tx
+    if (await findMembership(userId, ws.id)) return { workspaceId: ws.id, access: "join" as const, joined: false };
+    const { access, live } = await linkDecision(tx, ws, userId, email);
+    if (access !== "join") return { workspaceId: ws.id, access, joined: false };
+    await tx
       .delete(workspaceInvitation)
-      .where(and(eq(workspaceInvitation.workspaceId, ws.id), eq(workspaceInvitation.email, email)))
-      .returning({ role: workspaceInvitation.role, expiresAt: workspaceInvitation.expiresAt });
-    const role = invitation && invitation.expiresAt > new Date() ? invitation.role : "member";
-    await tx.insert(workspaceMember).values({ workspaceId: ws.id, userId, role }).onConflictDoNothing();
+      .where(and(eq(workspaceInvitation.workspaceId, ws.id), eq(workspaceInvitation.email, email)));
+    await tx.insert(workspaceMember).values({ workspaceId: ws.id, userId, role: live?.role ?? "member" }).onConflictDoNothing();
     await claimPageInvitations(tx, ws.id, userId, email);
-    return ws.id;
+    return { workspaceId: ws.id, access, joined: true };
   });
+  const { workspaceId, access, joined } = outcome;
+  if (access === "join") {
+    if (joined) await settleJoinRequest(workspaceId, userId);
+    return { workspaceId, status: "joined" };
+  }
+  if (access === "pending") return { workspaceId, status: "pending" };
+  if (access !== "request") throw new AccessError();
+  return { workspaceId, status: await requestToJoinFrom(workspaceId, userId, email, "link") };
 }
 
 /** Locks the owner rows so concurrent demotions/removals can't leave a workspace ownerless. */
@@ -680,6 +784,9 @@ export async function removeMember(actorId: string, workspaceId: string, targetI
     if (heir) await handOverOrphanedPages(tx, workspaceId, heir);
     // Their AI chat conversations quote the workspace's pages: they go with them.
     await tx.delete(aiConversation).where(and(eq(aiConversation.workspaceId, workspaceId), eq(aiConversation.userId, targetId)));
+    // An allowed email domain doesn't bring them back on their next sign-in; someone an owner
+    // removed can't come back through it on their own either, only ask (see domainAccess).
+    await rememberDeparture(tx, workspaceId, targetId, actorId === targetId ? "accepted" : "declined", actorId);
   });
   await getCollab().disconnectUser(targetId, workspaceId);
 }
@@ -825,7 +932,8 @@ export async function countMembersWithoutTwoFactor(actorId: string, workspaceId:
   return row?.count ?? 0;
 }
 
-const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettings[K][] } = {
+/** The choices of each setting; allowedDomains, a list, is checked on its own (parseDomains). */
+const SETTING_VALUES: { [K in Exclude<keyof WorkspaceSettings, "allowedDomains">]: readonly WorkspaceSettings[K][] } = {
   guestInvites: ["owners", "members"],
   guestPrivatePages: [false, true],
   publishing: ["owners", "members", "off"],
@@ -834,6 +942,9 @@ const SETTING_VALUES: { [K in keyof WorkspaceSettings]: readonly WorkspaceSettin
   loginMethod: ["any", "sso"],
   ai: [true, false],
   trashRetentionDays: TRASH_RETENTION_CHOICES,
+  memberInvites: ["owners", "members_with_approval", "any_member"],
+  domainJoin: ["join", "request"],
+  joinRequests: ["nobody", "allowed_domains", "anyone_with_link"],
   export: [true, false],
   connectedApps: CONNECTED_APPS_MODES,
   accessRequests: [true, false],
@@ -859,8 +970,17 @@ export async function updateWorkspaceSettings(
   }
   const clean: Partial<WorkspaceSettings> = {};
   for (const [key, value] of Object.entries(patch)) {
+    if (key === "allowedDomains") {
+      // Public mail services (gmail.com, …) can't be allowed: anyone could sign up on them.
+      const parsed = Array.isArray(value) && value.every((d) => typeof d === "string") ? parseDomains(value) : null;
+      if (!parsed?.ok) {
+        throw new WorkspaceError("invalidDomain", `Can't allow ${parsed ? parsed.invalid : "that"}`, parsed ? parsed.invalid : "");
+      }
+      clean.allowedDomains = parsed.domains;
+      continue;
+    }
     const allowed = Object.hasOwn(SETTING_VALUES, key)
-      ? (SETTING_VALUES[key as keyof WorkspaceSettings] as readonly unknown[])
+      ? (SETTING_VALUES[key as keyof typeof SETTING_VALUES] as readonly unknown[])
       : [];
     if (!allowed.includes(value)) throw new WorkspaceError("invalidSetting", `Unknown setting ${key}=${String(value)}`);
     Object.assign(clean, { [key]: value });
@@ -901,7 +1021,7 @@ export async function ssoAvailable(workspaceId: string) {
  */
 export async function joinAsMember(workspaceId: string, userId: string, email: string) {
   const clean = normalizeEmail(email);
-  return db.transaction(async (tx) => {
+  const joined = await db.transaction(async (tx) => {
     const rows = await tx
       .insert(workspaceMember)
       .values({ workspaceId, userId, role: "member" })
@@ -914,6 +1034,8 @@ export async function joinAsMember(workspaceId: string, userId: string, email: s
     await claimPageInvitations(tx, workspaceId, userId, clean);
     return true;
   });
+  if (joined) await settleJoinRequest(workspaceId, userId);
+  return joined;
 }
 
 /**
@@ -936,6 +1058,7 @@ export async function removeMemberByProvider(workspaceId: string, userId: string
     const heir = await oldestOwner(tx, workspaceId);
     await dropFromTeamspaces(tx, workspaceId, userId, heir);
     if (heir) await handOverOrphanedPages(tx, workspaceId, heir);
+    await rememberDeparture(tx, workspaceId, userId, "declined", null);
     return true;
   });
   if (removed) await getCollab().disconnectUser(userId, workspaceId);
@@ -950,6 +1073,16 @@ export async function canInviteGuests(userId: string, workspaceId: string) {
   const [membership, settings] = await Promise.all([getMembership(userId, workspaceId), workspaceSettings(workspaceId)]);
   if (!membership) return false;
   return membership.role === "owner" || (membership.role === "member" && settings.guestInvites === "members");
+}
+
+/**
+ * How the user may add members (Settings > Security, "Who can add members"): right away, by asking
+ * an owner, or not at all (null).
+ */
+export async function memberInviteAccess(userId: string, workspaceId: string): Promise<"direct" | "request" | null> {
+  const [membership, settings] = await Promise.all([getMembership(userId, workspaceId), workspaceSettings(workspaceId)]);
+  const mode = memberInviteMode(membership?.role ?? null, settings);
+  return mode === "denied" ? null : mode;
 }
 
 /**

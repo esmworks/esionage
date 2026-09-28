@@ -10,5 +10,11 @@
   "alreadyMember": "Ya eres miembro de este espacio de trabajo.",
   "open": "Abrir espacio de trabajo",
   "signInBody": "Inicia sesión con tu cuenta para unirte. Este servidor no permite cuentas nuevas.",
-  "signIn": "Iniciar sesión"
+  "signIn": "Iniciar sesión",
+  "requestBody": "Un propietario aprueba a los nuevos miembros de este espacio de trabajo. Envía una solicitud y recibirás la respuesta por correo.",
+  "request": "Pedir unirse",
+  "requesting": "Enviando…",
+  "requestedTitle": "Solicitud enviada",
+  "requestedBody": "Un propietario del espacio de trabajo revisará tu solicitud. Recibirás un correo cuando decida.",
+  "pendingBody": "Ya pediste unirte a este espacio de trabajo. Un propietario lo revisará; recibirás un correo cuando decida."
 }

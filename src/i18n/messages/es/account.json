@@ -37,7 +37,12 @@
     "newLabel": "Nueva dirección de correo",
     "send": "Enviar enlace de confirmación",
     "sentTitle": "Revisa tu bandeja de entrada",
-    "sentBody": "Si se puede usar {email}, le hemos enviado un enlace de confirmación. Es válido durante {hours} horas."
+    "sentBody": "Si se puede usar {email}, le hemos enviado un enlace de confirmación. Es válido durante {hours} horas.",
+    "unverifiedTitle": "Aún sin verificar",
+    "unverifiedDescription": "Verifica tu dirección para que los espacios de trabajo que permiten tu dominio de correo puedan admitirte.",
+    "unverifiedMailOff": "Verificar requiere un correo, y el correo no está configurado en este servidor.",
+    "verify": "Enviar enlace de verificación",
+    "verifySent": "Hay un enlace de verificación en camino a {email}."
   },
   "password": {
     "heading": "Contraseña",

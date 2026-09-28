@@ -4,6 +4,29 @@
 
 ### Added
 
+- **Membership policies and join requests** (#56), in Settings → Security → Members: *who can add
+  members* (owners only, the default; members with an owner's approval; owners and members, members
+  adding members only), *allowed email domains* (subdomains included, public mail domains refused)
+  that *join as members* or *ask to join*, and *who can ask to join* (nobody, the allowed domains,
+  or anyone with the join link, which then asks instead of admitting). The domain rule runs for
+  verified addresses on sign-up, sign-in, email verification (a password reset through the emailed
+  link counts, see #59) and email change, once per person and workspace: leaving, removal (by an
+  owner or SCIM) and declined requests are remembered, so nobody is pulled back in. Someone who
+  joins through a domain on sign-up gets no personal workspace. The workspace switcher lists
+  workspaces a person's domain lets them join or ask to join. Owners approve or decline in Settings
+  → Members → Requests; each request is in every owner's inbox (new notification kind
+  `join_request`, with its own inbox and email preferences, also in MCP `list_notifications`) and
+  emailed to them; the person who asked gets the decision by email in their language. A member's
+  approved request goes out as their invitation. MCP `invite_member` follows the same rule (a
+  member's invitation there answers `status: "requested"` while approval is on). One pending request
+  per person (or invited address) and workspace; 10 requests an hour per person, 100 invitation
+  requests an hour per member. **Email verification:** with email available, email and password
+  sign-ups get a verification link (resend it in My account → Profile); without SMTP in production,
+  only provider-vouched addresses (GitHub, Google, SSO, SCIM) count as verified.
+  `scripts/auth-e2e.ts` and `scripts/account-e2e.ts` expect the verification email. Migration
+  `0030_membership_policies` (`workspace_join_request`, notification `join_request_id`, `page_id`
+  nullable for join requests). New checks: `scripts/membership-e2e.ts` (106),
+  `src/lib/membership-policy.test.ts`.
 - **Instance administrators** (#59): accounts whose verified email is listed in `ADMIN_EMAILS`
   (comma-separated, any case; no role in the database) get Server administration at `/admin`,
   a 404 for everyone else. It lists the accounts (name, email, verified, workspaces, last active,
@@ -18,7 +41,7 @@
   is still created). New command `pnpm auth:verify-email <email>`; a password reset through the
   emailed link now also marks the address verified. Better Auth's admin plugin was not used: it
   needs a role column and has neither required resets nor an instance-wide sign-out. Migration
-  `0030_instance_admin` (`user.password_reset_required`). MCP: `list_users` returns `joined_at`;
+  `0029_instance_admin` (`user.password_reset_required`). MCP: `list_users` returns `joined_at`;
   new `invite_member` tool (owners only, needs write access). New checks: `scripts/admin-e2e.ts`
   (in CI), `src/lib/instance-admin.test.ts`, more in `mcp-e2e.ts` and `tools.test.ts`.
 - **Semantic search** (#43; optional, on with `AI_EMBEDDINGS_MODEL`): search also finds pages by

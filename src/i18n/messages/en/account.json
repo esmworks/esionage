@@ -37,7 +37,12 @@
     "newLabel": "New email address",
     "send": "Send confirmation link",
     "sentTitle": "Check your inbox",
-    "sentBody": "If {email} can be used, a confirmation link is on its way there. It works for {hours} hours."
+    "sentBody": "If {email} can be used, a confirmation link is on its way there. It works for {hours} hours.",
+    "unverifiedTitle": "Not verified yet",
+    "unverifiedDescription": "Verify your address so workspaces that allow your email domain can let you in.",
+    "unverifiedMailOff": "Verifying needs an email, and email isn't set up on this server.",
+    "verify": "Send verification link",
+    "verifySent": "A verification link is on its way to {email}."
   },
   "password": {
     "heading": "Password",

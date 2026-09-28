@@ -4,7 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { findMembership } from "@/server/access";
 import { getSession } from "@/server/session";
-import { findJoinLink } from "@/server/workspaces";
+import { findJoinLink, joinLinkAccess } from "@/server/workspaces";
 import { AuthForm } from "../../auth-form";
 import { JoinWorkspace } from "./join-workspace";
 
@@ -37,6 +37,10 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
     if (await findMembership(session.user.id, link.workspaceId)) {
       return <Notice title={title} body={t("alreadyMember")} href={`/w/${link.workspaceId}`} link={t("open")} />;
     }
+    // The workspace may want an owner to approve people who come through the link.
+    const access = await joinLinkAccess(token, session.user.id, session.user.email);
+    if (access === "pending") return <Notice title={title} body={t("pendingBody")} href="/" link={t("home")} />;
+    if (access === "request") return <JoinWorkspace token={token} title={title} body={t("requestBody")} asks />;
     return <JoinWorkspace token={token} title={title} body={t("body")} />;
   }
 

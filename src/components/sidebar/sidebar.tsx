@@ -50,6 +50,8 @@ import { FAVORITES_EVENT } from "@/lib/favorites-event";
 import { INBOX_PREFERENCES_EVENT } from "@/lib/inbox-event";
 import type { TreeNode } from "@/server/pages";
 import type { TeamspaceSummary } from "@/server/teamspaces";
+import type { JoinableWorkspace } from "@/server/join-requests";
+import { JoinableWorkspaces } from "./joinable-workspaces";
 import { PRIVATE_SECTION, SHARED_SECTION, type TreeSection } from "@/lib/tree-sections";
 import { TeamspaceDialog } from "@/components/teamspaces/teamspace-dialog";
 import { useAiChat } from "@/components/ai-chat/chat-panel";
@@ -104,9 +106,12 @@ export function Sidebar({
   initialFavorites,
   topLevel,
   user,
+  joinable = [],
 }: {
   workspaceId: string;
   workspaces: Workspace[];
+  /** Workspaces their email domain lets them join or ask to join (allowed email domains). */
+  joinable?: JoinableWorkspace[];
   initialTree: TreeNode[];
   /** The teamspaces they are in, each a sidebar section. */
   initialTeamspaces: TeamspaceSummary[];
@@ -588,6 +593,7 @@ export function Sidebar({
                       {w.name}
                     </MenuItem>
                   ))}
+                  {joinable.length > 0 && <JoinableWorkspaces workspaces={joinable} onJoined={close} />}
                   {canCreateWorkspace && (
                     <MenuItem
                       icon={<Plus className="h-4 w-4" />}

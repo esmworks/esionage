@@ -123,6 +123,10 @@ jobs:
       - name: Comments end-to-end
         run: pnpm tsx scripts/comments-e2e.ts
 
+      # Join request emails are captured by the script, never sent.
+      - name: Membership policies end-to-end
+        run: pnpm tsx scripts/membership-e2e.ts
+
       # The admin e2e's administrator, and new workspaces for administrators only (the other policy
       # is checked against the database).
       - name: Start the server

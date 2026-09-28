@@ -980,11 +980,20 @@ describe("invite_member", () => {
     expect(r.data.note).toMatch(/doesn't send email/);
   });
 
-  it("refuses non-owners with a message the model can act on", async () => {
+  it("refuses whom the workspace's member policy doesn't let add people, with a message the model can act on", async () => {
     workspaces.addMembers.mockRejectedValue(new AccessError());
     const r = await callTool(writer, "invite_member", { workspace_id: "ws-1", email: "x@example.com" });
     expect(r.isError).toBe(true);
-    expect(r.text).toMatch(/Only owners/);
+    expect(r.text).toMatch(/Who can add members/);
+  });
+
+  it("reports a member's invitation that waits for an owner's approval", async () => {
+    workspaces.addMembers.mockResolvedValue([{ email: "x@example.com", kind: "requested" }]);
+    const r = await callTool(writer, "invite_member", { workspace_id: "ws-1", email: "x@example.com" });
+    expect(r.isError).toBeFalsy();
+    expect(r.data.status).toBe("requested");
+    expect(r.data.invitation_link).toBeUndefined();
+    expect(r.data.note).toMatch(/approv/);
   });
 
   it("reports invalid addresses and people already in the workspace", async () => {

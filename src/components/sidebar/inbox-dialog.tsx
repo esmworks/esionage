@@ -1,5 +1,6 @@
 "use client";
 
+import { UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
@@ -13,8 +14,8 @@ import type { InboxAccessRequest, InboxItem } from "@/server/notifications";
 
 /**
  * The workspace inbox: rows the user was assigned to, pages shared with them, comments, mentions,
- * reminders and requests for access to their pages, newest first; opening one marks it read.
- * Access requests can be answered right here.
+ * reminders, requests for access to their pages and, for owners, join requests, newest first;
+ * opening one marks it read. Access requests can be answered right here.
  */
 export function InboxDialog({
   workspaceId,
@@ -88,7 +89,10 @@ export function InboxDialog({
               onClick={() => {
                 if (!item.read) void markRead([item.id]);
                 onClose();
-                router.push(`/w/${workspaceId}/p/${item.pageId}`);
+                // Join requests are decided in Settings > Members.
+                router.push(
+                  item.pageId === null ? `/w/${workspaceId}/settings?tab=members&view=requests` : `/w/${workspaceId}/p/${item.pageId}`,
+                );
               }}
             >
               <span
@@ -97,12 +101,25 @@ export function InboxDialog({
               />
               <span className="min-w-0 flex-1">
                 <span className={cn("flex items-center gap-1.5 text-sm", !item.read && "font-medium")}>
-                  <PageIcon icon={item.pageIcon} kind="page" className="text-sm" />
-                  <span className="truncate">{pageLabel(item.pageTitle, tc("untitled"))}</span>
+                  {item.pageId === null ? (
+                    <>
+                      <UserPlus aria-hidden className="h-3.5 w-3.5 shrink-0 text-fg-muted" />
+                      <span className="truncate">{t("joinRequestTitle")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <PageIcon icon={item.pageIcon} kind="page" className="text-sm" />
+                      <span className="truncate">{pageLabel(item.pageTitle ?? "", tc("untitled"))}</span>
+                    </>
+                  )}
                 </span>
                 <span className="mt-0.5 block text-xs text-fg-muted">
                   {item.kind === "access_request"
                     ? t("accessRequest", { actor: item.actorName || item.accessRequest?.requesterEmail || t("someone") })
+                    : item.kind === "join_request"
+                    ? item.requestKind === "invite"
+                      ? t("inviteRequest", { actor: item.actorName || t("someone"), email: item.requestEmail ?? "" })
+                      : t("joinRequest", { actor: item.actorName || t("someone") })
                     : item.kind === "page_shared"
                     ? t("pageShared", { actor: item.actorName || t("someone") })
                     : item.kind === "comment"

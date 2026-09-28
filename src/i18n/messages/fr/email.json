@@ -111,6 +111,50 @@
     "body": "Bonjour {name}, le mot de passe de votre compte Leafdesk vient d’être modifié.",
     "warning": "Si vous n’êtes pas à l’origine de ce changement, réinitialisez votre mot de passe depuis la page de connexion et contactez un propriétaire de votre espace de travail."
   },
+  "joinRequest": {
+    "join": {
+      "subject": "{asker} a demandé à rejoindre « {workspace} »",
+      "heading": "{asker} a demandé à rejoindre l'espace",
+      "body": "{asker} ({email}) a demandé à rejoindre « {workspace} » sur Leafdesk. Acceptez ou refusez la demande dans Paramètres > Membres."
+    },
+    "invite": {
+      "subject": "{asker} a demandé à inviter {email} dans « {workspace} »",
+      "heading": "Un membre a demandé à inviter quelqu'un",
+      "body": "{asker} souhaite inviter {email} dans « {workspace} » sur Leafdesk. L'invitation part dès qu'un propriétaire l'accepte."
+    },
+    "action": "Voir les demandes",
+    "optOut": "Vous pouvez désactiver ces e-mails dans Mon compte > Préférences."
+  },
+  "joinDecision": {
+    "joinApproved": {
+      "subject": "Vous avez rejoint « {workspace} »",
+      "heading": "Bienvenue dans « {workspace} »",
+      "body": "Un propriétaire a accepté votre demande pour rejoindre « {workspace} » sur Leafdesk."
+    },
+    "joinDeclined": {
+      "subject": "Votre demande pour rejoindre « {workspace} »",
+      "heading": "Votre demande n'a pas été acceptée",
+      "body": "Un propriétaire de « {workspace} » a refusé votre demande. Vous pouvez demander une invitation à l'un de ses propriétaires."
+    },
+    "inviteApproved": {
+      "subject": "{email} a été invité dans « {workspace} »",
+      "heading": "Votre invitation est partie",
+      "body": "Un propriétaire a accepté votre demande, et {email} a été invité dans « {workspace} » sur Leafdesk."
+    },
+    "inviteDeclined": {
+      "subject": "Votre demande pour inviter {email}",
+      "heading": "Votre demande n'a pas été acceptée",
+      "body": "Un propriétaire de « {workspace} » a refusé votre demande d'inviter {email}."
+    },
+    "action": "Ouvrir Leafdesk"
+  },
+  "verification": {
+    "subject": "Vérifiez votre adresse e-mail Leafdesk",
+    "heading": "Vérifiez votre adresse e-mail",
+    "body": "Bonjour {name}, confirmez que cette adresse vous appartient avec le bouton ci-dessous.",
+    "ignore": "Si vous n'avez pas créé de compte Leafdesk, vous pouvez ignorer cet e-mail.",
+    "action": "Vérifier l'adresse e-mail"
+  },
   "passwordResetRequired": {
     "subject": "Choisissez un nouveau mot de passe Leafdesk",
     "heading": "Choisissez un nouveau mot de passe",

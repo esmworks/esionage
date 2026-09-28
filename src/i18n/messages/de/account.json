@@ -37,7 +37,12 @@
     "newLabel": "Neue E-Mail-Adresse",
     "send": "Bestätigungslink senden",
     "sentTitle": "Sieh in deinem Posteingang nach",
-    "sentBody": "Falls {email} verwendet werden kann, ist ein Bestätigungslink dorthin unterwegs. Er ist {hours} Stunden gültig."
+    "sentBody": "Falls {email} verwendet werden kann, ist ein Bestätigungslink dorthin unterwegs. Er ist {hours} Stunden gültig.",
+    "unverifiedTitle": "Noch nicht bestätigt",
+    "unverifiedDescription": "Bestätige deine Adresse, damit Workspaces, die deine E-Mail-Domain zulassen, dich aufnehmen können.",
+    "unverifiedMailOff": "Zum Bestätigen ist eine E-Mail nötig, und auf diesem Server ist kein E-Mail-Versand eingerichtet.",
+    "verify": "Bestätigungslink senden",
+    "verifySent": "Ein Bestätigungslink ist unterwegs an {email}."
   },
   "password": {
     "heading": "Passwort",

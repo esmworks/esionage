@@ -111,6 +111,50 @@
     "body": "Hola, {name}: la contraseña de tu cuenta de Leafdesk se acaba de cambiar.",
     "warning": "Si no hiciste este cambio, restablece tu contraseña desde la página de inicio de sesión y ponte en contacto con un propietario de tu espacio de trabajo."
   },
+  "joinRequest": {
+    "join": {
+      "subject": "{asker} pidió unirse a “{workspace}”",
+      "heading": "{asker} pidió unirse",
+      "body": "{asker} ({email}) pidió unirse a “{workspace}” en Leafdesk. Aprueba o rechaza la solicitud en Configuración > Miembros."
+    },
+    "invite": {
+      "subject": "{asker} pidió invitar a {email} a “{workspace}”",
+      "heading": "Un miembro pidió invitar a alguien",
+      "body": "{asker} quiere invitar a {email} a “{workspace}” en Leafdesk. La invitación se envía cuando un propietario la aprueba."
+    },
+    "action": "Revisar solicitudes",
+    "optOut": "Puedes desactivar estos correos en Mi cuenta > Preferencias."
+  },
+  "joinDecision": {
+    "joinApproved": {
+      "subject": "Te uniste a “{workspace}”",
+      "heading": "Te damos la bienvenida a “{workspace}”",
+      "body": "Un propietario aprobó tu solicitud para unirte a “{workspace}” en Leafdesk."
+    },
+    "joinDeclined": {
+      "subject": "Tu solicitud para unirte a “{workspace}”",
+      "heading": "Tu solicitud no fue aprobada",
+      "body": "Un propietario de “{workspace}” rechazó tu solicitud para unirte. Puedes pedir una invitación a uno de sus propietarios."
+    },
+    "inviteApproved": {
+      "subject": "{email} fue invitado a “{workspace}”",
+      "heading": "Tu invitación se envió",
+      "body": "Un propietario aprobó tu solicitud y {email} fue invitado a “{workspace}” en Leafdesk."
+    },
+    "inviteDeclined": {
+      "subject": "Tu solicitud para invitar a {email}",
+      "heading": "Tu solicitud no fue aprobada",
+      "body": "Un propietario de “{workspace}” rechazó tu solicitud para invitar a {email}."
+    },
+    "action": "Abrir Leafdesk"
+  },
+  "verification": {
+    "subject": "Verifica tu dirección de correo de Leafdesk",
+    "heading": "Verifica tu dirección de correo",
+    "body": "Hola, {name}: confirma que esta dirección es tuya con el botón de abajo.",
+    "ignore": "Si no creaste una cuenta de Leafdesk, puedes ignorar este correo.",
+    "action": "Verificar dirección de correo"
+  },
   "passwordResetRequired": {
     "subject": "Elige una contraseña nueva de Leafdesk",
     "heading": "Elige una contraseña nueva",

@@ -34,7 +34,8 @@
     "description": "Mitglieder können jede Seite sehen und bearbeiten, sofern ihre Freigabe nicht eingeschränkt ist; Gäste sehen nur Seiten, die mit ihnen geteilt wurden. Inhaber können außerdem Mitglieder verwalten.",
     "tabs": {
       "members": "Mitglieder",
-      "invitations": "Offene Einladungen"
+      "invitations": "Offene Einladungen",
+      "requests": "Anfragen"
     },
     "search": "Suchen",
     "exportCsv": "Mitglieder als CSV herunterladen",
@@ -50,7 +51,8 @@
       "toggle": "Beitrittslink",
       "regenerateTitle": "Neuen Link erstellen?",
       "regenerateBody": "Der aktuelle Link funktioniert sofort nicht mehr. Wer bereits beigetreten ist, behält den Zugriff.",
-      "regenerateConfirm": "Neuen Link erstellen"
+      "regenerateConfirm": "Neuen Link erstellen",
+      "descriptionAsks": "Wer diesen Link öffnet und sich anmeldet, bittet um Beitritt, und ein Eigentümer nimmt jede Anfrage an. Personen mit offener Einladung treten sofort bei. Nur Eigentümer sehen ihn."
     },
     "columns": {
       "user": "Person",
@@ -61,7 +63,9 @@
       "lastEdited": "Letzte Bearbeitung",
       "actions": "Aktionen",
       "email": "E-Mail",
-      "status": "Status"
+      "status": "Status",
+      "request": "Anfrage",
+      "asked": "Angefragt"
     },
     "you": "(du)",
     "roleOf": "Rolle von {name}",
@@ -105,7 +109,25 @@
       "emailFailed": "E-Mail fehlgeschlagen, teile den Link",
       "linkOnly": "Teile diesen Einladungslink",
       "linkValidity": "Einladungslinks sind 7 Tage gültig und nur für die eingeladene E-Mail-Adresse.",
-      "addMore": "Weitere hinzufügen"
+      "addMore": "Weitere hinzufügen",
+      "descriptionAsks": "Ein Eigentümer bestätigt jede Adresse, bevor jemand hinzugefügt oder eingeladen wird.",
+      "submitAsk": "Eigentümer fragen",
+      "requested": "Wartet auf einen Eigentümer",
+      "requestedNote": "Eigentümer sehen deine Anfrage unter Einstellungen > Mitglieder. Einladungen gehen raus, sobald sie zustimmen."
+    },
+    "noRequests": "Keine offenen Anfragen.",
+    "requests": {
+      "join": "Möchte beitreten ({source})",
+      "sources": {
+        "domain": "zugelassene Domain",
+        "link": "Beitrittslink",
+        "switcher": "Workspace-Liste",
+        "member": "Mitglied"
+      },
+      "invite": "{name} möchte diese Person einladen",
+      "someone": "Ein Mitglied",
+      "approve": "Annehmen",
+      "decline": "Ablehnen"
     }
   },
   "guests": {
@@ -354,6 +376,9 @@
     "transferToGuest": "Mach die Person zuerst zum Mitglied, bevor du sie zum Inhaber machst.",
     "twoFactorFirst": "Aktiviere zuerst die Bestätigung in zwei Schritten für dein eigenes Konto oder melde dich mit einem Passkey an.",
     "ssoFirst": "Richte zuerst Single Sign-on ein und bestätige seine Domains.",
+    "invalidDomain": "{detail} kann nicht zugelassen werden: Gib die eigenen E-Mail-Domains deiner Organisation ein (keine öffentlichen Maildienste wie gmail.com).",
+    "requestHandled": "Diese Anfrage wurde bereits bearbeitet.",
+    "tooManyRequests": "Zu viele Anfragen. Versuche es später noch einmal.",
     "creationRestricted": "Nur die Administratoren des Servers können Workspaces anlegen."
   },
   "security": {
@@ -536,6 +561,36 @@
       "title": "Seitenverlauf",
       "description": "Frühere Versionen einer Seite werden {days} Tage lang aufbewahrt, höchstens {count} pro Seite. Gespeicherte Versionen und Versionen von vor einer Wiederherstellung bleiben {keptDays} Tage erhalten, und die neueste Version einer Seite bleibt immer."
     },
+    "membersHeading": "Mitglieder",
+    "memberInvites": {
+      "title": "Wer Mitglieder hinzufügen kann",
+      "description": "Eigentümer können immer Personen hinzufügen. Mitglieder fügen Personen nur als Mitglieder hinzu, nie als Eigentümer.",
+      "owners": "Nur Eigentümer",
+      "members_with_approval": "Mitglieder, mit Zustimmung eines Eigentümers",
+      "any_member": "Eigentümer und Mitglieder"
+    },
+    "allowedDomains": {
+      "title": "Zugelassene E-Mail-Domains",
+      "description": "Personen mit einer Adresse in diesen Domains (einschließlich Subdomains) können ohne Einladung beitreten. Öffentliche Maildienste wie gmail.com können nicht hinzugefügt werden.",
+      "placeholder": "beispiel.de, beispiel.org",
+      "verifiedByEmail": "Nur bestätigte Adressen treten von selbst bei: Neue Konten erhalten einen Bestätigungslink per E-Mail.",
+      "verifiedByProvider": "Nur bestätigte Adressen treten von selbst bei. Dieser Server versendet keine E-Mails, daher gelten nur Konten von Google, GitHub oder Single Sign-on als bestätigt."
+    },
+    "domainJoin": {
+      "title": "Wenn sich jemand aus diesen Domains anmeldet",
+      "description": "Das passiert einmal pro Person: Wer den Workspace verlassen hat oder entfernt wurde, kommt nicht von selbst zurück.",
+      "join": "Tritt als Mitglied bei",
+      "request": "Fragt nach einem Beitritt",
+      "noDomains": "Füge zuerst eine Domain hinzu."
+    },
+    "joinRequests": {
+      "title": "Wer um Beitritt bitten kann",
+      "description": "Anfragen warten unter Einstellungen > Mitglieder darauf, dass ein Eigentümer sie annimmt oder ablehnt.",
+      "nobody": "Niemand",
+      "allowed_domains": "Personen mit einer zugelassenen E-Mail-Domain",
+      "anyone_with_link": "Alle mit dem Beitrittslink",
+      "linkHint": "Der Beitrittslink fragt dann einen Eigentümer, statt Personen sofort hinzuzufügen."
+    },
     "dataHeading": "Export und verbundene Apps",
     "export": {
       "title": "Export erlauben",
@@ -572,7 +627,10 @@
     "accessRequestTitle": "Zugriffsanfragen",
     "accessRequestDescription": "Jemand bittet um Zugriff auf eine Seite, auf die du vollen Zugriff hast.",
     "accessRequestChannel": "Zugriffsanfragen: {channel}",
-    "mailOff": "Dieser Server kann gerade keine E-Mails senden, daher werden keine verschickt."
+    "mailOff": "Dieser Server kann gerade keine E-Mails senden, daher werden keine verschickt.",
+    "joinRequestTitle": "Beitrittsanfragen",
+    "joinRequestDescription": "Jemand möchte einem Workspace beitreten, den du besitzt, oder ein Mitglied möchte jemanden einladen.",
+    "joinRequestChannel": "Beitrittsanfragen: {channel}"
   },
   "site": {
     "description": "Gib den veröffentlichten Seiten dieses Workspace eine gemeinsame, gut lesbare Adresse, eine Startseite und eine Navigation zwischen ihnen.",

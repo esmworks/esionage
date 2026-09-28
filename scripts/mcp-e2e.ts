@@ -563,7 +563,31 @@ async function main() {
   // The colleague's own workspace, where the connected user is only a member.
   await db.insert(workspaceMember).values({ workspaceId: colleagueWorkspaces[0].id, userId: userIds[0], role: "member" });
   const notOwner = await mcp.call("invite_member", { workspace_id: colleagueWorkspaces[0].id, email: `mcp-other-${RUN}@example.test` });
-  check(notOwner.isError && /Only owners/.test(notOwner.text), "invite_member is for owners only", notOwner.text);
+  check(
+    notOwner.isError && /Who can add members/.test(notOwner.text),
+    "invite_member follows \"Who can add members\": members can't while only owners may",
+    notOwner.text,
+  );
+  // The same policy as the members page: with approval, a member's invitation waits for an owner.
+  const { workspace } = await import("@/db/schema");
+  const { sql: raw } = await import("drizzle-orm");
+  const memberInvites = (mode: string) =>
+    db
+      .update(workspace)
+      .set({ settings: raw`${workspace.settings} || ${JSON.stringify({ memberInvites: mode })}::jsonb` })
+      .where(eq(workspace.id, colleagueWorkspaces[0].id));
+  await memberInvites("members_with_approval");
+  const requested = await mcp.ok("invite_member", { workspace_id: colleagueWorkspaces[0].id, email: `mcp-other-${RUN}@example.test` });
+  check(requested.status === "requested" && !requested.invitation_link, "…with approval, a member's invitation waits for an owner", requested);
+  await memberInvites("any_member");
+  const asGuest = await mcp.call("invite_member", {
+    workspace_id: colleagueWorkspaces[0].id,
+    email: `mcp-guest-${RUN}@example.test`,
+    role: "guest",
+  });
+  check(asGuest.isError, "…members add members only, never guests", asGuest.text);
+  const direct = await mcp.ok("invite_member", { workspace_id: colleagueWorkspaces[0].id, email: `mcp-other-${RUN}@example.test` });
+  check(direct.status === "invited" && typeof direct.invitation_link === "string", "…and with \"Owners and members\", right away", direct);
 
   // ---- editing properties and views
   const renamedProp = await mcp.ok("update_database_property", {

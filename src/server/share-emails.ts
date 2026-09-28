@@ -1,15 +1,16 @@
-import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accessRequest, notification, pageReminder, user, workspace } from "@/db/schema";
-import { DEFAULT_LOCALE, isLocale } from "@/i18n/config";
+import { accessRequest, notification, pageReminder, user, workspace, workspaceJoinRequest } from "@/db/schema";
+import { DEFAULT_LOCALE, isLocale, type Locale } from "@/i18n/config";
 import { env } from "@/lib/env";
 import { commentText } from "@/lib/comments";
 import { pageLabel } from "@/lib/labels";
-import { resolvePageAccess } from "@/server/access";
+import { ownsWorkspace, resolvePageAccess } from "@/server/access";
 import { getCollab } from "@/server/collab/bridge";
 import {
   accessRequestEmail,
   commentEmail,
+  joinRequestEmail,
   mailStatus,
   mentionEmail,
   reminderEmail,
@@ -22,11 +23,12 @@ import { wantsEmail } from "@/server/notification-preferences";
 
 /**
  * Emails people about pages shared with them, comments in their threads, mentions of them, their
- * reminders and requests for access to their pages. The queue is the notification itself:
- * `recordShare`, `recordComment`, `recordMentions`, `recordReminder` and `recordAccessRequest` set
- * `email_due_at` (a little ahead, or now for reminders and requests), undoing the share or the
- * mention (or answering the request) deletes the notification, and the sweep sends what is still
- * there once it falls due. A restart delays these emails instead of losing them.
+ * reminders and requests for access to their pages, and owners about join requests. The queue is
+ * the notification itself: `recordShare`, `recordComment`, `recordMentions`, `recordReminder`,
+ * `recordAccessRequest` and `recordJoinRequest` set `email_due_at` (a little ahead, or now for
+ * reminders and requests), undoing the share or the mention (or answering or deciding the request)
+ * deletes the notification, and the sweep sends what is still there once it falls due. A restart
+ * delays these emails instead of losing them.
  *
  * The answer to an access request goes to the requester right away instead (`mailNow`): they may
  * be outside the workspace, with no inbox to queue it in.
@@ -44,6 +46,7 @@ type Due = Pick<
   | "threadId"
   | "mentionId"
   | "accessRequestId"
+  | "joinRequestId"
   | "workspaceId"
   | "emailLocale"
   | "readAt"
@@ -59,7 +62,7 @@ async function deliverDue(everything = false) {
     .set({ emailDueAt: null })
     .where(
       and(
-        inArray(notification.kind, ["page_shared", "comment", "mention", "reminder", "access_request"]),
+        inArray(notification.kind, ["page_shared", "comment", "mention", "reminder", "access_request", "join_request"]),
         everything ? isNotNull(notification.emailDueAt) : lte(notification.emailDueAt, new Date()),
       ),
     )
@@ -71,6 +74,7 @@ async function deliverDue(everything = false) {
       threadId: notification.threadId,
       mentionId: notification.mentionId,
       accessRequestId: notification.accessRequestId,
+      joinRequestId: notification.joinRequestId,
       workspaceId: notification.workspaceId,
       emailLocale: notification.emailLocale,
       readAt: notification.readAt,
@@ -85,12 +89,45 @@ async function deliverDue(everything = false) {
 }
 
 /**
- * Sends one email if the person hasn't seen the notification yet, still can open the page and wants
- * it. Access requests: only while they can still answer it (full access).
+ * Tells an owner about a join request, if it still waits, they still own the workspace and want
+ * these emails.
  */
-async function send({ kind, userId, actorId, pageId, threadId, mentionId, accessRequestId, workspaceId, emailLocale, readAt }: Due) {
+async function sendJoinRequest(userId: string, workspaceId: string, joinRequestId: string | null, locale: Locale) {
+  if (!joinRequestId || !(await wantsEmail(userId, "join_request"))) return;
+  const [row] = await db
+    .select({
+      kind: workspaceJoinRequest.kind,
+      email: workspaceJoinRequest.email,
+      askerName: user.name,
+      // Still an owner: someone demoted since the request came in doesn't get the email.
+      recipient: sql<string | null>`(select u.email from ${user} u where u.id = ${userId} and ${ownsWorkspace(userId, sql`${workspaceId}`)})`,
+      workspaceName: workspace.name,
+    })
+    .from(workspaceJoinRequest)
+    .innerJoin(workspace, eq(workspace.id, workspaceJoinRequest.workspaceId))
+    .leftJoin(user, eq(user.id, workspaceJoinRequest.requestedBy))
+    .where(and(eq(workspaceJoinRequest.id, joinRequestId), eq(workspaceJoinRequest.status, "pending")));
+  if (!row?.recipient) return;
+  const content = joinRequestEmail(locale, {
+    kind: row.kind,
+    askerName: row.askerName ?? "",
+    email: row.email,
+    workspaceName: row.workspaceName,
+    link: `${env.appUrl}/w/${workspaceId}/settings?tab=members&view=requests`,
+  });
+  await mailer({ to: row.recipient, ...content });
+}
+
+/**
+ * Sends one email if the person hasn't seen the notification yet, still can open the page and wants
+ * it. Access requests: only while they can still answer it (full access). Join requests have no
+ * page (see sendJoinRequest).
+ */
+async function send({ kind, userId, actorId, pageId, threadId, mentionId, accessRequestId, joinRequestId, workspaceId, emailLocale, readAt }: Due) {
   if (readAt || kind === "assignment") return;
   const locale = isLocale(emailLocale) ? emailLocale : DEFAULT_LOCALE;
+  if (kind === "join_request") return sendJoinRequest(userId, workspaceId, joinRequestId, locale);
+  if (!pageId) return;
   const { page: target, level } = await resolvePageAccess(userId, pageId);
   if (!target || target.archivedAt || level === "none") return;
   if (kind === "access_request" && level !== "full") return;

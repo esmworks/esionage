@@ -37,7 +37,12 @@
     "newLabel": "Yeni e-posta adresi",
     "send": "Onay bağlantısı gönder",
     "sentTitle": "Gelen kutunuza bakın",
-    "sentBody": "{email} kullanılabiliyorsa onay bağlantısı o adrese gönderildi. Bağlantı {hours} saat geçerlidir."
+    "sentBody": "{email} kullanılabiliyorsa onay bağlantısı o adrese gönderildi. Bağlantı {hours} saat geçerlidir.",
+    "unverifiedTitle": "Henüz doğrulanmadı",
+    "unverifiedDescription": "E-posta alan adınıza izin veren çalışma alanlarının sizi alabilmesi için adresinizi doğrulayın.",
+    "unverifiedMailOff": "Doğrulama için e-posta gerekir ve bu sunucuda e-posta ayarlı değil.",
+    "verify": "Doğrulama bağlantısı gönder",
+    "verifySent": "{email} adresine bir doğrulama bağlantısı gönderildi."
   },
   "password": {
     "heading": "Şifre",

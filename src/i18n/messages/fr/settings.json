@@ -34,7 +34,8 @@
     "description": "Les membres peuvent voir et modifier toutes les pages, sauf si leur partage est restreint ; les invités ne voient que les pages partagées avec eux. Les propriétaires peuvent en plus gérer les membres.",
     "tabs": {
       "members": "Membres",
-      "invitations": "Invitations en attente"
+      "invitations": "Invitations en attente",
+      "requests": "Demandes"
     },
     "search": "Rechercher",
     "exportCsv": "Télécharger les membres en CSV",
@@ -50,7 +51,8 @@
       "toggle": "Lien d’accès",
       "regenerateTitle": "Créer un nouveau lien ?",
       "regenerateBody": "Le lien actuel cesse immédiatement de fonctionner. Les personnes qui l’ont déjà utilisé conservent leur accès.",
-      "regenerateConfirm": "Créer un nouveau lien"
+      "regenerateConfirm": "Créer un nouveau lien",
+      "descriptionAsks": "Toute personne qui ouvre ce lien et se connecte demande à rejoindre l'espace, et un propriétaire accepte chaque demande. Les personnes ayant une invitation en attente rejoignent tout de suite. Seuls les propriétaires le voient."
     },
     "columns": {
       "user": "Utilisateur",
@@ -61,7 +63,9 @@
       "lastEdited": "Dernière modification",
       "actions": "Actions",
       "email": "E-mail",
-      "status": "Statut"
+      "status": "Statut",
+      "request": "Demande",
+      "asked": "Demandé"
     },
     "you": "(vous)",
     "roleOf": "Rôle de {name}",
@@ -105,7 +109,25 @@
       "emailFailed": "Échec de l’envoi de l’e-mail, partagez le lien",
       "linkOnly": "Partagez ce lien d’invitation",
       "linkValidity": "Les liens d’invitation sont valables 7 jours et uniquement pour l’adresse e-mail invitée.",
-      "addMore": "Ajouter d’autres personnes"
+      "addMore": "Ajouter d’autres personnes",
+      "descriptionAsks": "Un propriétaire valide chaque adresse avant que quiconque soit ajouté ou invité.",
+      "submitAsk": "Demander à un propriétaire",
+      "requested": "En attente d'un propriétaire",
+      "requestedNote": "Les propriétaires voient votre demande dans Paramètres > Membres. Les invitations partent dès qu'ils l'acceptent."
+    },
+    "noRequests": "Aucune demande en attente.",
+    "requests": {
+      "join": "Demande à rejoindre ({source})",
+      "sources": {
+        "domain": "domaine autorisé",
+        "link": "lien d'accès",
+        "switcher": "liste des espaces",
+        "member": "membre"
+      },
+      "invite": "{name} souhaite inviter cette personne",
+      "someone": "Un membre",
+      "approve": "Accepter",
+      "decline": "Refuser"
     }
   },
   "guests": {
@@ -354,6 +376,9 @@
     "transferToGuest": "Faites-en d’abord un membre avant de le nommer propriétaire.",
     "twoFactorFirst": "Activez d’abord la vérification en deux étapes pour votre propre compte, ou connectez-vous avec une clé d’accès.",
     "ssoFirst": "Configurez d'abord l'authentification unique et vérifiez ses domaines.",
+    "invalidDomain": "{detail} ne peut pas être autorisé : saisissez les domaines de messagerie propres à votre organisation (pas des services publics comme gmail.com).",
+    "requestHandled": "Cette demande a déjà été traitée.",
+    "tooManyRequests": "Trop de demandes. Réessayez plus tard.",
     "creationRestricted": "Seuls les administrateurs du serveur peuvent créer des espaces de travail."
   },
   "security": {
@@ -536,6 +561,36 @@
       "title": "Historique des pages",
       "description": "Les versions précédentes d’une page sont conservées {days} jours, jusqu’à {count} par page. Les versions enregistrées et celles d’avant une restauration sont conservées {keptDays} jours, et la dernière version d’une page est toujours gardée."
     },
+    "membersHeading": "Membres",
+    "memberInvites": {
+      "title": "Qui peut ajouter des membres",
+      "description": "Les propriétaires peuvent toujours ajouter des personnes. Les membres les ajoutent uniquement comme membres, jamais comme propriétaires.",
+      "owners": "Propriétaires uniquement",
+      "members_with_approval": "Membres, avec l'accord d'un propriétaire",
+      "any_member": "Propriétaires et membres"
+    },
+    "allowedDomains": {
+      "title": "Domaines de messagerie autorisés",
+      "description": "Les personnes ayant une adresse sur ces domaines, sous-domaines compris, peuvent rejoindre l'espace sans invitation. Les services publics comme gmail.com ne peuvent pas être ajoutés.",
+      "placeholder": "exemple.fr, exemple.org",
+      "verifiedByEmail": "Seules les adresses vérifiées rejoignent d'elles-mêmes : les nouveaux comptes reçoivent un lien de vérification par e-mail.",
+      "verifiedByProvider": "Seules les adresses vérifiées rejoignent d'elles-mêmes. Ce serveur n'envoie pas d'e-mails, donc seuls les comptes Google, GitHub ou d'authentification unique comptent comme vérifiés."
+    },
+    "domainJoin": {
+      "title": "Quand quelqu'un de ces domaines se connecte",
+      "description": "Cela n'arrive qu'une fois par personne : quelqu'un qui est parti ou a été retiré ne revient pas de lui-même.",
+      "join": "Il rejoint l'espace comme membre",
+      "request": "Il demande à rejoindre l'espace",
+      "noDomains": "Ajoutez d'abord un domaine."
+    },
+    "joinRequests": {
+      "title": "Qui peut demander à rejoindre",
+      "description": "Les demandes attendent dans Paramètres > Membres qu'un propriétaire les accepte ou les refuse.",
+      "nobody": "Personne",
+      "allowed_domains": "Les personnes ayant un domaine de messagerie autorisé",
+      "anyone_with_link": "Toute personne ayant le lien d'accès",
+      "linkHint": "Le lien d'accès demande alors l'accord d'un propriétaire au lieu d'ajouter les personnes tout de suite."
+    },
     "dataHeading": "Exportation et applications connectées",
     "export": {
       "title": "Autoriser l’exportation",
@@ -572,7 +627,10 @@
     "accessRequestTitle": "Demandes d’accès",
     "accessRequestDescription": "Quelqu’un demande l’accès à une page à laquelle vous avez un accès complet.",
     "accessRequestChannel": "Demandes d’accès : {channel}",
-    "mailOff": "Ce serveur ne peut pas envoyer d’e-mails pour le moment, aucun n’est donc envoyé."
+    "mailOff": "Ce serveur ne peut pas envoyer d’e-mails pour le moment, aucun n’est donc envoyé.",
+    "joinRequestTitle": "Demandes d'accès",
+    "joinRequestDescription": "Quelqu'un demande à rejoindre un espace de travail dont vous êtes propriétaire, ou un membre demande à inviter quelqu'un.",
+    "joinRequestChannel": "Demandes d'accès : {channel}"
   },
   "site": {
     "description": "Donnez aux pages publiées de cet espace de travail une adresse lisible, une page d’accueil et une navigation commune.",

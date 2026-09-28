@@ -75,7 +75,10 @@
     "accessRequest": "{actor} bu sayfaya erişim istedi",
     "someone": "Biri",
     "unread": "Okunmadı",
-    "unreadCount": "{count, plural, one {# okunmamış bildirim} other {# okunmamış bildirim}}"
+    "unreadCount": "{count, plural, one {# okunmamış bildirim} other {# okunmamış bildirim}}",
+    "joinRequestTitle": "Katılma isteği",
+    "joinRequest": "{actor} katılmak istedi",
+    "inviteRequest": "{actor}, {email} adresini davet etmek istedi"
   },
   "templates": {
     "title": "Şablonlar",
@@ -112,5 +115,11 @@
     "newPrivate": "Yeni özel sayfa",
     "more": "{count} sayfa daha",
     "less": "Daha az göster"
+  },
+  "joinable": {
+    "heading": "Katılabileceğiniz çalışma alanları",
+    "join": "Katıl",
+    "request": "Katılma isteği gönder",
+    "requested": "İstek gönderildi"
   }
 }
