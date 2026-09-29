@@ -10,13 +10,16 @@ import { arrangeGroups, boardGroupProperty, groupRowsBy, isGroupable, type Group
 import { applyView, computedValues, isHiddenInView } from "@/lib/properties";
 import { coverProperty, galleryCover } from "@/lib/views";
 import { firstImageFile } from "@/lib/files";
+import { hideReferences, unknownProperties } from "@/lib/property-access-rows";
 import { holdsPeople, UNPUBLISHED_PROPERTY_TYPES } from "@/lib/property-types";
+import { unknownToVisitors } from "@/lib/published-copy";
 import { publishedHref, type PublishedLinks } from "@/lib/site";
 import { AccessError, accessRank, pageVisibleTo, requireMembership, requirePageAccess } from "@/server/access";
 import { recordAudit } from "@/server/audit";
 import { rowCovers, type DatabaseProperty } from "@/server/databases";
 import { computeDerived } from "@/server/derived";
 import { publishedPageRefs } from "@/server/mentions";
+import { propertyAccessFor } from "@/server/property-access";
 import { canPublish, publishingOn } from "@/server/workspaces";
 import type { BodyHeading, BodySegment, PublishedBookmark, PublishedColumn } from "@/server/published-body";
 import type { EmbedTarget } from "@/lib/web-blocks";
@@ -445,20 +448,47 @@ export async function getPublishedPage(
 
 /**
  * A database row's values as a published page shows them: every property but the private ones
- * (see publicProperties). Also used by the print view (server/print.ts).
+ * (see publicProperties) and what property access keeps from `reader` (see readerAccess). Also
+ * used by the print view (server/print.ts), which passes the person printing.
  */
 export async function publishedRow(
-  target: { id: string; title: string; properties: Record<string, unknown>; createdAt: Date; updatedAt: Date },
+  target: { id: string; title: string; properties: Record<string, unknown>; createdAt: Date; updatedAt: Date; createdBy?: string | null },
   databaseId: string,
+  reader: string | null = null,
 ): Promise<NonNullable<PublishedPage["row"]>> {
   const properties = await databaseProperties(databaseId);
+  const access = await readerAccess(reader, databaseId, properties);
   // Public properties hold no people, so only the created and last edited times are filled in.
+  const { createdBy = null, ...rest } = target;
   const [row] = await publicValues(
-    [{ ...target, properties: { ...target.properties, ...computedValues(properties, { createdBy: null, ...target }) } }],
+    [{ ...rest, createdBy, properties: { ...target.properties, ...computedValues(properties, { ...rest, createdBy: null }) } }],
     properties,
+    access,
   );
-  return { properties: publicProperties(properties), values: row.properties };
+  return { properties: publicProperties(access.known(properties)), values: row.properties };
 }
+
+/**
+ * Property access of whoever reads a published database: anonymous visitors (`reader` null) get
+ * what the entries for everyone allow, capped at view; the print view reads as the person
+ * printing. `gone`: properties they can't know of, left out of the columns and of the view's
+ * settings (filters, sorts, grouping). Values they can't view are left out of each row before the
+ * view is applied (see publicValues), so the order and the groups of rows say nothing about them
+ * either. Used by copies of published pages too (server/published-duplicate.ts).
+ */
+export async function readerAccess(reader: string | null, databaseId: string, properties: { id: string }[]) {
+  const access = await propertyAccessFor(reader, databaseId);
+  const gone = reader === null ? unknownToVisitors(access, properties) : unknownProperties(access, properties);
+  return {
+    reader,
+    access,
+    gone,
+    known: <P extends { id: string }>(list: P[]) => list.filter((p) => !gone.has(p.id)),
+    config: (config: ViewConfig) => hideReferences(config, gone),
+  };
+}
+
+type ReaderAccess = Awaited<ReturnType<typeof readerAccess>>;
 
 /**
  * Pages from `rootId` down to `pageId` when every page on the way is live and visible to the
@@ -607,10 +637,21 @@ function publicProperties(properties: DatabaseProperty[]) {
 
 /**
  * Rows with their formulas worked out for a public page: formulas that show people or related
- * rows get no names or titles, so nothing private reaches the page through them.
+ * rows get no names or titles, so nothing private reaches the page through them. Values the reader
+ * may not view are left out first (and formulas and rollups reading them after), as
+ * databases.withValues does for people in the app.
  */
-function publicValues<R extends { title: string; properties: Record<string, unknown> }>(rows: R[], properties: DatabaseProperty[]) {
-  return computeDerived(rows, properties, { lookups: async () => ({}), viewerId: null });
+async function publicValues<R extends { title: string; properties: Record<string, unknown>; createdBy?: string | null }>(
+  rows: R[],
+  properties: DatabaseProperty[],
+  { access, reader }: ReaderAccess,
+) {
+  const derived = await computeDerived(access.strip(rows), properties, {
+    lookups: async () => ({}),
+    viewerId: null,
+    accessFor: (databaseId) => propertyAccessFor(reader, databaseId),
+  });
+  return access.finish(derived);
 }
 
 /**
@@ -650,13 +691,27 @@ const LAYOUTS: Partial<Record<ViewType, PublishedLayout>> = { board: "board", li
 export async function publishedDatabase(
   publisher: string,
   databaseId: string,
-  { viewId, linked = null }: { viewId?: string; linked?: LinkedView | null } = {},
+  {
+    viewId,
+    linked = null,
+    reader = null,
+  }: {
+    viewId?: string;
+    linked?: LinkedView | null;
+    /** Whose property access applies: null for anonymous visitors (see readerAccess). */
+    reader?: string | null;
+  } = {},
 ): Promise<PublishedDatabase> {
-  const [allProperties, shownViews] = await Promise.all([
+  const [storedProperties, shownViews] = await Promise.all([
     databaseProperties(databaseId),
     linked ? Promise.resolve([]) : readableViews(databaseId).then(webViews),
   ]);
-  const chosen = linked ? { id: "", name: "", ...linked } : (shownViews.find((v) => v.id === viewId) ?? shownViews[0]);
+  const access = await readerAccess(reader, databaseId, storedProperties);
+  // Every property the reader may know of: filters and sorts may use relations and people, so
+  // applyView needs them too; the columns are only the public ones (see publicProperties).
+  const allProperties = access.known(storedProperties);
+  const picked = linked ? { id: "", name: "", ...linked } : (shownViews.find((v) => v.id === viewId) ?? shownViews[0]);
+  const chosen = picked && { ...picked, config: access.config(picked.config) };
   const withCovers = chosen?.type === "gallery" && galleryCover(chosen.config) === "first_image";
   const stored = await db
     .select({
@@ -677,11 +732,13 @@ export async function publishedDatabase(
   const tabs = shownViews.map((v) => ({ id: v.id, name: v.name, type: v.type }));
   if (!chosen) {
     const rows = await publicValues(
-      stored.map(({ createdBy: _, updatedBy: __, hasImage: ___, ...row }) => ({
+      stored.map(({ createdBy, updatedBy: __, hasImage: ___, ...row }) => ({
         ...row,
-        properties: { ...row.properties, ...computedValues(allProperties, { createdBy: null, ...row }) },
+        createdBy,
+        properties: { ...row.properties, ...computedValues(storedProperties, { ...row, createdBy: null }) },
       })),
-      allProperties,
+      storedProperties,
+      access,
     );
     return {
       properties,
@@ -699,9 +756,11 @@ export async function publishedDatabase(
   const rows = await publicValues(
     stored.map(({ createdBy, updatedBy, hasImage: _, ...row }) => ({
       ...row,
-      properties: { ...row.properties, ...computedValues(allProperties, { createdBy, updatedBy, ...row }) },
+      createdBy,
+      properties: { ...row.properties, ...computedValues(storedProperties, { createdBy, updatedBy, ...row }) },
     })),
-    allProperties,
+    storedProperties,
+    access,
   );
   const viewed = applyView(rows, chosen.config, allProperties, { people: await sortNames(rows, allProperties, chosen.config) });
   const covers = withCovers ? await rowCovers(stored) : null;

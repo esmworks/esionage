@@ -29,6 +29,7 @@ import { Floating, useFloating } from "./floating";
 import { postFile } from "./files-cell";
 import { FormFill } from "./form-fill";
 import { PropertyCell } from "./property-cell";
+import { usePropertyAccess } from "./property-access";
 import { PropertyTypeIcon, usePropertyTypeLabel } from "./property-icons";
 import type { Property, View } from "./types";
 import type { DatabaseApi } from "./use-database";
@@ -60,6 +61,7 @@ export function FormView({
   const t = useTranslations("form");
   const tc = useTranslations("common");
   const form = view.config.form ?? {};
+  const access = usePropertyAccess();
 
   if (editable && !preview) {
     return (
@@ -80,7 +82,9 @@ export function FormView({
           key={view.id}
           title={form.title?.trim() || databaseTitle || tc("untitled")}
           description={form.description?.trim()}
-          questions={formQuestions(form, properties)}
+          // Answers are written as the person answering: questions about values they may not
+          // change (property access) aren't asked, since the server would leave them out.
+          questions={formQuestions(form, properties).filter((q) => !q.prop || access.canEditValues(q.prop.id))}
           confirmation={form.confirmation}
           allowAnother={form.allowAnother}
           disabled={!editable}

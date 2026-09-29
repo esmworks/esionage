@@ -2,11 +2,16 @@
 
 import { getTranslations } from "next-intl/server";
 import type { PropertyType, SelectOption, ViewConfig, ViewType } from "@/db/schema";
+import { avatarSrc } from "@/lib/avatar";
 import { isDatabaseErrorCode, PropertyValueError } from "@/lib/properties";
-import { AccessError } from "@/server/access";
+import type { PropertyLevel } from "@/lib/property-access";
+import { AccessError, pageAccessOf } from "@/server/access";
 import { databaseAi } from "@/server/ai-properties";
 import * as databases from "@/server/databases";
 import { duplicateRows } from "@/server/duplicate";
+import { listGroups } from "@/server/groups";
+import { getPropertyAccessSettings, loadPropertyRules, setPropertyAccess } from "@/server/property-access";
+import { listMembers } from "@/server/workspaces";
 import * as pages from "@/server/pages";
 import * as templates from "@/server/templates";
 import { requireUserId } from "@/server/session";
@@ -46,19 +51,39 @@ async function run<T>(fn: (userId: string) => Promise<T>): Promise<ActionResult<
   }
 }
 
+/**
+ * Whether the user may change who sees and edits each property (full access to the database), and
+ * then which properties have rules: those don't apply to them, so the snapshot doesn't say.
+ */
+async function propertyAccessManagement(userId: string, databaseId: string, properties: { id: string }[]) {
+  const { level } = await pageAccessOf(userId, databaseId);
+  if (level !== "full") return { canManageAccess: false, restrictedPropertyIds: [] as string[] };
+  const rules = await loadPropertyRules([databaseId]);
+  return {
+    canManageAccess: true,
+    restrictedPropertyIds: properties.filter((p) => rules.get(p.id)?.length).map((p) => p.id),
+  };
+}
+
 export async function loadDatabaseAction(databaseId: string, options: { covers?: boolean } = {}) {
   return run(async (userId) => {
     const snapshot = await databases.getDatabaseSnapshot(userId, databaseId, { covers: options.covers === true });
-    const ai = await databaseAi(databaseId, snapshot.properties, snapshot.rows.map((r) => r.id));
-    return { ...snapshot, ai };
+    const [ai, management] = await Promise.all([
+      databaseAi(databaseId, snapshot.properties, snapshot.rows.map((r) => r.id)),
+      propertyAccessManagement(userId, databaseId, snapshot.properties),
+    ]);
+    return { ...snapshot, ...management, ai };
   });
 }
 
 export async function loadRowAction(rowId: string) {
   return run(async (userId) => {
     const row = await databases.getRow(userId, rowId);
-    const ai = await databaseAi(row.databaseId, row.properties, [rowId]);
-    return { ...row, ai: { enabled: ai.enabled, states: ai.states[rowId] ?? {} } };
+    const [ai, management] = await Promise.all([
+      databaseAi(row.databaseId, row.properties, [rowId]),
+      propertyAccessManagement(userId, row.databaseId, row.properties),
+    ]);
+    return { ...row, ...management, ai: { enabled: ai.enabled, states: ai.states[rowId] ?? {} } };
   });
 }
 
@@ -171,4 +196,38 @@ export async function updateViewAction(viewId: string, patch: { name?: string; c
 
 export async function deleteViewAction(viewId: string) {
   return run((userId) => databases.deleteView(userId, viewId));
+}
+
+// Property access (see server/property-access.ts): full access to the database only.
+
+/** A property's access for the settings dialog, with the people and groups that can be added. */
+export async function loadPropertyAccessAction(propertyId: string) {
+  return run(async (userId) => {
+    const settings = await getPropertyAccessSettings(userId, propertyId);
+    const { workspaceId } = settings;
+    // Guests can't list the workspace's people or groups: they only keep the entries already there.
+    const noneForGuests = (error: unknown) => {
+      if (error instanceof AccessError) return [];
+      throw error;
+    };
+    const [members, groups] = await Promise.all([
+      listMembers(userId, workspaceId).catch(noneForGuests),
+      listGroups(userId, workspaceId).catch(noneForGuests),
+    ]);
+    return {
+      ...settings,
+      members: members.map((m) => ({ id: m.userId, name: m.name, email: m.email, image: avatarSrc(m.image) })),
+      groups: groups.map((g) => ({ id: g.id, name: g.name, memberCount: g.memberCount })),
+    };
+  });
+}
+
+export async function setPropertyAccessAction(
+  propertyId: string,
+  input: {
+    everyone: PropertyLevel | "inherit";
+    exceptions: { userId?: string; groupId?: string; personPropertyId?: string; level: PropertyLevel }[];
+  },
+) {
+  return run((userId) => setPropertyAccess(userId, propertyId, input));
 }

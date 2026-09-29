@@ -15,9 +15,9 @@
  * checks the reader's access to every page when it runs (semantic-search.ts). Trashed pages keep
  * their chunks for when they come back, but never show in results.
  */
-import { and, eq, inArray, ne, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { page, pageChunk, pageIndexState } from "@/db/schema";
+import { page, pageChunk, pageIndexState, propertyPermission } from "@/db/schema";
 import { sharedLimiter } from "@/lib/rate-limit";
 import { aiConfig, embed, embeddingModel, embeddingsEnabled, isAiError } from "@/server/ai";
 import { getCollab } from "@/server/collab/bridge";
@@ -152,13 +152,48 @@ export async function dropWorkspaceIndex(workspaceId: string) {
   await db.delete(pageIndexState).where(eq(pageIndexState.workspaceId, workspaceId));
 }
 
+/**
+ * Properties of a database with access rules (see server/property-access). Their values stay out
+ * of the index whatever the rules say: it is shared by every reader, and search can't tell who may
+ * see what inside a chunk.
+ */
+async function restrictedProperties(databaseId: string): Promise<Set<string>> {
+  const rows = await db
+    .selectDistinct({ id: propertyPermission.propertyId })
+    .from(propertyPermission)
+    .where(eq(propertyPermission.databaseId, databaseId));
+  return new Set(rows.map((r) => r.id));
+}
+
+/**
+ * A database's property access changed: its rows' values must leave the index (or may come back)
+ * now. Chunks holding row values go at once: values come first in a row's text (chunkPage), so
+ * every chunk with any of them starts with one and has no block. The rows' index state goes too,
+ * so they are indexed again even when their text didn't change (the title chunk just dropped
+ * comes back), by the queue now or by a later sweep. Only the dropped chunks are embedded again.
+ */
+export async function reindexDatabaseRows(databaseId: string) {
+  const rows = sql`select id from ${page} where parent_id = ${databaseId}`;
+  await db.delete(pageChunk).where(and(sql`${pageChunk.blockId} is null`, sql`${pageChunk.pageId} in (${rows})`));
+  await db.delete(pageIndexState).where(sql`${pageIndexState.pageId} in (${rows})`);
+  if (!embeddingsEnabled()) return;
+  const ids = await db
+    .select({ id: page.id })
+    .from(page)
+    .where(and(eq(page.parentId, databaseId), isNull(page.archivedAt), eq(page.inTemplate, false)));
+  enqueueIndex(ids.map((r) => r.id));
+}
+
 /** The chunks a page's current text makes (title, a row's values, the body's blocks). */
 export async function pageChunks(row: { id: string; parentId: string | null; kind: string; properties: Record<string, unknown> }) {
   const { title, blocks } = await getCollab().readBlocks(row.id);
   let properties: string[] = [];
   if (row.parentId) {
     const [parent] = await db.select({ kind: page.kind }).from(page).where(eq(page.id, row.parentId)).limit(1);
-    if (parent?.kind === "database") properties = rowPropertyLines(await databases.getProperties(row.parentId), row.properties);
+    if (parent?.kind === "database") {
+      const [all, restricted] = await Promise.all([databases.getProperties(row.parentId), restrictedProperties(row.parentId)]);
+      properties = rowPropertyLines(all, row.properties, restricted);
+    }
   }
   return chunkPage({ title, properties, blocks: row.kind === "database" ? [] : blockTexts(blocks as Parameters<typeof blockTexts>[0]) });
 }

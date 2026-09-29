@@ -1,5 +1,6 @@
 import { isEmbedBlockType } from "./embed-blocks";
 import { MENTION, mentionProps, mentionText, PAGE_LINK_BLOCK } from "./mentions";
+import type { PropertyAccess } from "./property-access-rows";
 
 /**
  * "Duplicate" on a published page copies it into another workspace (see server/site.ts). The copy
@@ -147,4 +148,20 @@ export function mentionedPageIds(blocks: Block[]): string[] {
   };
   walk(blocks);
   return [...ids];
+}
+
+/**
+ * The properties anonymous visitors of a published page can't know of: those whose level for
+ * everyone is `none` (property access, see lib/property-access). Published pages, sites and
+ * copies made from them leave these out entirely: columns, values and the views' references.
+ *
+ * Checked on a row that names nobody, as a visitor is never among a row's people: working it out
+ * without a row would count person property exceptions as if they could name them.
+ */
+export function unknownToVisitors(access: Pick<PropertyAccess, "open" | "levelOf" | "visible">, properties: { id: string }[]): Set<string> {
+  if (access.open) return new Set();
+  const known = new Set(access.visible(properties).map((p) => p.id));
+  return new Set(
+    properties.filter((p) => !known.has(p.id) || access.levelOf(p.id, { properties: {}, createdBy: null }) === "none").map((p) => p.id),
+  );
 }

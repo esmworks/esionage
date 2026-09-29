@@ -1,8 +1,27 @@
 import { and, asc, eq, gt, inArray, isNotNull, isNull, like, sql } from "drizzle-orm";
 import * as Y from "yjs";
 import { db } from "@/db";
-import { databaseProperty, databaseView, page, pageGroupPermission, pagePermission, type PageKind, type RowProperties } from "@/db/schema";
-import { planDuplicate, type DuplicatePlan, type PlannedPage, type SourcePage } from "@/lib/duplicate";
+import {
+  databaseProperty,
+  databaseView,
+  page,
+  pageGroupPermission,
+  pagePermission,
+  propertyPermission,
+  type PageKind,
+  type RowProperties,
+} from "@/db/schema";
+import {
+  copyAccess,
+  planDuplicate,
+  planPropertyRules,
+  redactCopy,
+  type CopyAccess,
+  type DuplicatePlan,
+  type PlannedPage,
+  type SourcePage,
+  type SourceRule,
+} from "@/lib/duplicate";
 import { DATABASE_BLOCK, mapReferenceLines, referenceLine, remapInlineDatabases } from "@/lib/embed-blocks";
 import { positionBetween } from "@/lib/properties";
 import { stripReminders } from "@/lib/mentions";
@@ -12,6 +31,8 @@ import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { bulkRowIds, rowsWithAccess, syncPairedRelations, withCode, type BulkResult } from "@/server/databases";
 import { copyReferences } from "@/server/mentions";
 import { makePagePrivate } from "@/server/permissions";
+import type { PropertyAccess } from "@/lib/property-access-rows";
+import { propertyAccessFor } from "@/server/property-access";
 import { placeTopLevel, TeamspaceError } from "@/server/teamspaces";
 import { requireTopLevel } from "@/server/workspaces";
 
@@ -64,6 +85,9 @@ export async function copyPageTree(
 ): Promise<CopiedTree> {
   const { userId } = actor;
   const pageId = source.id;
+  // Read before the transaction: it goes through the pool, which a transaction waiting on it
+  // would hold a connection of.
+  const accessOf = await accessForCopy(userId, source);
 
   const copied = await db.transaction(async (tx) => {
     // Walk down live pages the user can see; a hidden page hides its whole subtree.
@@ -76,6 +100,7 @@ export async function copyPageTree(
       properties: RowProperties;
       is_template: boolean;
       default_template_id: string | null;
+      created_by: string | null;
     }>(sql`
       with recursive sub as (
         select id from ${page} where id = ${pageId}
@@ -83,7 +108,7 @@ export async function copyPageTree(
         select p.id from ${page} p join sub on p.parent_id = sub.id
         where p.archived_at is null and ${pageVisibleTo(userId, "p")}
       )
-      select p.id, p.parent_id, p.kind, p.title, p.position, p.properties, p.is_template, p.default_template_id
+      select p.id, p.parent_id, p.kind, p.title, p.position, p.properties, p.is_template, p.default_template_id, p.created_by
       from (select id from sub limit ${MAX_DUPLICATE_PAGES + 1}) s
       join ${page} p on p.id = s.id
     `);
@@ -117,23 +142,31 @@ export async function copyPageTree(
       rootPosition = positionBetween(source.position, next?.position);
     }
 
-    const plan = planDuplicate({
-      rootId: pageId,
-      pages: pages.map(
-        (p): SourcePage => ({
-          id: p.id,
-          parentId: p.parent_id,
-          kind: p.kind,
-          title: p.title,
-          position: Number(p.position),
-          properties: p.properties,
-        }),
+    // Property access: the copy carries only what the user may (see lib/duplicate copyAccess).
+    const { carried, rules } = await copiedAccess(tx, userId, accessOf, source, target, databaseIds, properties);
+    const plan = planDuplicate(
+      redactCopy(
+        {
+          rootId: pageId,
+          pages: pages.map(
+            (p): SourcePage => ({
+              id: p.id,
+              parentId: p.parent_id,
+              kind: p.kind,
+              title: p.title,
+              position: Number(p.position),
+              properties: p.properties,
+            }),
+          ),
+          properties,
+          views,
+          rootTitle: target.title,
+          rootPosition,
+        },
+        carried,
+        new Map(pages.map((p) => [p.id, p.created_by])),
       ),
-      properties,
-      views,
-      rootTitle: target.title,
-      rootPosition,
-    });
+    );
 
     // Template flags: the root's is chosen by the caller, the rest keep theirs (row templates of a
     // copied database stay row templates); a page lies in a template when it is one or its parent does.
@@ -227,6 +260,22 @@ export async function copyPageTree(
         plan.views.map(({ id, databaseId, name, type, config, position }) => ({ id, databaseId, name, type, config, position })),
       );
     }
+    // After the properties: a person property exception points at one.
+    const copiedRules = planPropertyRules(rules, plan);
+    if (copiedRules.length) {
+      await tx.insert(propertyPermission).values(
+        copiedRules.map(({ propertyId, databaseId, userId: ruleUser, groupId, personPropertyId, level }) => ({
+          propertyId,
+          databaseId,
+          workspaceId: source.workspaceId,
+          userId: ruleUser,
+          groupId,
+          personPropertyId,
+          level,
+          createdBy: userId,
+        })),
+      );
+    }
     const root = rows.find((r) => r.id === plan.rootId)!;
     return {
       plan,
@@ -237,6 +286,89 @@ export async function copyPageTree(
   // The copied doc still carries the original title; the store hook persists the new one.
   await getCollab().setTitle(copied.plan.rootId, target.title, actor);
   return copied;
+}
+
+/**
+ * What a copy carries of the databases it touches, as the user's property access allows (see
+ * lib/duplicate copyAccess), and the rules of the copied databases to carry over.
+ *
+ * - Databases copied along keep the properties the user may know of, and in each row the values
+ *   they may view. Their rules come along too (planPropertyRules): the copy often has the same
+ *   audience as the source (a duplicate beside it keeps its permission entries), and without them
+ *   others would see there what the source keeps from them. Someone with full access to the source
+ *   copies everything, rules included.
+ * - A row copied on its own (Duplicate on a row, saving it as a row template, a row made from a
+ *   row template) lands in its own database, whose rules still hold: it keeps only the values the
+ *   user could set in a row they add. A template's values they may not change are left out, and
+ *   the template is still used; values they give themselves are checked as usual (and refused).
+ */
+async function copiedAccess(
+  tx: Tx,
+  userId: string,
+  accessOf: CopyAccessOf,
+  source: { id: string; parentId: string | null },
+  target: CopyTarget,
+  databaseIds: string[],
+  properties: { id: string; databaseId: string }[],
+): Promise<{ carried: Map<string, CopyAccess>; rules: SourceRule[] }> {
+  const carried = new Map<string, CopyAccess>();
+  const propsOf = (databaseId: string) => properties.filter((p) => p.databaseId === databaseId);
+  for (const id of databaseIds) {
+    const access = accessOf.databases.get(id);
+    // A database added under the page since its access was read: never copy it unchecked.
+    if (!access) throw new Error("The page changed while duplicating it; try again");
+    const kept = copyAccess(access, propsOf(id));
+    if (kept) carried.set(id, kept);
+  }
+  if (accessOf.parent) {
+    const parentProps = await tx.select({ id: databaseProperty.id }).from(databaseProperty).where(eq(databaseProperty.databaseId, source.parentId!));
+    // Elsewhere (not a case today) the values are keyed by properties of no database there.
+    const write = target.parentId === source.parentId ? { createdBy: userId } : undefined;
+    const kept = copyAccess(accessOf.parent, parentProps, { write });
+    if (kept) carried.set(source.parentId!, kept);
+  }
+  const databaseOf = new Map(properties.map((p) => [p.id, p.databaseId]));
+  const rules = databaseIds.length
+    ? (
+        await tx
+          .select({
+            propertyId: propertyPermission.propertyId,
+            userId: propertyPermission.userId,
+            groupId: propertyPermission.groupId,
+            personPropertyId: propertyPermission.personPropertyId,
+            level: propertyPermission.level,
+          })
+          .from(propertyPermission)
+          .where(inArray(propertyPermission.databaseId, databaseIds))
+      ).flatMap((rule): SourceRule[] => {
+        const databaseId = databaseOf.get(rule.propertyId);
+        return databaseId ? [{ ...rule, databaseId }] : [];
+      })
+    : [];
+  return { carried, rules };
+}
+
+/** The user's property access to the databases a copy may take along, and to the source's database. */
+type CopyAccessOf = { databases: Map<string, PropertyAccess>; parent: PropertyAccess | null };
+
+async function accessForCopy(userId: string, source: { id: string; parentId: string | null }): Promise<CopyAccessOf> {
+  const [databaseIds, [parent]] = await Promise.all([
+    db.execute<{ id: string }>(sql`
+      with recursive sub as (
+        select id, kind from ${page} where id = ${source.id}
+        union all
+        select p.id, p.kind from ${page} p join sub on p.parent_id = sub.id
+        where p.archived_at is null and ${pageVisibleTo(userId, "p")}
+      )
+      select id from (select id, kind from sub limit ${MAX_DUPLICATE_PAGES + 1}) s where kind = 'database'
+    `),
+    source.parentId ? db.select({ kind: page.kind }).from(page).where(eq(page.id, source.parentId)) : [],
+  ]);
+  const [accesses, parentAccess] = await Promise.all([
+    Promise.all([...databaseIds].map(async ({ id }) => [id, await propertyAccessFor(userId, id)] as const)),
+    parent?.kind === "database" ? propertyAccessFor(userId, source.parentId!) : null,
+  ]);
+  return { databases: new Map(accesses), parent: parentAccess };
 }
 
 /**

@@ -765,6 +765,9 @@
         "unpublished": "Unpublished {target}",
         "publication_revoked": "Took {target} off the web (published by {subject})"
       },
+      "property": {
+        "access_changed": "Changed who can access “{property}” in {target}"
+      },
       "access_request": {
         "approved": "Approved the access request of {subject} for {target}: {level}",
         "declined": "Declined the access request of {subject} for {target}"

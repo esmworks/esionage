@@ -89,7 +89,7 @@ async function printedEmbed(userId: string, databaseId: string, view: Parameters
   try {
     const found = await requirePageAccess(userId, databaseId, "view");
     if (found.kind !== "database" || found.archivedAt) return null;
-    return { id: found.id, title: found.title, icon: found.icon, table: await publishedDatabase(userId, found.id, view) };
+    return { id: found.id, title: found.title, icon: found.icon, table: await publishedDatabase(userId, found.id, { ...view, reader: userId }) };
   } catch {
     return null;
   }
@@ -132,8 +132,8 @@ async function printSection(userId: string, pageId: string, depth: number, index
     isDatabase ? Promise.resolve(null) : getCollab().readBlocks(target.id),
     getBreadcrumbs(userId, target.id),
     isDatabase ? Promise.resolve([]) : liveChildren(userId, target.id),
-    isDatabase ? publishedDatabase(userId, target.id) : Promise.resolve(null),
-    parent?.kind === "database" && target.parentId ? publishedRow(target, target.parentId) : Promise.resolve(null),
+    isDatabase ? publishedDatabase(userId, target.id, { reader: userId }) : Promise.resolve(null),
+    parent?.kind === "database" && target.parentId ? publishedRow(target, target.parentId, userId) : Promise.resolve(null),
   ]);
   const segments = content
     ? await bodySegmentsFromBlocks(content.blocks as PageBlock[], {

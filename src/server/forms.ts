@@ -12,12 +12,15 @@ import {
   MAX_SUBMISSION_BYTES,
   type AnswerError,
   type ResolvedQuestion,
+  writableProperties,
 } from "@/lib/forms";
 import { normalizeValue, PropertyValueError, sortStatusOptions } from "@/lib/properties";
 import { holdsOptions } from "@/lib/property-types";
+import { unknownToVisitors } from "@/lib/published-copy";
 import { SlidingWindowLimiter, takeAll } from "@/lib/rate-limit";
 import { AccessError, accessRank, hasLevel, pageAccessOf, requireMembership, requirePageAccess, type RequiredLevel } from "@/server/access";
 import { getProperties, insertRows, normalizeRowProperties, withCode, type DatabaseProperty } from "@/server/databases";
+import { propertyAccessFor } from "@/server/property-access";
 import { publishBlocker } from "@/server/publication";
 import { storeFile, type StoredFile, type UploadInput } from "@/server/files";
 import { canPublish, publishingOn, workspacePeople } from "@/server/workspaces";
@@ -39,7 +42,22 @@ import { canPublish, publishingOn, workspacePeople } from "@/server/workspaces";
  *
  * Public answers are rate limited per IP address and per form, must arrive a moment after the
  * form was loaded (a signed ticket), and carry a honeypot field that people never see.
+ *
+ * Property access: a form writes with someone's standing, and asks (and sets defaults for) only
+ * the properties that person may set in a new row (see answerable). In the app that is the person
+ * answering: questions about properties they may not change are left out, not refused, and ones
+ * they can't know of never reach them (getDatabase drops them from the view). A public form writes
+ * with its publisher's standing: its answerers never see the database, and the publisher chose
+ * its questions, labels and property names included, to be shown to anyone with the link.
  */
+
+/**
+ * The properties a form may write when it writes with `userId`'s standing: those whose values they
+ * may set in a new row created by `createdBy` (see lib/forms writableProperties).
+ */
+async function answerable(userId: string, databaseId: string, properties: DatabaseProperty[], createdBy: string | null) {
+  return writableProperties(await propertyAccessFor(userId, databaseId), properties, createdBy);
+}
 
 export type FormErrorCode =
   | "notAForm"
@@ -218,7 +236,7 @@ function asksForFiles(form: FormConfig | undefined, properties: DatabaseProperty
 export async function uploadFormFile(userId: string, viewId: string, input: UploadInput): Promise<StoredFile> {
   const { view, database } = await requireForm(userId, viewId, "edit");
   if (database.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
-  if (!asksForFiles(view.config.form, await getProperties(database.id))) {
+  if (!asksForFiles(view.config.form, await answerable(userId, database.id, await getProperties(database.id), userId))) {
     throw new FormError("This form doesn't ask for files", "notAllowed");
   }
   return storeFile({ workspaceId: database.workspaceId, pageId: database.id, uploadedBy: userId }, input);
@@ -249,7 +267,8 @@ export async function uploadPublicFormFile(
   if (!form.anonymous && !userId) throw new FormError("Sign in to fill in this form", "signInRequired");
   const age = ticketAge(token, ticket, now);
   if (age === null || age > MAX_TICKET_AGE_MS) throw new FormError("The form has expired; reload it", "expired");
-  if (!asksForFiles(form.config.form, await getProperties(form.databaseId), { public: true })) {
+  const publishedBy = form.publishedBy!;
+  if (!asksForFiles(form.config.form, await answerable(publishedBy, form.databaseId, await getProperties(form.databaseId), null), { public: true })) {
     throw new FormError("This form doesn't ask for files", "notAllowed");
   }
   if (takeAll([[fileIpLimiter, ip], [fileFormLimiter, form.viewId]], now) > 0) {
@@ -269,12 +288,13 @@ export async function submitForm(userId: string, viewId: string, answers: Record
   assertSize(answers);
   const { view, database } = await requireForm(userId, viewId, "edit");
   if (database.archivedAt) throw withCode(new AccessError("Parent page is in the trash"), "parentInTrash");
-  const properties = await getProperties(database.id);
+  // Only what they may set in the row they add (see answerable).
+  const properties = await answerable(userId, database.id, await getProperties(database.id), userId);
   const checked = checkAnswers(formQuestions(view.config.form, properties), answers);
   if (!checked.ok) throw invalidAnswers(checked.errors);
   const { files, rest } = splitFileAnswers(properties, checked.properties);
   // Linked rows and people are looked up as the person answering: only what they can see.
-  const values = await normalizeRowProperties(userId, database.id, rest);
+  const values = await normalizeRowProperties(userId, database.id, rest, {}, { createdBy: userId });
   const claimed = await claimFormFiles(database, properties, files);
   const defaults = await liveDefaults(database, properties, view.config.form);
   const [row] = await insertRows(database, userId, [{ title: checked.title, properties: { ...defaults, ...values, ...claimed } }]);
@@ -482,13 +502,13 @@ async function openPublicForm(token: string) {
   return (await publisherCanAdd(found.publishedBy, found.databaseId)) ? found : null;
 }
 
-function publicProperty(prop: DatabaseProperty): PublicFormProperty {
+function publicProperty(prop: DatabaseProperty, name = prop.name): PublicFormProperty {
   const options = holdsOptions(prop.type)
     ? (prop.type === "status" ? sortStatusOptions(prop.options.options ?? []) : (prop.options.options ?? [])).map(
         ({ id, name, color, group }) => ({ id, name, color, ...(group ? { group } : {}) }),
       )
     : undefined;
-  return { id: prop.id, name: prop.name, type: prop.type, options: options ? { options } : {} };
+  return { id: prop.id, name, type: prop.type, options: options ? { options } : {} };
 }
 
 /** A public form as its page shows it, or null when the link doesn't (or no longer) work. */
@@ -496,14 +516,21 @@ export async function getPublicForm(token: string): Promise<PublicForm | null> {
   const found = await openPublicForm(token);
   if (!found) return null;
   const form = found.config.form;
-  const properties = await getProperties(found.databaseId);
+  const all = await getProperties(found.databaseId);
+  const [properties, visitors] = await Promise.all([
+    answerable(found.publishedBy!, found.databaseId, all, null),
+    propertyAccessFor(null, found.databaseId),
+  ]);
+  // A property visitors can't know of shows only as its question: labelled, its own name stays
+  // behind; unlabelled, its name is what the publisher chose to ask.
+  const unknown = unknownToVisitors(visitors, all);
   return {
     token,
     title: form?.title?.trim() || found.title,
     description: form?.description?.trim() ?? "",
     questions: formQuestions(form, properties, { public: true }).map((q) => ({
       ...q,
-      prop: q.prop && publicProperty(q.prop),
+      prop: q.prop && publicProperty(q.prop, unknown.has(q.prop.id) && q.label ? q.label : q.prop.name),
     })),
     anonymous: found.anonymous,
     confirmation: form?.confirmation?.trim() ?? "",
@@ -585,7 +612,7 @@ export async function submitPublicForm(
   // Bots fill in every field. They are told it worked, so they have nothing to adapt to.
   if (typeof submission.honeypot === "string" && submission.honeypot.trim()) return { id: null };
 
-  const properties = await getProperties(form.databaseId);
+  const properties = await answerable(form.publishedBy!, form.databaseId, await getProperties(form.databaseId), null);
   const checked = checkAnswers(formQuestions(form.config.form, properties, { public: true }), submission.answers);
   if (!checked.ok) throw invalidAnswers(checked.errors);
   // Public questions hold no links or people (isPublicAskable), so the checked values are final,

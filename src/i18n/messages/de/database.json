@@ -517,7 +517,9 @@
     "unsupportedViewType": "Nicht unterstützter Ansichtstyp „{type}“.",
     "invalidRollup": "Das Rollup „{property}“ kann nicht gespeichert werden: {message}",
     "isTemplate": "Vorlagen können nicht verschoben oder in den Papierkorb gelegt werden. Lösche sie stattdessen in der Vorlagenliste.",
-    "notATemplate": "Diese Seite ist keine Vorlage dieses Workspace oder dieser Datenbank."
+    "notATemplate": "Diese Seite ist keine Vorlage dieses Workspace oder dieser Datenbank.",
+    "propertyRestricted": "Du darfst „{property}“ nicht ändern.",
+    "cannotRestrict": "Für diese Eigenschaft kann kein eigener Zugriff festgelegt werden."
   },
   "formula": {
     "title": "Formel",
@@ -624,5 +626,43 @@
     "create": "Rollup hinzufügen",
     "back": "Zurück",
     "summary": "{function} von {property} in {relation}"
+  },
+  "propertyAccess": {
+    "menuItem": "Zugriff auf Eigenschaft",
+    "unavailable": "Verknüpfungen und Eigenschaften, die Leafdesk selbst ausfüllt, können keinen eigenen Zugriff haben.",
+    "title": "Zugriff auf Eigenschaft",
+    "loading": "Wird geladen …",
+    "general": "Allgemeiner Zugriff",
+    "everyone": "Alle mit Zugriff auf diese Datenbank",
+    "inheritHint": "Keine Einschränkung: Alle bekommen, was ihr Zugriff auf die Datenbank erlaubt.",
+    "exceptions": "Ausnahmen",
+    "exceptionsHint": "Gib einzelnen Personen, Gruppen oder den in einer Zeile genannten Personen mehr Zugriff als allen anderen.",
+    "exceptionsNeedGeneral": "Wähle zuerst einen allgemeinen Zugriff: Ausnahmen erhöhen ihn nur für einige.",
+    "addException": "Personen, Gruppen oder Personen-Eigenschaften hinzufügen",
+    "noMatches": "Keine Treffer",
+    "personDetail": "Die in dieser Eigenschaft genannten Personen, in ihren eigenen Zeilen",
+    "groupMembers": "{count, plural, one {# Mitglied} other {# Mitglieder}}",
+    "noEffect": "Alle haben diesen Zugriff bereits",
+    "levelFor": "Zugriff für {name}",
+    "removeException": "{name} entfernen",
+    "note": "Treffen mehrere Einträge auf jemanden zu, gilt der weitestgehende. Wer vollen Zugriff auf die Datenbank hat, behält ihn immer, und niemand bekommt mehr, als sein Zugriff auf die Datenbank erlaubt.",
+    "hiddenValue": "Du hast keinen Zugriff auf diesen Wert",
+    "levels": {
+      "inherit": "Von der Datenbank übernehmen",
+      "edit": "Kann Eigenschaft und Werte bearbeiten",
+      "edit_values": "Kann nur Werte bearbeiten",
+      "view": "Kann Eigenschaft und Werte ansehen",
+      "view_property": "Kann nur die Eigenschaft sehen",
+      "none": "Kein Zugriff"
+    },
+    "lock": {
+      "none": "Du hast keinen Zugriff auf diese Eigenschaft",
+      "view_property": "Du siehst diese Eigenschaft, aber nicht ihre Werte",
+      "view": "Du kannst diese Eigenschaft ansehen",
+      "edit_values": "Du kannst die Werte dieser Eigenschaft bearbeiten",
+      "edit": "Du kannst diese Eigenschaft bearbeiten",
+      "perRow": "In Zeilen, die dich nicht nennen, hast du weniger Zugriff.",
+      "full": "Der Zugriff auf diese Eigenschaft ist eingeschränkt. Du hast vollen Zugriff."
+    }
   }
 }

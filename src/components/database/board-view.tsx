@@ -22,7 +22,8 @@ import { isHiddenInView, localDay, positionBetween, SELECT_COLORS, statusColor }
 import { Floating, useFloating } from "./floating";
 import { GroupLabel, HiddenGroups, useGroupContext, useGroupName } from "./group-label";
 import { usePeople } from "./person-cell";
-import { isEmptyValue, PropertyDisplay } from "./property-cell";
+import { usePropertyAccess } from "./property-access";
+import { RowValue, shownValues } from "./property-cell";
 import { useNewRow } from "./use-new-row";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
@@ -62,6 +63,7 @@ export function BoardView({
   const [dragCol, setDragCol] = useState<string | null>(null);
   const [colDrop, setColDrop] = useState<number | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const access = usePropertyAccess();
 
   if (!groupBy) {
     return (
@@ -97,6 +99,10 @@ export function BoardView({
     groups.push(noValue);
   }
   const options = groupBy.options.options ?? [];
+  // Property access: columns are the grouping property's options, which only "edit" may change;
+  // a card changes column only where the viewer may change its value in that row.
+  const fixedOptions = locked || !access.canEditSchema(groupBy.id);
+  const canChangeGroup = (row: Row) => access.valueAccess(row, groupBy.id) === "edit";
   // Columns stand for options the board can add, rename, recolor and delete.
   const editsOptions =
     groupBy.type === "select" ||
@@ -160,6 +166,8 @@ export function BoardView({
   const onDragOver = (e: DragEvent<HTMLDivElement>, group: Group<Row>) => {
     if (!dragId) return;
     if (dragFrom !== groupKey(group) && groupTarget(groupBy, group) === undefined) return;
+    const dragged = rows.find((r) => r.id === dragId);
+    if (dragFrom !== groupKey(group) && (!dragged || !canChangeGroup(dragged))) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     const cards = [...e.currentTarget.querySelectorAll<HTMLElement>("[data-card]")].filter(
@@ -188,7 +196,7 @@ export function BoardView({
     const others = group.rows.filter((r) => r.id !== rowId);
     const sameGroup = listValued && from !== null ? from === groupKey(group) : group.rows.some((r) => r.id === rowId);
     const target = groupTarget(groupBy, group);
-    if (!sameGroup && target === undefined) return;
+    if (!sameGroup && (target === undefined || !canChangeGroup(row))) return;
     const move: { position?: number; groupBy?: string; groupValue?: string | null; groupFrom?: string | null } = {};
     if (!sameGroup) {
       move.groupBy = groupBy.id;
@@ -212,7 +220,10 @@ export function BoardView({
   // Cards can't be given who created them or when: on such boards a new card lands in the
   // viewer's own column, or today's. Dragging never moves a card out of those (see groupTarget).
   const today = localDay(new Date());
-  const canAdd = (group: Group<Row>) => !readOnly && canAddToGroup(groupBy, group, { viewerId, today });
+  const canAdd = (group: Group<Row>) =>
+    !readOnly &&
+    (group.value.kind === "none" || access.canEditValues(groupBy.id)) &&
+    canAddToGroup(groupBy, group, { viewerId, today });
   const tint = (group: Group<Row>) =>
     group.value.kind === "option"
       ? group.value.option.color
@@ -294,7 +305,7 @@ export function BoardView({
                 {!readOnly && (
                   <GroupMenu
                     option={editsOptions && group.value.kind === "option" ? group.value.option : null}
-                    locked={locked}
+                    locked={fixedOptions}
                     onRename={() => setRenaming(key)}
                     onColor={(color) => updateOption(key, { color })}
                     onHide={() => setGroupHidden(key, true)}
@@ -371,7 +382,9 @@ export function BoardView({
         })}
         {(!readOnly || hiddenGroups.length > 0) && (
           <div className="flex shrink-0 flex-col items-start gap-1">
-            {!readOnly && !locked && editsOptions && <NewGroup onCreate={(name) => api.createOption(groupBy.id, name)} />}
+            {!readOnly && !fixedOptions && editsOptions && (
+              <NewGroup onCreate={(name) => api.createOption(groupBy.id, name)} />
+            )}
             {hiddenGroups.length > 0 && (
               <HiddenGroups
                 prop={groupBy}
@@ -597,7 +610,7 @@ function Card({
   const router = useRouter();
   const menu = useFloating<HTMLButtonElement>();
   const href = `/w/${workspaceId}/p/${row.id}`;
-  const shown = props.filter((p) => !isEmptyValue(p, row.properties[p.id]));
+  const shown = shownValues(props, row);
 
   return (
     <div
@@ -625,7 +638,7 @@ function Card({
         <div className="mt-2 flex flex-col items-start gap-1.5 text-xs">
           {shown.map((p) => (
             <div key={p.id} className="flex max-w-full min-w-0 items-center text-fg-muted" title={p.name}>
-              <PropertyDisplay prop={p} value={row.properties[p.id]} />
+              <RowValue prop={p} row={row} />
             </div>
           ))}
         </div>

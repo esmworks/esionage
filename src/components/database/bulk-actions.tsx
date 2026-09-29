@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem } from "@/components/ui";
 import { Floating, useFloating } from "./floating";
 import { PersonPicker } from "./person-cell";
+import { usePropertyAccess } from "./property-access";
 import { INPUT_MODE, INVALID_INPUT, OptionPicker, parseInput } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
 import { RelationPicker } from "./relation-cell";
@@ -289,7 +290,10 @@ function BulkEditPanel({
 }) {
   const t = useTranslations("database.bulk");
   const [propId, setPropId] = useState<string | null>(null);
-  const editable = properties.filter((p) => BULK_EDITABLE.has(p.type));
+  const access = usePropertyAccess();
+  // Property access: only properties whose values the viewer may change (rows that don't allow it
+  // are refused by the server and reported).
+  const editable = properties.filter((p) => BULK_EDITABLE.has(p.type) && access.canEditValues(p.id));
   const prop = editable.find((p) => p.id === propId);
 
   if (!prop) {

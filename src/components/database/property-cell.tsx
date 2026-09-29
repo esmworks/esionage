@@ -21,6 +21,7 @@ import { FilesDisplay, FilesEditor, type UploadFile } from "./files-cell";
 import { Floating } from "./floating";
 import { useFormulaErrorMessage } from "./formula-editor";
 import { PersonChips, PersonPicker } from "./person-cell";
+import { HiddenValue } from "./property-access";
 import { RelationChips, RelationPicker } from "./relation-cell";
 import type { ChecklistItem, Property, SelectOption } from "./types";
 import { searchFold } from "@/lib/search-fold";
@@ -189,6 +190,22 @@ export function PropertyDisplay({ prop, value, wrap }: { prop: Property; value: 
   }
 }
 
+type RowValues = { properties: Record<string, unknown>; hidden?: string[] };
+
+/**
+ * The properties a card or list entry shows for a row: those with a value, and those whose value
+ * the viewer may not see (a lock stands in for it, see RowValue).
+ */
+export function shownValues<P extends Property>(props: P[], row: RowValues): P[] {
+  return props.filter((p) => row.hidden?.includes(p.id) || !isEmptyValue(p, row.properties[p.id]));
+}
+
+/** A row's value, read-only: its display, or a lock when the viewer may not see it (property access). */
+export function RowValue({ prop, row, wrap }: { prop: Property; row: RowValues; wrap?: boolean }) {
+  if (row.hidden?.includes(prop.id)) return <HiddenValue />;
+  return <PropertyDisplay prop={prop} value={row.properties[prop.id]} wrap={wrap} />;
+}
+
 /**
  * A formula's value, shown as its result type; a row the formula fails on shows an error marker
  * with the reason on hover.
@@ -337,6 +354,7 @@ export function PropertyCell({
   onChange,
   onCreateOption,
   readOnly: readOnlyProp,
+  hidden,
   variant = "table",
   wrap,
   autoEdit,
@@ -349,6 +367,8 @@ export function PropertyCell({
   onChange: (value: unknown) => void;
   onCreateOption: CreateOption;
   readOnly?: boolean;
+  /** The viewer may not see this value (property access): a lock stands in for it. */
+  hidden?: boolean;
   variant?: "table" | "panel";
   wrap?: boolean;
   /** Start in edit mode (e.g. the title of a freshly created row). */
@@ -363,7 +383,7 @@ export function PropertyCell({
   const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
   // Who created or last edited a row, and when, is filled in by Leafdesk and never edited; formulas
   // are worked out from the row.
-  const readOnly = readOnlyProp || isReadOnlyType(prop.type);
+  const readOnly = readOnlyProp || hidden || isReadOnlyType(prop.type);
   const [editing, setEditing] = useState(Boolean(autoEdit) && !readOnly);
 
   const base = cn(
@@ -372,6 +392,14 @@ export function PropertyCell({
     !readOnly && "cursor-pointer",
     !readOnly && variant === "panel" && "hover:bg-bg-hover",
   );
+
+  if (hidden) {
+    return (
+      <div className={base}>
+        <HiddenValue />
+      </div>
+    );
+  }
 
   if (prop.type === "checkbox") {
     return (

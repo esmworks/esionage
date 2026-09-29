@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowDown, ArrowLeft, ArrowUp, Bot, BotOff, Combine, EyeOff, Plus, RefreshCw, Settings2, Sigma, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Bot, BotOff, Combine, EyeOff, Lock, Plus, RefreshCw, Settings2, Sigma, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem, MenuSeparator } from "@/components/ui";
 import { isComputed, isDerived, PROPERTY_TYPES, STATUS_GROUPS, type StatusGroup } from "@/lib/property-types";
 import { pageLabel } from "@/lib/labels";
+import { canRestrict } from "@/lib/property-access";
 import { SELECT_COLORS, sortStatusOptions, statusColor, statusGroupOf } from "@/lib/properties";
 import type { AiAutofillConfig } from "@/lib/ai";
 import { AutofillEditor } from "./ai-autofill";
@@ -142,6 +143,8 @@ export type PropertyMenuActions = {
   setAutofill?: (config: AiAutofillConfig | null) => void;
   /** Autofill properties: works the values of the view's rows out again. */
   updateAllAutofill?: () => void;
+  /** Full access to the database: opens the property's access settings. */
+  openAccess?: () => void;
   remove?: () => void;
 };
 
@@ -159,6 +162,7 @@ export function PropertyMenu({
   const tc = useTranslations("common");
   const typeLabel = usePropertyTypeLabel();
   const ta = useTranslations("ai.autofill");
+  const tAccess = useTranslations("database.propertyAccess");
   const [page, setPage] = useState<"main" | "options" | "confirm" | "formula" | "rollup" | "autofill">("main");
   const [name, setName] = useState(prop?.name ?? "");
   const saved = useRef(prop?.name ?? "");
@@ -352,6 +356,23 @@ export function PropertyMenu({
         <MenuItem icon={<Settings2 className="h-3.5 w-3.5" />} onClick={() => setPage("options")}>
           {t("editOptions")}
         </MenuItem>
+      )}
+      {prop && actions.openAccess && (
+        <>
+          <MenuSeparator />
+          <MenuItem
+            icon={<Lock className="h-3.5 w-3.5" />}
+            disabled={!canRestrict(prop.type)}
+            title={canRestrict(prop.type) ? undefined : tAccess("unavailable")}
+            onClick={() => {
+              onDone();
+              actions.openAccess?.();
+            }}
+          >
+            {tAccess("menuItem")}
+          </MenuItem>
+          {!canRestrict(prop.type) && <div className="px-2 pb-1 text-xs text-fg-faint">{tAccess("unavailable")}</div>}
+        </>
       )}
       {prop && actions.remove && (
         <>

@@ -111,6 +111,15 @@ versions, upgrades and running behind a domain.
   as a guest who sees only the pages shared with them. Someone who opens a link to a page they
   can't see can request access; the people with full access approve it at a level or decline it
   from their inbox or the Share panel (owners can turn requests off in Settings → Security).
+- **Property access**: people with full access to a database decide, from a column's menu, who
+  may see and change that one property: everyone with access to the database can edit it, edit
+  only its values, view it, see only that the column exists, or not see it at all, with
+  exceptions for people, groups and whoever a person property of the row names (their own rows).
+  The widest rule wins, nobody gets more than their access to the database, and full access is
+  never restricted. Restricted values stay out of every view, row page, formula, rollup, filter,
+  search, AI answer, export, copy, published page, MCP and REST reply of people they are hidden
+  from, and their writes are refused. Relations and the created/edited by/time properties can't
+  be restricted.
 - **Member groups**: workspace owners gather members into groups (Settings → Groups) and share a
   page with a group, or add it to a teamspace, the way they would with a person. Everyone in the
   group gets that access for as long as they are in it; when a page has entries for someone and
@@ -903,7 +912,8 @@ The client opens a browser window where you sign in and approve access. The tool
   `create_database_rows`, `update_database_row`, `update_database_rows`, `add_database_property`
   (including one- or two-way relations), `update_database_property`, `delete_database_property`,
   `create_database_view` and `update_database_view` (table, board, calendar, gallery, list,
-  timeline, chart or form, including a form's public link).
+  timeline, chart or form, including a form's public link), and `set_property_access` (who may
+  see and change a property).
 
 An app only ever sees the pages its user can see. Read-only apps can't call the tools that
 change anything, and a workspace's owners can let apps only read it, or hide it from them (see

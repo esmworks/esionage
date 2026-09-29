@@ -8,7 +8,7 @@ import { pageLabel } from "@/lib/labels";
 import { isHiddenInView } from "@/lib/properties";
 import { CardTitleInput } from "./board-view";
 import { RowMenu } from "./gallery-view";
-import { isEmptyValue, PropertyDisplay } from "./property-cell";
+import { RowValue, shownValues } from "./property-cell";
 import { useNewRow } from "./use-new-row";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
@@ -95,7 +95,7 @@ function ListRow({
   const tc = useTranslations("common");
   const router = useRouter();
   const href = `/w/${workspaceId}/p/${row.id}`;
-  const shown = props.filter((p) => !isEmptyValue(p, row.properties[p.id]));
+  const shown = shownValues(props, row);
   return (
     <div
       role="listitem"
@@ -123,7 +123,7 @@ function ListRow({
           <div className="ml-auto flex max-w-[60%] min-w-0 shrink items-center justify-end gap-3 overflow-hidden text-xs text-fg-muted">
             {shown.map((p) => (
               <span key={p.id} className="flex min-w-0 shrink-0 items-center last:shrink" title={p.name}>
-                <PropertyDisplay prop={p} value={row.properties[p.id]} />
+                <RowValue prop={p} row={row} />
               </span>
             ))}
           </div>

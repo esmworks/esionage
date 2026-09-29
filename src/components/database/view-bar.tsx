@@ -55,6 +55,7 @@ import { VIEW_TYPES } from "@/lib/views";
 import { Floating, useFloating } from "./floating";
 import { usePeople } from "./person-cell";
 import { useFormatDate } from "./property-cell";
+import { PropertyLock } from "./property-access";
 import { PropertyTypeIcon, ViewIcon } from "./property-icons";
 import { linkedRows, useRelations } from "./relation-context";
 import { TITLE, type Property, type View } from "./types";
@@ -475,6 +476,7 @@ export function ViewToolbar({
               >
                 <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 text-fg-muted" />
                 <span className={cn("flex-1 truncate", isHidden && "text-fg-faint")}>{p.name}</span>
+                <PropertyLock propertyId={p.id} />
                 {isHidden ? (
                   <EyeOff className="h-3.5 w-3.5 text-fg-faint" aria-label={t("toolbar.hidden")} />
                 ) : (

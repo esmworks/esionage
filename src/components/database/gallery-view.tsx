@@ -12,7 +12,7 @@ import { firstImageFile } from "@/lib/files";
 import { coverProperty, galleryCover } from "@/lib/views";
 import { CardTitleInput } from "./board-view";
 import { Floating, useFloating } from "./floating";
-import { isEmptyValue, PropertyDisplay } from "./property-cell";
+import { RowValue, shownValues } from "./property-cell";
 import { useNewRow } from "./use-new-row";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
@@ -122,7 +122,7 @@ function GalleryCard({
   const tc = useTranslations("common");
   const router = useRouter();
   const href = `/w/${workspaceId}/p/${row.id}`;
-  const shown = props.filter((p) => !isEmptyValue(p, row.properties[p.id]));
+  const shown = shownValues(props, row);
   // A cover that fails to load leaves the plain cover area instead of a broken image.
   const [failed, setFailed] = useState<string | null>(null);
   const cover = coverUrl && coverUrl !== failed ? coverUrl : null;
@@ -174,7 +174,7 @@ function GalleryCard({
           <div className="mt-2 flex flex-col items-start gap-1.5 text-xs">
             {shown.map((p) => (
               <div key={p.id} className="flex max-w-full min-w-0 items-center text-fg-muted" title={p.name}>
-                <PropertyDisplay prop={p} value={row.properties[p.id]} />
+                <RowValue prop={p} row={row} />
               </div>
             ))}
           </div>

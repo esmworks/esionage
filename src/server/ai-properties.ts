@@ -23,6 +23,7 @@ import {
   type AiErrorCode,
   type AutofillErrorCode,
 } from "@/lib/ai";
+import { PropertyValueError } from "@/lib/properties";
 import { AccessError, hasLevel, pageAccessOf } from "@/server/access";
 import { aiConfig, AiError, complete, describeAiSetup, isAiError, takeRateLimit, takeWorkspaceCapacity } from "@/server/ai";
 import { autofillNeedsBody, autofillPrompt, cleanValue, formatValue, type Prompt } from "@/server/ai/prompts";
@@ -30,6 +31,8 @@ import { aiAvailable } from "@/server/ai-writing";
 import { getCollab } from "@/server/collab/bridge";
 import * as databases from "@/server/databases";
 import { displayProperties } from "@/server/mcp/query";
+import { formulaReferences } from "@/lib/property-access";
+import { loadPropertyRules, propertyAccessFor, type AccessRow, type PropertyAccess } from "@/server/property-access";
 import { onRowChanged, type RowChange } from "@/server/row-events";
 
 type Property = databases.DatabaseProperty;
@@ -66,6 +69,11 @@ export async function setAutofill(userId: string, propertyId: string, input: AiA
   const [prop] = await db.select().from(databaseProperty).where(eq(databaseProperty.id, propertyId)).limit(1);
   if (!prop) throw new AccessError();
   const database = await databases.requireDatabase(userId, prop.databaseId, "edit");
+  // Before anything tells what the property is: one they can't know of doesn't exist for them
+  // (refused as a missing property is), and settings change the property itself.
+  const access = await propertyAccessFor(userId, prop.databaseId);
+  if (!access.visible([prop]).length) throw new AccessError();
+  access.requireSchema(prop.id);
   if (database.lockedAt) throw new AutofillError("databaseLocked", "The database is locked");
   if (prop.type !== "text") throw new AutofillError("notText", "AI autofill works on text properties");
   let options: PropertyOptions;
@@ -74,12 +82,24 @@ export async function setAutofill(userId: string, propertyId: string, input: AiA
     options = rest;
   } else {
     if (!(await aiAvailable(database.workspaceId))) throw new AiError("disabled", "AI is off for this workspace");
-    options = { ...prop.options, ai: validAutofill(input, await databases.getProperties(prop.databaseId), prop.id) };
+    // Only properties they may know of can be inputs: others read as unknown, as anywhere else.
+    options = { ...prop.options, ai: validAutofill(input, access.visible(await databases.getProperties(prop.databaseId)), prop.id) };
   }
   await db.update(databaseProperty).set({ options }).where(eq(databaseProperty.id, propertyId));
   await db.delete(aiPropertyState).where(and(eq(aiPropertyState.propertyId, propertyId), inArray(aiPropertyState.status, ["pending", "error"])));
   notify(prop.databaseId, "schema");
   return options.ai ?? null;
+}
+
+/** Whether property access lets the person change the property's value in this row. */
+function mayWrite(access: PropertyAccess, row: AccessRow, propertyId: string) {
+  try {
+    access.requireValues({ properties: row.properties, createdBy: row.createdBy }, [propertyId]);
+    return true;
+  } catch (error) {
+    if (error instanceof PropertyValueError || error instanceof AccessError) return false;
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------------------- queue
@@ -182,8 +202,14 @@ async function setState(
     });
 }
 
-/** The prompt for a row's value and a fingerprint of everything it depends on. */
-async function rowInput(userId: string, row: databases.DatabaseRow & { createdBy: string | null; updatedBy: string | null }, props: Property[], prop: Property) {
+/**
+ * The prompt for a row's value and a fingerprint of everything it depends on. `props`: the
+ * properties the person may know of; values they may not see are left out by rowValues.
+ */
+async function rowInput(
+  userId: string,
+  row: databases.DatabaseRow & { createdBy: string | null; updatedBy: string | null; parentId: string | null },
+  props: Property[], prop: Property) {
   const config = prop.options.ai!;
   const inputs = props.filter((p) => p.id !== prop.id);
   const values = await databases.rowValues(userId, row, props);
@@ -213,14 +239,39 @@ async function runJob(job: Job): Promise<number> {
       throw new AiError("noAccess", "The row can't be changed by the person who asked");
     }
     if (!(await aiAvailable(job.workspaceId))) throw new AiError("disabled", "AI is off for this workspace");
-    const props = await databases.getProperties(job.databaseId);
-    const prop = props.find((p) => p.id === job.propertyId && p.type === "text" && p.options.ai);
+    const [all, access] = await Promise.all([databases.getProperties(job.databaseId), propertyAccessFor(job.userId, job.databaseId)]);
+    const prop = all.find((p) => p.id === job.propertyId && p.type === "text" && p.options.ai);
     if (!prop) {
       await db.delete(aiPropertyState).where(and(eq(aiPropertyState.rowId, job.rowId), eq(aiPropertyState.propertyId, job.propertyId)));
       notify(job.databaseId, "rows");
       return 0;
     }
-    const input = await rowInput(job.userId, row, props, prop);
+    // The value is written as the person who asked: only where they may change it (property access).
+    if (!mayWrite(access, row, prop.id)) {
+      // A follow-up of someone's edit leaves the value (and its state) alone; a request fails.
+      if (!job.force) return 0;
+      throw new AiError("noAccess", "The value can't be changed by the person who asked");
+    }
+    // Restricted properties never feed autofill, whoever asks: the value it writes can be read by
+    // people the inputs are hidden from (the same reason search leaves them out).
+    // Formulas reading them are left out too.
+    const restricted = new Set((await loadPropertyRules([job.databaseId])).keys());
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const p of all) {
+        if (p.type !== "formula" || restricted.has(p.id)) continue;
+        if (formulaReferences(p.options.formula?.expression ?? "").some((id) => restricted.has(id))) {
+          restricted.add(p.id);
+          grew = true;
+        }
+      }
+    }
+    const input = await rowInput(
+      job.userId,
+      row,
+      access.visible(all).filter((p) => p.id === prop.id || !restricted.has(p.id)),
+      prop,
+    );
     if (!job.force) {
       const [state] = await db
         .select({ sourceHash: aiPropertyState.sourceHash, status: aiPropertyState.status })
@@ -285,13 +336,20 @@ export async function requestAutofill(userId: string, propertyId: string, rowIds
   const [prop] = await db.select().from(databaseProperty).where(eq(databaseProperty.id, propertyId)).limit(1);
   if (!prop) throw new AccessError();
   const database = await databases.requireDatabase(userId, prop.databaseId, "view");
+  // A property they can't know of doesn't exist for them (checked before anything tells its type).
+  const access = await propertyAccessFor(userId, prop.databaseId);
+  if (!access.visible([prop]).length) throw new AccessError();
   if (!(await aiAvailable(database.workspaceId))) throw new AiError("disabled", "AI is off for this workspace");
   if (prop.type !== "text" || !prop.options.ai) throw new AutofillError("invalidMode", "The property has no AI autofill");
   const ids = [...new Set(rowIds)];
   if (ids.length > MAX_AUTOFILL_ROWS) throw new AiError("tooLarge", `At most ${MAX_AUTOFILL_ROWS} rows at once`);
   // One request against the person's allowance per refresh; the values then share the workspace's.
   takeRateLimit({ userId });
-  const { rows, skipped } = await databases.rowsWithAccess(userId, prop.databaseId, ids, "edit");
+  const found = await databases.rowsWithAccess(userId, prop.databaseId, ids, "edit");
+  // Rows where property access keeps them from changing the value are skipped too.
+  const rows = found.rows.filter((r) => mayWrite(access, r, prop.id));
+  const queued = new Set(rows.map((r) => r.id));
+  const skipped = ids.filter((id) => !queued.has(id));
   const jobs: Job[] = rows.map((r) => ({
     rowId: r.id,
     propertyId,

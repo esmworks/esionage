@@ -39,7 +39,8 @@ import { TIMELINE_ZOOMS } from "@/lib/views";
 import { CardTitleInput } from "./board-view";
 import { usePeople } from "./person-cell";
 import { GroupLabel, useGroupContext, useGroupName } from "./group-label";
-import { isEmptyValue, PropertyDisplay } from "./property-cell";
+import { PropertyLock, usePropertyAccess } from "./property-access";
+import { RowValue, shownValues } from "./property-cell";
 import { useNewRow } from "./use-new-row";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
@@ -115,6 +116,14 @@ export function TimelineView({
   // Created and edited times place bars but can't be changed by dragging them.
   const movable = !readOnly && !!startProp && !isComputed(startProp.type);
   const resizable = movable && !!endProp;
+  // Property access: a bar moves only where the viewer may change its dates in that row.
+  const access = usePropertyAccess();
+  const canMove = (row: Row) =>
+    movable &&
+    access.valueAccess(row, startProp.id) === "edit" &&
+    (!endProp || access.valueAccess(row, endProp.id) === "edit");
+  // An undated row gets only a start.
+  const canPlace = (row: Row) => movable && access.valueAccess(row, startProp.id) === "edit";
   const tableProps = properties
     .filter((p) => p.id !== startProp?.id && p.id !== endProp?.id && !isHiddenInView(view, p))
     .slice(0, narrow ? 0 : MAX_TABLE_PROPS);
@@ -210,7 +219,7 @@ export function TimelineView({
   const onBarPointerDown = (e: PointerEvent<HTMLElement>, row: Row, mode: DragMode) => {
     suppressClick.current = false;
     // Touch keeps scrolling the timeline; bars open on tap. Drags are for mouse and pen.
-    if (!movable || e.button !== 0 || e.pointerType === "touch") return;
+    if (!canMove(row) || e.button !== 0 || e.pointerType === "touch") return;
     if (mode !== "move" && !resizable) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -235,7 +244,7 @@ export function TimelineView({
   const onBarKeyDown = (e: KeyboardEvent<HTMLElement>, row: Row) => {
     if (e.key === "Enter") open(row);
     // Alt+arrows move a bar by a day, for keyboards.
-    if (movable && e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+    if (canMove(row) && e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
       e.preventDefault();
       const span = spans.get(row.id);
       if (span) commit(row, dragSpan(span, "move", e.key === "ArrowLeft" ? -1 : 1));
@@ -270,7 +279,9 @@ export function TimelineView({
   const addRow = async (lane: Group<Row> | null) => {
     const values: Record<string, unknown> = groupBy && lane ? groupDefaults(groupBy, lane) : {};
     // New rows start today, unless the lane is a date bucket of the start property itself.
-    if (!isComputed(startProp.type) && !(startProp.id in values)) values[startProp.id] = dayValue(today);
+    if (!isComputed(startProp.type) && !(startProp.id in values) && access.canEditValues(startProp.id)) {
+      values[startProp.id] = dayValue(today);
+    }
     await createNew(() => api.createRow({ properties: values }));
   };
 
@@ -314,7 +325,7 @@ export function TimelineView({
         className={cn(
           "group/bar absolute flex items-center rounded-md text-xs select-none",
           color ? `opt-${color}` : "board-card",
-          movable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+          canMove(row) ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
           drag?.rowId === row.id && drag.moved && "z-10 shadow-md ring-2 ring-accent/50",
         )}
       >
@@ -329,7 +340,7 @@ export function TimelineView({
             {label}
           </span>
         )}
-        {resizable &&
+        {resizable && canMove(row) &&
           (["start", "end"] as const).map((edge) => (
             <span
               key={edge}
@@ -380,7 +391,7 @@ export function TimelineView({
           style={{ width: PROP_WIDTH }}
           title={p.name}
         >
-          {!isEmptyValue(p, row.properties[p.id]) && <PropertyDisplay prop={p} value={row.properties[p.id]} />}
+          {shownValues([p], row).length > 0 && <RowValue prop={p} row={row} />}
         </div>
       ))}
     </div>
@@ -388,7 +399,9 @@ export function TimelineView({
 
   // A row added in a lane has to land in it (who created a row, and when, can't be chosen).
   const canAddTo = (lane: Group<Row> | null) =>
-    !lane || !groupBy || canAddToGroup(groupBy, lane, { viewerId, today: localDay(new Date()) });
+    !lane ||
+    !groupBy ||
+    ((lane.value.kind === "none" || access.canEditValues(groupBy.id)) && canAddToGroup(groupBy, lane, { viewerId, today: localDay(new Date()) }));
 
   const newRowButton = (lane: Group<Row> | null) =>
     !readOnly &&
@@ -459,8 +472,13 @@ export function TimelineView({
               >
                 <div className="flex min-w-0 flex-1 items-center px-2 pb-1.5">{t("nameColumn")}</div>
                 {tableProps.map((p) => (
-                  <div key={p.id} className="shrink-0 truncate border-l border-border px-2 pb-1.5" style={{ width: PROP_WIDTH }}>
-                    {p.name}
+                  <div
+                    key={p.id}
+                    className="flex shrink-0 items-center gap-1 border-l border-border px-2 pb-1.5"
+                    style={{ width: PROP_WIDTH }}
+                  >
+                    <span className="truncate">{p.name}</span>
+                    <PropertyLock propertyId={p.id} />
                   </div>
                 ))}
               </div>
@@ -578,7 +596,7 @@ export function TimelineView({
                     key={row.id}
                     role="link"
                     tabIndex={0}
-                    draggable={movable}
+                    draggable={canPlace(row)}
                     onDragStart={(e) => {
                       e.dataTransfer.setData("text/plain", row.id);
                       e.dataTransfer.effectAllowed = "move";

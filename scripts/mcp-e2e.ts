@@ -392,7 +392,7 @@ async function main() {
     "get_database", "query_database", "create_database_row", "create_database_rows", "update_database_row", "create_database", "add_database_property",
     "update_database_property", "delete_database_property", "create_database_view", "update_database_view", "move_page",
     "list_recent_pages", "list_users", "list_trash", "restore_page", "list_page_history", "get_page_version", "diff_page_version", "restore_page_version",
-    "list_notifications", "attach_file", "invite_member",
+    "list_notifications", "attach_file", "invite_member", "set_property_access",
   ];
   check(expected.every((t) => toolNames.includes(t)), "tools/list returns every tool", toolNames);
   const getPageTool = list.message.result.tools.find((t: { name: string }) => t.name === "get_page");

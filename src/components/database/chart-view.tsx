@@ -27,7 +27,7 @@ import { pageLabel } from "@/lib/labels";
 import { isHiddenInView, SELECT_COLORS, statusColor } from "@/lib/properties";
 import { Floating } from "./floating";
 import { useGroupContext, useGroupName } from "./group-label";
-import { isEmptyValue, PropertyDisplay } from "./property-cell";
+import { RowValue, shownValues } from "./property-cell";
 import { useFormatResult } from "./table-calculations";
 import type { Property, Row, View } from "./types";
 
@@ -820,7 +820,7 @@ function GroupRows({
         {!rows.length && <p className="px-2 pb-2 text-xs text-fg-faint">{t("noRows")}</p>}
         <ul className="max-h-72 overflow-y-auto">
           {rows.map((row) => {
-            const chips = shown.filter((p) => !isEmptyValue(p, row.properties[p.id]));
+            const chips = shownValues(shown, row);
             return (
               <li key={row.id}>
                 <Link
@@ -836,7 +836,7 @@ function GroupRows({
                     <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 pl-6 text-xs text-fg-muted">
                       {chips.map((p) => (
                         <span key={p.id} className="flex min-w-0 items-center" title={p.name}>
-                          <PropertyDisplay prop={p} value={row.properties[p.id]} />
+                          <RowValue prop={p} row={row} />
                         </span>
                       ))}
                     </span>

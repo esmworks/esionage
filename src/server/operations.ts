@@ -19,18 +19,26 @@ import * as forms from "@/server/forms";
 import * as groups from "@/server/groups";
 import { labelPageLinks, listBacklinks } from "@/server/mentions";
 import * as pages from "@/server/pages";
+import * as propertyAccess from "@/server/property-access";
 import * as teamspaces from "@/server/teamspaces";
+import * as workspaces from "@/server/workspaces";
 import * as templates from "@/server/templates";
 import { isBuiltinTemplateKey } from "@/lib/builtin-templates";
+import { mapFilterRules } from "@/lib/filters";
+import { atLeast, PROPERTY_LEVELS } from "@/lib/property-access";
 import { pageUrl, sliceText, ToolInputError } from "./mcp/format";
 import {
+  describeAccessSettings,
   describeChartSeries,
   describeProperty,
+  describeRowAccess,
   describeViewConfig,
   displayProperties,
   FILTER_OPS,
+  resolvePropertyKey,
   toFilterEntries,
   toSortRule,
+  type PropertyAccessNote,
   type PropertyDef,
 } from "./mcp/query";
 
@@ -219,6 +227,33 @@ export const inputs = {
     row_ids: z.array(z.string().min(1)).min(1).max(MAX_BULK_ROWS).describe(`Ids of the rows to change (1-${MAX_BULK_ROWS}).`),
     properties: rowProperties,
   }),
+  setPropertyAccess: z.object({
+    database_id: id("database"),
+    property: z.string().min(1).describe("Property name or id."),
+    everyone: z
+      .enum([...PROPERTY_LEVELS, "inherit"])
+      .describe(
+        'What everyone with access to the database may do with the property: "none" (it doesn\'t show at all), "view_property" (it shows, its values don\'t), "view" (values read-only), "edit_values" (values can be changed) or "edit" (the property itself too). "inherit" removes the restriction, exceptions included: the property follows the database\'s access again.',
+      ),
+    exceptions: z
+      .array(
+        z.object({
+          user: z.string().min(1).optional().describe("A person of the workspace, by user id or email (see list_users)."),
+          group: z.string().min(1).optional().describe("A member group, by id or name (see list_groups)."),
+          person_property: z
+            .string()
+            .min(1)
+            .optional()
+            .describe(
+              "A person or created_by property of this database, by name or id: the people each row names get the level on that row (view_property, view or edit_values only).",
+            ),
+          level: z.enum(PROPERTY_LEVELS),
+        }),
+      )
+      .max(100)
+      .default([])
+      .describe("Who gets more than everyone: each names exactly one of user, group or person_property. The widest level that applies wins; nobody gets more than their access to the database allows."),
+  }),
   listComments: z.object({
     page_id: id("page"),
     include_resolved: z.boolean().default(false).describe("Also list resolved threads."),
@@ -242,20 +277,26 @@ export async function loadPage(ctx: OperationContext, pageId: string) {
   return { page, parent, parentDatabase: parent?.kind === "database" ? parent : null };
 }
 
+/**
+ * A row's values as `ctx.userId` may see them (databases.getRow leaves out what property access
+ * keeps from them), by property name, with the properties it leaves out or shows read-only.
+ */
+async function rowFields(ctx: OperationContext, rowId: string) {
+  const { properties, row, relations, people } = await databases.getRow(ctx.userId, rowId);
+  return {
+    properties: displayProperties(properties, row.properties, { relations, people }, env.appUrl),
+    ...describeRowAccess(properties, row),
+  };
+}
+
 export async function rowOutput(ctx: OperationContext, databaseId: string, rowId: string) {
-  const { userId } = ctx;
-  const [{ database, properties }, row] = await Promise.all([databases.getDatabase(userId, databaseId), pages.getPage(userId, rowId)]);
+  const [fields, row] = await Promise.all([rowFields(ctx, rowId), pages.getPage(ctx.userId, rowId)]);
   return {
     id: row.id,
     title: pageLabel(row.title),
     database_id: databaseId,
-    properties: displayProperties(
-      properties,
-      await databases.rowValues(userId, row, properties),
-      await databases.getLookups(userId, properties),
-      env.appUrl,
-    ),
-    url: pageUrl(database.workspaceId, row.id),
+    ...fields,
+    url: pageUrl(row.workspaceId, row.id),
   };
 }
 
@@ -409,19 +450,15 @@ export async function getPage(
   if (page.isTemplate) out.template = parentDatabase ? "row_template" : "page_template";
   else if (page.inTemplate) out.template = "inside_template";
   if (parentDatabase) {
-    const { properties } = await databases.getDatabase(userId, parentDatabase.id);
     out.database_id = parentDatabase.id;
-    out.properties = displayProperties(
-      properties,
-      await databases.rowValues(userId, page, properties),
-      await databases.getLookups(userId, properties),
-      env.appUrl,
-    );
+    Object.assign(out, await rowFields(ctx, page.id));
   }
   if (page.kind === "database") {
-    const { properties } = await databases.getDatabase(userId, page.id);
+    const { properties, access, propertyAccess: levels } = await databases.getDatabase(userId, page.id);
     const lookups = await databases.getLookups(userId, properties);
-    out.database_properties = properties.map((p) => describeProperty(p, lookups, properties));
+    out.database_properties = properties.map((p) =>
+      describeProperty(p, lookups, properties, { access: levels?.[p.id], restricted: !access.open }),
+    );
     out.note = "This is a database. Use query_database to list its rows and get_database for its full schema.";
   } else {
     out.markdown = body.text;
@@ -615,13 +652,30 @@ export async function movePage(ctx: OperationContext, { page_id, parent_id, team
   };
 }
 
+/**
+ * Who may do what with each restricted property, for someone with full access to the database
+ * (the only people who may see or change it); an empty map for everyone else.
+ */
+async function accessSettingsOf(userId: string, databaseId: string, access: propertyAccess.PropertyAccess) {
+  const settings = new Map<string, ReturnType<typeof describeAccessSettings>>();
+  if (access.viewer?.databaseLevel !== "full") return settings;
+  const rules = await propertyAccess.loadPropertyRules([databaseId]);
+  for (const propertyId of rules.keys()) {
+    settings.set(propertyId, describeAccessSettings(await propertyAccess.getPropertyAccessSettings(userId, propertyId)));
+  }
+  return settings;
+}
+
 export async function getDatabase(ctx: OperationContext, { database_id }: Args<"databaseId">) {
   const { userId } = ctx;
-  const [{ database, properties, views }, rows] = await Promise.all([
+  const [{ database, properties, views, access, propertyAccess: levels }, rows] = await Promise.all([
     databases.getDatabase(userId, database_id),
     databases.listRows(userId, database_id),
   ]);
-  const lookups = await databases.getLookups(userId, properties);
+  const [lookups, settings] = await Promise.all([
+    databases.getLookups(userId, properties),
+    accessSettingsOf(userId, database_id, access),
+  ]);
   const links = await forms.formPublicationsOf(views.filter((v) => v.type === "form").map((v) => v.id));
   return {
     id: database.id,
@@ -631,7 +685,13 @@ export async function getDatabase(ctx: OperationContext, { database_id }: Args<"
     row_count: rows.length,
     properties: [
       { name: "title", type: "title", note: 'Every row\'s title; filter and sort on it with property "title".' },
-      ...properties.map((p) => describeProperty(p, lookups, properties)),
+      ...properties.map((p) => {
+        const own = settings.get(p.id);
+        return {
+          ...describeProperty(p, lookups, properties, { access: levels?.[p.id], restricted: !access.open }),
+          ...(own ? { access_settings: own } : {}),
+        };
+      }),
     ],
     views: views.map((v) => ({
       id: v.id,
@@ -660,17 +720,28 @@ export async function queryDatabase(
   { offset = 0 }: { offset?: number } = {},
 ) {
   const { userId } = ctx;
-  const { database, properties, views } = await databases.getDatabase(userId, database_id);
+  const { database, properties, views, propertyAccess: levels } = await databases.getDatabase(userId, database_id);
   const props: PropertyDef[] = properties;
   const lookups = await databases.getLookups(userId, properties);
   const view = view_id ? views.find((v) => v.id === view_id) : undefined;
   if (view_id && !view) throw new ToolInputError(`No view with id "${view_id}" in this database.`);
   // The view's filters and the caller's each keep their own combinator; rows must match both.
-  const own = { type: "group", combinator: filter_combinator ?? "and", rules: toFilterEntries(props, filters ?? [], lookups) } as const;
+  const ownRules = toFilterEntries(props, filters ?? [], lookups);
+  const ownSorts = sorts?.length ? sorts.map((s) => toSortRule(props, s)) : null;
+  const used = (ownSorts ?? []).map((s) => s.propertyId);
+  mapFilterRules(ownRules, (rule) => {
+    used.push(rule.propertyId);
+    return rule;
+  });
+  refuseHiddenValues(props, levels, used);
+  const own = { type: "group", combinator: filter_combinator ?? "and", rules: ownRules } as const;
   const saved = { type: "group", combinator: view?.config.filterCombinator ?? "and", rules: view?.config.filters ?? [] } as const;
+  // Filters and sorts run on the values the caller may see (databases.listRows): rows whose values
+  // are kept from them count as empty there, so neither the rows returned nor total say anything
+  // about those values.
   const rows = await databases.listRows(userId, database_id, {
     filters: [saved, own].filter((g) => g.rules.length),
-    sorts: sorts?.length ? sorts.map((s) => toSortRule(props, s)) : (view?.config.sorts ?? []),
+    sorts: ownSorts ?? view?.config.sorts ?? [],
   });
   const window = rows.slice(offset, offset + limit);
   return {
@@ -682,6 +753,7 @@ export async function queryDatabase(
       id: r.id,
       title: pageLabel(r.title),
       properties: displayProperties(props, r.properties, lookups, env.appUrl),
+      ...describeRowAccess(props, r),
       url: pageUrl(database.workspaceId, r.id),
     })),
     ...(rows.length > offset + limit ? { note: `Only the first ${limit} rows are shown; narrow the filters or raise limit.` } : {}),
@@ -694,6 +766,25 @@ export async function queryDatabase(
         }
       : {}),
   };
+}
+
+/**
+ * Refuses filters and sorts the caller gives on properties whose values they may not see in any
+ * row: they would run on nothing (see queryDatabase) and only mislead. Properties rows decide
+ * (a person property exception) run on each row's visible values instead.
+ */
+export function refuseHiddenValues(
+  props: PropertyDef[],
+  levels: Record<string, PropertyAccessNote> | undefined,
+  propertyIds: string[],
+) {
+  if (!levels) return;
+  for (const id of new Set(propertyIds)) {
+    const info = levels[id];
+    if (!info || info.perRow || atLeast(info.level, "view")) continue;
+    const name = props.find((p) => p.id === id)?.name ?? id;
+    throw new ToolInputError(`You can't see the values of "${name}", so rows can't be filtered or sorted by it.`);
+  }
 }
 
 export async function createDatabaseRow(
@@ -776,6 +867,59 @@ export async function updateDatabaseRows(
     database_id: database.id,
     updated: done.length,
     ...(skipped.length ? { skipped_row_ids: skipped } : {}),
+    url: pageUrl(database.workspaceId, database.id),
+  };
+}
+
+/**
+ * Replaces who may see and change a database property (see server/property-access). Needs full
+ * access to the database. People are named by user id or email, groups by id or name, person
+ * properties by name or id.
+ */
+export async function setPropertyAccess(
+  ctx: OperationContext,
+  { database_id, property, everyone, exceptions }: Args<"setPropertyAccess">,
+) {
+  const { userId } = ctx;
+  const { database, properties } = await databases.getDatabase(userId, database_id);
+  const { prop } = resolvePropertyKey(properties, property);
+  if (!prop) throw new ToolInputError(`"${property}" is a built-in field, not a database property; it can't be restricted.`);
+  const needsPeople = exceptions.some((e) => e.user);
+  const needsGroups = exceptions.some((e) => e.group);
+  const [members, groupList] = await Promise.all([
+    needsPeople ? workspaces.listMembers(userId, database.workspaceId) : Promise.resolve([]),
+    needsGroups ? groups.listGroups(userId, database.workspaceId) : Promise.resolve([]),
+  ]);
+  const resolved = exceptions.map((e) => {
+    const named = [e.user, e.group, e.person_property].filter((v) => v !== undefined);
+    if (named.length !== 1) throw new ToolInputError("Each exception names exactly one of user, group or person_property.");
+    if (e.user !== undefined) {
+      const needle = e.user.trim().toLowerCase();
+      const member = members.find((m) => m.userId === e.user) ?? members.find((m) => m.email?.toLowerCase() === needle);
+      if (!member) throw new ToolInputError(`"${e.user}" is not a person of this workspace. Call list_users for ids and emails.`);
+      return { userId: member.userId, level: e.level };
+    }
+    if (e.group !== undefined) {
+      const needle = e.group.trim().toLowerCase();
+      const byName = groupList.filter((g) => g.name.trim().toLowerCase() === needle);
+      if (byName.length > 1) throw new ToolInputError(`"${e.group}" matches ${byName.length} groups; use a group id.`);
+      const group = groupList.find((g) => g.id === e.group) ?? byName[0];
+      if (!group) throw new ToolInputError(`"${e.group}" is not a group of this workspace. Call list_groups for their ids.`);
+      return { groupId: group.id, level: e.level };
+    }
+    const { prop: person } = resolvePropertyKey(properties, e.person_property!);
+    if (!person || (person.type !== "person" && person.type !== "created_by")) {
+      throw new ToolInputError(`person_property must be a person or created_by property of this database; "${e.person_property}" isn't.`);
+    }
+    return { personPropertyId: person.id, level: e.level };
+  });
+  await propertyAccess.setPropertyAccess(userId, prop.id, { everyone, exceptions: resolved });
+  const settings = await propertyAccess.getPropertyAccessSettings(userId, prop.id);
+  return {
+    database_id: database.id,
+    property: prop.name,
+    property_id: prop.id,
+    ...describeAccessSettings(settings),
     url: pageUrl(database.workspaceId, database.id),
   };
 }

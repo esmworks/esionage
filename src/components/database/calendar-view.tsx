@@ -7,7 +7,8 @@ import { useMemo, useState, type DragEvent } from "react";
 import { Button, cn, PageIcon } from "@/components/ui";
 import { pageLabel } from "@/lib/labels";
 import { CardTitleInput } from "./board-view";
-import { isEmptyValue, PropertyDisplay } from "./property-cell";
+import { usePropertyAccess } from "./property-access";
+import { RowValue, shownValues } from "./property-cell";
 import { useNewRow } from "./use-new-row";
 import { TITLE, type Property, type Row, type View } from "./types";
 import type { DatabaseApi } from "./use-database";
@@ -82,6 +83,7 @@ export function CalendarView({
   const [dropDay, setDropDay] = useState<string | null>(null);
   const { editTitleOf, typed, create: createNew, stopEditing } = useNewRow((id, title) => void api.setCell(id, TITLE, title));
   const [showUndated, setShowUndated] = useState(false);
+  const access = usePropertyAccess();
 
   const dateProps = properties.filter((p) => p.type === "date");
   const dateBy = dateProps.find((p) => p.id === view.config.dateBy) ?? dateProps[0];
@@ -146,7 +148,8 @@ export function CalendarView({
       workspaceId={workspaceId}
       row={row}
       props={entryProps}
-      readOnly={readOnly}
+      // Property access: an entry moves only where the viewer may change its date.
+      readOnly={readOnly || access.valueAccess(row, dateBy.id) !== "edit"}
       dragging={dragId === row.id}
       editTitle={editTitleOf === row.id}
       typed={typed}
@@ -237,7 +240,7 @@ export function CalendarView({
                   )}
                 >
                   <div className="flex h-6 items-center justify-between">
-                    {!readOnly ? (
+                    {!readOnly && access.canEditValues(dateBy.id) ? (
                       <button
                         type="button"
                         aria-label={t("calendar.addOnDay", { date: dayLabel })}
@@ -325,7 +328,7 @@ function CalendarEntry({
   const tc = useTranslations("common");
   const router = useRouter();
   const href = `/w/${workspaceId}/p/${row.id}`;
-  const shown = props.filter((p) => !isEmptyValue(p, row.properties[p.id])).slice(0, MAX_ENTRY_PROPS);
+  const shown = shownValues(props, row).slice(0, MAX_ENTRY_PROPS);
   return (
     <div
       role="link"
@@ -354,7 +357,7 @@ function CalendarEntry({
         <div className="mt-0.5 flex flex-col gap-0.5 text-fg-muted">
           {shown.map((p) => (
             <div key={p.id} className="flex min-w-0 items-center" title={p.name}>
-              <PropertyDisplay prop={p} value={row.properties[p.id]} />
+              <RowValue prop={p} row={row} />
             </div>
           ))}
         </div>

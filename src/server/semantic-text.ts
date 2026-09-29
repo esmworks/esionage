@@ -23,11 +23,19 @@ const INDEXED_TYPES = new Set(["text", "number", "select", "multi_select", "stat
 
 export type IndexedProperty = Parameters<typeof displayValue>[0];
 
-/** A database row's values as "Name: value" lines, in property order. */
-export function rowPropertyLines(properties: IndexedProperty[], values: Record<string, unknown>): string[] {
+/**
+ * A database row's values as "Name: value" lines, in property order. Properties in `restricted`
+ * (any with access rules, see server/property-access) are left out, name and value: the index is
+ * shared by every reader, so a value some of them may not see must never be found or shown.
+ */
+export function rowPropertyLines(
+  properties: IndexedProperty[],
+  values: Record<string, unknown>,
+  restricted: ReadonlySet<string> = new Set(),
+): string[] {
   const lines: string[] = [];
   for (const prop of properties) {
-    if (!INDEXED_TYPES.has(prop.type)) continue;
+    if (!INDEXED_TYPES.has(prop.type) || restricted.has(prop.id)) continue;
     const shown = formatValue(displayValue(prop, values[prop.id])).trim();
     if (shown) lines.push(`${prop.name.trim() || "?"}: ${shown.replace(/\s+/g, " ")}`);
   }
