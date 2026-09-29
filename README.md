@@ -27,6 +27,11 @@ approve them over OAuth.
 - **Yours to run**: one `docker compose up` on your own server, data in your PostgreSQL,
   Apache-2.0 licensed, in English, Turkish, German, Spanish and French.
 
+Claude planning a launch in Leafdesk over MCP: a database, its tasks, a board view and a kickoff
+page, all showing up live (sped up):
+
+https://github.com/user-attachments/assets/3540e7dd-1939-414b-a828-4729b12c20e4
+
 Try it in a minute:
 
 ```bash
