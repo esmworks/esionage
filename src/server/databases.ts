@@ -963,11 +963,11 @@ async function requireProperty(userId: string, propertyId: string, { cellEdit = 
   const [prop] = await db.select().from(databaseProperty).where(eq(databaseProperty.id, propertyId));
   if (!prop) throw new AccessError();
   const database = await requireDatabase(userId, prop.databaseId, "edit");
-  if (!cellEdit) assertUnlocked(database);
   // Property access: changing the property needs "edit"; a new option typed into a cell, its values.
-  // One the user can't know of is refused like one that doesn't exist.
+  // One the user can't know of is refused like one that doesn't exist, before anything else is said.
   const access = await propertyAccessFor(userId, prop.databaseId);
   if (!access.visible([prop]).length) throw new AccessError();
+  if (!cellEdit) assertUnlocked(database);
   if (cellEdit) access.requireValues(null, [prop.id]);
   else access.requireSchema(prop.id);
   return prop;

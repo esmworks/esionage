@@ -293,7 +293,7 @@ try {
     aiCode(await failure(() => requestAutofill(ids.owner, pitchProp.id, rowIds))) === "disabled",
     "with AI off for the workspace, values aren't worked out",
   );
-  check((await databaseAi(books.id, [stored], rowIds)).enabled === false, "…and the database says so");
+  check((await databaseAi(books.id, [stored], rowIds.map((id) => ({ id })))).enabled === false, "…and the database says so");
   await updateWorkspaceSettings(ids.owner, workspaceId, { ai: true });
 
   // Turning autofill off keeps the values as plain text.

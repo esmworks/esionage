@@ -34,7 +34,7 @@ const { installFauxAi, resetAi, setAiEnv } = await import("@/server/ai/testing")
 const { startFakeOpenAi } = await import("@/server/ai/fake-openai");
 const index = await import("@/server/semantic-index");
 const { clearQueryCache, semanticSearch } = await import("@/server/semantic-search");
-const { AutofillError, isQueued, requestAutofill, setAutofill } = await import("@/server/ai-properties");
+const { AutofillError, databaseAi, isQueued, requestAutofill, setAutofill } = await import("@/server/ai-properties");
 
 const RUN = `propaccess-ai-e2e-${Date.now().toString(36)}`;
 
@@ -223,6 +223,17 @@ try {
   check((await valueOf(ada.id, pitch.id)) === "Kept" && prompts.length === before, "an automatic update doesn't write for someone who can't change the value");
   const states = await db.select().from(aiPropertyState).where(eq(aiPropertyState.rowId, ada.id));
   check(states.length === 0, "…nor marks it failed", states);
+
+  // A failed value shows as failed only to people who see the value.
+  await setPropertyAccess(ids.owner, pitch.id, { everyone: "view_property", exceptions: [] });
+  await db.insert(aiPropertyState).values({ rowId: ada.id, propertyId: pitch.id, status: "error", error: "provider" });
+  const aiOf = async (userId: string) => {
+    const snap = await databases.getDatabaseSnapshot(userId, staff.id);
+    return databaseAi(staff.id, snap.properties, snap.rows);
+  };
+  check(!(await aiOf(ids.editor)).states[ada.id]?.[pitch.id], "an autofill failure isn't shown where the value is hidden");
+  check((await aiOf(ids.owner)).states[ada.id]?.[pitch.id]?.status === "error", "…but is to someone who sees the value");
+  await db.delete(aiPropertyState).where(eq(aiPropertyState.rowId, ada.id));
 
   await setPropertyAccess(ids.owner, pitch.id, { everyone: "none", exceptions: [] });
   check(code(await failure(() => requestAutofill(ids.editor, pitch.id, [ada.id]))) === "access", "a property they can't know of can't be refreshed");
