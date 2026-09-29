@@ -351,6 +351,10 @@
       "title": "Claude Code",
       "body": "Run this in a terminal, then use /mcp inside Claude Code to sign in."
     },
+    "codex": {
+      "title": "Codex",
+      "body": "Run this in a terminal. Codex sees that Leafdesk uses OAuth and opens your browser so you can sign in and allow access; if that window gets closed, run codex mcp login leafdesk. Update Codex first: older versions can't finish signing in."
+    },
     "other": {
       "title": "Other MCP clients",
       "body": "Add a remote server with the Streamable HTTP transport and the URL above. The client discovers sign-in through standard OAuth 2.1 metadata; it can register itself automatically or use a client ID metadata document. Choose read-only access on the approval screen if the client should not edit anything."

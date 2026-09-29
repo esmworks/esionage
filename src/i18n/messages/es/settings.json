@@ -351,6 +351,10 @@
       "title": "Claude Code",
       "body": "Ejecuta esto en una terminal y luego usa /mcp dentro de Claude Code para iniciar sesión."
     },
+    "codex": {
+      "title": "Codex",
+      "body": "Ejecuta esto en una terminal. Codex detecta que Leafdesk usa OAuth y abre tu navegador para que inicies sesión y permitas el acceso; si esa ventana se cierra, ejecuta codex mcp login leafdesk. Actualiza Codex primero: las versiones antiguas no pueden terminar de iniciar sesión."
+    },
     "other": {
       "title": "Otros clientes MCP",
       "body": "Añade un servidor remoto con el transporte Streamable HTTP y la URL de arriba. El cliente descubre cómo iniciar sesión mediante metadatos estándar de OAuth 2.1; puede registrarse automáticamente o usar un documento de metadatos de ID de cliente. Elige acceso de solo lectura en la pantalla de aprobación si el cliente no debe editar nada."

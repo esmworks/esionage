@@ -351,6 +351,10 @@
       "title": "Claude Code",
       "body": "Führe dies in einem Terminal aus und verwende dann /mcp in Claude Code, um dich anzumelden."
     },
+    "codex": {
+      "title": "Codex",
+      "body": "Führe dies in einem Terminal aus. Codex erkennt, dass Leafdesk OAuth verwendet, und öffnet deinen Browser, damit du dich anmelden und den Zugriff erlauben kannst; wird das Fenster geschlossen, führe codex mcp login leafdesk aus. Aktualisiere Codex zuerst: Ältere Versionen können die Anmeldung nicht abschließen."
+    },
     "other": {
       "title": "Andere MCP-Clients",
       "body": "Füge einen Remote-Server mit dem Transport „Streamable HTTP“ und der obigen URL hinzu. Der Client ermittelt die Anmeldung über standardmäßige OAuth-2.1-Metadaten; er kann sich automatisch registrieren oder ein Client-ID-Metadatendokument verwenden. Wähle auf der Genehmigungsseite Lesezugriff, wenn der Client nichts bearbeiten soll."

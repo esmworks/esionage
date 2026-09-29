@@ -351,6 +351,10 @@
       "title": "Claude Code",
       "body": "Bu komutu bir terminalde çalıştırın, ardından giriş yapmak için Claude Code içinde /mcp komutunu kullanın."
     },
+    "codex": {
+      "title": "Codex",
+      "body": "Bu komutu bir terminalde çalıştırın. Codex, Leafdesk'in OAuth kullandığını görür ve giriş yapıp erişime izin vermeniz için tarayıcınızı açar; o pencere kapanırsa codex mcp login leafdesk komutunu çalıştırın. Önce Codex'i güncelleyin: eski sürümler girişi tamamlayamaz."
+    },
     "other": {
       "title": "Diğer MCP istemcileri",
       "body": "Streamable HTTP aktarımını ve yukarıdaki URL'yi kullanarak uzak bir sunucu ekleyin. İstemci, giriş yöntemini standart OAuth 2.1 meta verilerinden bulur; kendini otomatik olarak kaydedebilir ya da bir istemci kimliği meta veri belgesi (client ID metadata document) kullanabilir. İstemcinin hiçbir şeyi düzenlememesini istiyorsanız onay ekranında salt okunur erişimi seçin."

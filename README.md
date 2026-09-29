@@ -889,13 +889,30 @@ index (`vector_cosine_ops`), and order the `ranked` step of `src/server/semantic
 ## Connect an AI assistant
 
 The server URL is `<APP_URL>/mcp`. My account → *Connected apps* shows ready-to-copy
-instructions. For example, with Claude Code:
+instructions with your server's URL. Every client signs in the same way: it opens Leafdesk in your
+browser, you sign in and approve access, and you can make it read-only on that screen.
 
-```bash
-claude mcp add --transport http leafdesk http://localhost:3000/mcp
-```
+- **Claude** (web and desktop): Settings → Connectors → *Add custom connector*, then paste the
+  server URL.
+- **Claude Code**: add the server, then run `/mcp` inside Claude Code to sign in.
 
-The client opens a browser window where you sign in and approve access. The tools cover:
+  ```bash
+  claude mcp add --transport http leafdesk http://localhost:3000/mcp
+  ```
+
+- **Codex**: add the server; Codex sees that it uses OAuth and opens the browser right away. If
+  that window gets closed, run `codex mcp login leafdesk`. Use a current Codex CLI: 0.159.1 signs
+  in, while 0.144.1 fails with "Authorization server response missing required issuer".
+
+  ```bash
+  codex mcp add leafdesk --url http://localhost:3000/mcp
+  ```
+
+- **Other clients**: add a remote server with the Streamable HTTP transport. Sign-in is found
+  through standard OAuth 2.1 metadata; clients can register themselves or use a Client ID Metadata
+  Document.
+
+The tools cover:
 
 - **Finding things:** `list_workspaces`, `list_teamspaces`, `search`, `list_pages`, `list_recent_pages`, `list_users` (with when each member joined), `list_groups` (member groups with their members and teamspaces).
 - **Members:** `invite_member` adds someone to a workspace by email, as Settings → Members does
