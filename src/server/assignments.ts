@@ -5,6 +5,7 @@ import { env } from "@/lib/env";
 import { pageLabel } from "@/lib/labels";
 import { newAssignees } from "@/lib/properties";
 import { resolvePageAccess } from "@/server/access";
+import { seesValue } from "@/server/property-access";
 import { assignmentEmail, mailStatus, sendMail, type OutgoingMail } from "@/server/mail";
 import { recipientLocale, requestLocale } from "@/server/mail/locale";
 import { emailTranslator } from "@/server/mail/templates";
@@ -103,11 +104,20 @@ export function startAssignmentEmails() {
 async function send({ actorId, rowId, propertyId, userId, locale: queuedLocale }: Pending) {
   const locale = await recipientLocale(userId, queuedLocale);
   const [row] = await db
-    .select({ title: page.title, properties: page.properties, parentId: page.parentId, workspaceId: page.workspaceId, archivedAt: page.archivedAt })
+    .select({
+      title: page.title,
+      properties: page.properties,
+      parentId: page.parentId,
+      workspaceId: page.workspaceId,
+      archivedAt: page.archivedAt,
+      createdBy: page.createdBy,
+    })
     .from(page)
     .where(eq(page.id, rowId));
   if (!row?.parentId || row.archivedAt || !ids(row.properties[propertyId]).includes(userId)) return;
   if ((await resolvePageAccess(userId, rowId)).level === "none") return;
+  // The property's access may have changed since: never name a value hidden from them.
+  if (!(await seesValue(userId, row.parentId, propertyId, { properties: row.properties, createdBy: row.createdBy }))) return;
   if (!(await wantsEmail(userId, "assignment"))) return;
   const [[recipient], [actor], [database], [prop]] = await Promise.all([
     db.select({ email: user.email }).from(user).where(eq(user.id, userId)),

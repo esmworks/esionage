@@ -60,6 +60,7 @@ import { getCollab } from "@/server/collab/bridge";
 import { rowChanged } from "@/server/row-events";
 import { workspacePeople, type WorkspacePerson } from "@/server/workspaces";
 import {
+  assignmentsTheySee,
   propertyAccessFor,
   restoreReferences,
   unknownProperties,
@@ -648,8 +649,9 @@ export async function announceAssignments(
   const personProps = (await getProperties(databaseId)).filter((p) => p.type === "person");
   if (!personProps.length) return;
   const [database] = await db.select({ workspaceId: page.workspaceId }).from(page).where(eq(page.id, databaseId));
-  if (database) await recordAssignments(actorId, database.workspaceId, personProps, changes);
-  await scheduleAssignmentEmails(actorId, personProps, changes);
+  const seen = await assignmentsTheySee(databaseId, personProps.map((p) => p.id), changes);
+  if (database) await recordAssignments(actorId, database.workspaceId, personProps, seen);
+  await scheduleAssignmentEmails(actorId, personProps, seen);
 }
 
 export type NewRow = { title: string; properties?: Record<string, unknown> };

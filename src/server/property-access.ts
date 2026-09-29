@@ -10,8 +10,9 @@ import {
   user,
 } from "@/db/schema";
 import { avatarSrc } from "@/lib/avatar";
-import { makeAccess, OPEN_ACCESS, type PropertyAccess } from "@/lib/property-access-rows";
+import { makeAccess, OPEN_ACCESS, type AccessRow, type PropertyAccess } from "@/lib/property-access-rows";
 import {
+  atLeast,
   canRestrict,
   isPropertyLevel,
   namesPeople,
@@ -83,6 +84,50 @@ async function loadViewer(userId: string, databaseId: string, databaseLevel?: Da
           .then((rows) => levelFromRank(rows[0]?.level)),
   ]);
   return { userId, groupIds: groups.map((g) => g.id), databaseLevel: level };
+}
+
+type AssignmentChange = { rowId: string; before: Record<string, unknown>; after: Record<string, unknown> };
+
+const personIds = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+
+/**
+ * The changes as far as the people they name may hear of them: someone who can't see a person
+ * property's values in a row is left out of it before and after, so neither the inbox nor an email
+ * tells them about a value hidden from them (and their unread notices aren't taken back either).
+ */
+export async function assignmentsTheySee<C extends AssignmentChange>(databaseId: string, personPropertyIds: string[], changes: C[]): Promise<C[]> {
+  const rules = await loadPropertyRules([databaseId]);
+  const restricted = personPropertyIds.filter((id) => rules.has(id));
+  if (!restricted.length || !changes.length) return changes;
+  const creators = new Map(
+    (await db.select({ id: page.id, createdBy: page.createdBy }).from(page).where(inArray(page.id, changes.map((c) => c.rowId)))).map((r) => [r.id, r.createdBy]),
+  );
+  const accessOf = new Map<string, Promise<PropertyAccess>>();
+  const access = (userId: string) => {
+    let found = accessOf.get(userId);
+    if (!found) accessOf.set(userId, (found = propertyAccessFor(userId, databaseId)));
+    return found;
+  };
+  return Promise.all(
+    changes.map(async (c) => {
+      const row = { properties: c.after, createdBy: creators.get(c.rowId) ?? null };
+      const before = { ...c.before };
+      const after = { ...c.after };
+      for (const propertyId of restricted) {
+        for (const userId of new Set([...personIds(c.before[propertyId]), ...personIds(c.after[propertyId])])) {
+          if (atLeast((await access(userId)).levelOf(propertyId, row), "view")) continue;
+          before[propertyId] = personIds(before[propertyId]).filter((id) => id !== userId);
+          after[propertyId] = personIds(after[propertyId]).filter((id) => id !== userId);
+        }
+      }
+      return { ...c, before, after };
+    }),
+  );
+}
+
+/** Whether `userId` sees the values of this property in this row (for notices sent later). */
+export async function seesValue(userId: string, databaseId: string, propertyId: string, row: AccessRow) {
+  return atLeast((await propertyAccessFor(userId, databaseId)).levelOf(propertyId, row), "view");
 }
 
 /**

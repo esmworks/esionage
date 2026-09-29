@@ -22,10 +22,10 @@ try {
 // Imported after .env is loaded: the database client reads DATABASE_URL when it is created.
 const { and, eq, inArray } = await import("drizzle-orm");
 const { db } = await import("@/db");
-const { auditEvent, databaseView, page, propertyPermission, user, workspace, workspaceMember } = await import("@/db/schema");
+const { auditEvent, databaseView, notification, page, propertyPermission, user, workspace, workspaceMember } = await import("@/db/schema");
 const { registerCollab } = await import("@/server/collab/bridge");
 const databases = await import("@/server/databases");
-const { createPage } = await import("@/server/pages");
+const { createPage, movePage } = await import("@/server/pages");
 const { setPagePermission } = await import("@/server/permissions");
 const { createGroup } = await import("@/server/groups");
 const { getPropertyAccessSettings, setPropertyAccess } = await import("@/server/property-access");
@@ -220,6 +220,28 @@ try {
   await setPropertyAccess(ids.owner, salary.id, { everyone: "view_property", exceptions: [{ userId: ids.viewer, level: "edit" }] });
   const viewer = await databases.getDatabaseSnapshot(ids.viewer, staff.id);
   check(viewer.propertyAccess?.[salary.id]?.level === "view", "no exception goes past database access", viewer.propertyAccess);
+
+  // Being assigned in a property one can't see sends no notice; one that shows still does.
+  const reviewer = await databases.addProperty(ids.owner, staff.id, { name: "Reviewer", type: "person" });
+  await setPropertyAccess(ids.owner, reviewer.id, { everyone: "none", exceptions: [] });
+  await databases.updateRowProperties(ids.owner, bob.id, { Reviewer: [ids.editor], Manager: [ids.hr, ids.viewer] });
+  const notices = await db
+    .select({ userId: notification.userId, propertyId: notification.propertyId })
+    .from(notification)
+    .where(and(eq(notification.kind, "assignment"), eq(notification.pageId, bob.id)));
+  check(!notices.some((n) => n.propertyId === reviewer.id), "no notice for an assignment in a property hidden from them", notices);
+  check(notices.some((n) => n.userId === ids.viewer && n.propertyId === manager.id), "a visible assignment still notifies", notices);
+  await setPropertyAccess(ids.owner, reviewer.id, { everyone: "inherit", exceptions: [] });
+
+  // Moving isn't a way around the rules: taking the database or a row elsewhere needs full access.
+  const mine = await createPage({ userId: ids.editor }, { workspaceId, kind: "database", title: "Mine" });
+  await databases.addProperty(ids.editor, mine.id, { name: "Salary", type: "number" });
+  check(await refused(movePage(ids.editor, staff.id, null, undefined, null)), "the editor can't move the database into their private pages");
+  check(await refused(movePage(ids.editor, bob.id, mine.id)), "the editor can't move a row into their own database");
+  const [eve] = await databases.createRows(ids.editor, staff.id, [{ title: "Eve" }]);
+  check(await refused(movePage(ids.editor, eve.id, mine.id)), "not even a row they made");
+  const inMine = await databases.getDatabaseSnapshot(ids.editor, mine.id);
+  check(!/654321/.test(JSON.stringify(inMine)), "their database holds no hidden value", inMine.rows);
 
   // Board drag across a hidden property is a write.
   await setPropertyAccess(ids.owner, level.id, { everyone: "view", exceptions: [] });
