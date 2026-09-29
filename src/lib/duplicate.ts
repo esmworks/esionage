@@ -1,6 +1,9 @@
 import type { PageKind, PropertyOptions, PropertyType, RowProperties, ViewConfig, ViewType } from "@/db/schema/app";
 import { mapFilterRules } from "./filters";
 import { rewriteReferences } from "./formula";
+import { atLeast, type PropertyLevel, type PropertyRule } from "./property-access";
+// Type only: property-access-rows imports this module.
+import type { PropertyAccess } from "./property-access-rows";
 
 /**
  * Pure planning for "Duplicate page": given the source subtree, decides every new id and rewrites
@@ -42,6 +45,8 @@ export type DuplicatePlan = {
   rootId: string;
   /** Source page id → copy id. */
   pageIds: Map<string, string>;
+  /** Source property id → copy id. */
+  propertyIds: Map<string, string>;
   pages: PlannedPage[];
   properties: SourceProperty[];
   views: SourceView[];
@@ -126,7 +131,127 @@ export function planDuplicate(input: DuplicateInput, newId: () => string = () =>
     };
   });
 
-  return { rootId: pageIds.get(input.rootId)!, pageIds, pages, properties, views };
+  return { rootId: pageIds.get(input.rootId)!, pageIds, propertyIds: propIds, pages, properties, views };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Property access and copies
+//
+// Whoever copies a database sees the copy through their own access to it, and the copy starts
+// without anything they couldn't see: nobody learns a value, or that a property exists, by
+// copying it. So a copy leaves out the properties the copier can't know of (schema, values, the
+// views' references to them) and the values they can't view, row by row. What does come along
+// keeps its rules (planPropertyRules), so the copy is no more open to anyone else than the source.
+
+/** A row as a copy reads it: its values, and who created it (for "created by" exceptions). */
+export type CopyRow = { properties: RowProperties; createdBy?: string | null };
+
+/** What a copy of one database's rows carries for the person copying (see copyAccess). */
+export type CopyAccess = {
+  /** Properties left out entirely: the copier can't know of them. */
+  gone: ReadonlySet<string>;
+  /** The values of a row that come along. */
+  values(row: CopyRow): RowProperties;
+};
+
+/**
+ * What a copy carries from one database for someone with `access` to it; null when it carries
+ * everything (no rules, or full access). `properties`: all of the database's properties.
+ *
+ * - Rows copied with their database keep the values the copier may view (`view` and up).
+ * - `write`: the row lands in the same database, where its rules still hold (duplicating a row,
+ *   saving it as a row template, a row made from a template). It then keeps only the values the
+ *   copier could have set themselves in the new row they create: anything else would write around
+ *   the rules (a "view" level property copied from an approved row, say).
+ * - `gone`: properties to leave out beyond the ones `access` hides (anonymous visitors, see
+ *   server/publication publicAccess).
+ */
+export function copyAccess(
+  access: Pick<PropertyAccess, "open" | "levelOf" | "visible">,
+  properties: { id: string }[],
+  options: { gone?: ReadonlySet<string>; write?: { createdBy: string | null } } = {},
+): CopyAccess | null {
+  if (access.open && !options.gone?.size) return null;
+  const known = new Set(access.visible(properties).map((p) => p.id));
+  const gone = new Set([...properties.filter((p) => !known.has(p.id)).map((p) => p.id), ...(options.gone ?? [])]);
+  const keep = (row: CopyRow, needed: PropertyLevel) =>
+    Object.fromEntries(Object.entries(row.properties).filter(([id]) => !gone.has(id) && atLeast(access.levelOf(id, row), needed)));
+  const write = options.write;
+  if (!write) return { gone, values: (row) => keep(row, "view") };
+  return {
+    gone,
+    values: (row) => {
+      // Person property exceptions read the row's own values; leaving one out may take away the
+      // level that kept another, so check again until nothing more goes.
+      let values = Object.fromEntries(Object.entries(row.properties).filter(([id]) => !gone.has(id)));
+      for (;;) {
+        const next = keep({ properties: values, createdBy: write.createdBy }, "edit_values");
+        if (Object.keys(next).length === Object.keys(values).length) return next;
+        values = next;
+      }
+    },
+  };
+}
+
+/**
+ * The input of a copy without what the copier may not carry: `databases` maps a database id to
+ * what its rows (copied with it, or a copied row of it) carry; databases missing from it carry
+ * everything. `createdBy` holds who created each row, for "created by" exceptions.
+ */
+export function redactCopy(
+  input: DuplicateInput,
+  databases: ReadonlyMap<string, CopyAccess>,
+  createdBy: ReadonlyMap<string, string | null> = new Map(),
+): DuplicateInput {
+  if (!databases.size) return input;
+  const goneIn = (databaseId: string) => databases.get(databaseId)?.gone ?? new Set<string>();
+  return {
+    ...input,
+    properties: input.properties.filter((p) => !goneIn(p.databaseId).has(p.id)),
+    views: input.views.map((view) => {
+      const gone = goneIn(view.databaseId);
+      if (!gone.size) return view;
+      // As the copier saw the view: filter groups that mention a property left out go whole.
+      const filters = view.config.filters?.filter((entry) => {
+        let found = false;
+        mapFilterRules([entry], (rule) => {
+          if (gone.has(rule.propertyId)) found = true;
+          return rule;
+        });
+        return !found;
+      });
+      return { ...view, config: dropPropertyReferences({ ...view.config, filters }, (id) => gone.has(id)) };
+    }),
+    pages: input.pages.map((p) => {
+      const access = p.parentId ? databases.get(p.parentId) : undefined;
+      if (!access || p.kind === "database") return p;
+      return { ...p, properties: access.values({ properties: p.properties, createdBy: createdBy.get(p.id) }) };
+    }),
+  };
+}
+
+/** One rule of a copied database's property access (see server/property-access). */
+export type SourceRule = PropertyRule & { databaseId: string };
+
+/**
+ * The rules of the copied databases, pointed at the copies: the property, its database and a
+ * person property exception's property. Rules of properties the copy left out go with them, and so
+ * do exceptions for a person property it left out (they only ever raise a level).
+ */
+export function planPropertyRules(rules: SourceRule[], plan: Pick<DuplicatePlan, "pageIds" | "propertyIds" | "properties">): SourceRule[] {
+  const copied = new Set(plan.properties.map((p) => p.id));
+  const copyOf = (id: string) => {
+    const next = plan.propertyIds.get(id);
+    return next && copied.has(next) ? next : null;
+  };
+  return rules.flatMap((rule): SourceRule[] => {
+    const propertyId = copyOf(rule.propertyId);
+    const databaseId = plan.pageIds.get(rule.databaseId);
+    if (!propertyId || !databaseId) return [];
+    const personPropertyId = rule.personPropertyId ? copyOf(rule.personPropertyId) : null;
+    if (rule.personPropertyId && !personPropertyId) return [];
+    return [{ ...rule, propertyId, databaseId, personPropertyId }];
+  });
 }
 
 /**

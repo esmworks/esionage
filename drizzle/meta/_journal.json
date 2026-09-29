@@ -232,6 +232,13 @@
       "when": 1790650000000,
       "tag": "0032_recipient_locale_and_inviter",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790660000000,
+      "tag": "0033_property_access",
+      "breakpoints": true
     }
   ]
 }

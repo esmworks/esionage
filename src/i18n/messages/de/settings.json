@@ -765,6 +765,9 @@
         "unpublished": "Hat die Veröffentlichung von {target} beendet",
         "publication_revoked": "Hat {target} aus dem Web genommen (veröffentlicht von {subject})"
       },
+      "property": {
+        "access_changed": "Hat den Zugriff auf „{property}“ in {target} geändert"
+      },
       "access_request": {
         "approved": "Hat die Zugriffsanfrage von {subject} für {target} genehmigt: {level}",
         "declined": "Hat die Zugriffsanfrage von {subject} für {target} abgelehnt"

@@ -16,6 +16,7 @@ import {
 } from "@/lib/import/csv";
 import { ImportError, WarningList } from "@/lib/import/result";
 import { PropertyValueError, sortStatusOptions, statusColor } from "@/lib/properties";
+import { atLeast } from "@/lib/property-access";
 import { holdsOptions } from "@/lib/property-types";
 import { AccessError } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
@@ -29,6 +30,7 @@ import {
   type DatabaseProperty,
 } from "@/server/databases";
 import { createPage, removeOrphanFiles, type DatabaseSeedNames } from "@/server/pages";
+import { propertyAccessFor, type PropertyAccess } from "@/server/property-access";
 
 /**
  * CSV imports: a CSV file as a new database, or its rows added to an existing one.
@@ -221,6 +223,23 @@ function distinct(values: string[]) {
   return [...seen.values()];
 }
 
+/**
+ * The properties a CSV import may fill in: ones that take typed values, and whose values the
+ * importer may set in a new row (see server/property-access; checked like normalizeRowProperties
+ * checks a new row). Properties they can't know of or may only read aren't offered.
+ */
+export function importableProperties<P extends { id: string; type: DatabaseProperty["type"] }>(properties: P[], access: PropertyAccess): P[] {
+  return access
+    .visible(properties)
+    .filter((p) => isImportableType(p.type) && atLeast(access.levelOf(p.id, { properties: {} }), "edit_values"));
+}
+
+/** importableProperties of a database, for `userId`. */
+export async function importTargets(userId: string, databaseId: string) {
+  const [all, access] = await Promise.all([getProperties(databaseId), propertyAccessFor(userId, databaseId)]);
+  return importableProperties(all, access);
+}
+
 /** Where a column goes when merging: the rows' titles, a property (by id), or nowhere (null). */
 export type ColumnTarget = "title" | string | null;
 
@@ -242,7 +261,8 @@ export async function importCsvIntoDatabase(
     throw error;
   });
   if (database.archivedAt) throw new ImportError("The database is in the trash", "noAccess");
-  const props = await getProperties(databaseId);
+  // Only properties the importer may fill in; any other id reads like one that doesn't exist.
+  const props = await importTargets(actor.userId, databaseId);
   const byId = new Map(props.map((p) => [p.id, p]));
 
   const used = new Set<string>();
@@ -257,7 +277,7 @@ export async function importCsvIntoDatabase(
       return null;
     }
     const prop = byId.get(target);
-    if (!prop || !isImportableType(prop.type)) throw new ImportError(`Unknown or read-only property "${target}"`, "badMapping");
+    if (!prop) throw new ImportError(`Unknown or read-only property "${target}"`, "badMapping");
     return prop;
   });
   if (!used.size) throw new ImportError("No column goes to a property", "badMapping");

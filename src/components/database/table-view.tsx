@@ -19,6 +19,8 @@ import { GroupLabel, HiddenGroups, useGroupContext, useGroupName } from "./group
 import { usePeople } from "./person-cell";
 import { OpenLink, PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
+import { PropertyAccessDialog } from "./property-access-dialog";
+import { PropertyLock, usePropertyAccess } from "./property-access";
 import { AddPropertyPanel, PropertyMenu } from "./property-menu";
 import { CalculationRow } from "./table-calculations";
 import { useNewRow } from "./use-new-row";
@@ -78,6 +80,7 @@ export function TableView({
   const { editTitleOf, typed, create: createNew, stopEditing } = useNewRow((id, title) => void api.setCell(id, TITLE, title));
   const { viewerId } = usePeople();
   const ai = useAiAutofill();
+  const access = usePropertyAccess();
   // Grouped only when the view asks for it (unlike boards, which always group).
   const groupBy = properties.find((p) => p.id === view.config.groupBy && isGroupable(p.type));
   const groupContext = useGroupContext(groupBy);
@@ -122,7 +125,11 @@ export function TableView({
     await createNew(() => api.createRow(Object.keys(defaults).length ? { properties: defaults } : {}));
   };
   const today = localDay(new Date());
-  const canAddTo = (group: Group<Row>) => !readOnly && !!groupBy && canAddToGroup(groupBy, group, { viewerId, today });
+  const canAddTo = (group: Group<Row>) =>
+    !readOnly &&
+    !!groupBy &&
+    (group.value.kind === "none" || access.canEditValues(groupBy.id)) &&
+    canAddToGroup(groupBy, group, { viewerId, today });
 
   const toggleCollapsed = (key: string) => {
     const next = collapsed.has(key) ? [...collapsed].filter((k) => k !== key) : [...collapsed, key];
@@ -168,20 +175,27 @@ export function TableView({
           <OpenLink href={`/w/${workspaceId}/p/${row.id}`} />
         </span>
       </td>
-      {visible.map((p) => (
-        <td key={p.id} className="border-b border-l border-border p-0 align-top">
-          <AiCell prop={p} rowId={row.id} readOnly={readOnly}>
-            <PropertyCell
-              prop={p}
-              value={row.properties[p.id]}
-              readOnly={readOnly}
-              onChange={(v) => void api.setCell(row.id, p.id, v)}
-              onCreateOption={createOption}
-              upload={p.type === "files" ? uploadToPage(row.id) : undefined}
-            />
-          </AiCell>
-        </td>
-      ))}
+      {visible.map((p) => {
+        const valueAccess = access.valueAccess(row, p.id);
+        return (
+          <td key={p.id} className="border-b border-l border-border p-0 align-top">
+            {valueAccess === "hidden" ? (
+              <PropertyCell prop={p} value={undefined} hidden onChange={() => {}} onCreateOption={createOption} />
+            ) : (
+              <AiCell prop={p} rowId={row.id} readOnly={readOnly || valueAccess === "readOnly"}>
+                <PropertyCell
+                  prop={p}
+                  value={row.properties[p.id]}
+                  readOnly={readOnly || valueAccess === "readOnly"}
+                  onChange={(v) => void api.setCell(row.id, p.id, v)}
+                  onCreateOption={createOption}
+                  upload={p.type === "files" ? uploadToPage(row.id) : undefined}
+                />
+              </AiCell>
+            )}
+          </td>
+        );
+      })}
       {!readOnly && <td className="border-b border-l border-border" />}
     </tr>
   );
@@ -232,30 +246,36 @@ export function TableView({
                 sort: (direction) => setConfig({ ...view.config, sorts: [{ propertyId: TITLE, direction }] }),
               }}
             />
-            {visible.map((p) => (
-              <HeaderCell
-                key={p.id}
-                prop={p}
-                label={p.name}
-                icon={p.type}
-                sort={sortOf(p.id)}
-                readOnly={readOnly}
-                actions={{
-                  rename: locked ? undefined : (name) => api.renameProperty(p.id, name),
-                  sort: isSortable(p.type)
-                    ? (direction) => setConfig({ ...view.config, sorts: [{ propertyId: p.id, direction }] })
-                    : undefined,
-                  hide: () => setConfig({ ...view.config, hidden: [...(view.config.hidden ?? []), p.id] }),
-                  setOptions: locked ? undefined : (options) => api.setOptions(p, options),
-                  setFormula: locked ? undefined : (expression) => api.setFormula(p, expression),
-                  setRollup: locked ? undefined : (rollup) => api.setRollup(p, rollup),
-                  setAutofill: locked || !ai.enabled || p.type !== "text" ? undefined : (config) => api.setAutofill(p, config),
-                  updateAllAutofill:
-                    !ai.enabled || !ai.refresh || !p.options.ai ? undefined : () => ai.refresh?.(p.id, inView.map((r) => r.id)),
-                  remove: locked ? undefined : () => api.deleteProperty(p.id),
-                }}
-              />
-            ))}
+            {visible.map((p) => {
+              // Property access: changing the property itself needs "edit" on it.
+              const fixed = locked || !access.canEditSchema(p.id);
+              return (
+                <HeaderCell
+                  key={p.id}
+                  prop={p}
+                  label={p.name}
+                  icon={p.type}
+                  sort={sortOf(p.id)}
+                  readOnly={readOnly}
+                  actions={{
+                    rename: fixed ? undefined : (name) => api.renameProperty(p.id, name),
+                    sort: isSortable(p.type)
+                      ? (direction) => setConfig({ ...view.config, sorts: [{ propertyId: p.id, direction }] })
+                      : undefined,
+                    hide: () => setConfig({ ...view.config, hidden: [...(view.config.hidden ?? []), p.id] }),
+                    setOptions: fixed ? undefined : (options) => api.setOptions(p, options),
+                    setFormula: fixed ? undefined : (expression) => api.setFormula(p, expression),
+                    setRollup: fixed ? undefined : (rollup) => api.setRollup(p, rollup),
+                    setAutofill: fixed || !ai.enabled || p.type !== "text" ? undefined : (config) => api.setAutofill(p, config),
+                    updateAllAutofill:
+                      !ai.enabled || !ai.refresh || !p.options.ai || !access.canEditValues(p.id)
+                        ? undefined
+                        : () => ai.refresh?.(p.id, inView.map((r) => r.id)),
+                    remove: fixed ? undefined : () => api.deleteProperty(p.id),
+                  }}
+                />
+              );
+            })}
             {!readOnly && (
               <th className="border-y border-border p-0 text-left font-normal">
                 {!locked && (
@@ -491,6 +511,9 @@ function HeaderCell({
   const t = useTranslations("database.table");
   const tAi = useTranslations("ai.autofill");
   const menu = useFloating<HTMLButtonElement>();
+  const access = usePropertyAccess();
+  const [accessOpen, setAccessOpen] = useState(false);
+  const menuActions = prop && access.canManage ? { ...actions, openAccess: () => setAccessOpen(true) } : actions;
   return (
     <th className={cn("border-y border-border p-0 text-left font-normal", prop && "border-l")}>
       <button
@@ -502,13 +525,15 @@ function HeaderCell({
       >
         <PropertyTypeIcon type={icon} className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{label}</span>
+        {prop && <PropertyLock propertyId={prop.id} />}
         {prop?.type === "text" && prop.options.ai && <Bot className="h-3.5 w-3.5 shrink-0" aria-label={tAi("addEntry")} />}
         {sort === "asc" && <ArrowUp className="h-3 w-3 shrink-0 text-accent" aria-label={t("sortedAscending")} />}
         {sort === "desc" && <ArrowDown className="h-3 w-3 shrink-0 text-accent" aria-label={t("sortedDescending")} />}
       </button>
       <Floating open={menu.open} anchor={menu.el} onClose={menu.close}>
-        <PropertyMenu prop={prop} actions={actions} onDone={menu.close} />
+        <PropertyMenu prop={prop} actions={menuActions} onDone={menu.close} />
       </Floating>
+      {prop && accessOpen && <PropertyAccessDialog prop={prop} onClose={() => setAccessOpen(false)} />}
     </th>
   );
 }

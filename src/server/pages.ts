@@ -256,7 +256,8 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
 
   const properties =
     parentKind === "database" && input.properties
-      ? await normalizeRowProperties(userId, input.parentId!, input.properties)
+      ? // The row will be theirs: "created by" exceptions count for them.
+        await normalizeRowProperties(userId, input.parentId!, input.properties, {}, { createdBy: userId })
       : {};
 
   const position = await nextPosition(workspaceId, input.parentId ?? null);

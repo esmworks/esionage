@@ -517,7 +517,9 @@
     "unsupportedViewType": "Type de vue non pris en charge « {type} ».",
     "invalidRollup": "L’agrégation « {property} » ne peut pas être enregistrée : {message}",
     "isTemplate": "Les modèles ne peuvent pas être déplacés ni placés dans la corbeille. Supprimez-les plutôt depuis la liste des modèles.",
-    "notATemplate": "Cette page n’est pas un modèle de cet espace de travail ou de cette base de données."
+    "notATemplate": "Cette page n’est pas un modèle de cet espace de travail ou de cette base de données.",
+    "propertyRestricted": "Vous n’avez pas l’autorisation de modifier « {property} ».",
+    "cannotRestrict": "Cette propriété ne peut pas avoir son propre accès."
   },
   "formula": {
     "title": "Formule",
@@ -624,5 +626,43 @@
     "create": "Ajouter l’agrégation",
     "back": "Retour",
     "summary": "{function} de {property} dans {relation}"
+  },
+  "propertyAccess": {
+    "menuItem": "Accès à la propriété",
+    "unavailable": "Les relations et les propriétés remplies par Leafdesk ne peuvent pas avoir leur propre accès.",
+    "title": "Accès à la propriété",
+    "loading": "Chargement…",
+    "general": "Accès général",
+    "everyone": "Toutes les personnes ayant accès à cette base de données",
+    "inheritHint": "Aucune restriction : chacun obtient ce que son accès à la base de données permet.",
+    "exceptions": "Exceptions",
+    "exceptionsHint": "Donnez à certaines personnes, à des groupes ou aux personnes nommées dans une ligne plus d’accès qu’aux autres.",
+    "exceptionsNeedGeneral": "Choisissez d’abord un accès général : les exceptions ne font que l’élever pour certains.",
+    "addException": "Ajouter des personnes, des groupes ou des propriétés Personne",
+    "noMatches": "Aucun résultat",
+    "personDetail": "Les personnes nommées dans cette propriété, dans leurs propres lignes",
+    "groupMembers": "{count, plural, one {# membre} other {# membres}}",
+    "noEffect": "Tout le monde a déjà cet accès",
+    "levelFor": "Accès pour {name}",
+    "removeException": "Retirer {name}",
+    "note": "Quand plusieurs entrées s’appliquent à quelqu’un, la plus large l’emporte. Les personnes ayant un accès complet à la base de données le gardent toujours, et personne n’obtient plus que ce que permet son accès à la base de données.",
+    "hiddenValue": "Vous n’avez pas accès à cette valeur",
+    "levels": {
+      "inherit": "Hériter de la base de données",
+      "edit": "Peut modifier la propriété et les valeurs",
+      "edit_values": "Peut modifier les valeurs uniquement",
+      "view": "Peut voir la propriété et les valeurs",
+      "view_property": "Peut voir la propriété uniquement",
+      "none": "Aucun accès"
+    },
+    "lock": {
+      "none": "Vous n’avez pas accès à cette propriété",
+      "view_property": "Vous voyez cette propriété, mais pas ses valeurs",
+      "view": "Vous pouvez voir cette propriété",
+      "edit_values": "Vous pouvez modifier les valeurs de cette propriété",
+      "edit": "Vous pouvez modifier cette propriété",
+      "perRow": "Dans les lignes qui ne vous nomment pas, vous avez moins d’accès.",
+      "full": "L’accès à cette propriété est restreint. Vous avez un accès complet."
+    }
   }
 }

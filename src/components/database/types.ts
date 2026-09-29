@@ -1,5 +1,6 @@
 import type { ChecklistItem, PropertyType, SelectOption } from "@/db/schema/app";
 import type { AiCellState } from "@/lib/ai";
+import type { PropertyAccessInfo } from "@/lib/property-access";
 import type {
   DatabaseProperty,
   DatabaseRowWithPosition,
@@ -52,6 +53,12 @@ export type DatabaseSnapshot = {
   viewerId: string;
   /** AI autofill: whether AI is available here, and values still being worked out or that failed. */
   ai?: DatabaseAi;
+  /** The viewer's level on each restricted property; missing when none is restricted for them. */
+  propertyAccess?: Record<string, PropertyAccessInfo>;
+  /** Full access to the database: may set each property's access. */
+  canManageAccess?: boolean;
+  /** With full access: the properties that have access rules (they don't apply to the viewer). */
+  restrictedPropertyIds?: string[];
 };
 
 export type DatabaseAi = {

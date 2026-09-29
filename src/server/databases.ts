@@ -59,6 +59,14 @@ import { recordAssignments } from "@/server/notifications";
 import { getCollab } from "@/server/collab/bridge";
 import { rowChanged } from "@/server/row-events";
 import { workspacePeople, type WorkspacePerson } from "@/server/workspaces";
+import {
+  assignmentsTheySee,
+  propertyAccessFor,
+  restoreReferences,
+  unknownProperties,
+  type PropertyAccess,
+  type RedactedFields,
+} from "@/server/property-access";
 
 export type DatabaseProperty = typeof databaseProperty.$inferSelect;
 export type DatabaseView = typeof databaseView.$inferSelect;
@@ -69,7 +77,7 @@ export type DatabaseRow = {
   properties: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
-};
+} & RedactedFields;
 
 /**
  * Rows as read from the database, with values Leafdesk fills in (who created and last edited
@@ -97,28 +105,37 @@ type StoredRow = {
 
 /**
  * Rows as `userId` reads them: stored values, system values (withComputed) and derived values
- * (formulas), evaluated once per row. Pass `lookups` when they are loaded anyway, so formulas that
- * show people or related rows don't load them again.
+ * (formulas), evaluated once per row, without what property access keeps from them (values of
+ * restricted properties are left out before formulas run, so no formula or rollup shows them
+ * either). Pass `lookups` when they are loaded anyway, so formulas that show people or related
+ * rows don't load them again, and `access` when it is loaded anyway.
  */
 async function withValues<T extends StoredRow>(
   userId: string,
+  databaseId: string,
   rows: T[],
   properties: DatabaseProperty[],
   lookups?: DatabaseLookups,
+  access?: PropertyAccess,
 ) {
-  return computeDerived(withComputed(rows, properties), properties, {
+  access ??= await propertyAccessFor(userId, databaseId);
+  const derived = await computeDerived(access.strip(withComputed(rows, properties)), properties, {
     viewerId: userId,
     lookups: (props) => (lookups && props === properties ? Promise.resolve(lookups) : getLookups(userId, props)),
+    accessFor: (databaseId) => propertyAccessFor(userId, databaseId),
   });
+  return access.finish(derived);
 }
+
 
 /** One row's values as `userId` reads them (see withValues), e.g. for MCP output. */
 export async function rowValues(
   userId: string,
-  row: StoredRow,
+  row: StoredRow & { parentId: string | null },
   properties: DatabaseProperty[],
 ): Promise<Record<string, unknown>> {
-  const [out] = await withValues(userId, [row], properties);
+  if (!row.parentId) return {};
+  const [out] = await withValues(userId, row.parentId, [row], properties);
   return out.properties;
 }
 
@@ -181,23 +198,37 @@ export async function getProperties(databaseId: string) {
   return withFormulaTypes(properties);
 }
 
+/** The properties of a database `userId` may know of (see server/property-access). */
+export async function knownProperties(userId: string, databaseId: string) {
+  const [all, access] = await Promise.all([getProperties(databaseId), propertyAccessFor(userId, databaseId)]);
+  return access.visible(all);
+}
+
+/**
+ * A database as `userId` sees it: the properties they may know of (see server/property-access)
+ * and views without references to the others. `access` redacts rows read with them;
+ * `propertyAccess` tells the client which properties are restricted and how.
+ */
 export async function getDatabase(userId: string, databaseId: string) {
   const database = await requireDatabase(userId, databaseId, "view");
-  const [properties, views] = await Promise.all([
+  const [all, stored, access] = await Promise.all([
     getProperties(databaseId),
     db
       .select()
       .from(databaseView)
       .where(eq(databaseView.databaseId, databaseId))
       .orderBy(asc(databaseView.position), asc(databaseView.createdAt)),
+    propertyAccessFor(userId, databaseId),
   ]);
-  return { database, properties, views };
+  const properties = access.visible(all);
+  const views = access.open ? stored : stored.map((v) => ({ ...v, config: access.viewConfig(v.config) }));
+  return { database, properties, views, access, propertyAccess: access.info() };
 }
 
 export async function listRows(userId: string, databaseId: string, config: ViewConfig = {}) {
   // Rows inherit their database's access; rows restricted on their own are left out.
   await requireDatabase(userId, databaseId, "view");
-  const [rows, properties] = await Promise.all([
+  const [rows, all, access] = await Promise.all([
     db
       .select({
         id: page.id,
@@ -213,14 +244,25 @@ export async function listRows(userId: string, databaseId: string, config: ViewC
       .where(and(eq(page.parentId, databaseId), eq(page.isTemplate, false), isNull(page.archivedAt), pageVisibleTo(userId)))
       .orderBy(asc(page.position), asc(page.createdAt)),
     getProperties(databaseId),
+    propertyAccessFor(userId, databaseId),
   ]);
+  // Filters and sorts on properties the viewer can't know of don't apply; on ones whose values
+  // they can't see they run on the redacted values, so the rows they get say nothing about them.
+  const properties = access.visible(all);
+  config = access.viewConfig(config);
   const people = await peopleForSorts(userId, properties, config);
-  return applyView<DatabaseRow>(await withValues(userId, rows, properties), config, properties, { viewerId: userId, people });
+  return applyView<DatabaseRow>(await withValues(userId, databaseId, rows, all, undefined, access), config, properties, {
+    viewerId: userId,
+    people,
+  });
 }
 
 /**
  * Validates row values keyed by property id or (case-insensitive) name and returns them keyed
- * by id. Unknown keys are rejected so agents learn the schema instead of silently losing data.
+ * by id. Unknown keys are rejected so agents learn the schema instead of silently losing data;
+ * properties the user can't know of count as unknown, and ones whose values they may not change
+ * in this row are refused (see server/property-access), unless `check` is false because the
+ * caller checks each row itself.
  */
 export async function normalizeRowProperties(
   userId: string,
@@ -228,8 +270,10 @@ export async function normalizeRowProperties(
   input: Record<string, unknown>,
   /** The row's stored values, when editing an existing row. */
   existing: Record<string, unknown> = {},
+  options: { check?: boolean; createdBy?: string | null } = {},
 ) {
-  const props = await getProperties(databaseId);
+  const [all, access] = await Promise.all([getProperties(databaseId), propertyAccessFor(userId, databaseId)]);
+  const props = access.visible(all);
   const out: Record<string, unknown> = {};
   let people: Promise<WorkspacePerson[]> | undefined;
   let workspace: Promise<string | null> | undefined;
@@ -253,6 +297,7 @@ export async function normalizeRowProperties(
       out[prop.id] = await resolveFilesValue(userId, prop, normalized as FileValue[], asFiles(existing[prop.id]), await workspace);
     } else out[prop.id] = normalized;
   }
+  if (options.check !== false) access.requireValues({ properties: existing, createdBy: options.createdBy }, Object.keys(out));
   return out;
 }
 
@@ -465,7 +510,7 @@ export async function updateRowProperties(userId: string, rowId: string, patch: 
   const row = await requirePageAccess(userId, rowId, "edit");
   if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
   await requireDatabase(userId, row.parentId, "view");
-  const normalized = await normalizeRowProperties(userId, row.parentId, patch, row.properties);
+  const normalized = await normalizeRowProperties(userId, row.parentId, patch, row.properties, { createdBy: row.createdBy });
   const next = { ...row.properties };
   for (const [id, value] of Object.entries(normalized)) {
     if (value === null) delete next[id];
@@ -507,6 +552,7 @@ export async function rowsWithAccess(userId: string, databaseId: string, rowIds:
         .select({
           id: page.id,
           properties: page.properties,
+          createdBy: page.createdBy,
           archivedAt: page.archivedAt,
           inTemplate: page.inTemplate,
           level: accessRank(userId, sql`${page.id}`),
@@ -542,8 +588,20 @@ export async function updateRowsProperties(
 ): Promise<BulkResult> {
   const ids = bulkRowIds(rowIds);
   await requireDatabase(userId, databaseId, "view");
-  const normalized = await normalizeRowProperties(userId, databaseId, patch);
-  const { rows, skipped } = await rowsWithAccess(userId, databaseId, ids, "edit");
+  const normalized = await normalizeRowProperties(userId, databaseId, patch, {}, { check: false });
+  const found = await rowsWithAccess(userId, databaseId, ids, "edit");
+  // Rows where property access keeps the user from these values are skipped like rows they can't edit.
+  const access = await propertyAccessFor(userId, databaseId);
+  const rows = found.rows.filter((row) => {
+    try {
+      access.requireValues(row, Object.keys(normalized));
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  const kept = new Set(rows.map((r) => r.id));
+  const skipped = [...found.skipped, ...found.rows.filter((r) => !kept.has(r.id)).map((r) => r.id)];
   if (!rows.length || !Object.keys(normalized).length) return { done: [], skipped };
 
   const set = Object.fromEntries(Object.entries(normalized).filter(([, v]) => v !== null));
@@ -591,8 +649,9 @@ export async function announceAssignments(
   const personProps = (await getProperties(databaseId)).filter((p) => p.type === "person");
   if (!personProps.length) return;
   const [database] = await db.select({ workspaceId: page.workspaceId }).from(page).where(eq(page.id, databaseId));
-  if (database) await recordAssignments(actorId, database.workspaceId, personProps, changes);
-  await scheduleAssignmentEmails(actorId, personProps, changes);
+  const seen = await assignmentsTheySee(databaseId, personProps.map((p) => p.id), changes);
+  if (database) await recordAssignments(actorId, database.workspaceId, personProps, seen);
+  await scheduleAssignmentEmails(actorId, personProps, seen);
 }
 
 export type NewRow = { title: string; properties?: Record<string, unknown> };
@@ -753,7 +812,9 @@ async function rollupConfig(
     () => false,
   );
   if (!visible) throw invalid("the related database can't be read");
-  const targetProps = (await loadProperties([databaseId])).get(databaseId) ?? [];
+  // Only properties the user may know of there (see server/property-access).
+  const [loaded, access] = await Promise.all([loadProperties([databaseId]), propertyAccessFor(userId, databaseId)]);
+  const targetProps = access.visible(loaded.get(databaseId) ?? []);
   const target =
     input.targetPropertyId === TITLE_FIELD ? TITLE_FIELD : targetProps.find((p) => p.id === input.targetPropertyId);
   if (!target) throw invalid("choose a property of the related database");
@@ -797,11 +858,11 @@ export async function addProperty(
   const name = input.name.trim() || "Property";
   const formula =
     input.type === "formula"
-      ? formulaConfig(input.formula?.expression ?? "", await getProperties(databaseId), { id: "\u0000new", name })
+      ? formulaConfig(input.formula?.expression ?? "", await knownProperties(userId, databaseId), { id: "\u0000new", name })
       : undefined;
   const rollup =
     input.type === "rollup"
-      ? await rollupConfig(userId, input.rollup, await getProperties(databaseId), { id: "\u0000new", name })
+      ? await rollupConfig(userId, input.rollup, await knownProperties(userId, databaseId), { id: "\u0000new", name })
       : undefined;
   let target: typeof database | null = null;
   if (input.type === "relation") {
@@ -903,6 +964,12 @@ async function requireProperty(userId: string, propertyId: string, { cellEdit = 
   if (!prop) throw new AccessError();
   const database = await requireDatabase(userId, prop.databaseId, "edit");
   if (!cellEdit) assertUnlocked(database);
+  // Property access: changing the property needs "edit"; a new option typed into a cell, its values.
+  // One the user can't know of is refused like one that doesn't exist.
+  const access = await propertyAccessFor(userId, prop.databaseId);
+  if (!access.visible([prop]).length) throw new AccessError();
+  if (cellEdit) access.requireValues(null, [prop.id]);
+  else access.requireSchema(prop.id);
   return prop;
 }
 
@@ -921,14 +988,14 @@ export async function updateProperty(
   const prop = await requireProperty(userId, propertyId);
   const formula =
     patch.formula && prop.type === "formula"
-      ? formulaConfig(patch.formula.expression, await getProperties(prop.databaseId), {
+      ? formulaConfig(patch.formula.expression, await knownProperties(userId, prop.databaseId), {
           id: prop.id,
           name: patch.name?.trim() || prop.name,
         })
       : undefined;
   const rollup =
     patch.rollup && prop.type === "rollup"
-      ? await rollupConfig(userId, { ...prop.options.rollup, ...patch.rollup }, await getProperties(prop.databaseId), {
+      ? await rollupConfig(userId, { ...prop.options.rollup, ...patch.rollup }, await knownProperties(userId, prop.databaseId), {
           id: prop.id,
           name: patch.name?.trim() || prop.name,
         })
@@ -1038,13 +1105,15 @@ export async function addView(userId: string, databaseId: string, input: { name:
   }
   const database = await requireDatabase(userId, databaseId, "edit");
   assertUnlocked(database);
-  const props = await getProperties(databaseId);
+  // Defaults come from properties the user may know of (see server/property-access).
+  const [all, access] = await Promise.all([getProperties(databaseId), propertyAccessFor(userId, databaseId)]);
+  const props = access.visible(all);
   const config: ViewConfig = {};
   if (input.type === "board") config.groupBy = props.find((p) => p.type === "select" || p.type === "status")?.id;
   if (input.type === "calendar") {
     config.dateBy = props.find((p) => p.type === "date")?.id;
     // Calendar entries are small: show only titles until the user picks properties to show.
-    config.hidden = props.map((p) => p.id);
+    config.hidden = all.map((p) => p.id);
   }
   // Timelines start without swimlanes and with a week per column; list rows and timeline bars show
   // only titles until the user picks properties (see hiddenByDefault).
@@ -1090,13 +1159,31 @@ export async function updateView(userId: string, viewId: string, patch: { name?:
   const view = await requireView(userId, viewId);
   // Filters, sorts and layout stay adjustable on a locked database; renaming doesn't.
   if (patch.name !== undefined) assertUnlocked(view);
+  const access = await propertyAccessFor(userId, view.databaseId);
   // A form's default values are stored like row values: checked, with option names, "me" and
-  // emails turned into ids, and links the editor can't see kept as they were.
+  // emails turned into ids, and links the editor can't see kept as they were. Only defaults the
+  // editor changes need them to be allowed to change the property's values.
   const defaults = patch.config?.form?.defaults;
   if (patch.config?.form && defaults) {
-    const normalized = await normalizeRowProperties(userId, view.databaseId, defaults, view.config.form?.defaults ?? {});
+    const before = view.config.form?.defaults ?? {};
+    const normalized = await normalizeRowProperties(userId, view.databaseId, defaults, before, { check: false });
+    access.requireValues(
+      null,
+      Object.keys(normalized).filter((id) => JSON.stringify(normalized[id] ?? null) !== JSON.stringify(before[id] ?? null)),
+    );
     const kept = Object.fromEntries(Object.entries(normalized).filter(([, v]) => v !== null && !(Array.isArray(v) && !v.length)));
     patch = { ...patch, config: { ...patch.config, form: { ...patch.config.form, defaults: kept } } };
+  }
+  // What the stored settings say about properties the editor can't know of stays as it was, and
+  // so do form defaults they can't see.
+  if (patch.config && !access.open) {
+    const gone = unknownProperties(access, await getProperties(view.databaseId));
+    let config = restoreReferences(view.config, patch.config, gone);
+    const hidden = Object.entries(view.config.form?.defaults ?? {}).filter(([id]) => access.valuesHidden().has(id));
+    if (hidden.length && config.form) {
+      config = { ...config, form: { ...config.form, defaults: { ...config.form.defaults, ...Object.fromEntries(hidden) } } };
+    }
+    patch = { ...patch, config };
   }
   await db
     .update(databaseView)
@@ -1107,7 +1194,7 @@ export async function updateView(userId: string, viewId: string, patch: { name?:
     .where(eq(databaseView.id, viewId));
   notifySchema(view.databaseId);
   if (patch.name !== undefined) notifyTree(view.workspaceId);
-  return { config: patch.config ?? view.config };
+  return { config: access.viewConfig(patch.config ?? view.config) };
 }
 
 export async function deleteView(userId: string, viewId: string) {
@@ -1156,7 +1243,9 @@ export async function moveRow(
     }
     type = prop.type;
     const next = moveGroupValue(prop, properties[groupBy], groupFrom, groupValue);
-    const normalized = await normalizeRowProperties(userId, row.parentId, { [groupBy]: next }, row.properties);
+    const normalized = await normalizeRowProperties(userId, row.parentId, { [groupBy]: next }, row.properties, {
+      createdBy: row.createdBy,
+    });
     const value = normalized[groupBy];
     if (value === null || value === undefined || (Array.isArray(value) && !value.length)) delete properties[groupBy];
     else properties[groupBy] = value;
@@ -1239,7 +1328,7 @@ export async function getDatabaseSnapshot(
   /** `covers`: a gallery that isn't one of the database's views (a linked view) shows row images. */
   { covers: coversWanted = false }: { covers?: boolean } = {},
 ) {
-  const { database, properties, views } = await getDatabase(userId, databaseId);
+  const { database, properties, views, access, propertyAccess } = await getDatabase(userId, databaseId);
   const withCovers = coversWanted || views.some((v) => v.type === "gallery" && galleryCover(v.config) === "first_image");
   const stored = await db
     .select({
@@ -1271,7 +1360,7 @@ export async function getDatabaseSnapshot(
     withCovers ? rowCovers(stored) : null,
     listRowTemplateSummaries(userId, databaseId),
   ]);
-  const rows: DatabaseRowWithPosition[] = (await withValues(userId, stored, properties, { relations, people })).map(
+  const rows: DatabaseRowWithPosition[] = (await withValues(userId, databaseId, stored, properties, { relations, people }, access)).map(
     ({ hasImage: _, ...row }) => (covers ? { ...row, cover: covers.get(row.id) ?? null } : row),
   );
   return {
@@ -1286,6 +1375,8 @@ export async function getDatabaseSnapshot(
       defaultTemplateId: templates.some((t) => t.id === database.defaultTemplateId) ? database.defaultTemplateId : null,
     },
     properties,
+    /** The viewer's level on each restricted property; missing when none is. */
+    propertyAccess,
     views,
     rows,
     /** Row templates, for the menu next to "New". */
@@ -1340,6 +1431,10 @@ export async function getRelationTargets(
       : Promise.resolve([]),
     loadProperties(targetIds),
   ]);
+  // A related database's properties as the viewer may know them (see server/property-access).
+  const accessByTarget = new Map(
+    await Promise.all(databases.map(async (d) => [d.id, await propertyAccessFor(userId, d.id)] as const)),
+  );
   const out: Record<string, RelationTarget> = {};
   for (const prop of properties) {
     const targetId = prop.type === "relation" ? prop.options.relation?.databaseId : undefined;
@@ -1354,7 +1449,10 @@ export async function getRelationTargets(
         ? rows.filter((r) => r.parentId === targetId).map(({ id, title, icon }) => ({ id, title, icon }))
         : [],
       properties: database
-        ? (targetProperties.get(targetId) ?? []).map(({ id, name, type, options }) => ({ id, name, type, options }))
+        ? accessByTarget
+            .get(targetId)!
+            .visible(targetProperties.get(targetId) ?? [])
+            .map(({ id, name, type, options }) => ({ id, name, type, options }))
         : [],
     };
   }
@@ -1386,21 +1484,24 @@ export async function getPeople(userId: string, properties: DatabaseProperty[]):
   const [database] = await db.select({ workspaceId: page.workspaceId }).from(page).where(eq(page.id, databaseId));
   const membership = database && (await getMembership(userId, database.workspaceId));
   if (!membership) return [];
-  const [members, rows, views] = await Promise.all([
+  const [members, stored, views, access] = await Promise.all([
     workspacePeopleOf(databaseId),
     db
       .select({ properties: page.properties, createdBy: page.createdBy, updatedBy: page.updatedBy })
       .from(page)
       .where(and(eq(page.parentId, databaseId), pageVisibleTo(userId))),
     db.select({ config: databaseView.config }).from(databaseView).where(eq(databaseView.databaseId, databaseId)),
+    propertyAccessFor(userId, databaseId),
   ]);
+  // People named only in values the viewer may not see don't count as seen.
+  const rows = access.strip(stored);
   const referenced = new Set<string>();
   for (const { properties: stored, createdBy, updatedBy } of rows) {
     const values = { ...stored, ...computedValues(personProps, { createdBy, updatedBy }) };
     for (const prop of personProps) for (const id of asIds(values[prop.id])) referenced.add(id);
   }
   for (const view of views) {
-    for (const rule of filterRules(view.config.filters)) {
+    for (const rule of filterRules(access.viewConfig(view.config).filters)) {
       const person = personProps.some((p) => p.id === rule.propertyId);
       if (person && typeof rule.value === "string" && rule.value !== PERSON_ME) referenced.add(rule.value);
     }
@@ -1454,15 +1555,24 @@ export async function getRow(userId: string, rowId: string) {
   const row = await requirePageAccess(userId, rowId, "view");
   if (!row.parentId) throw withCode(new Error("Page is not a database row"), "notADatabaseRow");
   const database = await requireDatabase(userId, row.parentId, "view");
-  const properties = await getProperties(row.parentId);
+  const [all, access] = await Promise.all([getProperties(row.parentId), propertyAccessFor(userId, row.parentId)]);
+  const properties = access.visible(all);
   const [relations, people] = await Promise.all([getRelationTargets(userId, properties), getPeople(userId, properties)]);
-  const [withDerived] = await withValues(userId, [row], properties, { relations, people });
+  const [withDerived] = await withValues(userId, row.parentId, [row], properties, { relations, people }, access);
   return {
     databaseId: row.parentId,
     databaseTitle: database.title,
     databaseLocked: Boolean(database.lockedAt),
-    row: { id: row.id, title: row.title, properties: withDerived.properties },
+    row: {
+      id: row.id,
+      title: row.title,
+      properties: withDerived.properties,
+      hidden: withDerived.hidden,
+      readOnly: withDerived.readOnly,
+    },
     properties,
+    /** The viewer's level on each restricted property; missing when none is. */
+    propertyAccess: access.info(),
     relations,
     people,
     viewerId: userId,

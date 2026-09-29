@@ -124,8 +124,23 @@ const status = {
   },
 };
 const notes = { id: "prop-notes", name: "Notes", type: "text", options: {} };
+/** Property access of a database without rules (server/property-access OPEN_ACCESS). */
+const openAccess = {
+  open: true,
+  viewer: null,
+  levelOf: () => "edit",
+  info: () => undefined,
+  visible: <P,>(properties: P[]) => properties,
+  strip: <R,>(rows: R[]) => rows,
+  finish: <R,>(rows: R[]) => rows,
+  requireValues: () => {},
+  requireSchema: () => {},
+  viewConfig: <C,>(config: C) => config,
+};
 const database = {
   database: { id: "db-1", workspaceId: "ws-1", kind: "database", title: "Tasks", archivedAt: null },
+  access: openAccess,
+  propertyAccess: undefined as Record<string, { level: string; perRow: boolean }> | undefined,
   properties: [status, notes],
   views: [{ id: "view-1", name: "Board", type: "board", config: { groupBy: "prop-status", sorts: [{ propertyId: "title", direction: "asc" }] } }],
 };
@@ -394,7 +409,7 @@ describe("database properties", () => {
         ],
       },
     };
-    databases.getDatabase.mockResolvedValueOnce({ database: { id: "db-1", workspaceId: "ws-1" }, properties: [stage], views: [] });
+    databases.getDatabase.mockResolvedValueOnce({ database: { id: "db-1", workspaceId: "ws-1" }, access: openAccess, properties: [stage], views: [] });
     const r = await callTool(writer, "update_database_property", {
       database_id: "db-1",
       property: "Stage",

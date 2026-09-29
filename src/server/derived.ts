@@ -24,6 +24,18 @@ export type DerivedOptions = {
   now?: Date;
   /** How many rollups deep this read is (a rollup of a rollup of…); see MAX_ROLLUP_DEPTH. */
   depth?: number;
+  /**
+   * The viewer's access to the properties of a related database (see server/property-access):
+   * rollups only read what the viewer may see there. Without it rollups read every value.
+   */
+  accessFor?: (databaseId: string, properties: Property[]) => Promise<RelatedAccess>;
+};
+
+/** What rollups need of a viewer's access to a related database's properties. */
+export type RelatedAccess = {
+  levelOf(propertyId: string): string;
+  strip<R extends { properties: Record<string, unknown> }>(rows: R[]): R[];
+  finish<R extends { properties: Record<string, unknown> }>(rows: R[]): R[];
 };
 
 /**
@@ -118,6 +130,8 @@ async function computeRollups<R extends { title: string; properties: Record<stri
   // The related rows of each database, with their values worked out as far as the rollups need.
   const related = new Map<string, Map<string, RelatedRow>>();
   const contexts = new Map<string, FormulaContext>();
+  // Rollups over a property the viewer may not see the values of show nothing.
+  const blocked = new Set<string>();
   const now = options.now ?? new Date();
   for (const databaseId of visible) {
     const props = targetProperties.get(databaseId) ?? [];
@@ -127,14 +141,18 @@ async function computeRollups<R extends { title: string; properties: Record<stri
     const targets = readers.flatMap((r) => props.filter((p) => p.id === r.options.rollup!.targetPropertyId));
     // System values (who and when) too: a target may be one, or a formula using one.
     const system = props.some((p) => isComputed(p.type));
+    const access = options.accessFor ? await options.accessFor(databaseId, props) : null;
+    for (const t of targets) if (access && !["view", "edit_values", "edit"].includes(access.levelOf(t.id))) blocked.add(t.id);
     let own = relatedRows
       .filter((row) => row.parentId === databaseId)
       .map(({ createdBy, updatedBy, ...row }) =>
         system ? { ...row, properties: { ...row.properties, ...computedValues(props, { createdBy, updatedBy, ...row }) } } : row,
       );
+    if (access) own = access.strip(own);
     if (targets.some((t) => isDerived(t.type))) {
       own = await computeDerived(own, props, { ...options, now, depth: depth + 1 });
     }
+    if (access) own = access.finish(own);
     related.set(databaseId, new Map(own.map((row) => [row.id, row])));
     // Showing people or linked rows by name needs their names, as the viewer may see them.
     const named = readers.some(
@@ -156,6 +174,7 @@ async function computeRollups<R extends { title: string; properties: Record<stri
         values[rollup.id] = run;
         continue;
       }
+      if (blocked.has(rollup.options.rollup!.targetPropertyId)) continue;
       const rowsOf = (databaseId && related.get(databaseId)) || none;
       values[rollup.id] = rollupValue(run, row.properties[run.relation.id], rowsOf, contexts.get(databaseId ?? "") ?? { now });
     }

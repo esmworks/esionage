@@ -1,13 +1,13 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { Zip, ZipDeflate, ZipPassThrough } from "fflate";
 import { db } from "@/db";
-import { file, fileReference, page, type PageKind, workspace } from "@/db/schema";
+import { file, fileReference, page, propertyPermission, type PageKind, workspace } from "@/db/schema";
 import { toCsv } from "@/lib/csv";
 import { isErrorValue } from "@/lib/derived";
 import { mapReferenceLines, markdownReferences } from "@/lib/embed-blocks";
 import { env } from "@/lib/env";
 import { layoutExport, relativeLink, rewriteLinks, type ExportLayout } from "@/lib/export-layout";
-import { asFiles, fileIdOf, formatBytes } from "@/lib/files";
+import { asFiles, fileIdOf, fileIdsIn, fileIdsInProperties, formatBytes } from "@/lib/files";
 import { pageLabel } from "@/lib/labels";
 import { asChecklist, displayValue } from "@/lib/properties";
 import { holdsPeople } from "@/lib/property-types";
@@ -17,6 +17,7 @@ import { getCollab } from "@/server/collab/bridge";
 import { getDatabaseSnapshot } from "@/server/databases";
 import { resolveEmbeds } from "@/server/embeds";
 import { labelPageLinks } from "@/server/mentions";
+import { propertyAccessFor, type PropertyAccess } from "@/server/property-access";
 import { getStorage } from "@/server/storage";
 import { exportAllowed } from "@/server/workspaces";
 
@@ -27,7 +28,10 @@ import { exportAllowed } from "@/server/workspaces";
  *
  * Only what the exporting user can view goes in: pages and rows are filtered by
  * `page_access_level` like the sidebar, links to pages they can't see are labelled "No access",
- * and database blocks name only databases they can see. Pages in the trash are left out (a page
+ * and database blocks name only databases they can see. Row values go through their property
+ * access (server/property-access): database CSVs and row pages hold only what they may see, and
+ * files held only by properties whose values they may not see stay out of the archive; a workspace
+ * export by an owner goes by the owner's own access too. Pages in the trash are left out (a page
  * exported from the trash brings the subpages that went to the trash with it). Templates are kept
  * apart in `Templates/` folders.
  *
@@ -317,8 +321,10 @@ export async function planExport(userId: string, scope: ExportScope, labels: Exp
   }
 
   // Files the exported pages show in their bodies or hold in files properties (file_reference,
-  // kept by triggers for both), of this workspace only.
+  // kept by triggers for both), of this workspace only. A row whose values are partly kept from the
+  // exporter only brings the files its body and the values they may see hold.
   const ids = pages.map((p) => p.id);
+  const restricted = await restrictedRowFiles(userId, ids);
   const files: PlannedFile[] = [];
   for (let i = 0; i < ids.length; i += 5000) {
     const found = await db
@@ -329,11 +335,15 @@ export async function planExport(userId: string, scope: ExportScope, labels: Exp
         size: file.size,
         storageKey: file.storageKey,
         createdAt: file.createdAt,
+        pageId: fileReference.pageId,
       })
       .from(file)
       .innerJoin(fileReference, eq(fileReference.fileId, file.id))
       .where(and(eq(file.workspaceId, workspaceId), inArray(fileReference.pageId, ids.slice(i, i + 5000))));
-    files.push(...found);
+    for (const { pageId, ...f } of found) {
+      const shown = restricted.get(pageId);
+      if (!shown || shown.has(f.id)) files.push(f);
+    }
   }
   const unique = [...new Map(files.map((f) => [f.id, f])).values()].sort(
     (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
@@ -347,6 +357,45 @@ export async function planExport(userId: string, scope: ExportScope, labels: Exp
     labels.untitled,
   );
   return { workspaceId, rootId, title, pages, files: unique, layout, fileBytes };
+}
+
+/**
+ * The files a row shows `userId`: those its body links to and those the values they may see hold
+ * (see PropertyAccess.strip), for rows of databases with property access rules. Other rows are
+ * left out of the map: every file they reference goes in.
+ */
+async function restrictedRowFiles(userId: string, pageIds: string[]) {
+  const out = new Map<string, Set<string>>();
+  const withRules = db.selectDistinct({ id: propertyPermission.databaseId }).from(propertyPermission);
+  const accessOf = new Map<string, Promise<PropertyAccess>>();
+  for (let i = 0; i < pageIds.length; i += 5000) {
+    const rows = await db
+      .select({
+        id: page.id,
+        parentId: page.parentId,
+        properties: page.properties,
+        createdBy: page.createdBy,
+        contentMarkdown: page.contentMarkdown,
+      })
+      .from(page)
+      .where(and(inArray(page.id, pageIds.slice(i, i + 5000)), inArray(page.parentId, withRules)));
+    for (const row of rows) {
+      const databaseId = row.parentId!;
+      if (!accessOf.has(databaseId)) accessOf.set(databaseId, propertyAccessFor(userId, databaseId));
+      const access = await accessOf.get(databaseId)!;
+      if (!access.open) out.set(row.id, visibleFileIds(row, access));
+    }
+  }
+  return out;
+}
+
+/** The files a row shows through `access`: its body's, and those of the values it lets through. */
+export function visibleFileIds(
+  row: { properties: Record<string, unknown> | null; createdBy: string | null; contentMarkdown: string | null },
+  access: PropertyAccess,
+): Set<string> {
+  const [shown] = access.strip([{ properties: row.properties ?? {}, createdBy: row.createdBy }]);
+  return new Set([...fileIdsIn(row.contentMarkdown ?? ""), ...fileIdsInProperties(shown.properties)]);
 }
 
 // ---------------------------------------------------------------------------------------------

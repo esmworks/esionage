@@ -16,12 +16,14 @@ import { useIsOffline, useOffline } from "@/components/offline/offline-context";
 import { OfflineNotice } from "@/components/offline/offline-notice";
 import { deleteSnapshot, loadSnapshot, rowSnapshotKey, saveSnapshot } from "@/components/offline/offline-store";
 import type { AiAutofillConfig, AiCellState } from "@/lib/ai";
+import type { PropertyAccessInfo } from "@/lib/property-access";
 import { withFormulas } from "@/lib/derived";
 import type { PropertyType, SelectOption } from "@/db/schema/app";
 import { AiAutofillProvider, AiCell, type AiAutofillContextValue } from "./ai-autofill";
 import { Floating, useFloating } from "./floating";
 import { PeopleProvider, type PeopleContextValue } from "./person-cell";
 import { uploadToPage } from "./files-cell";
+import { PropertyAccessProvider, PropertyLock, usePropertyAccess, type PropertyAccessContextValue } from "./property-access";
 import { PropertyCell } from "./property-cell";
 import { PropertyTypeIcon } from "./property-icons";
 import { AddPropertyPanel } from "./property-menu";
@@ -42,6 +44,13 @@ type Loaded = {
   viewerId: string;
   /** AI autofill: whether AI is available, and this row's pending and failed values. */
   ai?: { enabled: boolean; states: Record<string, AiCellState> };
+  /** Property access: values of this row left out for the viewer, and ones they can't change. */
+  hidden?: string[];
+  readOnly?: string[];
+  /** The viewer's level on each restricted property. */
+  propertyAccess?: Record<string, PropertyAccessInfo>;
+  /** With full access: the properties that have access rules. */
+  restrictedPropertyIds?: string[];
 };
 
 /** Editable property list shown above a database row's page body. */
@@ -102,6 +111,10 @@ export function RowProperties({
         people: res.data.people,
         viewerId: res.data.viewerId,
         ai: res.data.ai,
+        hidden: res.data.row.hidden,
+        readOnly: res.data.row.readOnly,
+        propertyAccess: res.data.propertyAccess,
+        restrictedPropertyIds: res.data.restrictedPropertyIds,
       };
       setData(loaded);
       setOfflineCopyFrom(null);
@@ -241,6 +254,16 @@ export function RowProperties({
     [aiEnabled, rowId, data?.ai?.states, readOnly, refreshAutofill],
   );
 
+  const accessContext = useMemo<PropertyAccessContextValue>(
+    () => ({
+      info: data?.propertyAccess ?? {},
+      restricted: data?.restrictedPropertyIds ?? [],
+      // Access is set from the database's column menus, not from a row.
+      canManage: false,
+    }),
+    [data?.propertyAccess, data?.restrictedPropertyIds],
+  );
+
   // Edited values show right away, with the row's formulas worked out again from them.
   const values = useMemo(() => {
     if (!data) return {};
@@ -270,45 +293,86 @@ export function RowProperties({
     <RelationProvider value={relationContext}>
       <PeopleProvider value={peopleContext}>
         <SchemaProvider value={data.properties}>
-          <AiAutofillProvider value={aiContext}>
-            <div className="mb-6 border-b border-border pb-4">
-              {offline && <OfflineNotice savedAt={offlineCopyFrom} />}
-              <div className="flex flex-col gap-0.5">
-                {data.properties.map((p) => (
-                  <div key={p.id} className="flex min-h-[30px] items-start gap-2">
-                    <div className="flex h-[30px] w-28 shrink-0 items-center gap-1.5 px-1 text-sm text-fg-muted sm:w-40">
-                      <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate" title={p.name}>
-                        {p.name}
-                      </span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <AiCell prop={p} rowId={rowId} readOnly={readOnly}>
-                        <PropertyCell
-                          variant="panel"
-                          wrap
-                          prop={p}
-                          value={valueOf(p.id)}
-                          readOnly={readOnly}
-                          onChange={(v) => void setValue(p.id, v)}
-                          onCreateOption={createOption}
-                          upload={p.type === "files" ? uploadToPage(rowId) : undefined}
-                        />
-                      </AiCell>
-                    </div>
-                  </div>
-                ))}
+          <PropertyAccessProvider value={accessContext}>
+            <AiAutofillProvider value={aiContext}>
+              <div className="mb-6 border-b border-border pb-4">
+                {offline && <OfflineNotice savedAt={offlineCopyFrom} />}
+                <div className="flex flex-col gap-0.5">
+                  {data.properties.map((p) => (
+                    <PropertyRow
+                      key={p.id}
+                      prop={p}
+                      rowId={rowId}
+                      row={data}
+                      value={valueOf(p.id)}
+                      readOnly={readOnly}
+                      onChange={(v) => void setValue(p.id, v)}
+                      onCreateOption={createOption}
+                    />
+                  ))}
+                </div>
+                {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">{t("noProperties")}</p>}
+                {!readOnly && !data.locked && (
+                  <AddPropertyRow onCreate={addProperty} onCreateAutofill={aiEnabled ? addAutofillProperty : undefined} />
+                )}
+                {error && <p className="mt-2 px-1 text-xs text-danger">{error}</p>}
               </div>
-              {!data.properties.length && readOnly && <p className="px-1 text-sm text-fg-faint">{t("noProperties")}</p>}
-              {!readOnly && !data.locked && (
-                <AddPropertyRow onCreate={addProperty} onCreateAutofill={aiEnabled ? addAutofillProperty : undefined} />
-              )}
-              {error && <p className="mt-2 px-1 text-xs text-danger">{error}</p>}
-            </div>
-          </AiAutofillProvider>
+            </AiAutofillProvider>
+          </PropertyAccessProvider>
         </SchemaProvider>
       </PeopleProvider>
     </RelationProvider>
+  );
+}
+
+/** One property of the row: its name, then its value (a lock when the viewer may not see it). */
+function PropertyRow({
+  prop: p,
+  rowId,
+  row,
+  value,
+  readOnly,
+  onChange,
+  onCreateOption,
+}: {
+  prop: Property;
+  rowId: string;
+  row: { hidden?: string[]; readOnly?: string[] };
+  value: unknown;
+  readOnly: boolean;
+  onChange: (value: unknown) => void;
+  onCreateOption: (propertyId: string, name: string) => Promise<SelectOption | null>;
+}) {
+  const valueAccess = usePropertyAccess().valueAccess(row, p.id);
+  const fixed = readOnly || valueAccess === "readOnly";
+  return (
+    <div className="flex min-h-[30px] items-start gap-2">
+      <div className="flex h-[30px] w-28 shrink-0 items-center gap-1.5 px-1 text-sm text-fg-muted sm:w-40">
+        <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate" title={p.name}>
+          {p.name}
+        </span>
+        <PropertyLock propertyId={p.id} />
+      </div>
+      <div className="min-w-0 flex-1">
+        {valueAccess === "hidden" ? (
+          <PropertyCell variant="panel" prop={p} value={undefined} hidden onChange={onChange} onCreateOption={onCreateOption} />
+        ) : (
+          <AiCell prop={p} rowId={rowId} readOnly={fixed}>
+            <PropertyCell
+              variant="panel"
+              wrap
+              prop={p}
+              value={value}
+              readOnly={fixed}
+              onChange={onChange}
+              onCreateOption={onCreateOption}
+              upload={p.type === "files" ? uploadToPage(rowId) : undefined}
+            />
+          </AiCell>
+        )}
+      </div>
+    </div>
   );
 }
 

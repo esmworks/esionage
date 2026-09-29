@@ -38,6 +38,8 @@ const DESCRIPTION = `A REST API for the pages, databases, rows and comments of L
 
 **CORS** is off unless the server lists allowed origins, so browsers can't call the API from other sites by default.
 
+**Property access.** A database property can be restricted: some people may not see it at all, see it without its values, or only read its values. The API answers as the token's user: properties they can't know of are left out everywhere (schema, rows, views, errors), values they may not see are left out of rows and named in \`hidden_properties\`, and filters and sorts never run on values kept from them. People with full access to a database see everything, with each restricted property's settings in \`access_settings\`.
+
 **Page bodies** are Markdown with a few extensions (callouts, equations, columns, mentions, embedded databases); see the MCP server's instructions in the README. Every body change saves the previous version to page history first.
 
 Field descriptions are shared with Leafdesk's MCP server; where they name its tools: ${TOOL_NAMES.map(([tool, rest]) => `\`${tool}\` → ${rest}`).join(", ")}.`;
@@ -67,6 +69,20 @@ const propertyValues = {
   description:
     "Values by property name: text, numbers, booleans, option names, dates (YYYY-MM-DD), relations as [{id, title}], people as [{id, name}], checklists as [{text, checked}], files as [{name, url}].",
 };
+/** What property access keeps from the user in a row (see "Property access" above). */
+const rowAccessFields = {
+  hidden_properties: {
+    type: "array",
+    items: { type: "string" },
+    description: "Properties whose values the user may not see in this row: left out of properties, not empty.",
+  },
+  read_only_properties: {
+    type: "array",
+    items: { type: "string" },
+    description: "Properties whose values the user may see but not change in this row.",
+  },
+};
+const propertyLevel = { type: "string", enum: ["none", "view_property", "view", "edit_values", "edit"] };
 
 const SCHEMAS: Record<string, JsonSchema> = {
   Error: {
@@ -189,6 +205,7 @@ const SCHEMAS: Record<string, JsonSchema> = {
       template: { type: "string", enum: ["page_template", "row_template", "inside_template"] },
       database_id: { type: "string", description: "For rows: their database." },
       properties: propertyValues,
+      ...rowAccessFields,
       database_properties: { type: "array", items: { type: "object", additionalProperties: true }, description: "For databases." },
       embedded_databases: { type: "array", items: { type: "object", additionalProperties: true } },
       child_pages: { type: "array", items: loose({ id, title: { type: "string" }, kind: pageKind }) },
@@ -224,15 +241,33 @@ const SCHEMAS: Record<string, JsonSchema> = {
       row_count: { type: "integer" },
       properties: {
         type: "array",
-        items: loose({ name: { type: "string" }, type: { type: "string" }, id: { type: "string" } }),
-        description: "The first entry is the row title.",
+        items: loose({
+          name: { type: "string" },
+          type: { type: "string" },
+          id: { type: "string" },
+          access: {
+            ...propertyLevel,
+            description:
+              "Only on restricted properties: what the user may do with it. view_property: its values are hidden; view: read-only; edit_values: values, not the property itself.",
+          },
+          access_per_row: { type: "boolean", description: "Rows naming the user in a person property may give them more than access." },
+          access_settings: loose(
+            {
+              everyone: { type: "string", enum: [...(propertyLevel.enum as string[]), "inherit"] },
+              exceptions: { type: "array", items: loose({ level: propertyLevel }) },
+            },
+            ["everyone", "exceptions"],
+          ),
+        }),
+        description:
+          "The first entry is the row title. access_settings (who may do what with a restricted property) is only there for users with full access to the database.",
       },
       views: { type: "array", items: loose({ id, name: { type: "string" }, type: { type: "string" } }) },
       url,
     },
     ["id", "title", "properties", "views", "url"],
   ),
-  Row: loose({ id, title: { type: "string" }, database_id: id, properties: propertyValues, from_template: { type: "string" }, url }, [
+  Row: loose({ id, title: { type: "string" }, database_id: id, properties: propertyValues, ...rowAccessFields, from_template: { type: "string" }, url }, [
     "id",
     "title",
     "database_id",
@@ -245,7 +280,7 @@ const SCHEMAS: Record<string, JsonSchema> = {
       title: { type: "string" },
       total: { type: "integer", description: "Rows matching the filters, over all pages." },
       returned: { type: "integer" },
-      rows: { type: "array", items: loose({ id, title: { type: "string" }, properties: propertyValues, url }) },
+      rows: { type: "array", items: loose({ id, title: { type: "string" }, properties: propertyValues, ...rowAccessFields, url }) },
       chart: { type: "object", additionalProperties: true, description: "For a chart view: its settings and the series it plots." },
       ...cursorFields,
     },

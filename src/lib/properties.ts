@@ -73,6 +73,8 @@ export const DATABASE_ERROR_CODES = [
   "invalidRollup",
   "isTemplate",
   "notATemplate",
+  "propertyRestricted",
+  "cannotRestrict",
 ] as const;
 export type DatabaseErrorCode = (typeof DATABASE_ERROR_CODES)[number];
 export type DatabaseErrorParams = Record<string, string>;

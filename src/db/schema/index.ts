@@ -10,3 +10,4 @@ export * from "./sso";
 export * from "./groups";
 export * from "./ai";
 export * from "./audit";
+export * from "./property-access";

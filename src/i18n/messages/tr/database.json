@@ -517,7 +517,9 @@
     "unsupportedViewType": "Desteklenmeyen görünüm türü: “{type}”.",
     "invalidRollup": "“{property}” toplaması kaydedilemiyor: {message}",
     "isTemplate": "Şablonlar taşınamaz ve çöp kutusuna atılamaz. Onları şablon listesinden silin.",
-    "notATemplate": "Bu sayfa bu çalışma alanının ya da veritabanının bir şablonu değil."
+    "notATemplate": "Bu sayfa bu çalışma alanının ya da veritabanının bir şablonu değil.",
+    "propertyRestricted": "“{property}” özelliğini değiştirme yetkiniz yok.",
+    "cannotRestrict": "Bu özelliğe ayrı erişim verilemez."
   },
   "formula": {
     "title": "Formül",
@@ -624,5 +626,43 @@
     "create": "Toplama ekle",
     "back": "Geri",
     "summary": "{relation} içindeki {property}: {function}"
+  },
+  "propertyAccess": {
+    "menuItem": "Özellik erişimi",
+    "unavailable": "İlişkiler ve Leafdesk’in kendisinin doldurduğu özellikler için ayrı erişim ayarlanamaz.",
+    "title": "Özellik erişimi",
+    "loading": "Yükleniyor…",
+    "general": "Genel erişim",
+    "everyone": "Bu veritabanına erişimi olan herkes",
+    "inheritHint": "Kısıtlama yok: herkes, veritabanındaki erişiminin izin verdiği kadarını alır.",
+    "exceptions": "İstisnalar",
+    "exceptionsHint": "Bazı kişilere, gruplara ya da bir satırda adı geçen kişilere herkesten daha fazla erişim verin.",
+    "exceptionsNeedGeneral": "Önce bir genel erişim düzeyi seçin: istisnalar bu düzeyi yalnızca bazı kişiler için yükseltir.",
+    "addException": "Kişi, grup veya kişi özelliği ekle",
+    "noMatches": "Eşleşme yok",
+    "personDetail": "Bu özellikte adı geçen kişiler, kendi satırlarında",
+    "groupMembers": "{count, plural, one {# üye} other {# üye}}",
+    "noEffect": "Herkes zaten bu erişime sahip",
+    "levelFor": "{name} için erişim",
+    "removeException": "Kaldır: {name}",
+    "note": "Birine birden fazla kural uyduğunda en geniş olanı geçerli olur. Veritabanında tam erişimi olanlar her zaman tam erişimi korur ve kimse veritabanındaki erişiminden fazlasını alamaz.",
+    "hiddenValue": "Bu değere erişiminiz yok",
+    "levels": {
+      "inherit": "Veritabanından devral",
+      "edit": "Özelliği ve değerleri düzenleyebilir",
+      "edit_values": "Yalnızca değerleri düzenleyebilir",
+      "view": "Özelliği ve değerleri görüntüleyebilir",
+      "view_property": "Yalnızca özelliği görüntüleyebilir",
+      "none": "Erişim yok"
+    },
+    "lock": {
+      "none": "Bu özelliğe erişiminiz yok",
+      "view_property": "Bu özelliği görebilirsiniz ama değerlerini göremezsiniz",
+      "view": "Bu özelliği görüntüleyebilirsiniz",
+      "edit_values": "Bu özelliğin değerlerini düzenleyebilirsiniz",
+      "edit": "Bu özelliği düzenleyebilirsiniz",
+      "perRow": "Adınızın geçmediği satırlarda erişiminiz daha azdır.",
+      "full": "Bu özelliğin erişimi kısıtlı. Sizin tam erişiminiz var."
+    }
   }
 }

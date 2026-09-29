@@ -1,5 +1,7 @@
 import type { FormConfig, PropertyOptions, PropertyType } from "@/db/schema/app";
 import { normalizeValue, PropertyValueError, type DatabaseErrorCode } from "./properties";
+import { atLeast } from "./property-access";
+import type { PropertyAccess } from "./property-access-rows";
 
 /**
  * Form views (pure, client-safe): which questions a form asks, checking its settings, and
@@ -103,6 +105,22 @@ export function formQuestions<P extends PropertyDef>(
     });
   }
   return out;
+}
+
+/**
+ * The properties a form may ask about and set defaults for, when it writes with the standing of
+ * someone with `access` to the database (property access, see lib/property-access): those whose
+ * values they may change (`edit_values` and up) in a new row created by `createdBy`. Questions
+ * and defaults for the others are left out, not refused: the form still takes answers.
+ */
+export function writableProperties<P extends { id: string }>(
+  access: Pick<PropertyAccess, "open" | "levelOf" | "visible">,
+  properties: P[],
+  createdBy: string | null,
+): P[] {
+  if (access.open) return properties;
+  const row = { properties: {}, createdBy };
+  return access.visible(properties).filter((p) => atLeast(access.levelOf(p.id, row), "edit_values"));
 }
 
 /** A new form asks for the name (required) and every property it can ask for. */

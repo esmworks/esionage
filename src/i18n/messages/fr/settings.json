@@ -765,6 +765,9 @@
         "unpublished": "A dépublié {target}",
         "publication_revoked": "A retiré {target} du Web (publiée par {subject})"
       },
+      "property": {
+        "access_changed": "A modifié l’accès à « {property} » dans {target}"
+      },
       "access_request": {
         "approved": "A approuvé la demande d’accès de {subject} à {target} : {level}",
         "declined": "A refusé la demande d’accès de {subject} à {target}"

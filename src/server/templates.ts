@@ -109,7 +109,9 @@ export type SavedTemplate = {
  * Saves a copy of a page, with its subpages, as a template: a row of a database becomes one of
  * that database's row templates, any other page (or database) a workspace template. The page
  * itself stays as it is. The template keeps the page's own permission entries, so it is never
- * visible to more people than the page, and starts without its comments.
+ * visible to more people than the page, and starts without its comments. It carries only what
+ * the user's property access lets them copy (server/duplicate copiedAccess): a row template keeps
+ * the values they may set in their own rows, databases in the page what they may view.
  */
 export async function saveAsTemplate(actor: WriteActor, pageId: string): Promise<SavedTemplate> {
   const { userId } = actor;
@@ -220,9 +222,13 @@ export async function createFromTemplate(
   const collab = getCollab();
   if (parentKind === "database") {
     // Values given now go over the template's; then the row is announced like any new row.
+    // Property access: the template's values for properties the user may not change in a row
+    // they add were already left out by the copy (server/duplicate copiedAccess), so the template
+    // still applies, without writing around the rules and without refusing it whole. Values given
+    // here are the user's own and are checked like any others: a restricted one is refused.
     let values = root.properties;
     if (input.properties && Object.keys(input.properties).length) {
-      const normalized = await normalizeRowProperties(userId, parentId!, input.properties, values);
+      const normalized = await normalizeRowProperties(userId, parentId!, input.properties, values, { createdBy: userId });
       values = { ...values };
       for (const [id, value] of Object.entries(normalized)) {
         if (value === null) delete values[id];

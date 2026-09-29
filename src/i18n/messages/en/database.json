@@ -517,7 +517,9 @@
     "unsupportedViewType": "Unsupported view type “{type}”.",
     "invalidRollup": "The rollup “{property}” can’t be saved: {message}",
     "isTemplate": "Templates can’t be moved or put in the trash. Delete them from the template list instead.",
-    "notATemplate": "This page is not a template of this workspace or database."
+    "notATemplate": "This page is not a template of this workspace or database.",
+    "propertyRestricted": "You don’t have access to change “{property}”.",
+    "cannotRestrict": "This property can’t have its own access."
   },
   "formula": {
     "title": "Formula",
@@ -624,5 +626,43 @@
     "create": "Add rollup",
     "back": "Back",
     "summary": "{function} of {property} in {relation}"
+  },
+  "propertyAccess": {
+    "menuItem": "Property access",
+    "unavailable": "Relations and properties Leafdesk fills in can’t have their own access.",
+    "title": "Property access",
+    "loading": "Loading…",
+    "general": "General access",
+    "everyone": "Everyone with access to this database",
+    "inheritHint": "No restriction: each person gets what their access to the database allows.",
+    "exceptions": "Exceptions",
+    "exceptionsHint": "Give some people, groups or the people a row names more access than everyone else.",
+    "exceptionsNeedGeneral": "Choose a general access level first: exceptions only raise it for some people.",
+    "addException": "Add people, groups or person properties",
+    "noMatches": "No matches",
+    "personDetail": "People named in this property, in their own rows",
+    "groupMembers": "{count, plural, one {# member} other {# members}}",
+    "noEffect": "Everyone already has this access",
+    "levelFor": "Access for {name}",
+    "removeException": "Remove {name}",
+    "note": "When several entries apply to someone, the widest one wins. People with full access to the database always keep full access, and nobody gets more than their access to the database allows.",
+    "hiddenValue": "You don’t have access to this value",
+    "levels": {
+      "inherit": "Inherit from database",
+      "edit": "Can edit property & values",
+      "edit_values": "Can edit values only",
+      "view": "Can view property & values",
+      "view_property": "Can view property only",
+      "none": "No access"
+    },
+    "lock": {
+      "none": "You don’t have access to this property",
+      "view_property": "You can see this property but not its values",
+      "view": "You can view this property",
+      "edit_values": "You can edit this property’s values",
+      "edit": "You can edit this property",
+      "perRow": "In rows that don’t name you, you have less access.",
+      "full": "Access to this property is restricted. You have full access."
+    }
   }
 }

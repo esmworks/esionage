@@ -37,6 +37,7 @@ import {
   UPDATED_KEY,
 } from "@/lib/properties";
 import { derivedType, formulaForEditing, rollupFormat, TITLE_FIELD, valueType } from "@/lib/derived";
+import { formulaReferences, type PropertyLevel } from "@/lib/property-access";
 import { holdsOptions, holdsPeople, holdsTimestamp, isDerived, isReadOnlyType, PERSON_ME, STATUS_GROUPS } from "@/lib/property-types";
 
 export type PropertyDef = { id: string; name: string; type: PropertyType; options: PropertyOptions };
@@ -493,19 +494,79 @@ function describeGrouping(prop: PropertyDef | undefined, config: ViewConfig) {
   };
 }
 
+/** The caller's level on a restricted property (see server/property-access PropertyAccessInfo). */
+export type PropertyAccessNote = { level: PropertyLevel; perRow: boolean };
+
 /**
- * A property for get_database and friends. `props` (the database's properties) name the
- * properties a formula uses.
+ * How a restricted property's access reads in tool output: the caller's level, and whether rows
+ * decide it (a person property exception: the level is the most any row gives).
  */
-export function describeProperty(prop: PropertyDef, lookups: Lookups = NO_LOOKUPS, props: PropertyDef[] = [prop]) {
+export function describeAccess(info: PropertyAccessNote | undefined) {
+  if (!info) return {};
+  return { access: info.level, ...(info.perRow ? { access_per_row: true } : {}) };
+}
+
+/**
+ * The properties whose values a row leaves out (the caller may not see them there) and those it
+ * shows read-only, by name, for row output. Empty lists are left out.
+ */
+export function describeRowAccess(props: PropertyDef[], row: { hidden?: string[]; readOnly?: string[] }) {
+  const names = (ids: string[] | undefined) => (ids ?? []).flatMap((id) => props.find((p) => p.id === id)?.name ?? []);
+  const hidden = names(row.hidden);
+  const readOnly = names(row.readOnly);
+  return {
+    ...(hidden.length ? { hidden_properties: hidden } : {}),
+    ...(readOnly.length ? { read_only_properties: readOnly } : {}),
+  };
+}
+
+/** A property's access settings (server/property-access PropertyAccessSettings) for tool output. */
+export type AccessSettingsInput = {
+  everyone: PropertyLevel | "inherit";
+  exceptions: (
+    | { kind: "user"; id: string; name: string; email: string | null; level: PropertyLevel }
+    | { kind: "group"; id: string; name: string; level: PropertyLevel }
+    | { kind: "person"; id: string; name: string; level: PropertyLevel }
+  )[];
+};
+
+export function describeAccessSettings(settings: AccessSettingsInput) {
+  return {
+    everyone: settings.everyone,
+    exceptions: settings.exceptions.map((e) =>
+      e.kind === "user"
+        ? { user_id: e.id, name: e.name, ...(e.email ? { email: e.email } : {}), level: e.level }
+        : e.kind === "group"
+          ? { group_id: e.id, group: e.name, level: e.level }
+          : { person_property: e.name, level: e.level },
+    ),
+  };
+}
+
+/**
+ * A property for get_database and friends. `props` (the database's properties the caller may
+ * know of) name the properties a formula uses. `access`: the caller's level when the property is
+ * restricted. `restricted`: some properties are kept from the caller, so a formula that reads one
+ * of those (a property not in `props`) doesn't show its expression, which would name it by id.
+ */
+export function describeProperty(
+  prop: PropertyDef,
+  lookups: Lookups = NO_LOOKUPS,
+  props: PropertyDef[] = [prop],
+  { access, restricted = false }: { access?: PropertyAccessNote; restricted?: boolean } = {},
+) {
   const relation = prop.type === "relation" ? prop.options.relation : undefined;
   const target = lookups.relations[prop.id];
+  const expression = prop.options.formula?.expression ?? "";
+  const known = new Set(props.map((p) => p.id));
+  const readsUnknown = restricted && prop.type === "formula" && formulaReferences(expression).some((r) => r !== TITLE_FIELD && !known.has(r));
   return {
     id: prop.id,
     name: prop.name,
     type: prop.type,
+    ...describeAccess(access),
     ...(prop.type === "formula"
-      ? { formula: formulaForEditing(prop.options.formula?.expression ?? "", props), result_type: derivedType(prop) }
+      ? { formula: readsUnknown ? null : formulaForEditing(expression, props), result_type: derivedType(prop) }
       : {}),
     ...(prop.type === "rollup" ? { rollup: describeRollup(prop, lookups, props) } : {}),
     ...(holdsOptions(prop.type) ? { options: (prop.options.options ?? []).map((o) => o.name) } : {}),

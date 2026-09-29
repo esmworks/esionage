@@ -88,6 +88,7 @@ Mentions: a link to a page of this app (\`[Roadmap](/w/<workspace_id>/p/<page_id
 People discuss pages in comment threads anchored to text of the page: list_comments reads them, add_comment starts a thread on quoted text or replies to one.
 list_notifications shows the user's inbox: rows someone assigned them to, pages shared with them, new comments in their threads, mentions of them, reminders they set on dates, requests for access to pages they can share and, for owners, requests to join their workspaces.
 attach_file adds an image, video, audio or other file to a page, from a URL or base64 data, or (with property) to a row's files property. Files in page bodies show up in the Markdown with paths like /api/files/<id>.
+Some database properties are restricted: get_database shows the user's access on each ("none" properties aren't shown at all; "view_property": the property shows, its values don't; "view": values are read-only; "edit_values": values can be changed but not the property itself). Rows list the properties whose values are kept from the user under hidden_properties (they aren't empty, just not shown) and read-only ones under read_only_properties. People with full access to a database change who may see and edit a property with set_property_access.
 Templates are starting points for new pages and rows: list_templates lists a workspace's page templates (and the built-in gallery) or a database's row templates; create_page and create_database_row take a template_id. A database's default row template is used by create_database_row when no properties or body are given. Templates don't show up in search or list_pages.
 Always share the returned url with the user when you create or change something.`;
 
@@ -909,9 +910,11 @@ export function createMcpServer(principal: McpPrincipal) {
         let filesProp: PropertyDef | null = null;
         if (property !== undefined) {
           if (!parentDatabase) throw new ToolInputError("property only applies to database rows; this page is not one.");
-          const { properties } = await databases.getDatabase(userId, parentDatabase.id);
+          const { properties, access } = await databases.getDatabase(userId, parentDatabase.id);
           const prop = requireProperty(properties, property);
           if (prop.type !== "files") throw new ToolInputError(`"${prop.name}" is a ${prop.type} property, not a files property.`);
+          // Before uploading, so a refused change leaves no upload behind.
+          access.requireValues(page, [prop.id]);
           filesProp = prop;
         }
         let stored: files.StoredFile;
@@ -990,7 +993,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Get a database schema",
       description:
-        "Get a database's schema: its properties (name, type, option names for select / multi_select / status with the status groups, and the people a person property can hold), its views with their type, settings (grouping, dates, timeline zoom, gallery cards, form questions and public link), filters and sorts, and the row count. Call this before querying or writing rows.",
+        "Get a database's schema: its properties (name, type, option names for select / multi_select / status with the status groups, and the people a person property can hold), its views with their type, settings (grouping, dates, timeline zoom, gallery cards, form questions and public link), filters and sorts, and the row count. A restricted property says what the user may do with it in access (view_property: its values are hidden; view: read-only; edit_values: values only, not the property itself; access_per_row: rows naming the user in a person property may give more); for users with full access it also has access_settings (see set_property_access). Call this before querying or writing rows.",
       inputSchema: ops.inputs.databaseId,
       annotations: READ,
     },
@@ -1002,7 +1005,7 @@ export function createMcpServer(principal: McpPrincipal) {
     {
       title: "Query database rows",
       description:
-        'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select / status option names as values; by default all filters must match, filter_combinator "or" lets any match, and groups ({type: "group", combinator, rules}) mix the two, e.g. Status is Done and (Assignee contains me or Priority is High). Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt, is_within. For a relation use contains / not_equals with a related row id or title; for a person, created_by or last_edited_by, contains / not_equals with a user id, email, name or "me". For dates, created_time and last_edited_time, equals (that day), gt (after) and lt (before) take a YYYY-MM-DD date, and is_within takes today, this_week (Monday to Sunday), this_month, or past_n_days / next_n_days with "days" (both include today), counted from the current date on the server. Checklists and files only support is_empty / is_not_empty. Sorting by a person orders rows by name, a status by its groups, a checklist by the share of ticked items, files by how many there are. Returns property values by name; relations as [{id, title}], people as [{id, name}], checklists as [{text, checked}], files as [{name, url}].',
+        'List rows of a database with optional filters and sorts. Filters reference properties by name (or "title", "created_at", "updated_at") and use select / status option names as values; by default all filters must match, filter_combinator "or" lets any match, and groups ({type: "group", combinator, rules}) mix the two, e.g. Status is Done and (Assignee contains me or Priority is High). Ops: contains, equals, not_equals, is_empty, is_not_empty, gt, lt, is_within. For a relation use contains / not_equals with a related row id or title; for a person, created_by or last_edited_by, contains / not_equals with a user id, email, name or "me". For dates, created_time and last_edited_time, equals (that day), gt (after) and lt (before) take a YYYY-MM-DD date, and is_within takes today, this_week (Monday to Sunday), this_month, or past_n_days / next_n_days with "days" (both include today), counted from the current date on the server. Checklists and files only support is_empty / is_not_empty. Sorting by a person orders rows by name, a status by its groups, a checklist by the share of ticked items, files by how many there are. Returns property values by name; relations as [{id, title}], people as [{id, name}], checklists as [{text, checked}], files as [{name, url}]. Values the user may not see are left out of each row and named in its hidden_properties; properties whose values the user cannot see in any row cannot be filtered or sorted by.',
       inputSchema: ops.inputs.queryDatabase,
       annotations: READ,
     },
@@ -1138,7 +1141,7 @@ export function createMcpServer(principal: McpPrincipal) {
         if (type !== "formula" && formula !== undefined) throw new ToolInputError("formula only applies to formula properties.");
         if (type === "rollup" && !rollup) throw new ToolInputError("A rollup property needs rollup: {relation, property, function}.");
         if (type !== "rollup" && rollup !== undefined) throw new ToolInputError("rollup only applies to rollup properties.");
-        const { properties } = await databases.getDatabase(userId, database_id);
+        const { properties, access } = await databases.getDatabase(userId, database_id);
         const needle = name.trim().toLowerCase();
         if (needle === "title" || properties.some((p) => p.name.trim().toLowerCase() === needle)) {
           throw new ToolInputError(`A property named "${name}" already exists in this database.`);
@@ -1160,7 +1163,7 @@ export function createMcpServer(principal: McpPrincipal) {
         const after = withFormulaTypes([...properties, created]);
         const shown = after[after.length - 1];
         const lookups = await databases.getLookups(userId, [shown, ...rollupRelations(shown, after)]);
-        return { database_id, property: describeProperty(shown, lookups, after) };
+        return { database_id, property: describeProperty(shown, lookups, after, { restricted: !access.open }) };
       }),
   );
 
@@ -1200,7 +1203,7 @@ export function createMcpServer(principal: McpPrincipal) {
     ({ database_id, property, name, add_options, rename_options, remove_options, option_groups, formula, rollup }) =>
       runTool(async () => {
         assertWrite();
-        const { properties } = await databases.getDatabase(userId, database_id);
+        const { properties, access, propertyAccess } = await databases.getDatabase(userId, database_id);
         const prop = requireProperty(properties, property);
         const patch: {
           name?: string;
@@ -1270,7 +1273,10 @@ export function createMcpServer(principal: McpPrincipal) {
         );
         const updated = after.find((p) => p.id === prop.id)!;
         const lookups = await databases.getLookups(userId, [updated, ...rollupRelations(updated, after)]);
-        return { database_id, property: describeProperty(updated, lookups, after) };
+        return {
+          database_id,
+          property: describeProperty(updated, lookups, after, { access: propertyAccess?.[updated.id], restricted: !access.open }),
+        };
       }),
   );
 
@@ -1295,6 +1301,19 @@ export function createMcpServer(principal: McpPrincipal) {
         await databases.deleteProperty(userId, prop.id);
         return { database_id, deleted: { id: prop.id, name: prop.name, type: prop.type } };
       }),
+  );
+
+  server.registerTool(
+    "set_property_access",
+    {
+      title: "Set who may see and edit a database property",
+      description:
+        'Restrict a database property (column), like "Database property access" in Notion: everyone gets one level, exceptions give chosen people, member groups, or the people a person property of each row names a higher one. Levels, weakest first: none (the property doesn\'t show at all), view_property (it shows, its values don\'t), view (values read-only), edit_values (values can be changed, the property itself can\'t), edit (everything). Nobody gets more than their access to the database allows, and people with full access to the database always see and edit everything. everyone "inherit" removes the restriction. Replaces the property\'s current settings; needs full access to the database. Relations and the properties Leafdesk fills in (created_by, created_time, last_edited_by, last_edited_time, formula, rollup) can\'t be restricted; a formula over a property someone can\'t see shows them nothing.',
+      inputSchema: ops.inputs.setPropertyAccess,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+      scopeChallenge: requireWrite,
+    },
+    write((args) => ops.setPropertyAccess(ctx, args)),
   );
 
   server.registerTool(
@@ -1332,7 +1351,7 @@ export function createMcpServer(principal: McpPrincipal) {
     ({ database_id, name, type, filters, filter_combinator, sorts, ...input }) =>
       runTool(async () => {
         assertWrite();
-        const { database, properties } = await databases.getDatabase(userId, database_id);
+        const { database, properties, access } = await databases.getDatabase(userId, database_id);
         if (database.archivedAt) throw new ToolInputError("This database is in the trash.");
         const lookups = await databases.getLookups(userId, properties);
         const { questions, form_title, form_description, confirmation_message, allow_another, defaults, ...settings } = input;
@@ -1343,8 +1362,10 @@ export function createMcpServer(principal: McpPrincipal) {
         const patch = viewConfigPatch(properties, type, { ...layout, filters, filter_combinator, sorts }, lookups);
         formConfigPatch(properties, type, {}, { ...formInput, ...linkInput });
         const created = await databases.addView(userId, database_id, { name, type });
-        let config = { ...created.config, ...patch, ...formConfigPatch(properties, type, created.config, formInput) };
-        if (Object.keys(patch).length || config.form !== created.config.form) {
+        // A new view's defaults may name properties the user can't know of; they stay stored as they are.
+        const start = access.viewConfig(created.config);
+        let config = { ...start, ...patch, ...formConfigPatch(properties, type, start, formInput) };
+        if (Object.keys(patch).length || config.form !== start.form) {
           // Stored form defaults hold ids where the caller gave names.
           config = (await databases.updateView(userId, created.id, { config }))?.config ?? config;
         }

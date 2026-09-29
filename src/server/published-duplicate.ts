@@ -8,7 +8,7 @@ import { databaseProperty, databaseView, file, page, type PageKind, type RowProp
 import { blocksToPlainText } from "@/lib/blocks";
 import { COLLAB_FRAGMENT } from "@/lib/collab-constants";
 import { writeDocTitle } from "@/lib/collab-title";
-import { dropPropertyReferences, planDuplicate, type SourcePage } from "@/lib/duplicate";
+import { copyAccess, dropPropertyReferences, planDuplicate, redactCopy, type CopyAccess, type SourcePage } from "@/lib/duplicate";
 import { fileIdsIn, fileIdsInProperties } from "@/lib/files";
 import { UNPUBLISHED_PROPERTY_TYPES } from "@/lib/property-types";
 import { copyPublishedBlocks, mentionedPageIds, remapFilePaths } from "@/lib/published-copy";
@@ -21,7 +21,7 @@ import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { workspaceFiles, workspaceUsage } from "@/server/files";
 import { publishedPageRefs, syncPageReferences } from "@/server/mentions";
 import { makePagePrivate } from "@/server/permissions";
-import { chainTo, readableViews, webViews } from "@/server/publication";
+import { chainTo, readableViews, readerAccess, webViews } from "@/server/publication";
 import { servedPublication } from "@/server/site";
 import { getStorage, uploadLimits } from "@/server/storage";
 import { topLevelAccess } from "@/server/workspaces";
@@ -32,7 +32,7 @@ import { topLevelAccess } from "@/server/workspaces";
  *
  * Only what the publication shows is copied: the page and the live subpages and rows its publisher
  * can see, outside templates; databases with their public properties (no relations, rollups or
- * people) and the views on the web. Bodies are rebuilt from their blocks (lib/published-copy.ts),
+ * people, nor what property access keeps from anonymous visitors) and the views on the web. Bodies are rebuilt from their blocks (lib/published-copy.ts),
  * so no edit history, comments, people's ids or reminders come along. Uploaded files the pages show
  * are copied into the new workspace, within its storage quota. Nothing is written until everything
  * is ready, and then in one transaction.
@@ -134,21 +134,36 @@ export async function duplicatePublishedPage(
   const properties = allProperties.filter((p) => !UNPUBLISHED_PROPERTY_TYPES.has(p.type));
   const dropped = new Set(allProperties.filter((p) => UNPUBLISHED_PROPERTY_TYPES.has(p.type)).map((p) => p.id));
   const views = (await Promise.all(databaseIds.map(async (id) => webViews(await readableViews(id))))).flat();
+  // Property access: the copy holds what anonymous visitors see (publication readerAccess), not
+  // what the publisher or the person copying may: no property whose level for everyone is `none`
+  // and no value of one below `view`. No rules come along: the copy lands in another workspace.
+  const carried = new Map<string, CopyAccess>();
+  for (const id of databaseIds) {
+    const own = allProperties.filter((p) => p.databaseId === id);
+    const { access, gone } = await readerAccess(null, id, own);
+    const kept = copyAccess(access, own, { gone });
+    if (kept) carried.set(id, kept);
+  }
 
   const [top] = await db
     .select({ max: sql<number | null>`max(${page.position})` })
     .from(page)
     .where(and(eq(page.workspaceId, target), isNull(page.parentId)));
-  const plan = planDuplicate({
-    rootId: root.id,
-    pages: rows.map(
-      (r): SourcePage => ({ id: r.id, parentId: r.parent_id, kind: r.kind, title: r.title, position: Number(r.position), properties: r.properties }),
+  const plan = planDuplicate(
+    redactCopy(
+      {
+        rootId: root.id,
+        pages: rows.map(
+          (r): SourcePage => ({ id: r.id, parentId: r.parent_id, kind: r.kind, title: r.title, position: Number(r.position), properties: r.properties }),
+        ),
+        properties,
+        views: views.map((v) => ({ ...v, config: dropPropertyReferences(v.config, (id) => dropped.has(id)) })),
+        rootTitle: root.title,
+        rootPosition: (Number(top?.max) || 0) + 1,
+      },
+      carried,
     ),
-    properties,
-    views: views.map((v) => ({ ...v, config: dropPropertyReferences(v.config, (id) => dropped.has(id)) })),
-    rootTitle: root.title,
-    rootPosition: (Number(top?.max) || 0) + 1,
-  });
+  );
   const keptProperties = new Set(plan.properties.map((p) => p.id));
   const copiedDatabases = new Set(plan.pages.filter((p) => p.kind === "database").map((p) => p.id));
   const sources = new Map(rows.map((r) => [r.id, r]));

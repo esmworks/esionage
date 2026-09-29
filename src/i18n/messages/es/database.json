@@ -517,7 +517,9 @@
     "unsupportedViewType": "Tipo de vista no admitido: “{type}”.",
     "invalidRollup": "La agregación “{property}” no se puede guardar: {message}",
     "isTemplate": "Las plantillas no se pueden mover ni enviar a la papelera. Elimínalas desde la lista de plantillas.",
-    "notATemplate": "Esta página no es una plantilla de este espacio de trabajo ni de esta base de datos."
+    "notATemplate": "Esta página no es una plantilla de este espacio de trabajo ni de esta base de datos.",
+    "propertyRestricted": "No tienes permiso para cambiar «{property}».",
+    "cannotRestrict": "Esta propiedad no puede tener su propio acceso."
   },
   "formula": {
     "title": "Fórmula",
@@ -624,5 +626,43 @@
     "create": "Añadir agregación",
     "back": "Atrás",
     "summary": "{function} de {property} en {relation}"
+  },
+  "propertyAccess": {
+    "menuItem": "Acceso a la propiedad",
+    "unavailable": "Las relaciones y las propiedades que rellena Leafdesk no pueden tener su propio acceso.",
+    "title": "Acceso a la propiedad",
+    "loading": "Cargando…",
+    "general": "Acceso general",
+    "everyone": "Todas las personas con acceso a esta base de datos",
+    "inheritHint": "Sin restricción: cada persona obtiene lo que permite su acceso a la base de datos.",
+    "exceptions": "Excepciones",
+    "exceptionsHint": "Da a algunas personas, grupos o a las personas nombradas en una fila más acceso que al resto.",
+    "exceptionsNeedGeneral": "Elige primero un acceso general: las excepciones solo lo amplían para algunas personas.",
+    "addException": "Añadir personas, grupos o propiedades de persona",
+    "noMatches": "Sin resultados",
+    "personDetail": "Las personas nombradas en esta propiedad, en sus propias filas",
+    "groupMembers": "{count, plural, one {# miembro} other {# miembros}}",
+    "noEffect": "Todos ya tienen este acceso",
+    "levelFor": "Acceso para {name}",
+    "removeException": "Quitar a {name}",
+    "note": "Cuando varias entradas se aplican a alguien, gana la más amplia. Quien tiene acceso completo a la base de datos siempre lo conserva, y nadie obtiene más de lo que permite su acceso a la base de datos.",
+    "hiddenValue": "No tienes acceso a este valor",
+    "levels": {
+      "inherit": "Heredar de la base de datos",
+      "edit": "Puede editar la propiedad y los valores",
+      "edit_values": "Solo puede editar los valores",
+      "view": "Puede ver la propiedad y los valores",
+      "view_property": "Solo puede ver la propiedad",
+      "none": "Sin acceso"
+    },
+    "lock": {
+      "none": "No tienes acceso a esta propiedad",
+      "view_property": "Ves esta propiedad, pero no sus valores",
+      "view": "Puedes ver esta propiedad",
+      "edit_values": "Puedes editar los valores de esta propiedad",
+      "edit": "Puedes editar esta propiedad",
+      "perRow": "En las filas que no te nombran, tienes menos acceso.",
+      "full": "El acceso a esta propiedad está restringido. Tienes acceso completo."
+    }
   }
 }

@@ -765,6 +765,9 @@
         "unpublished": "Yayından kaldırıldı: {target}",
         "publication_revoked": "Web’den kaldırıldı: {target} (yayınlayan: {subject})"
       },
+      "property": {
+        "access_changed": "{target} içindeki “{property}” özelliğinin erişimi değiştirildi"
+      },
       "access_request": {
         "approved": "Erişim isteği onaylandı: {subject}, {target} sayfası için: {level}",
         "declined": "Erişim isteği reddedildi: {subject}, {target} sayfası için"

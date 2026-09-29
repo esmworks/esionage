@@ -20,7 +20,13 @@ export const AUDIT_CATEGORIES = {
     "join_request.approved",
     "join_request.declined",
   ],
-  sharing: ["page.permission_changed", "page.permission_removed", "access_request.approved", "access_request.declined"],
+  sharing: [
+    "page.permission_changed",
+    "page.permission_removed",
+    "access_request.approved",
+    "access_request.declined",
+    "property.access_changed",
+  ],
   teamspaces: [
     "teamspace.created",
     "teamspace.updated",
@@ -323,6 +329,7 @@ export function describeAuditEvent(event: Pick<AuditEvent, "action" | "targetLab
     protocol: text(d.protocol).toUpperCase(),
     domains: list(d.domains).join(", "),
     slug: text(d.slug),
+    property: text(d.property),
   };
   switch (event.action) {
     case "member.role_changed":
