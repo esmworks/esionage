@@ -121,6 +121,8 @@
     "wrongPassword": "Mot de passe incorrect.",
     "invalidCode": "Ce code n’a pas fonctionné. Vérifiez-le et réessayez.",
     "signInAgain": "Pour confirmer votre identité, déconnectez-vous puis reconnectez-vous, et réessayez dans les 10 minutes.",
+    "signInRequired": "Connectez-vous d'abord",
+    "crossSiteUpload": "Les envois depuis un autre site ne sont pas autorisés",
     "rateLimited": "Trop de tentatives. Patientez quelques minutes et réessayez.",
     "nameRequired": "Saisissez un nom.",
     "nameTooLong": "Utilisez 80 caractères au maximum.",

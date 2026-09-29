@@ -121,6 +121,8 @@
     "wrongPassword": "Falsches Passwort.",
     "invalidCode": "Dieser Code hat nicht funktioniert. Prüfe ihn und versuch es noch einmal.",
     "signInAgain": "Um zu bestätigen, dass du es bist, melde dich ab und wieder an und versuch es dann innerhalb von 10 Minuten.",
+    "signInRequired": "Zuerst anmelden",
+    "crossSiteUpload": "Websiteübergreifende Uploads sind nicht erlaubt",
     "rateLimited": "Zu viele Versuche. Warte ein paar Minuten und versuch es dann noch einmal.",
     "nameRequired": "Gib einen Namen ein.",
     "nameTooLong": "Verwende höchstens 80 Zeichen.",

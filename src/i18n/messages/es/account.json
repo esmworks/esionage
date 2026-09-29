@@ -121,6 +121,8 @@
     "wrongPassword": "Contraseña incorrecta.",
     "invalidCode": "Ese código no ha funcionado. Revísalo y vuelve a intentarlo.",
     "signInAgain": "Para confirmar que eres tú, cierra sesión y vuelve a iniciarla; después inténtalo en menos de 10 minutos.",
+    "signInRequired": "Inicia sesión primero",
+    "crossSiteUpload": "No se permiten subidas desde otros sitios",
     "rateLimited": "Demasiados intentos. Espera unos minutos y vuelve a intentarlo.",
     "nameRequired": "Escribe un nombre.",
     "nameTooLong": "Usa 80 caracteres como máximo.",

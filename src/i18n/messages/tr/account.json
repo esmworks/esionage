@@ -121,6 +121,8 @@
     "wrongPassword": "Şifre yanlış.",
     "invalidCode": "Bu kod işe yaramadı. Kontrol edip yeniden deneyin.",
     "signInAgain": "Siz olduğunuzu doğrulamak için çıkış yapıp yeniden giriş yapın, ardından 10 dakika içinde deneyin.",
+    "signInRequired": "Önce giriş yapın",
+    "crossSiteUpload": "Siteler arası yükleme yapılamaz",
     "rateLimited": "Çok fazla deneme. Birkaç dakika bekleyip yeniden deneyin.",
     "nameRequired": "Bir ad girin.",
     "nameTooLong": "En fazla 80 karakter kullanın.",

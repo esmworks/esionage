@@ -121,6 +121,8 @@
     "wrongPassword": "Wrong password.",
     "invalidCode": "That code didn't work. Check it and try again.",
     "signInAgain": "To confirm it's you, sign out and sign in again, then try within 10 minutes.",
+    "signInRequired": "Sign in first",
+    "crossSiteUpload": "Cross-site uploads aren't allowed",
     "rateLimited": "Too many attempts. Wait a few minutes and try again.",
     "nameRequired": "Enter a name.",
     "nameTooLong": "Use at most 80 characters.",

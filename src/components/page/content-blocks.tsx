@@ -107,7 +107,7 @@ const MathBlock = createReactBlockSpec(mathBlockConfig, {
         contentRef={contentRef}
         source={source}
         preview={node ? <KatexView node={node} /> : undefined}
-        error={error}
+        error={error ? t("error") : undefined}
         emptySourcePlaceholder={<PreviewPlaceholder text={t("placeholder")} icon={<Sigma size={18} />} />}
         errorPreview={t("error")}
         sourcePlaceholder={t("sourcePlaceholder")}
@@ -131,7 +131,7 @@ const InlineMath = createReactInlineContentSpec(inlineMathConfig, {
         contentRef={contentRef}
         source={source}
         preview={rendered.node ? <KatexView node={rendered.node} inline /> : undefined}
-        error={rendered.error}
+        error={rendered.error ? t("error") : undefined}
         emptySourcePlaceholder={t("placeholder")}
         errorPreview={t("error")}
         sourcePlaceholder={t("sourcePlaceholder")}
@@ -163,7 +163,7 @@ const MermaidBlock = createReactBlockSpec(mermaidBlockConfig, {
         contentRef={contentRef}
         source={source}
         preview={preview}
-        error={error}
+        error={error ? t("error") : undefined}
         emptySourcePlaceholder={<PreviewPlaceholder text={t("placeholder")} icon={<Workflow size={18} />} />}
         errorPreview={t("error")}
         sourcePlaceholder={t("sourcePlaceholder")}
