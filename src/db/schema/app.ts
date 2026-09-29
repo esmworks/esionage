@@ -254,6 +254,14 @@ export type TeamspaceAccess = (typeof TEAMSPACE_ACCESS)[number];
 /** Teamspace owners change its settings and members; members add and edit its pages. */
 export type TeamspaceRole = "owner" | "member";
 
+/**
+ * What a teamspace's members get on its pages when a page says nothing else (the page's own
+ * "everyone" entry, or one it inherits, still decides). Its owners and the workspace's owners
+ * get full access that way whatever this says.
+ */
+export const TEAMSPACE_MEMBER_LEVELS = ["full", "edit", "comment", "view"] as const;
+export type TeamspaceMemberLevel = (typeof TEAMSPACE_MEMBER_LEVELS)[number];
+
 export const teamspace = pgTable(
   "teamspace",
   {
@@ -265,6 +273,7 @@ export const teamspace = pgTable(
     icon: text("icon"),
     description: text("description").notNull().default(""),
     access: text("access").$type<TeamspaceAccess>().notNull().default("open"),
+    memberLevel: text("member_level").$type<TeamspaceMemberLevel>().notNull().default("full"),
     /** Archived teamspaces leave the sidebar and take no new pages; their pages keep their access. */
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
@@ -275,6 +284,7 @@ export const teamspace = pgTable(
     unique("teamspace_id_workspace_key").on(t.id, t.workspaceId),
     index("teamspace_workspace_idx").on(t.workspaceId),
     check("teamspace_access_check", sql`${t.access} in ('default', 'open', 'closed', 'private')`),
+    check("teamspace_member_level_check", sql`${t.memberLevel} in ('full', 'edit', 'comment', 'view')`),
   ],
 );
 

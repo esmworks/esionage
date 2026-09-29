@@ -19,7 +19,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import type * as Y from "yjs";
 import {
@@ -34,6 +34,7 @@ import { cn, Dialog, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, P
 import { useZipExport } from "@/components/use-zip-export";
 import type { PageKind } from "@/db/schema/app";
 import { FAVORITES_EVENT } from "@/lib/favorites-event";
+import { OPEN_SHARE_EVENT } from "@/lib/share-event";
 import type { Presence } from "@/lib/presence";
 import { printPath } from "@/lib/print";
 import { relativeTime } from "@/lib/relative-time";
@@ -93,6 +94,18 @@ export function PageHeaderActions({
   const [info, setInfo] = useState(initialInfo);
   const offlineTitle = (label: string) => (offline ? tOffline("needsConnection", { action: label }) : label);
   useEffect(() => setInfo(initialInfo), [initialInfo]);
+  // The Share panel also opens from elsewhere: an event for this page, or `?share=1` in the URL.
+  const searchParams = useSearchParams();
+  const [shareOpen, setShareOpen] = useState(() => searchParams.get("share") === "1" && !page.archived);
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      if ((e as CustomEvent<{ pageId: string }>).detail?.pageId !== page.id || page.archived) return;
+      e.preventDefault();
+      setShareOpen(true);
+    };
+    window.addEventListener(OPEN_SHARE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_SHARE_EVENT, onOpen);
+  }, [page.id, page.archived]);
   const refresh = useCallback(() => {
     getPageHeaderAction(page.id).then(setInfo).catch(() => {});
   }, [page.id]);
@@ -139,6 +152,8 @@ export function PageHeaderActions({
       {!page.archived && (
         <Popover
           align="end"
+          open={shareOpen}
+          onOpenChange={setShareOpen}
           // On phones the button isn't at the screen edge, so pin the panel to the viewport instead.
           className="p-0 max-md:fixed max-md:inset-x-4 max-md:top-12"
           trigger={({ toggle }) => (

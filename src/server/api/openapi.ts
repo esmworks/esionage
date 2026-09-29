@@ -125,6 +125,11 @@ const SCHEMAS: Record<string, JsonSchema> = {
           icon: { type: ["string", "null"] },
           description: { type: "string" },
           access: { type: "string", enum: ["default", "open", "closed", "private"] },
+          member_access: {
+            type: "string",
+            enum: ["full", "edit", "comment", "view"],
+            description: "What members get on its pages where a page doesn't set it; its owners and workspace owners get full access.",
+          },
           archived: { type: "boolean" },
           member_count: { type: "integer" },
           owners: { type: "array", items: { type: "string" } },

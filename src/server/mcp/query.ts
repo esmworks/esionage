@@ -528,6 +528,8 @@ export type AccessSettingsInput = {
     | { kind: "group"; id: string; name: string; level: PropertyLevel }
     | { kind: "person"; id: string; name: string; level: PropertyLevel }
   )[];
+  /** Others with full access to the database, whom the rules don't hold. */
+  fullAccess?: { count: number; names: string[] };
 };
 
 export function describeAccessSettings(settings: AccessSettingsInput) {
@@ -540,6 +542,9 @@ export function describeAccessSettings(settings: AccessSettingsInput) {
           ? { group_id: e.id, group: e.name, level: e.level }
           : { person_property: e.name, level: e.level },
     ),
+    ...(settings.fullAccess?.count
+      ? { not_restricted: { people_with_full_access: settings.fullAccess.count, names: settings.fullAccess.names } }
+      : {}),
   };
 }
 

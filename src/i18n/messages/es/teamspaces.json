@@ -27,7 +27,8 @@
     "invalidAccess": "Elige quién puede ver el espacio de equipo.",
     "inGroup": "Esta persona está en el espacio de equipo a través de un grupo. Quítala del grupo en su lugar.",
     "everyoneIn": "Todos los miembros del espacio de trabajo ya están en este espacio de equipo.",
-    "accessDenied": "No puedes hacer eso en este espacio de equipo."
+    "accessDenied": "No puedes hacer eso en este espacio de equipo.",
+    "invalidMemberLevel": "Elige qué obtienen los miembros en las páginas del espacio de equipo."
   },
   "dialog": {
     "createTitle": "Nuevo espacio de equipo",
@@ -42,7 +43,10 @@
     "becomesDefault": "Todos los miembros del espacio de trabajo se unen a él y no pueden salir.",
     "leavesDefault": "Por ahora todos siguen en él, pero pueden salir, y los nuevos miembros del espacio de trabajo no se añaden.",
     "create": "Crear espacio de equipo",
-    "creating": "Creando…"
+    "creating": "Creando…",
+    "memberLevel": "Acceso de los miembros a sus páginas",
+    "memberLevelHint": "Lo que obtienen los miembros en las páginas que no lo fijan ellas mismas. Los propietarios del espacio de equipo y del espacio de trabajo siempre tienen acceso total; el uso compartido de una página sigue teniendo prioridad.",
+    "memberLevelLocked": "Solo los propietarios del espacio de trabajo pueden cambiar lo que obtienen todos en un espacio de equipo predeterminado."
   },
   "members": {
     "title": "Miembros de {name}",
@@ -68,5 +72,11 @@
     "addGroupButton": "Añadir grupo",
     "removeGroup": "Quitar {name}",
     "groupMemberCount": "{count, plural, =0 {Sin miembros} one {# miembro} other {# miembros}}"
+  },
+  "memberLevel": {
+    "full": "Acceso total",
+    "edit": "Puede editar",
+    "comment": "Puede comentar",
+    "view": "Puede ver"
   }
 }

@@ -349,6 +349,7 @@ export async function listTeamspaces(ctx: OperationContext, { workspace_id, incl
       icon: t.icon,
       description: t.description || undefined,
       access: t.access,
+      member_access: t.memberLevel,
       archived: Boolean(t.archivedAt),
       member_count: t.memberCount,
       owners: t.owners.map((o) => o.name),

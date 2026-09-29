@@ -149,6 +149,7 @@
     "inherited": "De {title}",
     "groupInherited": "Grupo, de {title}",
     "viaGeneral": "{level} (por el acceso general)",
+    "viaOwner": "{level} (como propietario)",
     "overridden": "El acceso general es mayor ({level}), así que esto no tiene efecto.",
     "remove": "Quitar",
     "generalAccess": "Acceso general",
@@ -184,7 +185,8 @@
       "invalidEmail": "Escribe una dirección de correo válida.",
       "invitesRestricted": "Este espacio de trabajo no permite compartir páginas con personas externas. Pregunta a un propietario.",
       "generic": "No se pudo actualizar el uso compartido."
-    }
+    },
+    "everyoneFromTeamspaceHint": "Lo fija el espacio de equipo. Sus propietarios y los del espacio de trabajo tienen acceso total. Elige aquí un nivel para fijarlo para esta página y sus subpáginas."
   },
   "noAccess": {
     "metaTitle": "Sin acceso",

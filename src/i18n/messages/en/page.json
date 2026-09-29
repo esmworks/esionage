@@ -149,6 +149,7 @@
     "inherited": "From {title}",
     "groupInherited": "Group, from {title}",
     "viaGeneral": "{level} (from general access)",
+    "viaOwner": "{level} (as an owner)",
     "overridden": "General access is higher ({level}), so this has no effect.",
     "remove": "Remove",
     "generalAccess": "General access",
@@ -184,7 +185,8 @@
       "invalidEmail": "Enter a valid email address.",
       "invitesRestricted": "This workspace doesn't let you share pages with people outside it. Ask an owner.",
       "generic": "Couldn't update sharing."
-    }
+    },
+    "everyoneFromTeamspaceHint": "Set by the teamspace. Its owners and workspace owners have full access. Choose a level here to set it for this page and its subpages."
   },
   "noAccess": {
     "metaTitle": "No access",

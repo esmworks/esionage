@@ -27,7 +27,8 @@
     "invalidAccess": "Wähle aus, wer den Teamspace sehen kann.",
     "inGroup": "Diese Person ist über eine Gruppe im Teamspace. Entferne sie stattdessen aus der Gruppe.",
     "everyoneIn": "Alle im Workspace sind bereits in diesem Teamspace.",
-    "accessDenied": "Das kannst du in diesem Teamspace nicht tun."
+    "accessDenied": "Das kannst du in diesem Teamspace nicht tun.",
+    "invalidMemberLevel": "Wählen Sie, was Mitglieder auf den Seiten des Teambereichs erhalten."
   },
   "dialog": {
     "createTitle": "Neuer Teamspace",
@@ -42,7 +43,10 @@
     "becomesDefault": "Alle im Workspace treten ihm bei und können ihn nicht verlassen.",
     "leavesDefault": "Alle bleiben vorerst darin, können ihn aber verlassen, und neue Workspace-Mitglieder werden nicht hinzugefügt.",
     "create": "Teamspace erstellen",
-    "creating": "Wird erstellt…"
+    "creating": "Wird erstellt…",
+    "memberLevel": "Zugriff der Mitglieder auf seine Seiten",
+    "memberLevelHint": "Was Mitglieder auf Seiten erhalten, die es nicht selbst festlegen. Eigentümer des Teambereichs und des Workspace haben immer Vollzugriff; die Freigabe einer Seite geht weiterhin vor.",
+    "memberLevelLocked": "Nur Workspace-Eigentümer können ändern, was alle in einem Standard-Teambereich erhalten."
   },
   "members": {
     "title": "Mitglieder von {name}",
@@ -68,5 +72,11 @@
     "addGroupButton": "Gruppe hinzufügen",
     "removeGroup": "{name} entfernen",
     "groupMemberCount": "{count, plural, =0 {Keine Mitglieder} one {# Mitglied} other {# Mitglieder}}"
+  },
+  "memberLevel": {
+    "full": "Vollzugriff",
+    "edit": "Kann bearbeiten",
+    "comment": "Kann kommentieren",
+    "view": "Kann ansehen"
   }
 }

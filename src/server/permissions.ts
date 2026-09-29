@@ -8,6 +8,7 @@ import {
   pageGroupPermission,
   pageInvitation,
   pagePermission,
+  teamspace,
   type PageLevel,
   user,
   workspaceInvitation,
@@ -69,7 +70,8 @@ export type GroupPermissionEntry = {
 /**
  * The entries that apply to a page: for each principal the one on the page itself or its nearest
  * ancestor. Entries for people who have left the workspace are left out, since they grant nothing.
- * `everyone` is what members get without a user entry; `full` when nothing restricts it.
+ * `everyone` is what members get without a user entry: the teamspace's member level (or nobody on a
+ * private page) when nothing on the page or above it sets it.
  */
 export async function listPagePermissions(userId: string, pageId: string) {
   const { page: target, level } = await resolvePageAccess(userId, pageId);
@@ -142,23 +144,27 @@ export async function listPagePermissions(userId: string, pageId: string) {
       inherited: r.page_id !== pageId,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
-  // "Everyone" means the teamspace's members for a teamspace's page (full unless restricted), and
-  // the whole workspace for a private page (nobody unless shared).
+  // "Everyone" means the teamspace's members for a teamspace's page (the teamspace's member level
+  // unless the page sets it), and the whole workspace for a private page (nobody unless shared).
   const space = target.teamspaceId ? await teamspaceLabel(userId, target.teamspaceId) : null;
-  const everyone = entries.find((e) => e.userId === null)?.level ?? (target.teamspaceId ? "full" : "none");
+  const reach = target.teamspaceId ? await teamspaceReach(target.teamspaceId) : null;
+  const own = entries.find((e) => e.userId === null)?.level;
+  const everyone = own ?? (reach ? (reach.memberLevel ?? "full") : "none");
   const manages = hasLevel(level, "full");
   // For those who manage it: the least each owner or member of the workspace gets from "everyone",
   // as page_access_level works it out. In the teamspace (or any of the workspace for a private
-  // page): all of it; an open teamspace's other members: up to comment; anyone else: nothing.
+  // page): all of it, full for the owners where the teamspace decides; an open teamspace's other
+  // members: up to comment; anyone else: nothing.
   const floors: Record<string, PageLevel> = {};
   if (manages) {
-    const reach = target.teamspaceId ? await teamspaceReach(target.teamspaceId) : null;
     const people = await db
       .select({ userId: workspaceMember.userId, role: workspaceMember.role })
       .from(workspaceMember)
       .where(eq(workspaceMember.workspaceId, target.workspaceId));
     for (const p of people) {
-      if (p.role !== "guest") floors[p.userId] = everyoneFloor(everyone, reach, p.userId);
+      if (p.role !== "guest") {
+        floors[p.userId] = everyoneFloor(everyone, reach, p.userId, { fromTeamspace: own === undefined, workspaceOwner: p.role === "owner" });
+      }
     }
   }
   // Only those who manage the page see whom it waits for.
@@ -172,6 +178,8 @@ export async function listPagePermissions(userId: string, pageId: string) {
   return {
     level,
     everyone,
+    /** Whether "everyone" is the teamspace's member level (no page entry sets it). */
+    everyoneFromTeamspace: reach !== null && own === undefined,
     /** Private pages are in no teamspace; a teamspace's name shows only to those who can see the teamspace. */
     space: target.teamspaceId ? { kind: "teamspace" as const, name: space?.name ?? null } : { kind: "private" as const },
     entries: entries.filter((e) => e.userId !== null),
@@ -453,6 +461,24 @@ export async function makePagePrivate(tx: Tx, workspaceId: string, pageId: strin
     { pageId, workspaceId, userId: null, level: "none", createdBy: userId },
     { pageId, workspaceId, userId, level: "full", createdBy: userId },
   ]);
+}
+
+/**
+ * Keeps full access for whoever puts a page at the top of a teamspace whose members get less (see
+ * TEAMSPACE_MEMBER_LEVELS): they made it, copied it or moved it there, and could otherwise neither
+ * share it nor set who may see its properties. Run in the transaction that places it; nothing is
+ * written when they have full access anyway (the teamspace's or the workspace's owners, say).
+ */
+export async function keepFullAccess(tx: Tx, workspaceId: string, pageId: string, userId: string) {
+  // Only where the teamspace lowered its members' level: elsewhere nothing changes.
+  const [row] = await tx.execute<{ level: number }>(sql`
+    select page_access_level(${userId}, p.id) as level
+    from page p join ${teamspace} t on t.id = p.teamspace_id
+    where p.id = ${pageId} and t.member_level <> 'full'
+  `);
+  if (!row || Number(row.level) >= FULL_RANK) return;
+  // An entry of their own (copied along with a page, say) stays as it is.
+  await tx.insert(pagePermission).values({ pageId, workspaceId, userId, level: "full", createdBy: userId }).onConflictDoNothing();
 }
 
 const lockPermissions = (tx: Tx, workspaceId: string) =>

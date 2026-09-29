@@ -104,7 +104,11 @@ versions, upgrades and running behind a domain.
   section for pages only you see. Settings → Teamspaces lists them with filters, their members and
   owners, the default teamspaces and whether members may create teamspaces. Moving a page to
   another teamspace, or to Private, gives it the access of its new place; people it was shared
-  with by name keep theirs. Guests are never in teamspaces: they get single pages.
+  with by name keep theirs. Guests are never in teamspaces: they get single pages. Each teamspace
+  sets what its members get on its pages (full access, can edit, can comment or can view) where a
+  page isn't shared otherwise; its owners and workspace owners get full access, and so does
+  whoever adds a page at its top. Below full access, members are held to the database property
+  access rules too.
 - **Sharing and permissions**: give people, or everyone in the page's teamspace (the workspace
   for a private page), full, edit, comment, view or no access to a page. Subpages inherit it
   unless you change them. Share a page with someone outside the workspace by email and they join

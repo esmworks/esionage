@@ -27,7 +27,8 @@
     "invalidAccess": "Teamspace'i kimlerin görebileceğini seçin.",
     "inGroup": "Bu kişi teamspace'te bir grup üzerinden bulunuyor. Bunun yerine onu gruptan çıkarın.",
     "everyoneIn": "Çalışma alanındaki herkes zaten bu teamspace'te.",
-    "accessDenied": "Bu teamspace'te bunu yapamazsınız."
+    "accessDenied": "Bu teamspace'te bunu yapamazsınız.",
+    "invalidMemberLevel": "Üyelerin teamspace sayfalarında ne alacağını seçin."
   },
   "dialog": {
     "createTitle": "Yeni teamspace",
@@ -42,7 +43,10 @@
     "becomesDefault": "Çalışma alanındaki herkes katılır ve ayrılamaz.",
     "leavesDefault": "Şimdilik herkes içinde kalır ama ayrılabilir; çalışma alanının yeni üyeleri eklenmez.",
     "create": "Teamspace oluştur",
-    "creating": "Oluşturuluyor…"
+    "creating": "Oluşturuluyor…",
+    "memberLevel": "Üyelerin sayfalara erişimi",
+    "memberLevelHint": "Kendi erişimini belirlemeyen sayfalarda üyelerin aldığı erişim. Teamspace sahipleri ve çalışma alanı sahipleri her zaman tam erişim alır; bir sayfanın paylaşım ayarları bunu yine geçersiz kılar.",
+    "memberLevelLocked": "Varsayılan bir teamspace'te herkesin ne alacağını yalnızca çalışma alanı sahipleri değiştirebilir."
   },
   "members": {
     "title": "{name} üyeleri",
@@ -68,5 +72,11 @@
     "addGroupButton": "Grubu ekle",
     "removeGroup": "{name} grubunu çıkar",
     "groupMemberCount": "{count, plural, =0 {Üye yok} one {# üye} other {# üye}}"
+  },
+  "memberLevel": {
+    "full": "Tam erişim",
+    "edit": "Düzenleyebilir",
+    "comment": "Yorum yapabilir",
+    "view": "Görüntüleyebilir"
   }
 }

@@ -663,6 +663,10 @@
       "edit": "You can edit this property",
       "perRow": "In rows that don’t name you, you have less access.",
       "full": "Access to this property is restricted. You have full access."
+    },
+    "fullAccess": {
+      "warning": "{count, plural, one {{names} has} other {{names}{more, plural, =0 {} other { and # more}} have}} full access to this database, so these rules don't apply to them. Lower their access, or the teamspace's access for members, to restrict them.",
+      "share": "Change access to the database"
     }
   }
 }

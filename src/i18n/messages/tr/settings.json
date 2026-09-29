@@ -678,7 +678,8 @@
       "name": "ad",
       "icon": "simge",
       "description": "açıklama",
-      "access": "erişim"
+      "access": "erişim",
+      "memberLevel": "üyelerin erişimi"
     },
     "via": {
       "invitation": "davet",

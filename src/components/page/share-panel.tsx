@@ -304,7 +304,12 @@ function ShareTab({ pageId, currentUser, onChange }: { pageId: string; currentUs
             canManage ? (
               <LevelSelect
                 value={mine?.level ?? null}
-                placeholder={t("viaGeneral", { level: t(`levels.${data.level}`) })}
+                placeholder={
+                  // Where the teamspace decides, its owners and the workspace's owners get more than everyone.
+                  data.everyoneFromTeamspace && RANK[floorFor(currentUserId)] > RANK[data.everyone]
+                    ? t("viaOwner", { level: t(`levels.${data.level}`) })
+                    : t("viaGeneral", { level: t(`levels.${data.level}`) })
+                }
                 floor={floorFor(currentUserId)}
                 onChange={(level) => void run(() => setPagePermissionAction(pageId, currentUserId, level))}
                 onRemove={
@@ -435,6 +440,7 @@ function ShareTab({ pageId, currentUser, onChange }: { pageId: string; currentUs
         />
         <p className="mt-1 text-xs text-fg-faint">
           {data.space.kind === "private" ? t("everyoneHint") : t("everyoneTeamspaceHint")}
+          {data.everyoneFromTeamspace && <> {t("everyoneFromTeamspaceHint")}</>}
         </p>
       </div>
 
