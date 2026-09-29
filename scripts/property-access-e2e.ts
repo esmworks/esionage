@@ -223,6 +223,17 @@ try {
   const viewer = await databases.getDatabaseSnapshot(ids.viewer, staff.id);
   check(viewer.propertyAccess?.[salary.id]?.level === "view", "no exception goes past database access", viewer.propertyAccess);
 
+  // A sort on values hidden in every row ranks nothing: rows keep their order.
+  const rank = await databases.addProperty(ids.owner, staff.id, { name: "Rank", type: "number" });
+  await databases.updateRowProperties(ids.owner, ada.id, { Rank: 1 });
+  await databases.updateRowProperties(ids.owner, bob.id, { Rank: 2 });
+  await setPropertyAccess(ids.owner, rank.id, { everyone: "view_property", exceptions: [] });
+  const order = async (userId: string) =>
+    (await databases.listRows(userId, staff.id, { sorts: [{ propertyId: rank.id, direction: "desc" }] })).filter((r) => r.id === ada.id || r.id === bob.id).map((r) => r.title);
+  check(JSON.stringify(await order(ids.owner)) === '["Bob","Ada"]', "the owner's sort ranks by the value");
+  check(JSON.stringify(await order(ids.editor)) === '["Ada","Bob"]', "a sort on hidden values doesn't rank the editor's rows by them", await order(ids.editor));
+  await setPropertyAccess(ids.owner, rank.id, { everyone: "inherit", exceptions: [] });
+
   // Being assigned in a property one can't see sends no notice; one that shows still does.
   const reviewer = await databases.addProperty(ids.owner, staff.id, { name: "Reviewer", type: "person" });
   await setPropertyAccess(ids.owner, reviewer.id, { everyone: "none", exceptions: [] });
