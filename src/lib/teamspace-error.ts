@@ -8,6 +8,7 @@ export type TeamspaceErrorCode =
   | "archived"
   | "notMember"
   | "invalidAccess"
+  | "invalidMemberLevel"
   | "inGroup"
   | "everyoneIn";
 

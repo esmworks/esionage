@@ -239,6 +239,13 @@
       "when": 1790660000000,
       "tag": "0033_property_access",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790670000000,
+      "tag": "0034_teamspace_member_level",
+      "breakpoints": true
     }
   ]
 }

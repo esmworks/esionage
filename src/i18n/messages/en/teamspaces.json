@@ -27,7 +27,8 @@
     "invalidAccess": "Choose who can see the teamspace.",
     "inGroup": "This person is in the teamspace through a group. Remove them from the group instead.",
     "everyoneIn": "Everyone in the workspace is in this teamspace already.",
-    "accessDenied": "You can't do that in this teamspace."
+    "accessDenied": "You can't do that in this teamspace.",
+    "invalidMemberLevel": "Choose what members get on the teamspace's pages."
   },
   "dialog": {
     "createTitle": "New teamspace",
@@ -42,7 +43,10 @@
     "becomesDefault": "Everyone in the workspace joins it and can't leave it.",
     "leavesDefault": "Everyone stays in it for now but can leave it, and new workspace members aren't added.",
     "create": "Create teamspace",
-    "creating": "Creating…"
+    "creating": "Creating…",
+    "memberLevel": "Members' access to its pages",
+    "memberLevelHint": "What members get on pages that don't set it themselves. The teamspace's owners and workspace owners always get full access; a page's sharing settings still override this.",
+    "memberLevelLocked": "Only workspace owners can change what everyone gets in a default teamspace."
   },
   "members": {
     "title": "Members of {name}",
@@ -68,5 +72,11 @@
     "addGroupButton": "Add group",
     "removeGroup": "Remove {name}",
     "groupMemberCount": "{count, plural, =0 {No members} one {# member} other {# members}}"
+  },
+  "memberLevel": {
+    "full": "Full access",
+    "edit": "Can edit",
+    "comment": "Can comment",
+    "view": "Can view"
   }
 }

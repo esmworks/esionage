@@ -678,7 +678,8 @@
       "name": "nombre",
       "icon": "icono",
       "description": "descripción",
-      "access": "acceso"
+      "access": "acceso",
+      "memberLevel": "acceso de los miembros"
     },
     "via": {
       "invitation": "una invitación",

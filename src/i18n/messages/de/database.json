@@ -663,6 +663,10 @@
       "edit": "Du kannst diese Eigenschaft bearbeiten",
       "perRow": "In Zeilen, die dich nicht nennen, hast du weniger Zugriff.",
       "full": "Der Zugriff auf diese Eigenschaft ist eingeschränkt. Du hast vollen Zugriff."
+    },
+    "fullAccess": {
+      "warning": "{names}{more, plural, =0 {} other { und # weitere}} {count, plural, one {hat} other {haben}} Vollzugriff auf diese Datenbank, daher gelten diese Regeln nicht für {count, plural, one {diese Person} other {sie}}. Senken Sie ihren Zugriff oder den Mitgliederzugriff des Teambereichs, um sie einzuschränken.",
+      "share": "Zugriff auf die Datenbank ändern"
     }
   }
 }

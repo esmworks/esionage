@@ -1,7 +1,8 @@
 "use client";
 
-import { Search, UserRound, Users, UsersRound, X } from "lucide-react";
+import { Search, ShieldAlert, UserRound, Users, UsersRound, X } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { loadPropertyAccessAction, setPropertyAccessAction } from "@/app/actions/databases";
@@ -9,6 +10,7 @@ import { Button, cn, Dialog } from "@/components/ui";
 import { UserAvatar } from "@/components/user-avatar";
 import { namesPeople, PERSON_RULE_LEVELS, propertyRank, type PropertyLevel } from "@/lib/property-access";
 import { searchFold } from "@/lib/search-fold";
+import { openSharePanel } from "@/lib/share-event";
 import { usePropertyAccess } from "./property-access";
 import { PropertyTypeIcon } from "./property-icons";
 import { useRelations } from "./relation-context";
@@ -54,6 +56,7 @@ function AccessDialog({ prop, onClose }: { prop: Property; onClose: () => void }
   const workspaceId = useRelations()?.workspaceId ?? "";
   const schema = useSchema();
   const { refresh } = usePropertyAccess();
+  const router = useRouter();
   const [data, setData] = useState<Loaded | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -200,6 +203,32 @@ function AccessDialog({ prop, onClose }: { prop: Property; onClose: () => void }
               }
             />
           </ul>
+
+          {!inherit && data.fullAccess.count > 0 && (
+            <div role="note" className="mt-3 flex gap-2.5 rounded-md border border-border px-3 py-2.5 text-xs text-fg-muted">
+              <ShieldAlert className="mt-px h-4 w-4 shrink-0 text-fg-muted" aria-hidden />
+              <div className="min-w-0">
+                <p>
+                  {t("fullAccess.warning", {
+                    count: data.fullAccess.count,
+                    names: data.fullAccess.names.join(", "),
+                    more: data.fullAccess.count - data.fullAccess.names.length,
+                  })}
+                </p>
+                <button
+                  type="button"
+                  className="mt-1 font-medium text-accent hover:underline"
+                  onClick={() => {
+                    onClose();
+                    // The header shows the database's Share panel, unless it sits inside another page.
+                    if (!openSharePanel(prop.databaseId)) router.push(`/w/${data.workspaceId}/p/${prop.databaseId}?share=1`);
+                  }}
+                >
+                  {t("fullAccess.share")}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 border-t border-border pt-4">
             <p className="text-xs font-medium text-fg-muted">{t("exceptions")}</p>

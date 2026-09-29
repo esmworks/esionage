@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import type { TeamspaceAccess, TeamspaceRole } from "@/db/schema";
+import type { TeamspaceAccess, TeamspaceMemberLevel, TeamspaceRole } from "@/db/schema";
 import { AccessError } from "@/server/access";
 import { listGroups } from "@/server/groups";
 import { requireUserId } from "@/server/session";
@@ -12,6 +12,7 @@ import {
   canCreateTeamspace,
   createTeamspace,
   isTeamspaceAccess,
+  isTeamspaceMemberLevel,
   joinTeamspace,
   leaveTeamspace,
   listTeamspaceGroups,
@@ -60,9 +61,10 @@ export async function listTeamspacesAction(workspaceId: string, archived: "activ
 
 export async function createTeamspaceAction(
   workspaceId: string,
-  input: { name: string; icon?: string | null; description?: string; access: TeamspaceAccess },
+  input: { name: string; icon?: string | null; description?: string; access: TeamspaceAccess; memberLevel?: TeamspaceMemberLevel },
 ) {
   if (!isTeamspaceAccess(input.access)) return fail("invalidAccess");
+  if (input.memberLevel !== undefined && !isTeamspaceMemberLevel(input.memberLevel)) return fail("invalidMemberLevel");
   const result = await run(async (userId) => {
     const created = await createTeamspace(userId, workspaceId, input);
     return { id: created.id };
@@ -74,9 +76,10 @@ export async function createTeamspaceAction(
 export async function updateTeamspaceAction(
   workspaceId: string,
   teamspaceId: string,
-  patch: { name?: string; icon?: string | null; description?: string; access?: TeamspaceAccess },
+  patch: { name?: string; icon?: string | null; description?: string; access?: TeamspaceAccess; memberLevel?: TeamspaceMemberLevel },
 ) {
   if (patch.access !== undefined && !isTeamspaceAccess(patch.access)) return fail("invalidAccess");
+  if (patch.memberLevel !== undefined && !isTeamspaceMemberLevel(patch.memberLevel)) return fail("invalidMemberLevel");
   const result = await run((userId) => updateTeamspace(userId, teamspaceId, patch));
   refresh(workspaceId);
   return result;

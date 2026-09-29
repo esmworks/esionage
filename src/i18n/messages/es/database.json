@@ -663,6 +663,10 @@
       "edit": "Puedes editar esta propiedad",
       "perRow": "En las filas que no te nombran, tienes menos acceso.",
       "full": "El acceso a esta propiedad está restringido. Tienes acceso completo."
+    },
+    "fullAccess": {
+      "warning": "{names}{more, plural, =0 {} other { y # más}} {count, plural, one {tiene} other {tienen}} acceso total a esta base de datos, así que estas reglas no {count, plural, one {le} other {les}} afectan. Reduce su acceso, o el acceso de los miembros del espacio de equipo, para restringirlos.",
+      "share": "Cambiar el acceso a la base de datos"
     }
   }
 }

@@ -149,6 +149,7 @@
     "inherited": "Von {title}",
     "groupInherited": "Gruppe, von {title}",
     "viaGeneral": "{level} (über allgemeinen Zugriff)",
+    "viaOwner": "{level} (als Eigentümer)",
     "overridden": "Der allgemeine Zugriff ist höher ({level}), daher hat dies keine Wirkung.",
     "remove": "Entfernen",
     "generalAccess": "Allgemeiner Zugriff",
@@ -184,7 +185,8 @@
       "invalidEmail": "Gib eine gültige E-Mail-Adresse ein.",
       "invitesRestricted": "Dieser Workspace erlaubt nicht, Seiten mit Personen außerhalb zu teilen. Frag einen Inhaber.",
       "generic": "Die Freigabe konnte nicht aktualisiert werden."
-    }
+    },
+    "everyoneFromTeamspaceHint": "Vom Teambereich festgelegt. Seine Eigentümer und die Workspace-Eigentümer haben Vollzugriff. Wählen Sie hier eine Stufe, um sie für diese Seite und ihre Unterseiten festzulegen."
   },
   "noAccess": {
     "metaTitle": "Kein Zugriff",

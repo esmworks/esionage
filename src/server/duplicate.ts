@@ -30,7 +30,7 @@ import { AccessError, pageVisibleTo, requirePageAccess } from "@/server/access";
 import { getCollab, type WriteActor } from "@/server/collab/bridge";
 import { bulkRowIds, rowsWithAccess, syncPairedRelations, withCode, type BulkResult } from "@/server/databases";
 import { copyReferences } from "@/server/mentions";
-import { makePagePrivate } from "@/server/permissions";
+import { keepFullAccess, makePagePrivate } from "@/server/permissions";
 import type { PropertyAccess } from "@/lib/property-access-rows";
 import { propertyAccessFor } from "@/server/property-access";
 import { placeTopLevel, TeamspaceError } from "@/server/teamspaces";
@@ -238,6 +238,7 @@ export async function copyPageTree(
       ${target.rootPermissions ? sql`` : sql`where m.id <> ${plan.rootId}`}
     `);
     if (target.private) await makePagePrivate(tx, source.workspaceId, plan.rootId, userId);
+    else if (!target.parentId && target.teamspaceId) await keepFullAccess(tx, source.workspaceId, plan.rootId, userId);
     await pointAtCopiedDatabases(tx, plan);
     if (target.stripComments) await stripCopiedComments(tx, plan);
     await copyReferences(tx, rows);

@@ -149,6 +149,7 @@
     "inherited": "{title} sayfasından",
     "groupInherited": "Grup, {title} sayfasından",
     "viaGeneral": "{level} (genel erişimden)",
+    "viaOwner": "{level} (sahip olarak)",
     "overridden": "Genel erişim daha yüksek ({level}); bu seviye etkisiz.",
     "remove": "Kaldır",
     "generalAccess": "Genel erişim",
@@ -184,7 +185,8 @@
       "invalidEmail": "Geçerli bir e-posta adresi girin.",
       "invitesRestricted": "Bu çalışma alanında sayfaları dışarıdan kişilerle paylaşma izniniz yok. Bir sahipten isteyin.",
       "generic": "Paylaşım güncellenemedi."
-    }
+    },
+    "everyoneFromTeamspaceHint": "Teamspace belirliyor. Teamspace sahipleri ve çalışma alanı sahipleri tam erişime sahip. Bu sayfa ve alt sayfaları için ayarlamak üzere burada bir seviye seçin."
   },
   "noAccess": {
     "metaTitle": "Erişim yok",

@@ -24,7 +24,7 @@ import {
 } from "@/lib/property-access";
 import { PropertyValueError } from "@/lib/properties";
 import type { PropertyType } from "@/lib/property-types";
-import { accessRank, AccessError, getMembership, levelFromRank, requirePageAccess } from "@/server/access";
+import { accessRank, AccessError, getMembership, levelFromRank, peopleWithFullAccess, requirePageAccess } from "@/server/access";
 import { recordAudit } from "@/server/audit";
 import { getCollab } from "@/server/collab/bridge";
 import { loadProperties } from "@/server/derived";
@@ -204,7 +204,15 @@ export type PropertyAccessSettings = {
   exceptions: PropertyAccessEntry[];
   /** The database's workspace: whose people and groups exceptions can name. */
   workspaceId: string;
+  /**
+   * The others with full access to the database, whom no rule holds (the viewer has it too): how
+   * many, and the names of the first few.
+   */
+  fullAccess: { count: number; names: string[] };
 };
+
+/** How many names of those with full access the dialog shows. */
+const FULL_ACCESS_NAMES = 3;
 
 /** A property and its database, for someone with full access to the database. */
 async function requireRestrictable(actorId: string, propertyId: string) {
@@ -245,7 +253,21 @@ export async function getPropertyAccessSettings(actorId: string, propertyId: str
     if (r.personPropertyId) return [{ kind: "person", id: r.personPropertyId, name: r.propertyName ?? "", level: r.level }];
     return [];
   });
-  return { everyone, exceptions, workspaceId: database.workspaceId };
+  const full = await peopleWithFullAccess(database.workspaceId, database.id, actorId);
+  const named = full.length
+    ? await db
+        .select({ name: user.name, email: user.email })
+        .from(user)
+        .where(inArray(user.id, full))
+        .orderBy(user.name)
+        .limit(FULL_ACCESS_NAMES)
+    : [];
+  return {
+    everyone,
+    exceptions,
+    workspaceId: database.workspaceId,
+    fullAccess: { count: full.length, names: named.map((u) => u.name || u.email) },
+  };
 }
 
 /**

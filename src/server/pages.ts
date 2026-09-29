@@ -41,7 +41,7 @@ import {
 import { pageChanged } from "@/server/page-events";
 import { inSubtree, semanticSearch } from "@/server/semantic-search";
 import { reciprocalRankFusion, snippetOf } from "@/server/semantic-text";
-import { followNewSpace, freezeInheritedEntries, makePagePrivate } from "@/server/permissions";
+import { followNewSpace, freezeInheritedEntries, keepFullAccess, makePagePrivate } from "@/server/permissions";
 import { placeTopLevel, requireTeamspaceForPages, sidebarTeamspaces, type TeamspaceSummary } from "@/server/teamspaces";
 import { requireTopLevel, workspaceSettings } from "@/server/workspaces";
 
@@ -280,6 +280,7 @@ export async function createPage(actor: WriteActor, input: CreatePageInput) {
       })
       .returning();
     if (placement.private) await makePagePrivate(tx, workspaceId, row.id, userId);
+    else if (!input.parentId && placement.teamspaceId) await keepFullAccess(tx, workspaceId, row.id, userId);
     return row;
   });
 
@@ -560,6 +561,8 @@ export async function movePage(
       toPrivate: space === null,
       privateTop: !newParentId && space === null && (changesSpace || p.parentId !== null),
     });
+    // At the top of a teamspace whose members get less, whoever moved it there keeps running it.
+    if (!newParentId && space !== null && (changesSpace || p.parentId !== null)) await keepFullAccess(tx, p.workspaceId, pageId, userId);
   });
   getCollab().broadcast(`ws:${p.workspaceId}`, "tree");
   for (const id of [p.parentId, newParentId]) if (id) getCollab().broadcast(`db:${id}`, "rows");

@@ -5,6 +5,7 @@ import {
   memberGroup,
   memberGroupMember,
   TEAMSPACE_ACCESS,
+  TEAMSPACE_MEMBER_LEVELS,
   teamspace,
   teamspaceGroup,
   teamspaceMember,
@@ -12,10 +13,12 @@ import {
   workspace,
   workspaceMember,
   type TeamspaceAccess,
+  type TeamspaceMemberLevel,
   type TeamspaceRole,
   type WorkspaceRole,
 } from "@/db/schema";
 import { TeamspaceError } from "@/lib/teamspace-error";
+import type { TeamspaceReach } from "@/lib/teamspace-reach";
 import { AccessError, isGuest, requireMember } from "@/server/access";
 import { changedValues, recordAudit } from "@/server/audit";
 import { getCollab } from "@/server/collab/bridge";
@@ -49,6 +52,12 @@ async function namesOf(reader: Pick<typeof db, "select">, userIds: string[]) {
 
 export const isTeamspaceAccess = (value: unknown): value is TeamspaceAccess =>
   (TEAMSPACE_ACCESS as readonly unknown[]).includes(value);
+
+export const isTeamspaceMemberLevel = (value: unknown): value is TeamspaceMemberLevel =>
+  (TEAMSPACE_MEMBER_LEVELS as readonly unknown[]).includes(value);
+
+/** Lower is less: what the members lose when a teamspace's member level goes down. */
+const MEMBER_LEVEL_RANK: Record<TeamspaceMemberLevel, number> = { view: 1, comment: 2, edit: 3, full: 4 };
 
 const MAX_NAME = 80;
 const MAX_DESCRIPTION = 500;
@@ -134,6 +143,8 @@ export type TeamspaceSummary = {
   icon: string | null;
   description: string;
   access: TeamspaceAccess;
+  /** What its members get on its pages where a page says nothing. */
+  memberLevel: TeamspaceMemberLevel;
   archivedAt: Date | null;
   updatedAt: Date;
   memberCount: number;
@@ -165,6 +176,7 @@ export async function listTeamspaces(
     icon: string | null;
     description: string;
     access: TeamspaceAccess;
+    member_level: TeamspaceMemberLevel;
     archived_at: Date | null;
     updated_at: Date;
     created_at: Date;
@@ -217,6 +229,7 @@ export async function listTeamspaces(
       icon: r.icon,
       description: r.description,
       access: r.access,
+      memberLevel: r.member_level,
       archivedAt: r.archived_at ? new Date(r.archived_at) : null,
       updatedAt: new Date(r.updated_at),
       memberCount: Number(r.member_count),
@@ -251,7 +264,14 @@ function cleanName(name: string) {
   return clean;
 }
 
-export type TeamspaceInput = { name: string; icon?: string | null; description?: string; access?: TeamspaceAccess };
+export type TeamspaceInput = {
+  name: string;
+  icon?: string | null;
+  description?: string;
+  access?: TeamspaceAccess;
+  /** What members get on its pages where a page says nothing (see TEAMSPACE_MEMBER_LEVELS). */
+  memberLevel?: TeamspaceMemberLevel;
+};
 
 /**
  * A new teamspace with its creator as owner. Needs `canCreateTeamspace`; a default teamspace (one
@@ -267,6 +287,10 @@ export async function createTeamspace(userId: string, workspaceId: string, input
   if (access === "default" && membership.role !== "owner") {
     throw new TeamspaceError("ownersOnly", "Only workspace owners can make a teamspace everyone is in.");
   }
+  const memberLevel = input.memberLevel ?? "full";
+  if (!isTeamspaceMemberLevel(memberLevel)) {
+    throw new TeamspaceError("invalidMemberLevel", `Unknown member level ${String(memberLevel)}`);
+  }
   const created = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(teamspace)
@@ -276,12 +300,13 @@ export async function createTeamspace(userId: string, workspaceId: string, input
         icon: input.icon ?? null,
         description: (input.description ?? "").trim().slice(0, MAX_DESCRIPTION),
         access,
+        memberLevel,
         createdBy: userId,
       })
       .returning();
     await tx.insert(teamspaceMember).values({ teamspaceId: row.id, userId, role: "owner" });
     await recordAudit(
-      { workspaceId, actorId: userId, action: "teamspace.created", target: { type: "teamspace", id: row.id, label: row.name }, details: { access } },
+      { workspaceId, actorId: userId, action: "teamspace.created", target: { type: "teamspace", id: row.id, label: row.name }, details: { access, memberLevel } },
       tx,
     );
     return row;
@@ -291,8 +316,9 @@ export async function createTeamspace(userId: string, workspaceId: string, input
 }
 
 /**
- * Changes a teamspace's name, icon, description or access. Needs to manage it; making a teamspace
- * default, or one default no longer, needs a workspace owner, since it changes everyone's sidebar.
+ * Changes a teamspace's name, icon, description, access or member level. Needs to manage it; making
+ * a teamspace default, or one default no longer, needs a workspace owner, since it changes
+ * everyone's sidebar, and so does changing what everyone gets in a default one.
  * Everyone in a default teamspace stays in it when it stops being one (they can leave then).
  */
 export async function updateTeamspace(
@@ -303,15 +329,23 @@ export async function updateTeamspace(
   const { teamspace: current, role } = await manageableTeamspace(userId, teamspaceId);
   const access = patch.access ?? current.access;
   if (!isTeamspaceAccess(access)) throw new TeamspaceError("invalidAccess", `Unknown access ${String(access)}`);
+  const memberLevel = patch.memberLevel ?? current.memberLevel;
+  if (!isTeamspaceMemberLevel(memberLevel)) {
+    throw new TeamspaceError("invalidMemberLevel", `Unknown member level ${String(memberLevel)}`);
+  }
   const changesDefault = access !== current.access && (access === "default" || current.access === "default");
   if (changesDefault && role !== "owner") {
     throw new TeamspaceError("ownersOnly", "Only workspace owners can change which teamspaces everyone is in.");
+  }
+  if (memberLevel !== current.memberLevel && (access === "default" || current.access === "default") && role !== "owner") {
+    throw new TeamspaceError("ownersOnly", "Only workspace owners can change what everyone gets in a teamspace everyone is in.");
   }
   const next = {
     ...(patch.name !== undefined ? { name: cleanName(patch.name) } : {}),
     ...(patch.icon !== undefined ? { icon: patch.icon } : {}),
     ...(patch.description !== undefined ? { description: patch.description.trim().slice(0, MAX_DESCRIPTION) } : {}),
     access,
+    memberLevel,
   };
   await db.transaction(async (tx) => {
     if (current.access === "default" && access !== "default") {
@@ -352,7 +386,8 @@ export async function updateTeamspace(
     }
   });
   // People who lost its pages drop their open editors and reconnect with what they have left.
-  const narrower = ACCESS_RANK[access] < ACCESS_RANK[current.access];
+  const narrower =
+    ACCESS_RANK[access] < ACCESS_RANK[current.access] || MEMBER_LEVEL_RANK[memberLevel] < MEMBER_LEVEL_RANK[current.memberLevel];
   if (narrower) await getCollab().disconnectTeamspace(teamspaceId);
   getCollab().broadcast(`ws:${current.workspaceId}`, "tree");
 }
@@ -786,10 +821,13 @@ export async function teamspaceLabel(userId: string, teamspaceId: string) {
  * Who a teamspace page's "everyone" entry reaches: its access and who is in it by row or group
  * (everyone when it is a default one). Only for callers that already checked access to such a page.
  */
-export async function teamspaceReach(teamspaceId: string) {
-  const [found] = await db.select({ access: teamspace.access }).from(teamspace).where(eq(teamspace.id, teamspaceId));
+export async function teamspaceReach(teamspaceId: string): Promise<TeamspaceReach> {
+  const [found] = await db
+    .select({ access: teamspace.access, memberLevel: teamspace.memberLevel })
+    .from(teamspace)
+    .where(eq(teamspace.id, teamspaceId));
   const [rows, grouped] = await Promise.all([
-    db.select({ userId: teamspaceMember.userId }).from(teamspaceMember).where(eq(teamspaceMember.teamspaceId, teamspaceId)),
+    db.select({ userId: teamspaceMember.userId, role: teamspaceMember.role }).from(teamspaceMember).where(eq(teamspaceMember.teamspaceId, teamspaceId)),
     db
       .select({ userId: memberGroupMember.userId })
       .from(teamspaceGroup)
@@ -799,6 +837,8 @@ export async function teamspaceReach(teamspaceId: string) {
   return {
     access: (found?.access ?? "private") as TeamspaceAccess,
     members: new Set([...rows, ...grouped].map((r) => r.userId)),
+    owners: new Set(rows.filter((r) => r.role === "owner").map((r) => r.userId)),
+    memberLevel: found?.memberLevel ?? "full",
   };
 }
 
