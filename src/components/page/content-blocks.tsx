@@ -69,6 +69,20 @@ function useKatex(source: string, displayMode: boolean): Rendered {
   return { node: current.node ?? (source.trim() ? lastGood.node : null), error: current.error };
 }
 
+/**
+ * The error under the source while editing: a translated summary, then the parser's own message
+ * (in English, as KaTeX and Mermaid write it) so people can see what to fix.
+ */
+function SourceError({ summary, detail }: { summary: string; detail: string }) {
+  const text = detail.replace(/^KaTeX parse error:\s*/, "").trim();
+  return (
+    <>
+      <span className="block">{summary}</span>
+      {text && text !== "Syntax error" && <span className="mt-0.5 block text-xs opacity-80 [overflow-wrap:anywhere]">{text}</span>}
+    </>
+  );
+}
+
 function KatexView({ node, inline }: { node: HTMLElement; inline?: boolean }) {
   const Tag = inline ? "span" : "div";
   return (
@@ -107,7 +121,7 @@ const MathBlock = createReactBlockSpec(mathBlockConfig, {
         contentRef={contentRef}
         source={source}
         preview={node ? <KatexView node={node} /> : undefined}
-        error={error ? t("error") : undefined}
+        error={error ? <SourceError summary={t("error")} detail={error} /> : undefined}
         emptySourcePlaceholder={<PreviewPlaceholder text={t("placeholder")} icon={<Sigma size={18} />} />}
         errorPreview={t("error")}
         sourcePlaceholder={t("sourcePlaceholder")}
@@ -131,7 +145,7 @@ const InlineMath = createReactInlineContentSpec(inlineMathConfig, {
         contentRef={contentRef}
         source={source}
         preview={rendered.node ? <KatexView node={rendered.node} inline /> : undefined}
-        error={rendered.error ? t("error") : undefined}
+        error={rendered.error ? <SourceError summary={t("error")} detail={rendered.error} /> : undefined}
         emptySourcePlaceholder={t("placeholder")}
         errorPreview={t("error")}
         sourcePlaceholder={t("sourcePlaceholder")}
@@ -163,7 +177,7 @@ const MermaidBlock = createReactBlockSpec(mermaidBlockConfig, {
         contentRef={contentRef}
         source={source}
         preview={preview}
-        error={error ? t("error") : undefined}
+        error={error ? <SourceError summary={t("error")} detail={error} /> : undefined}
         emptySourcePlaceholder={<PreviewPlaceholder text={t("placeholder")} icon={<Workflow size={18} />} />}
         errorPreview={t("error")}
         sourcePlaceholder={t("sourcePlaceholder")}
