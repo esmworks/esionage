@@ -26,6 +26,7 @@ const { auditEvent, page, pagePermission, user, workspace, workspaceMember } = a
 const { registerCollab } = await import("@/server/collab/bridge");
 const databases = await import("@/server/databases");
 const { createPage, movePage } = await import("@/server/pages");
+const { duplicatePage } = await import("@/server/duplicate");
 const { listPagePermissions, setPagePermission } = await import("@/server/permissions");
 const { getPropertyAccessSettings, setPropertyAccess } = await import("@/server/property-access");
 const { pageAccessOf } = await import("@/server/access");
@@ -37,6 +38,10 @@ const RUN = `tsaccess-e2e-${Date.now().toString(36)}`;
 const disconnected: string[] = [];
 registerCollab({
   broadcast() {},
+  async setTitle() {},
+  async readPage() {
+    return { title: "", markdown: "", text: "" };
+  },
   async disconnectTeamspace(teamspaceId: string) {
     disconnected.push(teamspaceId);
   },
@@ -126,6 +131,21 @@ try {
   const share = await listPagePermissions(ids.owner, staff.id);
   check(share.everyone === "edit" && share.everyoneFromTeamspace, "the Share panel shows the teamspace's level for everyone", share.everyone);
   check(share.floors[ids.member] === "edit" && share.floors[ids.lead] === "full" && share.floors[ids.boss] === "full", "…and what each gets from it", share.floors);
+
+  // Full access to a copy or a moved page is kept, never gained: a copy leaves out what the copier
+  // can't see, and only someone with full access moves a page.
+  const copy = await duplicatePage({ userId: ids.member }, staff.id, " (copy)");
+  check((await level(ids.member, copy.id)) === "full", "a member who copies the database runs the copy");
+  const copied = await databases.getDatabaseSnapshot(ids.member, copy.id);
+  check(!JSON.stringify(copied).includes("654321"), "…but the copy has none of the values hidden from them", copied.properties);
+  const leadPage = await createPage({ userId: ids.lead }, { workspaceId, teamspaceId: ts.id, title: "Lead's plan" });
+  const nested = await createPage({ userId: ids.lead }, { workspaceId, parentId: leadPage.id, title: "Nested" });
+  const moveUp = await failure(movePage(ids.member, nested.id, null, undefined, ts.id));
+  check(moveUp !== null && (await level(ids.member, nested.id)) === "edit", "a member with edit can't move a page to the top to gain full access", String(moveUp));
+  const otherTs = await createTeamspace(ids.owner, workspaceId, { name: `${RUN} Other`, access: "closed", memberLevel: "edit" });
+  await addTeamspaceMembers(ids.owner, otherTs.id, [ids.member]);
+  const moveAcross = await failure(movePage(ids.member, leadPage.id, null, undefined, otherTs.id));
+  check(moveAcross !== null && (await level(ids.member, leadPage.id)) === "edit", "…nor move it to another teamspace and back", String(moveAcross));
 
   // A page's own entry for everyone still decides, for the owners too.
   await setPagePermission(ids.owner, staff.id, ids.owner, "full");
