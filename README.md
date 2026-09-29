@@ -146,7 +146,7 @@ versions, upgrades and running behind a domain.
   in place.
 - **Import**: bring in Markdown files, a folder or a ZIP as pages that keep their folder
   structure, with links between the files turned into page links and the images they show
-  uploaded, into the page or teamspace you start it from. An Leafdesk export comes back as it went,
+  uploaded, into the page or teamspace you start it from. A Leafdesk export comes back as it went,
   templates included. Import a CSV file as a new database with its column types guessed (and
   changeable before importing), or add its rows to an existing database by matching columns to
   properties.
