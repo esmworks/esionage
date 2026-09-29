@@ -9,6 +9,37 @@ An open-source, self-hostable Notion alternative with realtime collaboration and
 MCP server, so AI assistants such as Claude can search, read and edit your workspace after you
 approve them over OAuth.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/board-dark.png">
+  <img src=".github/screenshots/board-light.png" alt="A Leafdesk database shown as a board, with the workspace's pages in the sidebar">
+</picture>
+
+- **Pages and databases**: a block editor with slash commands, and databases whose rows are pages,
+  shown as table, board, calendar, gallery, list, timeline, chart or form, with relations,
+  formulas and rollups.
+- **Realtime and offline**: edit together with live cursors, keep working without a connection.
+- **Built for AI assistants**: connect Claude or any other MCP client over OAuth 2.1 and approve
+  what it may read or change; optional AI writing, AI properties and chat with Anthropic, OpenAI,
+  Google or a local model.
+- **Bring your pages**: import a Notion *Markdown & CSV* export, Markdown files, a folder or CSV.
+- **Ready for a team**: teamspaces, page permissions, guests, single sign-on (OIDC, SAML), SCIM,
+  two-step verification, passkeys and an audit log.
+- **Yours to run**: one `docker compose up` on your own server, data in your PostgreSQL,
+  Apache-2.0 licensed, in English, Turkish, German, Spanish and French.
+
+Try it in a minute:
+
+```bash
+mkdir leafdesk && cd leafdesk
+curl -fsSLO https://raw.githubusercontent.com/esmworks/leafdesk/main/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/esmworks/leafdesk/main/.env.example -o .env
+# set BETTER_AUTH_SECRET in .env to the output of: openssl rand -base64 32
+docker compose up -d
+```
+
+Then open http://localhost:3000 and create an account. See [Quick start](#quick-start-docker) for
+versions, upgrades and running behind a domain.
+
 ## Features
 
 - **Pages**: nested pages, a block editor (BlockNote) with slash menu and markdown shortcuts,
