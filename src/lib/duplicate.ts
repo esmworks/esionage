@@ -150,6 +150,8 @@ export type CopyRow = { properties: RowProperties; createdBy?: string | null };
 export type CopyAccess = {
   /** Properties left out entirely: the copier can't know of them. */
   gone: ReadonlySet<string>;
+  /** Properties whose values the copier sees in no row: their form defaults stay behind too. */
+  unseen: ReadonlySet<string>;
   /** The values of a row that come along. */
   values(row: CopyRow): RowProperties;
 };
@@ -167,7 +169,7 @@ export type CopyAccess = {
  *   server/publication publicAccess).
  */
 export function copyAccess(
-  access: Pick<PropertyAccess, "open" | "levelOf" | "visible">,
+  access: Pick<PropertyAccess, "open" | "levelOf" | "visible" | "valuesHidden">,
   properties: { id: string }[],
   options: { gone?: ReadonlySet<string>; write?: { createdBy: string | null } } = {},
 ): CopyAccess | null {
@@ -176,10 +178,12 @@ export function copyAccess(
   const gone = new Set([...properties.filter((p) => !known.has(p.id)).map((p) => p.id), ...(options.gone ?? [])]);
   const keep = (row: CopyRow, needed: PropertyLevel) =>
     Object.fromEntries(Object.entries(row.properties).filter(([id]) => !gone.has(id) && atLeast(access.levelOf(id, row), needed)));
+  const unseen = access.valuesHidden();
   const write = options.write;
-  if (!write) return { gone, values: (row) => keep(row, "view") };
+  if (!write) return { gone, unseen, values: (row) => keep(row, "view") };
   return {
     gone,
+    unseen,
     values: (row) => {
       // Person property exceptions read the row's own values; leaving one out may take away the
       // level that kept another, so check again until nothing more goes.
@@ -210,6 +214,13 @@ export function redactCopy(
     properties: input.properties.filter((p) => !goneIn(p.databaseId).has(p.id)),
     views: input.views.map((view) => {
       const gone = goneIn(view.databaseId);
+      const unseen = databases.get(view.databaseId)?.unseen;
+      const defaults = view.config.form?.defaults;
+      // A form's default is a value like any other: it stays behind where the copier sees none.
+      if (defaults && unseen && Object.keys(defaults).some((id) => unseen.has(id))) {
+        const kept = Object.fromEntries(Object.entries(defaults).filter(([id]) => !unseen.has(id)));
+        view = { ...view, config: { ...view.config, form: { ...view.config.form, defaults: kept } } };
+      }
       if (!gone.size) return view;
       // As the copier saw the view: filter groups that mention a property left out go whole.
       const filters = view.config.filters?.filter((entry) => {

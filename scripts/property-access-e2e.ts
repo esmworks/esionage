@@ -30,7 +30,9 @@ const { setPagePermission } = await import("@/server/permissions");
 const { createGroup } = await import("@/server/groups");
 const { getPropertyAccessSettings, setPropertyAccess } = await import("@/server/property-access");
 const ops = await import("@/server/operations");
-const { databaseCsv } = await import("@/server/export");
+const { databaseCsv, planExport } = await import("@/server/export");
+const { uploadFile } = await import("@/server/files");
+const { Readable } = await import("node:stream");
 const { PropertyValueError } = await import("@/lib/properties");
 const { AccessError } = await import("@/server/access");
 
@@ -232,6 +234,18 @@ try {
   check(!notices.some((n) => n.propertyId === reviewer.id), "no notice for an assignment in a property hidden from them", notices);
   check(notices.some((n) => n.userId === ids.viewer && n.propertyId === manager.id), "a visible assignment still notifies", notices);
   await setPropertyAccess(ids.owner, reviewer.id, { everyone: "inherit", exceptions: [] });
+
+  // A ZIP export leaves out the files a hidden files property holds.
+  const contract = await databases.addProperty(ids.owner, staff.id, { name: "Contract", type: "files" });
+  const body = Buffer.from("contract of bob");
+  const upload = await uploadFile(ids.owner, bob.id, { name: "bob-contract.txt", contentType: "text/plain", body: Readable.from([body]), declaredSize: body.length });
+  await databases.updateRowProperties(ids.owner, bob.id, { Contract: [{ url: upload.url, name: upload.name, type: upload.contentType }] });
+  await setPropertyAccess(ids.owner, contract.id, { everyone: "none", exceptions: [] });
+  const planned = async (userId: string) => (await planExport(userId, { pageId: staff.id })).files.map((f) => f.id);
+  check(!(await planned(ids.editor)).includes(upload.id), "a ZIP export leaves out files of a hidden files property");
+  check((await planned(ids.owner)).includes(upload.id), "…which the owner's export holds");
+  await setPropertyAccess(ids.owner, contract.id, { everyone: "inherit", exceptions: [] });
+  check((await planned(ids.editor)).includes(upload.id), "…and which come back with the rule lifted");
 
   // Moving isn't a way around the rules: taking the database or a row elsewhere needs full access.
   const mine = await createPage({ userId: ids.editor }, { workspaceId, kind: "database", title: "Mine" });

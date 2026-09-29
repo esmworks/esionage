@@ -427,13 +427,20 @@ export function startAiProperties() {
 
 /**
  * What the database UI needs about AI: whether it's available in the database's workspace, and
- * the pending and failed values of `rowIds` (the rows the person sees).
+ * the pending and failed values of `rows` (the rows the person sees, as they got them), leaving out
+ * those of values hidden from them.
  */
-export async function databaseAi(databaseId: string, properties: Property[], rowIds: string[]) {
+export async function databaseAi(databaseId: string, properties: Property[], rows: { id: string; hidden?: string[] }[]) {
   const [database] = await db.select({ workspaceId: page.workspaceId }).from(page).where(eq(page.id, databaseId)).limit(1);
   const enabled = database ? await aiAvailable(database.workspaceId) : false;
   const all = await autofillStates(properties);
-  const seen = new Set(rowIds);
-  const states = Object.fromEntries(Object.entries(all).filter(([rowId]) => seen.has(rowId)));
+  const hiddenIn = new Map(rows.map((r) => [r.id, new Set(r.hidden)]));
+  const states: typeof all = {};
+  for (const [rowId, cells] of Object.entries(all)) {
+    const hidden = hiddenIn.get(rowId);
+    if (!hidden) continue;
+    const shown = Object.entries(cells).filter(([propertyId]) => !hidden.has(propertyId));
+    if (shown.length) states[rowId] = Object.fromEntries(shown);
+  }
   return { enabled, states };
 }

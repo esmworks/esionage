@@ -69,7 +69,7 @@ export async function loadDatabaseAction(databaseId: string, options: { covers?:
   return run(async (userId) => {
     const snapshot = await databases.getDatabaseSnapshot(userId, databaseId, { covers: options.covers === true });
     const [ai, management] = await Promise.all([
-      databaseAi(databaseId, snapshot.properties, snapshot.rows.map((r) => r.id)),
+      databaseAi(databaseId, snapshot.properties, snapshot.rows),
       propertyAccessManagement(userId, databaseId, snapshot.properties),
     ]);
     return { ...snapshot, ...management, ai };
@@ -80,7 +80,7 @@ export async function loadRowAction(rowId: string) {
   return run(async (userId) => {
     const row = await databases.getRow(userId, rowId);
     const [ai, management] = await Promise.all([
-      databaseAi(row.databaseId, row.properties, [rowId]),
+      databaseAi(row.databaseId, row.properties, [{ id: rowId, hidden: row.row.hidden }]),
       propertyAccessManagement(userId, row.databaseId, row.properties),
     ]);
     return { ...row, ...management, ai: { enabled: ai.enabled, states: ai.states[rowId] ?? {} } };

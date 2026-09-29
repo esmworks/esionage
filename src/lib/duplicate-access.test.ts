@@ -115,6 +115,17 @@ describe("redactCopy and planPropertyRules", () => {
     expect(redactCopy(input, new Map())).toBe(input);
   });
 
+  it("leaves behind the form defaults of values the copier can't see", () => {
+    const withForm = {
+      ...input,
+      views: [{ ...input.views[0], config: { ...input.views[0].config, form: { defaults: { salary: 5, notes: "n", plain: "p" } } } as never }],
+    };
+    const redacted = redactCopy(withForm, new Map([["db", copyAccess(accessOf("u1"), properties)!]]));
+    expect(redacted.views[0].config.form?.defaults).toEqual({ notes: "n", plain: "p" });
+    const boss = redactCopy(withForm, new Map([["db", copyAccess(accessOf("boss"), properties)!]]));
+    expect(boss.views[0].config.form?.defaults).toEqual({ salary: 5, notes: "n", plain: "p" });
+  });
+
   it("points the rules of surviving properties at the copies, person exceptions included", () => {
     const redacted = redactCopy(input, new Map([["db", copyAccess(accessOf("u1"), properties)!]]));
     let n = 0;
