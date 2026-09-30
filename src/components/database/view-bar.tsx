@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Eye,
   EyeOff,
+  GripVertical,
   ListFilter,
   Pencil,
   Plus,
@@ -48,6 +49,7 @@ import {
   isGroupable,
   isHiddenInView,
   isSortable,
+  moveProperty,
   toggleHiddenInView,
 } from "@/lib/properties";
 import { holdsOptions, holdsPeople, holdsTimestamp, PERSON_ME } from "@/lib/property-types";
@@ -56,6 +58,7 @@ import { Floating, useFloating } from "./floating";
 import { usePeople } from "./person-cell";
 import { useFormatDate } from "./property-cell";
 import { PropertyLock } from "./property-access";
+import { usePropertyDrag } from "./property-drag";
 import { PropertyTypeIcon, ViewIcon } from "./property-icons";
 import { linkedRows, useRelations } from "./relation-context";
 import { TITLE, type Property, type View } from "./types";
@@ -313,6 +316,10 @@ export function ViewToolbar({
   const dateMenu = useFloating<HTMLButtonElement>();
   const dateProps = properties.filter((p) => p.type === "date");
   const dateBy = dateProps.find((p) => p.id === config.dateBy) ?? dateProps[0];
+  // `properties` is in the view's order, so dragging one in the properties menu reorders the view.
+  const propertyDrag = usePropertyDrag("y", (moved, target, side) =>
+    onConfig({ ...config, propertyOrder: moveProperty(properties, moved, target, side) }),
+  );
 
   if (readOnly) return null;
   return (
@@ -467,14 +474,37 @@ export function ViewToolbar({
           {!properties.length && <div className="px-2 pb-1.5 text-xs text-fg-faint">{t("toolbar.noProperties")}</div>}
           {properties.map((p) => {
             const isHidden = isHiddenInView(view, p);
+            const drag = propertyDrag.handlers(p.id);
             return (
               <button
                 key={p.id}
                 type="button"
+                data-property={p.id}
+                draggable
+                onDragStart={drag.onDragStart}
+                onDragOver={drag.onDragOver}
+                onDrop={drag.onDrop}
+                onDragEnd={drag.onDragEnd}
                 onClick={() => onConfig(toggleHiddenInView(view, p))}
-                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover"
+                className={cn(
+                  "group/prop relative flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover",
+                  drag.dragging && "opacity-50",
+                )}
               >
-                <PropertyTypeIcon type={p.type} className="h-3.5 w-3.5 text-fg-muted" />
+                {drag.dropSide && (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "pointer-events-none absolute inset-x-1 h-0.5 bg-accent",
+                      drag.dropSide === "before" ? "-top-px" : "-bottom-px",
+                    )}
+                  />
+                )}
+                <GripVertical
+                  aria-hidden
+                  className="-ml-1.5 h-3.5 w-3.5 shrink-0 cursor-grab text-fg-faint opacity-0 group-hover/prop:opacity-100"
+                />
+                <PropertyTypeIcon type={p.type} className="-ml-1 h-3.5 w-3.5 text-fg-muted" />
                 <span className={cn("flex-1 truncate", isHidden && "text-fg-faint")}>{p.name}</span>
                 <PropertyLock propertyId={p.id} />
                 {isHidden ? (

@@ -912,3 +912,34 @@ export function orderGroups<G extends { key: string }>(groups: G[], order: strin
   });
   return keyed.map((k) => k.g);
 }
+
+/**
+ * Puts properties in the view's saved column order. Properties it doesn't list (added since the
+ * order was saved) follow at the end in their database order, next to where "add property" is.
+ */
+export function orderProperties<P extends { id: string }>(properties: P[], order: string[] | undefined): P[] {
+  if (!order?.length) return properties;
+  const rank = new Map(order.map((id, i) => [id, i]));
+  const at = (p: P) => rank.get(p.id) ?? order.length;
+  return properties
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => at(a.p) - at(b.p) || a.i - b.i)
+    .map(({ p }) => p);
+}
+
+/**
+ * The column order after dragging `movedId` next to `targetId` (before or after it). `properties`
+ * is every property in the view's current order, hidden ones included, so they keep their place.
+ */
+export function moveProperty(
+  properties: { id: string }[],
+  movedId: string,
+  targetId: string,
+  side: "before" | "after",
+): string[] {
+  const ids = properties.map((p) => p.id).filter((id) => id !== movedId);
+  const at = ids.indexOf(targetId);
+  if (at === -1 || movedId === targetId) return properties.map((p) => p.id);
+  ids.splice(side === "before" ? at : at + 1, 0, movedId);
+  return ids;
+}

@@ -228,6 +228,16 @@ export function restoreReferences(stored: ViewConfig, next: ViewConfig, gone: Re
     const ids = stored[key]?.filter((id) => gone.has(id)) ?? [];
     if (ids.length) out[key] = [...(next[key] ?? []), ...ids];
   }
+  if (stored.propertyOrder?.some((id) => gone.has(id))) {
+    // Each column the saver couldn't see goes back right after the one it followed before.
+    const order = (next.propertyOrder ?? stored.propertyOrder.filter((id) => !gone.has(id))).filter((id) => !gone.has(id));
+    stored.propertyOrder.forEach((id, i) => {
+      if (!gone.has(id)) return;
+      const before = stored.propertyOrder!.slice(0, i).findLast((prev) => order.includes(prev));
+      order.splice(before === undefined ? 0 : order.indexOf(before) + 1, 0, id);
+    });
+    out.propertyOrder = order;
+  }
   const calcs = Object.entries(stored.calculations ?? {}).filter(([id]) => gone.has(id));
   if (calcs.length) out.calculations = { ...next.calculations, ...Object.fromEntries(calcs) };
   if (stored.form) {

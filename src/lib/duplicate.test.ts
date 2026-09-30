@@ -28,6 +28,7 @@ describe("dropPropertyReferences", () => {
           { propertyId: "due", op: "is_not_empty" },
         ],
         hidden: ["person", "due"],
+        propertyOrder: ["due", "person", "notes"],
         calculations: { person: "count_all", due: "count_all" },
         cover: { source: "property", propertyId: "person" },
       } as never,
@@ -38,6 +39,7 @@ describe("dropPropertyReferences", () => {
     expect(out.sorts).toEqual([{ propertyId: "due", direction: "desc" }]);
     expect(out.filters).toEqual([{ propertyId: "due", op: "is_not_empty" }]);
     expect(out.hidden).toEqual(["due"]);
+    expect(out.propertyOrder).toEqual(["due", "notes"]);
     expect(out.calculations).toEqual({ due: "count_all" });
     expect(out.cover).toBeUndefined();
   });
@@ -223,9 +225,10 @@ describe("remapViewConfig", () => {
 
   it("maps calendar and shown ids and keeps unknown ids", () => {
     const ids = new Map([["date", "date2"]]);
-    expect(remapViewConfig({ dateBy: "date", shown: ["date", "gone"] }, ids, () => null)).toEqual({
+    expect(remapViewConfig({ dateBy: "date", shown: ["date", "gone"], propertyOrder: ["gone", "date"] }, ids, () => null)).toEqual({
       dateBy: "date2",
       shown: ["date2", "gone"],
+      propertyOrder: ["gone", "date2"],
     });
   });
 

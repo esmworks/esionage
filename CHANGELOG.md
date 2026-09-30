@@ -24,6 +24,12 @@
   transaction (a savepoint) where there is one, right after it otherwise, and a failure is only
   logged. The daily retention cleanup prunes events older than a year. Migration `0031_audit_log`
   (`audit_event`). New checks: `scripts/audit-e2e.ts` (169), `src/lib/audit.test.ts`.
+- **Reorder columns by dragging.** A table's column headers, and the properties in any view's
+  properties menu, can be dragged into a new order, which the view keeps (`propertyOrder` in its
+  settings, so each view has its own order and the database's property order stays as it is).
+  Boards, galleries, lists, timelines and published pages show properties in that order too.
+  Hidden columns keep their place, properties added later show at the end, and a
+  view saved by someone who can't see some columns leaves those where they were.
 
 ### Changed
 

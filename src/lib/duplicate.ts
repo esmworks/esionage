@@ -325,6 +325,7 @@ export function remapViewConfig(
   }
   if (config.hidden) out.hidden = config.hidden.map(map);
   if (config.shown) out.shown = config.shown.map(map);
+  if (config.propertyOrder) out.propertyOrder = config.propertyOrder.map(map);
   if (config.calculations) {
     out.calculations = Object.fromEntries(Object.entries(config.calculations).map(([key, fn]) => [map(key), fn]));
   }
@@ -354,6 +355,7 @@ export function dropPropertyReferences(config: ViewConfig, gone: (propertyId: st
     filters: c.filters && mapFilterRules(c.filters, (f) => (gone(f.propertyId) ? null : f)),
     hidden: c.hidden?.filter((h) => !gone(h)),
     shown: c.shown?.filter((h) => !gone(h)),
+    propertyOrder: c.propertyOrder?.filter((id) => !gone(id)),
     calculations: c.calculations && Object.fromEntries(Object.entries(c.calculations).filter(([k]) => !gone(k))),
     form: c.form && {
       ...c.form,

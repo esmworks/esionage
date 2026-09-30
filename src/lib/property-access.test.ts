@@ -156,4 +156,12 @@ describe("view references", () => {
     expect(saved.hidden).toEqual(["secret"]);
     expect(saved.calculations).toEqual({ secret: "count_values" });
   });
+
+  it("keeps a hidden column where it was when the saver reorders the others", () => {
+    const order = { propertyOrder: ["a", "secret", "b", "c"] } as ViewConfig;
+    expect(hideReferences(order, gone).propertyOrder).toEqual(["a", "b", "c"]);
+    // The saver moved c to the front: secret stays right after a.
+    expect(restoreReferences(order, { propertyOrder: ["c", "a", "b"] }, gone).propertyOrder).toEqual(["c", "a", "secret", "b"]);
+    expect(restoreReferences({ propertyOrder: ["secret", "a"] }, { propertyOrder: ["a"] }, gone).propertyOrder).toEqual(["secret", "a"]);
+  });
 });

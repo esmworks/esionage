@@ -10,7 +10,7 @@ import type { ViewConfig } from "@/db/schema/app";
 import type { AggregateFn } from "@/lib/aggregate";
 import { valueType } from "@/lib/derived";
 import { arrangeGroups, canAddToGroup, groupDefaults, groupRowsBy, type Group } from "@/lib/grouping";
-import { isGroupable, isSortable, localDay } from "@/lib/properties";
+import { isGroupable, isSortable, localDay, moveProperty } from "@/lib/properties";
 import { AiCell, useAiAutofill } from "./ai-autofill";
 import { BulkActionBar, SelectBox, useRowSelection } from "./bulk-actions";
 import { uploadToPage } from "./files-cell";
@@ -18,6 +18,7 @@ import { Floating, useFloating } from "./floating";
 import { GroupLabel, HiddenGroups, useGroupContext, useGroupName } from "./group-label";
 import { usePeople } from "./person-cell";
 import { OpenLink, PropertyCell } from "./property-cell";
+import { usePropertyDrag, type PropertyDragHandlers } from "./property-drag";
 import { PropertyTypeIcon } from "./property-icons";
 import { PropertyAccessDialog } from "./property-access-dialog";
 import { PropertyLock, usePropertyAccess } from "./property-access";
@@ -112,6 +113,10 @@ export function TableView({
   const sortOf = (id: string) => view.config.sorts?.find((s) => s.propertyId === id)?.direction;
 
   const setConfig = (config: ViewConfig) => api.updateView(view, { config });
+  // `properties` is in the view's order with hidden ones too, so moving a column keeps them in place.
+  const columnDrag = usePropertyDrag("x", (moved, target, side) =>
+    setConfig({ ...view.config, propertyOrder: moveProperty(properties, moved, target, side) }),
+  );
   const setCalculation = (key: string, fn: AggregateFn | null) => {
     const calculations = { ...view.config.calculations };
     if (fn) calculations[key] = fn;
@@ -257,6 +262,7 @@ export function TableView({
                   icon={p.type}
                   sort={sortOf(p.id)}
                   readOnly={readOnly}
+                  drag={readOnly ? undefined : columnDrag.handlers(p.id)}
                   actions={{
                     rename: fixed ? undefined : (name) => api.renameProperty(p.id, name),
                     sort: isSortable(p.type)
@@ -499,6 +505,7 @@ function HeaderCell({
   icon,
   sort,
   readOnly,
+  drag,
   actions,
 }: {
   prop: Property | null;
@@ -506,6 +513,8 @@ function HeaderCell({
   icon: Property["type"] | "title";
   sort?: "asc" | "desc";
   readOnly?: boolean;
+  /** Moving the column by dragging its header; only property columns move. */
+  drag?: PropertyDragHandlers;
   actions: React.ComponentProps<typeof PropertyMenu>["actions"];
 }) {
   const t = useTranslations("database.table");
@@ -515,7 +524,21 @@ function HeaderCell({
   const [accessOpen, setAccessOpen] = useState(false);
   const menuActions = prop && access.canManage ? { ...actions, openAccess: () => setAccessOpen(true) } : actions;
   return (
-    <th className={cn("border-y border-border p-0 text-left font-normal", prop && "border-l")}>
+    <th
+      data-column={prop?.id}
+      draggable={!!drag}
+      onDragStart={drag?.onDragStart}
+      onDragOver={drag?.onDragOver}
+      onDrop={drag?.onDrop}
+      onDragEnd={drag?.onDragEnd}
+      className={cn("relative border-y border-border p-0 text-left font-normal", prop && "border-l", drag?.dragging && "opacity-50")}
+    >
+      {drag?.dropSide && (
+        <span
+          aria-hidden
+          className={cn("pointer-events-none absolute inset-y-0 z-10 w-0.5 bg-accent", drag.dropSide === "before" ? "-left-px" : "-right-px")}
+        />
+      )}
       <button
         ref={menu.ref}
         type="button"

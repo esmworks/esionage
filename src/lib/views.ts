@@ -87,5 +87,9 @@ export function layoutConfigError(config: ViewConfig): string | null {
       return `${key} must be a list of group keys`;
     }
   }
+  const order = c.propertyOrder;
+  if (order !== undefined && (!Array.isArray(order) || !order.every((id) => typeof id === "string"))) {
+    return "propertyOrder must be a list of property ids";
+  }
   return formConfigError(c.form);
 }

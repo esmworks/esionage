@@ -8,7 +8,7 @@ import { Button } from "@/components/ui";
 import { markNewPage } from "@/components/page/new-page-focus";
 import type { ViewConfig, ViewType } from "@/db/schema/app";
 import type { LinkedView } from "@/lib/embed-blocks";
-import { applyView, defaultsFromFilters } from "@/lib/properties";
+import { applyView, defaultsFromFilters, orderProperties } from "@/lib/properties";
 import { atLeast } from "@/lib/property-access";
 import { galleryCover } from "@/lib/views";
 import { BoardView } from "./board-view";
@@ -194,6 +194,11 @@ export function DatabasePage({
     if (!view || !snapshot) return [];
     return applyView(rows, view.config, snapshot.properties, { viewerId: snapshot.viewerId, people: snapshot.people });
   }, [rows, view, snapshot]);
+  // The properties in the view's column order: what its columns, cards and properties menu show.
+  const viewProperties = useMemo(
+    () => (snapshot ? orderProperties(snapshot.properties, view?.config.propertyOrder) : []),
+    [snapshot, view?.config.propertyOrder],
+  );
 
   if (!snapshot) {
     return (
@@ -310,7 +315,7 @@ export function DatabasePage({
                       <div className="flex shrink-0 items-center gap-1 self-end md:pb-1.5">
                         <ViewToolbar
                           view={view}
-                          properties={snapshot.properties}
+                          properties={viewProperties}
                           readOnly={configReadOnly}
                           locked={locked}
                           onConfig={(config) => setConfig(view, config)}
@@ -400,7 +405,7 @@ export function DatabasePage({
                     <BoardView
                       workspaceId={workspaceId}
                       view={view}
-                      properties={snapshot.properties}
+                      properties={viewProperties}
                       rows={visibleRows}
                       api={viewApi}
                       readOnly={readOnly}
@@ -411,7 +416,7 @@ export function DatabasePage({
                     <GalleryView
                       workspaceId={workspaceId}
                       view={view}
-                      properties={snapshot.properties}
+                      properties={viewProperties}
                       rows={visibleRows}
                       api={viewApi}
                       readOnly={readOnly}
@@ -420,7 +425,7 @@ export function DatabasePage({
                     <ListView
                       workspaceId={workspaceId}
                       view={view}
-                      properties={snapshot.properties}
+                      properties={viewProperties}
                       rows={visibleRows}
                       api={viewApi}
                       readOnly={readOnly}
@@ -430,7 +435,7 @@ export function DatabasePage({
                       key={view.id}
                       workspaceId={workspaceId}
                       view={view}
-                      properties={snapshot.properties}
+                      properties={viewProperties}
                       rows={visibleRows}
                       api={viewApi}
                       readOnly={readOnly}
@@ -441,7 +446,7 @@ export function DatabasePage({
                     <ChartView
                       workspaceId={workspaceId}
                       view={view}
-                      properties={snapshot.properties}
+                      properties={viewProperties}
                       rows={visibleRows}
                       readOnly={readOnly}
                       locked={locked}
@@ -452,7 +457,7 @@ export function DatabasePage({
                       <CalendarView
                         workspaceId={workspaceId}
                         view={view}
-                        properties={snapshot.properties}
+                        properties={viewProperties}
                         rows={visibleRows}
                         api={viewApi}
                         readOnly={readOnly}
@@ -465,7 +470,7 @@ export function DatabasePage({
                       workspaceId={workspaceId}
                       databaseId={databaseId}
                       view={view}
-                      properties={snapshot.properties}
+                      properties={viewProperties}
                       rows={visibleRows}
                       api={viewApi}
                       readOnly={readOnly}

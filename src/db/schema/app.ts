@@ -525,6 +525,11 @@ export type ViewConfig = {
   /** How the top-level filters combine; missing means "and". */
   filterCombinator?: FilterCombinator;
   hidden?: string[];
+  /**
+   * Property ids in the order this view shows them (the Name column always comes first). Properties
+   * it doesn't list follow in their database order (see `orderProperties`).
+   */
+  propertyOrder?: string[];
   /** Properties shown although their type starts hidden in this kind of view (see `isHiddenInView`). */
   shown?: string[];
   /** Date grouping (date, created and last edited time): how big each group is; "month" when missing. */

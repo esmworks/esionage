@@ -7,7 +7,7 @@ import { PG_MARKDOWN_IMAGE_PATTERN } from "@/lib/cover";
 import { withFormulaTypes } from "@/lib/derived";
 import type { EmbedBlockType, LinkedView } from "@/lib/embed-blocks";
 import { arrangeGroups, boardGroupProperty, groupRowsBy, isGroupable, type GroupValue } from "@/lib/grouping";
-import { applyView, computedValues, isHiddenInView } from "@/lib/properties";
+import { applyView, computedValues, isHiddenInView, orderProperties } from "@/lib/properties";
 import { coverProperty, galleryCover } from "@/lib/views";
 import { firstImageFile } from "@/lib/files";
 import { hideReferences, unknownProperties } from "@/lib/property-access-rows";
@@ -771,7 +771,9 @@ export async function publishedDatabase(
   const groups = publishedGroups(chosen, allProperties, viewed);
   // A board whose columns would name people or linked rows shows as a table.
   const layout = chosen.type === "board" && !groups ? "table" : (LAYOUTS[chosen.type] ?? "table");
-  const shown = properties.filter((prop) => !isHiddenInView(chosen, prop) && !(layout === "board" && prop.id === groups?.property.id));
+  const shown = orderProperties(properties, chosen.config.propertyOrder).filter(
+    (prop) => !isHiddenInView(chosen, prop) && !(layout === "board" && prop.id === groups?.property.id),
+  );
   return {
     properties: shown,
     view: { id: chosen.id, name: chosen.name, type: chosen.type },

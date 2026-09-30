@@ -21,6 +21,8 @@ import {
   hiddenByDefault,
   isHiddenInView,
   orderGroups,
+  orderProperties,
+  moveProperty,
   toggleHiddenInView,
   isSortable,
   normalizeValue,
@@ -305,6 +307,41 @@ describe("orderGroups", () => {
     expect(names()).toEqual(["", "o1", "o2", "o3"]);
     expect(names(["o3", "", "o1"])).toEqual(["o3", "", "o1", "o2"]);
     expect(names(["gone", "o2"])).toEqual(["o2", "", "o1", "o3"]);
+  });
+});
+
+describe("orderProperties", () => {
+  const props = ["a", "b", "c", "d"].map((id) => ({ id }));
+  const ids = (order?: string[]) => orderProperties(props, order).map((p) => p.id);
+
+  it("keeps the database order without a saved one", () => {
+    expect(ids()).toEqual(["a", "b", "c", "d"]);
+    expect(ids([])).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("follows the saved order and skips ids that are gone", () => {
+    expect(ids(["d", "c", "b", "a"])).toEqual(["d", "c", "b", "a"]);
+    expect(ids(["gone", "c", "a", "b", "d"])).toEqual(["c", "a", "b", "d"]);
+  });
+
+  it("puts properties added since at the end, in database order", () => {
+    expect(ids(["b", "a"])).toEqual(["b", "a", "c", "d"]);
+    expect(ids(["d", "b"])).toEqual(["d", "b", "a", "c"]);
+  });
+});
+
+describe("moveProperty", () => {
+  const props = ["a", "b", "c", "d"].map((id) => ({ id }));
+
+  it("moves a property before or after another", () => {
+    expect(moveProperty(props, "d", "a", "before")).toEqual(["d", "a", "b", "c"]);
+    expect(moveProperty(props, "a", "c", "after")).toEqual(["b", "c", "a", "d"]);
+    expect(moveProperty(props, "a", "b", "before")).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("changes nothing for a drop on itself or an unknown property", () => {
+    expect(moveProperty(props, "b", "b", "after")).toEqual(["a", "b", "c", "d"]);
+    expect(moveProperty(props, "b", "gone", "after")).toEqual(["a", "b", "c", "d"]);
   });
 });
 
