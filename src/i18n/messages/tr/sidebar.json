@@ -121,5 +121,14 @@
     "join": "Katıl",
     "request": "Katılma isteği gönder",
     "requested": "İstek gönderildi"
+  },
+  "customize": {
+    "open": "Kenar çubuğunu özelleştir",
+    "heading": "Bu çalışma alanında gösterilen bölümler",
+    "moveUp": "{section} bölümünü yukarı taşı",
+    "moveDown": "{section} bölümünü aşağı taşı",
+    "show": "{section} bölümünü göster",
+    "hide": "{section} bölümünü gizle",
+    "done": "Bitti"
   }
 }

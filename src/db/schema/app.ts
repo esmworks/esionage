@@ -19,6 +19,7 @@ import type { AiAutofillConfig } from "../../lib/ai";
 import type { AggregateFn, RollupDisplay, RollupFn } from "../../lib/aggregate";
 import type { FormulaResultType } from "../../lib/formula/types";
 import { PROPERTY_TYPES, type PropertyType, type StatusGroup } from "../../lib/property-types";
+import type { SidebarLayout } from "../../lib/sidebar-sections";
 import { user } from "./auth";
 
 const bytea = customType<{ data: Uint8Array; driverData: Buffer }>({
@@ -165,6 +166,8 @@ export const workspaceMember = pgTable(
      * inviter's account is gone.
      */
     invitedBy: text("invited_by").references(() => user.id, { onDelete: "set null" }),
+    /** How they arranged the sidebar in this workspace: section order, hidden and folded sections. */
+    sidebar: jsonb("sidebar").$type<SidebarLayout>().notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.workspaceId, t.userId] }), index("workspace_member_user_idx").on(t.userId)],
@@ -544,6 +547,8 @@ export type ViewConfig = {
   hideEmptyGroups?: boolean;
   /** Table views: groups shown collapsed, by group key. */
   collapsedGroups?: string[];
+  /** Table views: column widths in pixels the user dragged, keyed by property id or "title". */
+  columnWidths?: Record<string, number>;
   /** Table views: the footer calculation per column, keyed by property id or "title". */
   calculations?: Record<string, AggregateFn>;
   /** Form views: questions, texts and default values. */

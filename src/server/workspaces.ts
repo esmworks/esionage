@@ -28,6 +28,7 @@ import { isEmail, MAX_BULK_EMAILS, normalizeEmail } from "@/lib/emails";
 import { assignableRoles, linkAccess, memberInviteMode } from "@/lib/membership-policy";
 import { TRASH_RETENTION_CHOICES } from "@/lib/retention";
 import { parseDomains } from "@/lib/sso-config";
+import { cleanSidebarLayout, type SidebarLayout } from "@/lib/sidebar-sections";
 import { env } from "@/lib/env";
 import { canCreateWorkspace } from "@/lib/instance-admin";
 import { invitationEmail, mailStatus, sendMail } from "@/server/mail";
@@ -1265,4 +1266,26 @@ export async function requireTopLevel(userId: string, workspaceId: string) {
   const access = await topLevelAccess(userId, workspaceId);
   if (!access) throw new AccessError();
   return access;
+}
+
+/** How the user arranged the sidebar in this workspace (see lib/sidebar-sections); empty when not a member. */
+export async function getSidebarLayout(userId: string, workspaceId: string): Promise<SidebarLayout> {
+  const [row] = await db
+    .select({ sidebar: workspaceMember.sidebar })
+    .from(workspaceMember)
+    .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, userId)));
+  return cleanSidebarLayout(row?.sidebar) ?? {};
+}
+
+/**
+ * Saves parts of the user's own sidebar layout in this workspace (the lists given replace theirs,
+ * the others stay); nothing happens for non-members.
+ */
+export async function setSidebarLayout(userId: string, workspaceId: string, input: unknown) {
+  const patch = cleanSidebarLayout(input);
+  if (!patch) throw new Error("Not a sidebar layout");
+  await db
+    .update(workspaceMember)
+    .set({ sidebar: sql`${workspaceMember.sidebar} || ${JSON.stringify(patch)}::jsonb` })
+    .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, userId)));
 }

@@ -329,6 +329,9 @@ export function remapViewConfig(
   if (config.calculations) {
     out.calculations = Object.fromEntries(Object.entries(config.calculations).map(([key, fn]) => [map(key), fn]));
   }
+  if (config.columnWidths) {
+    out.columnWidths = Object.fromEntries(Object.entries(config.columnWidths).map(([key, width]) => [map(key), width]));
+  }
   // A form's questions follow the copied properties, and its default values are row values. Whether
   // it is open to the web isn't part of the config: a copy starts closed.
   if (config.form?.questions) out.form!.questions = config.form.questions.map((q) => ({ ...q, propertyId: map(q.propertyId) }));
@@ -357,6 +360,7 @@ export function dropPropertyReferences(config: ViewConfig, gone: (propertyId: st
     shown: c.shown?.filter((h) => !gone(h)),
     propertyOrder: c.propertyOrder?.filter((id) => !gone(id)),
     calculations: c.calculations && Object.fromEntries(Object.entries(c.calculations).filter(([k]) => !gone(k))),
+    columnWidths: c.columnWidths && Object.fromEntries(Object.entries(c.columnWidths).filter(([k]) => !gone(k))),
     form: c.form && {
       ...c.form,
       questions: c.form.questions?.filter((q) => !gone(q.propertyId)),

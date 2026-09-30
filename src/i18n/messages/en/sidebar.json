@@ -121,5 +121,14 @@
     "join": "Join",
     "request": "Request to join",
     "requested": "Requested"
+  },
+  "customize": {
+    "open": "Customize sidebar",
+    "heading": "Sections shown in this workspace",
+    "moveUp": "Move {section} up",
+    "moveDown": "Move {section} down",
+    "show": "Show {section}",
+    "hide": "Hide {section}",
+    "done": "Done"
   }
 }

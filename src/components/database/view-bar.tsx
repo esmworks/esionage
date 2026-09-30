@@ -20,6 +20,7 @@ import {
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Button, cn, Input, MenuItem, MenuSeparator } from "@/components/ui";
+import { useReorderDrag } from "@/components/use-reorder-drag";
 import type {
   FilterCombinator,
   FilterEntry,
@@ -58,7 +59,6 @@ import { Floating, useFloating } from "./floating";
 import { usePeople } from "./person-cell";
 import { useFormatDate } from "./property-cell";
 import { PropertyLock } from "./property-access";
-import { usePropertyDrag } from "./property-drag";
 import { PropertyTypeIcon, ViewIcon } from "./property-icons";
 import { linkedRows, useRelations } from "./relation-context";
 import { TITLE, type Property, type View } from "./types";
@@ -317,7 +317,7 @@ export function ViewToolbar({
   const dateProps = properties.filter((p) => p.type === "date");
   const dateBy = dateProps.find((p) => p.id === config.dateBy) ?? dateProps[0];
   // `properties` is in the view's order, so dragging one in the properties menu reorders the view.
-  const propertyDrag = usePropertyDrag("y", (moved, target, side) =>
+  const propertyDrag = useReorderDrag("y", (moved, target, side) =>
     onConfig({ ...config, propertyOrder: moveProperty(properties, moved, target, side) }),
   );
 

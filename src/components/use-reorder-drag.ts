@@ -2,22 +2,22 @@
 
 import { useState } from "react";
 
-export type PropertyDragHandlers = {
+export type ReorderDragHandlers = {
   onDragStart: (e: React.DragEvent) => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
   onDragEnd: () => void;
-  /** This property is the one being dragged. */
+  /** This item is the one being dragged. */
   dragging: boolean;
-  /** Where the dragged property would land next to this one. */
+  /** Where the dragged item would land next to this one. */
   dropSide: "before" | "after" | null;
 };
 
 /**
- * Dragging properties to reorder them: table columns along "x", the properties menu along "y".
- * `onMove` gets the dragged property, the one it was dropped on and which side of it.
+ * Dragging items of a list to reorder them, along "x" (table columns) or "y" (menus). `onMove` gets
+ * the dragged item's id, the one it was dropped on and which side of it.
  */
-export function usePropertyDrag(axis: "x" | "y", onMove: (moved: string, target: string, side: "before" | "after") => void) {
+export function useReorderDrag(axis: "x" | "y", onMove: (moved: string, target: string, side: "before" | "after") => void) {
   const [dragged, setDragged] = useState<string | null>(null);
   const [drop, setDrop] = useState<{ id: string; side: "before" | "after" } | null>(null);
   const end = () => {
@@ -30,14 +30,14 @@ export function usePropertyDrag(axis: "x" | "y", onMove: (moved: string, target:
     return before ? "before" : "after";
   };
   return {
-    handlers: (id: string): PropertyDragHandlers => ({
+    handlers: (id: string): ReorderDragHandlers => ({
       onDragStart: (e) => {
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", id);
         setDragged(id);
       },
       onDragOver: (e) => {
-        // Only a property dragged from here; files and text dragged in pass through.
+        // Only an item dragged from here; files and text dragged in pass through.
         if (!dragged) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";

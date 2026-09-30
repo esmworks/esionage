@@ -8,6 +8,10 @@ export const CARD_SIZES = ["small", "medium", "large"] as const satisfies readon
 export const COVER_SOURCES = ["first_image", "property", "none"] as const satisfies readonly ViewCover["source"][];
 export const TIMELINE_ZOOMS = ["day", "week", "month"] as const satisfies readonly TimelineZoom[];
 
+/** How narrow and how wide a table column may be saved (the table keeps a dragged column within these). */
+export const MIN_COLUMN_WIDTH = 60;
+export const MAX_COLUMN_WIDTH = 1000;
+
 export function isViewType(value: unknown): value is ViewType {
   return VIEW_TYPES.includes(value as ViewType);
 }
@@ -86,6 +90,13 @@ export function layoutConfigError(config: ViewConfig): string | null {
     if (keys !== undefined && (!Array.isArray(keys) || !keys.every((k) => typeof k === "string"))) {
       return `${key} must be a list of group keys`;
     }
+  }
+  const widths = c.columnWidths;
+  if (
+    widths !== undefined &&
+    (!widths || typeof widths !== "object" || Array.isArray(widths) || !Object.values(widths).every((w) => typeof w === "number" && w >= MIN_COLUMN_WIDTH && w <= MAX_COLUMN_WIDTH))
+  ) {
+    return "columnWidths must map column ids to widths in pixels";
   }
   const order = c.propertyOrder;
   if (order !== undefined && (!Array.isArray(order) || !order.every((id) => typeof id === "string"))) {

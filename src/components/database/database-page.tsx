@@ -474,6 +474,7 @@ export function DatabasePage({
                       rows={visibleRows}
                       api={viewApi}
                       readOnly={readOnly}
+                      settingsReadOnly={configReadOnly}
                       locked={locked}
                       filtered={rows.length > 0}
                       guest={guest}

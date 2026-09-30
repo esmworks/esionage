@@ -3,14 +3,16 @@
 import { ArrowDown, ArrowUp, Bot, ChevronRight, Ellipsis, EyeOff, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn, MenuItem, MenuSeparator } from "@/components/ui";
 import { PHONE_QUERY, useMediaQuery } from "@/components/use-media-query";
+import { useReorderDrag, type ReorderDragHandlers } from "@/components/use-reorder-drag";
 import type { ViewConfig } from "@/db/schema/app";
 import type { AggregateFn } from "@/lib/aggregate";
 import { valueType } from "@/lib/derived";
 import { arrangeGroups, canAddToGroup, groupDefaults, groupRowsBy, type Group } from "@/lib/grouping";
 import { isGroupable, isSortable, localDay, moveProperty } from "@/lib/properties";
+import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH } from "@/lib/views";
 import { AiCell, useAiAutofill } from "./ai-autofill";
 import { BulkActionBar, SelectBox, useRowSelection } from "./bulk-actions";
 import { uploadToPage } from "./files-cell";
@@ -18,7 +20,6 @@ import { Floating, useFloating } from "./floating";
 import { GroupLabel, HiddenGroups, useGroupContext, useGroupName } from "./group-label";
 import { usePeople } from "./person-cell";
 import { OpenLink, PropertyCell } from "./property-cell";
-import { usePropertyDrag, type PropertyDragHandlers } from "./property-drag";
 import { PropertyTypeIcon } from "./property-icons";
 import { PropertyAccessDialog } from "./property-access-dialog";
 import { PropertyLock, usePropertyAccess } from "./property-access";
@@ -31,7 +32,7 @@ import type { DatabaseApi } from "./use-database";
 /** The Name column; narrower on phones so the next column peeks in. */
 const NAME_WIDTH = { wide: 280, phone: 180 };
 const WIDTHS: Partial<Record<Property["type"], number>> = { checkbox: 110, number: 140, date: 170 };
-const colWidth = (p: Property) => WIDTHS[p.type] ?? 200;
+const defaultWidth = (p: Property) => WIDTHS[p.type] ?? 200;
 
 /** The implicit Name column as a text property; `name` is its translated label. */
 export function titleProperty(databaseId: string, name: string): Property {
@@ -55,6 +56,7 @@ export function TableView({
   rows,
   api,
   readOnly,
+  settingsReadOnly,
   locked,
   filtered,
   guest,
@@ -67,6 +69,8 @@ export function TableView({
   rows: Row[];
   api: DatabaseApi;
   readOnly?: boolean;
+  /** The view's settings can't be saved (a linked view its block doesn't let change), rows still can. */
+  settingsReadOnly?: boolean;
   /** The schema is locked: rows stay editable, properties don't. */
   locked?: boolean;
   /** True when filters hide rows, to explain an empty table. */
@@ -106,15 +110,54 @@ export function TableView({
   const selection = useRowSelection(expanded);
   // Row controls before the Name column: the selection checkbox, plus the row menu for editors.
   const handles = readOnly ? 32 : 56;
-  const nameWidth = useMediaQuery(PHONE_QUERY) ? NAME_WIDTH.phone : NAME_WIDTH.wide;
+  const phone = useMediaQuery(PHONE_QUERY);
+  // The column being resized follows the pointer here; releasing saves the same width, so it doesn't jump.
+  const [resizing, setResizing] = useState<{ key: string; width: number } | null>(null);
+  const widthOf = (key: string, fallback: number) =>
+    resizing?.key === key ? resizing.width : (view.config.columnWidths?.[key] ?? fallback);
+  const colWidth = (p: Property) => widthOf(p.id, defaultWidth(p));
+  // Phones keep the narrow Name column so the next one peeks in.
+  const nameWidth = phone ? NAME_WIDTH.phone : widthOf(TITLE, NAME_WIDTH.wide);
   const hidden = new Set(view.config.hidden ?? []);
   const visible = properties.filter((p) => !hidden.has(p.id));
   const titleProp = titleProperty(databaseId, t("nameColumn"));
   const sortOf = (id: string) => view.config.sorts?.find((s) => s.propertyId === id)?.direction;
 
   const setConfig = (config: ViewConfig) => api.updateView(view, { config });
+  // Column widths and order change the view's settings, which only people who may save them change.
+  const arrangeable = !readOnly && !settingsReadOnly;
+  // The settings as they are when a resize ends, not as they were when it began.
+  const latestConfig = useRef(view.config);
+  useEffect(() => {
+    latestConfig.current = view.config;
+  }, [view.config]);
+  function startResize(key: string, start: number, e: React.PointerEvent<HTMLElement>) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // Captured, the handle keeps getting the pointer over other elements and outside the window.
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    const from = e.clientX;
+    let width = start;
+    const move = (ev: PointerEvent) => {
+      width = Math.round(Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, start + ev.clientX - from)));
+      setResizing({ key, width });
+    };
+    const end = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("lostpointercapture", end);
+      const config = latestConfig.current;
+      // Saving updates the view at once, in the same render that drops the live width.
+      if (width !== start) void setConfig({ ...config, columnWidths: { ...config.columnWidths, [key]: width } });
+      setResizing(null);
+    };
+    handle.addEventListener("pointermove", move);
+    // Fires on release and cancel alike, once the capture ends.
+    handle.addEventListener("lostpointercapture", end);
+  }
   // `properties` is in the view's order with hidden ones too, so moving a column keeps them in place.
-  const columnDrag = usePropertyDrag("x", (moved, target, side) =>
+  const columnDrag = useReorderDrag("x", (moved, target, side) =>
     setConfig({ ...view.config, propertyOrder: moveProperty(properties, moved, target, side) }),
   );
   const setCalculation = (key: string, fn: AggregateFn | null) => {
@@ -247,6 +290,8 @@ export function TableView({
               icon="title"
               sort={sortOf(TITLE)}
               readOnly={readOnly}
+              onResize={!arrangeable || phone ? undefined : (e) => startResize(TITLE, nameWidth, e)}
+              resizing={resizing?.key === TITLE}
               actions={{
                 sort: (direction) => setConfig({ ...view.config, sorts: [{ propertyId: TITLE, direction }] }),
               }}
@@ -262,13 +307,15 @@ export function TableView({
                   icon={p.type}
                   sort={sortOf(p.id)}
                   readOnly={readOnly}
-                  drag={readOnly ? undefined : columnDrag.handlers(p.id)}
+                  drag={arrangeable ? columnDrag.handlers(p.id) : undefined}
+                  onResize={arrangeable ? (e) => startResize(p.id, colWidth(p), e) : undefined}
+                  resizing={resizing?.key === p.id}
                   actions={{
                     rename: fixed ? undefined : (name) => api.renameProperty(p.id, name),
                     sort: isSortable(p.type)
                       ? (direction) => setConfig({ ...view.config, sorts: [{ propertyId: p.id, direction }] })
                       : undefined,
-                    hide: () => setConfig({ ...view.config, hidden: [...(view.config.hidden ?? []), p.id] }),
+                    hide: settingsReadOnly ? undefined : () => setConfig({ ...view.config, hidden: [...(view.config.hidden ?? []), p.id] }),
                     setOptions: fixed ? undefined : (options) => api.setOptions(p, options),
                     setFormula: fixed ? undefined : (expression) => api.setFormula(p, expression),
                     setRollup: fixed ? undefined : (rollup) => api.setRollup(p, rollup),
@@ -506,6 +553,8 @@ function HeaderCell({
   sort,
   readOnly,
   drag,
+  onResize,
+  resizing,
   actions,
 }: {
   prop: Property | null;
@@ -514,7 +563,11 @@ function HeaderCell({
   sort?: "asc" | "desc";
   readOnly?: boolean;
   /** Moving the column by dragging its header; only property columns move. */
-  drag?: PropertyDragHandlers;
+  drag?: ReorderDragHandlers;
+  /** Starts resizing the column from the handle on its right edge. */
+  onResize?: (e: React.PointerEvent<HTMLElement>) => void;
+  /** The column is being resized: its handle stays lit. */
+  resizing?: boolean;
   actions: React.ComponentProps<typeof PropertyMenu>["actions"];
 }) {
   const t = useTranslations("database.table");
@@ -553,6 +606,28 @@ function HeaderCell({
         {sort === "asc" && <ArrowUp className="h-3 w-3 shrink-0 text-accent" aria-label={t("sortedAscending")} />}
         {sort === "desc" && <ArrowDown className="h-3 w-3 shrink-0 text-accent" aria-label={t("sortedDescending")} />}
       </button>
+      {onResize && (
+        <span
+          aria-hidden
+          // Draggable and cancelled, so pressing here doesn't start dragging the column itself.
+          draggable
+          onDragStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+          onPointerDown={onResize}
+          onClick={(e) => e.stopPropagation()}
+          className="group/resize absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize touch-none"
+        >
+          <span
+            className={cn(
+              "absolute inset-y-0 left-[3px] w-0.5 transition-colors group-hover/resize:bg-accent/60",
+              resizing && "bg-accent",
+            )}
+          />
+        </span>
+      )}
       <Floating open={menu.open} anchor={menu.el} onClose={menu.close}>
         <PropertyMenu prop={prop} actions={menuActions} onDone={menu.close} />
       </Floating>

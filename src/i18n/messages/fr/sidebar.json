@@ -121,5 +121,14 @@
     "join": "Rejoindre",
     "request": "Demander à rejoindre",
     "requested": "Demandé"
+  },
+  "customize": {
+    "open": "Personnaliser la barre latérale",
+    "heading": "Sections affichées dans cet espace de travail",
+    "moveUp": "Monter {section}",
+    "moveDown": "Descendre {section}",
+    "show": "Afficher {section}",
+    "hide": "Masquer {section}",
+    "done": "Terminé"
   }
 }

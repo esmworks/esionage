@@ -121,5 +121,14 @@
     "join": "Unirse",
     "request": "Pedir unirse",
     "requested": "Solicitado"
+  },
+  "customize": {
+    "open": "Personalizar barra lateral",
+    "heading": "Secciones que se muestran en este espacio de trabajo",
+    "moveUp": "Subir {section}",
+    "moveDown": "Bajar {section}",
+    "show": "Mostrar {section}",
+    "hide": "Ocultar {section}",
+    "done": "Listo"
   }
 }

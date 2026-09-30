@@ -158,6 +158,10 @@ describe("view references", () => {
   });
 
   it("keeps a hidden column where it was when the saver reorders the others", () => {
+    expect(restoreReferences({ columnWidths: { secret: 90, a: 100 } }, { columnWidths: { a: 150 } }, gone).columnWidths).toEqual({
+      a: 150,
+      secret: 90,
+    });
     const order = { propertyOrder: ["a", "secret", "b", "c"] } as ViewConfig;
     expect(hideReferences(order, gone).propertyOrder).toEqual(["a", "b", "c"]);
     // The saver moved c to the front: secret stays right after a.

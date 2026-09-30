@@ -19,6 +19,7 @@ import {
   revokeInvitation,
   setJoinLink,
   setMemberRole,
+  setSidebarLayout,
   transferOwnership,
   updateWorkspaceSettings,
   WorkspaceError,
@@ -177,4 +178,11 @@ export async function declineJoinRequestAction(workspaceId: string, requestId: s
   const result = await run(() => declineJoinRequest(userId, workspaceId, requestId));
   refresh(workspaceId);
   return result;
+}
+
+/** Saves parts of how the user arranged the sidebar in this workspace: only their own view changes. */
+export async function setSidebarLayoutAction(workspaceId: string, layout: unknown) {
+  const userId = await requireUserId();
+  if (typeof workspaceId !== "string") throw new Error("Unknown workspace");
+  await setSidebarLayout(userId, workspaceId, layout);
 }

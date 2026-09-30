@@ -121,5 +121,14 @@
     "join": "Beitreten",
     "request": "Beitritt anfragen",
     "requested": "Angefragt"
+  },
+  "customize": {
+    "open": "Seitenleiste anpassen",
+    "heading": "In diesem Arbeitsbereich angezeigte Abschnitte",
+    "moveUp": "{section} nach oben verschieben",
+    "moveDown": "{section} nach unten verschieben",
+    "show": "{section} anzeigen",
+    "hide": "{section} ausblenden",
+    "done": "Fertig"
   }
 }

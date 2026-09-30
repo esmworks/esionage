@@ -34,6 +34,7 @@ import {
   STATUS_GROUPS,
   type StatusGroup,
 } from "./property-types";
+import { moveBeside } from "./reorder";
 
 export const SELECT_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
 
@@ -937,9 +938,10 @@ export function moveProperty(
   targetId: string,
   side: "before" | "after",
 ): string[] {
-  const ids = properties.map((p) => p.id).filter((id) => id !== movedId);
-  const at = ids.indexOf(targetId);
-  if (at === -1 || movedId === targetId) return properties.map((p) => p.id);
-  ids.splice(side === "before" ? at : at + 1, 0, movedId);
-  return ids;
+  return moveBeside(
+    properties.map((p) => p.id),
+    movedId,
+    targetId,
+    side,
+  );
 }

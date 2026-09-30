@@ -240,6 +240,8 @@ export function restoreReferences(stored: ViewConfig, next: ViewConfig, gone: Re
   }
   const calcs = Object.entries(stored.calculations ?? {}).filter(([id]) => gone.has(id));
   if (calcs.length) out.calculations = { ...next.calculations, ...Object.fromEntries(calcs) };
+  const widths = Object.entries(stored.columnWidths ?? {}).filter(([id]) => gone.has(id));
+  if (widths.length) out.columnWidths = { ...next.columnWidths, ...Object.fromEntries(widths) };
   if (stored.form) {
     const questions = stored.form.questions?.filter((q) => gone.has(q.propertyId)) ?? [];
     const defaults = Object.entries(stored.form.defaults ?? {}).filter(([id]) => gone.has(id));

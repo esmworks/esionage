@@ -29,6 +29,7 @@ describe("dropPropertyReferences", () => {
         ],
         hidden: ["person", "due"],
         propertyOrder: ["due", "person", "notes"],
+        columnWidths: { title: 320, person: 90, due: 240 },
         calculations: { person: "count_all", due: "count_all" },
         cover: { source: "property", propertyId: "person" },
       } as never,
@@ -40,6 +41,7 @@ describe("dropPropertyReferences", () => {
     expect(out.filters).toEqual([{ propertyId: "due", op: "is_not_empty" }]);
     expect(out.hidden).toEqual(["due"]);
     expect(out.propertyOrder).toEqual(["due", "notes"]);
+    expect(out.columnWidths).toEqual({ title: 320, due: 240 });
     expect(out.calculations).toEqual({ due: "count_all" });
     expect(out.cover).toBeUndefined();
   });

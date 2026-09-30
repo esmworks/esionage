@@ -19,6 +19,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   SquarePen,
   Trash2,
@@ -29,11 +30,12 @@ import {
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { unreadCountAction } from "@/app/actions/notifications";
 import { listFavoritesAction } from "@/app/actions/page-menu";
 import { archivePageAction, createPageAction, getSidebarAction, movePageAction } from "@/app/actions/pages";
 import { leaveTeamspaceAction } from "@/app/actions/teamspaces";
+import { setSidebarLayoutAction } from "@/app/actions/workspaces";
 import type { FavoritePage } from "@/server/page-meta";
 import { useChannel } from "@/components/collab/use-channel";
 import { ViewIcon } from "@/components/database/property-icons";
@@ -53,6 +55,8 @@ import type { TeamspaceSummary } from "@/server/teamspaces";
 import type { JoinableWorkspace } from "@/server/join-requests";
 import { JoinableWorkspaces } from "./joinable-workspaces";
 import { PRIVATE_SECTION, SHARED_SECTION, type TreeSection } from "@/lib/tree-sections";
+import { sidebarOrder, withSection, type SidebarLayout, type SidebarSection } from "@/lib/sidebar-sections";
+import { CustomizeSections } from "./customize-sections";
 import { TeamspaceDialog } from "@/components/teamspaces/teamspace-dialog";
 import { useAiChat } from "@/components/ai-chat/chat-panel";
 import { InboxDialog } from "./inbox-dialog";
@@ -67,12 +71,10 @@ import { ImportDialog } from "@/components/workspace/import-dialog";
 type Workspace = { id: string; name: string; icon: string | null; role: string };
 
 const EXPANDED_KEY = "leafdesk:expanded";
-/** Sidebar headings the user folded: "private", "shared" and the teamspaces group (open until folded). */
-const FOLDED_KEY = "leafdesk:folded-sections";
 /** Teamspaces the user opened: like pages, and as in Notion, a teamspace stays closed until opened. */
 const OPEN_TEAMSPACES_KEY = "leafdesk:open-teamspaces";
-const TEAMSPACES_GROUP = "teamspaces";
-const FAVORITES_SECTION = "favorites";
+const TEAMSPACES_GROUP: SidebarSection = "teamspaces";
+const FAVORITES_SECTION: SidebarSection = "favorites";
 /** Top-level pages "Private" and "Shared" show before a "More" row, as Notion does. */
 const SECTION_LIMIT = 10;
 
@@ -105,6 +107,7 @@ export function Sidebar({
   isInstanceAdmin,
   initialFavorites,
   topLevel,
+  initialLayout,
   user,
   joinable = [],
 }: {
@@ -123,6 +126,8 @@ export function Sidebar({
   initialFavorites: FavoritePage[];
   /** Whether they may add top-level pages; a guest's are private to them. */
   topLevel: "shared" | "private" | null;
+  /** How they arranged the sidebar in this workspace: section order, hidden and folded sections. */
+  initialLayout: SidebarLayout;
   user: { id: string; name: string; email: string; image: string | null };
 }) {
   const router = useRouter();
@@ -134,7 +139,14 @@ export function Sidebar({
   const sidebar = useSidebar();
   const [tree, setTree] = useState(initialTree);
   const [teamspaces, setTeamspaces] = useState(initialTeamspaces);
-  const [folded, setFolded] = useState<Set<string>>(() => new Set());
+  const [layout, setLayout] = useState(initialLayout);
+  const folded = useMemo(() => new Set<string>(layout.folded ?? []), [layout.folded]);
+  // Folded sections opened to show the page being opened: only here, the saved layout stays folded.
+  const [revealedSections, setRevealedSections] = useState<Set<string>>(() => new Set());
+  const isFolded = (section: SidebarSection) => folded.has(section) && !revealedSections.has(section);
+  // Layout saves still on their way: a server render read before they land mustn't undo them.
+  const savingLayout = useRef(0);
+  const [customizing, setCustomizing] = useState(false);
   const [openSpaces, setOpenSpaces] = useState<Set<string>>(() => new Set());
   // Sections showing all their top-level pages rather than the first SECTION_LIMIT.
   const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
@@ -170,10 +182,16 @@ export function Sidebar({
 
   useEffect(() => {
     setExpanded(loadSet(EXPANDED_KEY));
-    setFolded(loadSet(FOLDED_KEY));
     setOpenSpaces(loadSet(OPEN_TEAMSPACES_KEY));
+    // Folded headings used to be kept here for every workspace at once; they are per workspace now.
+    try {
+      localStorage.removeItem("leafdesk:folded-sections");
+    } catch {}
   }, []);
   useEffect(() => setTree(initialTree), [initialTree]);
+  useEffect(() => {
+    if (!savingLayout.current) setLayout(initialLayout);
+  }, [initialLayout]);
   useEffect(() => setTeamspaces(initialTeamspaces), [initialTeamspaces]);
   useEffect(() => setFavorites(initialFavorites), [initialFavorites]);
 
@@ -298,14 +316,37 @@ export function Sidebar({
     return !!parent && canEdit(parent) && !(parent.kind === "database" && dragged.kind === "database");
   }
 
-  function fold(section: string, open?: boolean) {
-    setFolded((prev) => {
-      const next = new Set(prev);
-      if (open ?? next.has(section)) next.delete(section);
-      else next.add(section);
-      saveSet(FOLDED_KEY, next);
-      return next;
-    });
+  /**
+   * Saves part of the sidebar's layout in this workspace, for this person on every device. Only the
+   * parts given are sent, so another tab changing other parts meanwhile keeps its change.
+   */
+  function saveLayout(patch: SidebarLayout) {
+    setLayout((prev) => ({ ...prev, ...patch }));
+    savingLayout.current++;
+    setSidebarLayoutAction(workspaceId, patch)
+      // Offline or failed, it still applies here until the next load; folding isn't worth an error.
+      .catch(() => {})
+      .finally(() => savingLayout.current--);
+  }
+
+  const sectionLabel = (key: SidebarSection) =>
+    ({
+      favorites: t("pages.favorites"),
+      teamspaces: t("teamspaces.heading"),
+      shared: t("sections.shared"),
+      private: t("sections.private"),
+    })[key];
+
+  /** Folds or unfolds a section heading (`open` unfolds or folds it; without it, it toggles). */
+  function fold(section: SidebarSection, open?: boolean) {
+    const foldIt = open === undefined ? !isFolded(section) : !open;
+    setRevealedSections((prev) => withMember(prev, section, false));
+    if (foldIt !== folded.has(section)) saveLayout({ folded: withSection(layout, "folded", section, foldIt).folded });
+  }
+
+  /** Opens a folded section to show a page, without changing how it is saved. */
+  function reveal(section: SidebarSection) {
+    if (folded.has(section)) setRevealedSections((prev) => withMember(prev, section, true));
   }
 
   function toggle(id: string, open?: boolean) {
@@ -348,9 +389,9 @@ export function Sidebar({
       });
     }
     const section = node.section;
-    if (section === PRIVATE_SECTION || section === SHARED_SECTION) fold(section, true);
+    if (section === PRIVATE_SECTION || section === SHARED_SECTION) reveal(section);
     else {
-      fold(TEAMSPACES_GROUP, true);
+      reveal(TEAMSPACES_GROUP);
       toggleSpace(section, true);
     }
     requestAnimationFrame(() =>
@@ -522,6 +563,167 @@ export function Sidebar({
   };
 
   if (isSettingsPath(pathname)) return null;
+
+  // Each section as it shows (or null when it has nothing to show), placed in the person's order.
+  const sectionContent: Record<SidebarSection, React.ReactNode> = {
+    favorites: favorites.length > 0 && (
+      <SectionGroup label={t("pages.favorites")} open={!isFolded(FAVORITES_SECTION)} onToggle={() => fold(FAVORITES_SECTION)}>
+        <ul className="space-y-px">
+          {favorites.map((f) => (
+            <li key={f.id}>
+              <Link
+                href={`/w/${workspaceId}/p/${f.id}`}
+                className={cn(
+                  "flex h-7 items-center gap-0.5 rounded-md pl-1 hover:bg-bg-hover",
+                  activeId === f.id && "bg-bg-active font-medium",
+                )}
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+                  <PageIcon icon={f.icon} kind={f.kind} className="text-sm" />
+                </span>
+                <span className="truncate pl-0.5">{pageLabel(f.title, tc("untitled"))}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </SectionGroup>
+    ),
+    teamspaces: !guest && (
+      <SectionGroup
+        label={t("teamspaces.heading")}
+        open={!isFolded(TEAMSPACES_GROUP)}
+        onToggle={() => fold(TEAMSPACES_GROUP)}
+        actions={
+          <Popover
+            align="end"
+            trigger={({ toggle }) => (
+              <IconButton label={t("teamspaces.options")} onClick={toggle}>
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </IconButton>
+            )}
+          >
+            {(close) => (
+              <>
+                {canCreateTeamspace && (
+                  <MenuItem
+                    icon={<Plus className="h-4 w-4" />}
+                    disabled={offline}
+                    title={needsServer(t("teamspaces.new"))}
+                    onClick={() => {
+                      close();
+                      setTeamspaceDialog({});
+                    }}
+                  >
+                    {t("teamspaces.new")}
+                  </MenuItem>
+                )}
+                <MenuItem
+                  icon={<Users className="h-4 w-4" />}
+                  onClick={() => {
+                    close();
+                    router.push(`/w/${workspaceId}/settings?tab=teamspaces`);
+                  }}
+                >
+                  {t("teamspaces.browse")}
+                </MenuItem>
+              </>
+            )}
+          </Popover>
+        }
+      >
+        {teamspaces.length === 0 && (
+          <Link
+            href={`/w/${workspaceId}/settings?tab=teamspaces`}
+            className="block rounded-md px-2 py-1.5 text-xs text-fg-muted hover:bg-bg-hover"
+          >
+            {t("teamspaces.none")}
+          </Link>
+        )}
+        <ul>
+          {teamspaces.map((ts) => (
+            <TeamspaceSection
+              key={ts.id}
+              teamspace={ts}
+              open={openSpaces.has(ts.id)}
+              onToggle={() => toggleSpace(ts.id)}
+              roots={rootsOf(ts.id)}
+              newMenu={newMenu(ts.id)}
+              onCreate={() => create(null, "page", ts.id)}
+              onEdit={ts.canManage ? () => setTeamspaceDialog({ teamspace: ts }) : undefined}
+              onLeave={ts.canLeave ? () => leave(ts) : undefined}
+              tree={treeProps}
+            />
+          ))}
+        </ul>
+        {/* Like Notion's "Add new": a new teamspace, or the list to join one from. */}
+        <button
+          type="button"
+          onClick={() =>
+            canCreateTeamspace ? setTeamspaceDialog({}) : router.push(`/w/${workspaceId}/settings?tab=teamspaces`)
+          }
+          disabled={canCreateTeamspace && offline}
+          title={canCreateTeamspace ? needsServer(t("teamspaces.new")) : undefined}
+          className="flex h-7 w-full items-center gap-0.5 rounded-md pl-1 text-left text-fg-muted hover:bg-bg-hover hover:text-fg disabled:opacity-50 disabled:hover:bg-transparent"
+        >
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+            <Plus className="h-3.5 w-3.5" />
+          </span>
+          <span className="truncate pl-1.5">{canCreateTeamspace ? t("teamspaces.addNew") : t("teamspaces.browse")}</span>
+        </button>
+      </SectionGroup>
+    ),
+    shared: rootsOf(SHARED_SECTION).length > 0 && (
+      <SectionGroup label={t("sections.shared")} open={!isFolded(SHARED_SECTION)} onToggle={() => fold(SHARED_SECTION)}>
+        <LimitedRoots
+          nodes={rootsOf(SHARED_SECTION)}
+          all={showAll.has(SHARED_SECTION)}
+          onAll={(all) => setShowAll((prev) => withMember(prev, SHARED_SECTION, all))}
+          {...treeProps}
+        />
+      </SectionGroup>
+    ),
+    private: (topLevel || rootsOf(PRIVATE_SECTION).length > 0) && (
+      <SectionGroup
+        label={t("sections.private")}
+        open={!isFolded(PRIVATE_SECTION)}
+        onToggle={() => fold(PRIVATE_SECTION)}
+        drop={{ section: PRIVATE_SECTION, roots: rootsOf(PRIVATE_SECTION), ...treeProps }}
+        actions={
+          topLevel && (
+            <Popover
+              align="end"
+              trigger={({ toggle }) => (
+                <IconButton label={t("sections.newPrivate")} onClick={toggle} disabled={offline} className="disabled:opacity-40 disabled:hover:bg-transparent">
+                  <Plus className="h-3.5 w-3.5" />
+                </IconButton>
+              )}
+            >
+              {newMenu(null)}
+            </Popover>
+          )
+        }
+      >
+        {rootsOf(PRIVATE_SECTION).length === 0 && topLevel && (
+          <button
+            type="button"
+            onClick={() => create(null, "page", null)}
+            disabled={offline}
+            title={needsServer(t("pages.createFirst"))}
+            className="w-full rounded-md px-2 py-1.5 text-left text-fg-muted hover:bg-bg-hover disabled:opacity-50 disabled:hover:bg-transparent"
+          >
+            {t("pages.createFirst")}
+          </button>
+        )}
+        <LimitedRoots
+          nodes={rootsOf(PRIVATE_SECTION)}
+          all={showAll.has(PRIVATE_SECTION)}
+          onAll={(all) => setShowAll((prev) => withMember(prev, PRIVATE_SECTION, all))}
+          {...treeProps}
+        />
+      </SectionGroup>
+    ),
+  };
+  const hiddenSections = new Set(layout.hidden ?? []);
 
   return (
     <>
@@ -767,161 +969,19 @@ export function Sidebar({
           </p>
         )}
         <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label={t("pages.heading")}>
-          {favorites.length > 0 && (
-            <SectionGroup label={t("pages.favorites")} open={!folded.has(FAVORITES_SECTION)} onToggle={() => fold(FAVORITES_SECTION)}>
-              <ul className="space-y-px">
-                {favorites.map((f) => (
-                  <li key={f.id}>
-                    <Link
-                      href={`/w/${workspaceId}/p/${f.id}`}
-                      className={cn(
-                        "flex h-7 items-center gap-0.5 rounded-md pl-1 hover:bg-bg-hover",
-                        activeId === f.id && "bg-bg-active font-medium",
-                      )}
-                    >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center">
-                        <PageIcon icon={f.icon} kind={f.kind} className="text-sm" />
-                      </span>
-                      <span className="truncate pl-0.5">{pageLabel(f.title, tc("untitled"))}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </SectionGroup>
-          )}
-          {!guest && (
-            <SectionGroup
-              label={t("teamspaces.heading")}
-              open={!folded.has(TEAMSPACES_GROUP)}
-              onToggle={() => fold(TEAMSPACES_GROUP)}
-              actions={
-                <Popover
-                  align="end"
-                  trigger={({ toggle }) => (
-                    <IconButton label={t("teamspaces.options")} onClick={toggle}>
-                      <MoreHorizontal className="h-3.5 w-3.5" />
-                    </IconButton>
-                  )}
-                >
-                  {(close) => (
-                    <>
-                      {canCreateTeamspace && (
-                        <MenuItem
-                          icon={<Plus className="h-4 w-4" />}
-                          disabled={offline}
-                          title={needsServer(t("teamspaces.new"))}
-                          onClick={() => {
-                            close();
-                            setTeamspaceDialog({});
-                          }}
-                        >
-                          {t("teamspaces.new")}
-                        </MenuItem>
-                      )}
-                      <MenuItem
-                        icon={<Users className="h-4 w-4" />}
-                        onClick={() => {
-                          close();
-                          router.push(`/w/${workspaceId}/settings?tab=teamspaces`);
-                        }}
-                      >
-                        {t("teamspaces.browse")}
-                      </MenuItem>
-                    </>
-                  )}
-                </Popover>
-              }
-            >
-              {teamspaces.length === 0 && (
-                <Link
-                  href={`/w/${workspaceId}/settings?tab=teamspaces`}
-                  className="block rounded-md px-2 py-1.5 text-xs text-fg-muted hover:bg-bg-hover"
-                >
-                  {t("teamspaces.none")}
-                </Link>
-              )}
-              <ul>
-                {teamspaces.map((ts) => (
-                  <TeamspaceSection
-                    key={ts.id}
-                    teamspace={ts}
-                    open={openSpaces.has(ts.id)}
-                    onToggle={() => toggleSpace(ts.id)}
-                    roots={rootsOf(ts.id)}
-                    newMenu={newMenu(ts.id)}
-                    onCreate={() => create(null, "page", ts.id)}
-                    onEdit={ts.canManage ? () => setTeamspaceDialog({ teamspace: ts }) : undefined}
-                    onLeave={ts.canLeave ? () => leave(ts) : undefined}
-                    tree={treeProps}
-                  />
-                ))}
-              </ul>
-              {/* Like Notion's "Add new": a new teamspace, or the list to join one from. */}
-              <button
-                type="button"
-                onClick={() =>
-                  canCreateTeamspace ? setTeamspaceDialog({}) : router.push(`/w/${workspaceId}/settings?tab=teamspaces`)
-                }
-                disabled={canCreateTeamspace && offline}
-                title={canCreateTeamspace ? needsServer(t("teamspaces.new")) : undefined}
-                className="flex h-7 w-full items-center gap-0.5 rounded-md pl-1 text-left text-fg-muted hover:bg-bg-hover hover:text-fg disabled:opacity-50 disabled:hover:bg-transparent"
-              >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center">
-                  <Plus className="h-3.5 w-3.5" />
-                </span>
-                <span className="truncate pl-1.5">{canCreateTeamspace ? t("teamspaces.addNew") : t("teamspaces.browse")}</span>
-              </button>
-            </SectionGroup>
-          )}
-          {rootsOf(SHARED_SECTION).length > 0 && (
-            <SectionGroup label={t("sections.shared")} open={!folded.has(SHARED_SECTION)} onToggle={() => fold(SHARED_SECTION)}>
-              <LimitedRoots
-                nodes={rootsOf(SHARED_SECTION)}
-                all={showAll.has(SHARED_SECTION)}
-                onAll={(all) => setShowAll((prev) => withMember(prev, SHARED_SECTION, all))}
-                {...treeProps}
-              />
-            </SectionGroup>
-          )}
-          {(topLevel || rootsOf(PRIVATE_SECTION).length > 0) && (
-            <SectionGroup
-              label={t("sections.private")}
-              open={!folded.has(PRIVATE_SECTION)}
-              onToggle={() => fold(PRIVATE_SECTION)}
-              drop={{ section: PRIVATE_SECTION, roots: rootsOf(PRIVATE_SECTION), ...treeProps }}
-              actions={
-                topLevel && (
-                  <Popover
-                    align="end"
-                    trigger={({ toggle }) => (
-                      <IconButton label={t("sections.newPrivate")} onClick={toggle} disabled={offline} className="disabled:opacity-40 disabled:hover:bg-transparent">
-                        <Plus className="h-3.5 w-3.5" />
-                      </IconButton>
-                    )}
-                  >
-                    {newMenu(null)}
-                  </Popover>
-                )
-              }
-            >
-              {rootsOf(PRIVATE_SECTION).length === 0 && topLevel && (
-                <button
-                  type="button"
-                  onClick={() => create(null, "page", null)}
-                  disabled={offline}
-                  title={needsServer(t("pages.createFirst"))}
-                  className="w-full rounded-md px-2 py-1.5 text-left text-fg-muted hover:bg-bg-hover disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  {t("pages.createFirst")}
-                </button>
-              )}
-              <LimitedRoots
-                nodes={rootsOf(PRIVATE_SECTION)}
-                all={showAll.has(PRIVATE_SECTION)}
-                onAll={(all) => setShowAll((prev) => withMember(prev, PRIVATE_SECTION, all))}
-                {...treeProps}
-              />
-            </SectionGroup>
+          {customizing ? (
+            <CustomizeSections
+              sections={sidebarOrder(layout)
+                .filter((key) => !(guest && key === TEAMSPACES_GROUP))
+                .map((key) => ({ key, label: sectionLabel(key) }))}
+              hidden={hiddenSections}
+              onChange={(order, hidden) => saveLayout({ order, hidden })}
+              onDone={() => setCustomizing(false)}
+            />
+          ) : (
+            sidebarOrder(layout)
+              .filter((key) => !hiddenSections.has(key))
+              .map((key) => <Fragment key={key}>{sectionContent[key]}</Fragment>)
           )}
           {guest && tree.length === 0 && !topLevel && <p className="px-2 py-1.5 text-fg-muted">{t("pages.nothingShared")}</p>}
         </nav>
@@ -943,6 +1003,12 @@ export function Sidebar({
               title={needsServer(t("nav.templates"))}
             />
           )}
+          <FooterButton
+            icon={<SlidersHorizontal className="h-4 w-4" />}
+            label={t("customize.open")}
+            onClick={() => setCustomizing(!customizing)}
+            active={customizing}
+          />
           <FooterButton
             icon={<Upload className="h-4 w-4" />}
             label={t("nav.import")}

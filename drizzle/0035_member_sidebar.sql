@@ -1,0 +1,1 @@
+ALTER TABLE "workspace_member" ADD COLUMN "sidebar" jsonb DEFAULT '{}'::jsonb NOT NULL;

@@ -16,7 +16,7 @@ import { listFavorites } from "@/server/page-meta";
 import { getSidebar, listWorkspaces } from "@/server/pages";
 import { requestedPath, requireSession, requireWorkspaceSession } from "@/server/session";
 import { canCreateTeamspace } from "@/server/teamspaces";
-import { topLevelAccess } from "@/server/workspaces";
+import { getSidebarLayout, topLevelAccess } from "@/server/workspaces";
 
 export default async function WorkspaceLayout({
   children,
@@ -38,7 +38,7 @@ export default async function WorkspaceLayout({
     }
     notFound();
   }
-  const [workspaces, joinable, sidebar, favorites, topLevel, canCreate, cookieStore, ai] = await Promise.all([
+  const [workspaces, joinable, sidebar, favorites, topLevel, canCreate, cookieStore, ai, sidebarLayout] = await Promise.all([
     listWorkspaces(user.id),
     joinableWorkspaces(user.id),
     getSidebar(user.id, workspaceId),
@@ -47,6 +47,7 @@ export default async function WorkspaceLayout({
     canCreateTeamspace(user.id, workspaceId),
     cookies(),
     aiAvailable(workspaceId),
+    getSidebarLayout(user.id, workspaceId),
   ]);
 
   const body = (
@@ -62,6 +63,7 @@ export default async function WorkspaceLayout({
         isInstanceAdmin={isInstanceAdmin(user)}
         initialFavorites={favorites}
         topLevel={topLevel}
+        initialLayout={sidebarLayout}
         user={{ id: user.id, name: user.name, email: user.email, image: user.image ?? null }}
       />
       <main className="min-w-0 flex-1 overflow-y-auto">

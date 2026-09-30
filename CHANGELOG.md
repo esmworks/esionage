@@ -30,6 +30,15 @@
   Boards, galleries, lists, timelines and published pages show properties in that order too.
   Hidden columns keep their place, properties added later show at the end, and a
   view saved by someone who can't see some columns leaves those where they were.
+- **Resize table columns by dragging.** Each column header, the Name column's too, has a handle on
+  its right edge; the column follows the pointer and keeps the width it is let go at, which the
+  view saves (`columnWidths` in its settings, per view). Phones keep the narrow Name column.
+- **Customize the sidebar per workspace.** "Customize sidebar" at the bottom of the sidebar lists
+  its sections (Favorites, Teamspaces, Shared, Private) to reorder by dragging or with the arrows
+  and to hide or show. The order, hidden sections and which headings are folded are kept for each
+  person in each workspace, on every device, so a personal workspace and a company one can look
+  different; folding a heading no longer changes it in every workspace. Migration
+  `0035_member_sidebar` (`workspace_member.sidebar`).
 
 ### Changed
 
