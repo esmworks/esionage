@@ -12,6 +12,7 @@
  * with its token usage but never its content. Callers check page access before building prompts:
  * nothing here knows about pages.
  */
+import { randomUUID } from "node:crypto";
 import { Type, type Api, type AssistantMessage, type Context, type Message, type Model, type Tool } from "@earendil-works/pi-ai";
 import { sharedLimiter, takeAll, type SlidingWindowLimiter } from "@/lib/rate-limit";
 import { createBackend, type AiBackend } from "./backend";
@@ -54,6 +55,11 @@ export type AiRequest = {
   /** At most AI_MAX_OUTPUT_TOKENS. */
   maxOutputTokens?: number;
   signal?: AbortSignal;
+  /**
+   * The same for every turn of one conversation, for providers that want it (OpenCode Go); a
+   * request without one is its own session.
+   */
+  sessionId?: string;
 };
 
 export type AiUsage = { inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number };
@@ -344,9 +350,14 @@ export function stream(request: AiRequest): AiStream {
     let final: AssistantMessage | null = null;
     let model = "";
     try {
-      const { models, model: m } = await backend();
+      const { models, model: m, sessions } = await backend();
       model = m.id;
-      const events = models.stream(m, toContext(request, m), { signal: prepared.signal, maxTokens: prepared.maxTokens });
+      const events = models.stream(m, toContext(request, m), {
+        signal: prepared.signal,
+        maxTokens: prepared.maxTokens,
+        // Only where asked for: other providers would also turn it into prompt-cache keys.
+        ...(sessions ? { sessionId: request.sessionId ?? randomUUID() } : {}),
+      });
       for await (const event of events) {
         if (event.type === "text_delta" && event.delta) {
           queue.push({ type: "text", delta: event.delta });

@@ -39,6 +39,12 @@
   person in each workspace, on every device, so a personal workspace and a company one can look
   different; folding a heading no longer changes it in every workspace. Migration
   `0035_member_sidebar` (`workspace_member.sidebar`).
+- **OpenCode Go as an AI provider:** `AI_PROVIDER=opencode-go` with a Go key (`AI_API_KEY` or
+  `OPENCODE_API_KEY`) and any model of its catalog, e.g. `AI_MODEL=kimi-k3`. Each model goes to the
+  API it is served over (chat completions, Responses or Anthropic's Messages) with its own context
+  window. Requests carry the `x-opencode-session` header Go asks for (the conversation's id in the
+  AI chat, a new one for every other request) and name Leafdesk as their user agent; other
+  providers get neither. New checks in `src/server/ai/providers.test.ts`.
 
 ### Changed
 

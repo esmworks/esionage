@@ -207,6 +207,7 @@ async function* runChat(
         // last turn is told to answer instead, and what it writes is the answer.
         tools: CHAT_TOOLS,
         signal,
+        sessionId: conversation.id,
       });
       let streamed = "";
       for await (const event of turn) {

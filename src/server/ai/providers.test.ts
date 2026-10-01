@@ -1,6 +1,7 @@
 /**
- * The real request paths (OpenAI-compatible servers such as Ollama, LM Studio, vLLM, and Anthropic)
- * against a small local stand-in: streamed answers through pi-ai, and embeddings through fetch.
+ * The real request paths (OpenAI-compatible servers such as Ollama, LM Studio, vLLM, Anthropic and
+ * OpenCode Go) against a small local stand-in: streamed answers through pi-ai, and embeddings
+ * through fetch.
  */
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -10,7 +11,7 @@ import { resetAi, setAiEnv } from "./testing";
 
 let server: Server;
 let base = "";
-const seen: { path: string; auth?: string; body: Record<string, unknown> }[] = [];
+const seen: { path: string; auth?: string; headers: IncomingMessage["headers"]; body: Record<string, unknown> }[] = [];
 let failNext = false;
 
 async function readBody(req: IncomingMessage) {
@@ -22,7 +23,7 @@ async function readBody(req: IncomingMessage) {
 beforeAll(async () => {
   server = createServer(async (req, res) => {
     const body = await readBody(req);
-    seen.push({ path: req.url ?? "", auth: req.headers.authorization ?? (req.headers["x-api-key"] as string | undefined), body });
+    seen.push({ path: req.url ?? "", auth: req.headers.authorization ?? (req.headers["x-api-key"] as string | undefined), headers: req.headers, body });
     if (failNext) {
       failNext = false;
       res.writeHead(401, { "Content-Type": "application/json" });
@@ -104,6 +105,39 @@ describe("providers over HTTP", () => {
     expect(request.auth).toBe("sk-ant-test");
     expect(request.body.model).toBe("claude-haiku-4-5");
     expect(request.body.stream).toBe(true);
+  });
+
+  it("sends OpenCode Go a stable session id per conversation and names the client", async () => {
+    setAiEnv({ AI_PROVIDER: "opencode-go", AI_MODEL: "kimi-k3", OPENCODE_API_KEY: "sk-go", AI_BASE_URL: base });
+    const ask = (sessionId?: string) => complete({ feature: "test", messages: [{ role: "user", content: "hi" }], sessionId });
+    await ask("conv-1");
+    await ask("conv-1");
+    await ask();
+    await ask();
+    expect(seen.map((r) => r.path)).toEqual(Array(4).fill("/v1/chat/completions"));
+    expect(seen[0].auth).toBe("Bearer sk-go");
+    expect(seen[0].body.model).toBe("kimi-k3");
+    expect(seen[0].headers["user-agent"]).toBe("Leafdesk");
+    const ids = seen.map((r) => r.headers["x-opencode-session"]);
+    expect(ids.slice(0, 2)).toEqual(["conv-1", "conv-1"]);
+    // Requests outside a conversation are each their own session.
+    expect(ids[2]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(ids[3]).not.toBe(ids[2]);
+  });
+
+  it("sends OpenCode Go's Messages-API models to the Anthropic endpoint, with the session id", async () => {
+    setAiEnv({ AI_PROVIDER: "opencode-go", AI_MODEL: "minimax-m3", AI_API_KEY: "sk-go", AI_BASE_URL: base });
+    const result = await complete({ feature: "test", messages: [{ role: "user", content: "Hello" }], sessionId: "conv-2" });
+    expect(result.text).toBe("Bonjour");
+    expect(seen[0].path).toMatch(/^\/v1\/messages/);
+    expect(seen[0].headers["x-opencode-session"]).toBe("conv-2");
+    expect(seen[0].headers["user-agent"]).toBe("Leafdesk");
+  });
+
+  it("sends no OpenCode session id to other providers", async () => {
+    setAiEnv({ AI_PROVIDER: "openai-compatible", AI_MODEL: "m", AI_BASE_URL: base });
+    await complete({ feature: "test", messages: [{ role: "user", content: "hi" }], sessionId: "conv-3" });
+    expect(seen[0].headers["x-opencode-session"]).toBeUndefined();
   });
 
   it("embeds in input order over /embeddings", async () => {

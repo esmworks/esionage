@@ -3,7 +3,7 @@
  * for hosted providers); nothing is sent anywhere while it is off. See the README's AI section.
  */
 
-export const AI_PROVIDERS = ["anthropic", "openai", "google", "openai-compatible", "ollama", "lmstudio"] as const;
+export const AI_PROVIDERS = ["anthropic", "openai", "google", "opencode-go", "openai-compatible", "ollama", "lmstudio"] as const;
 export type AiProviderKind = (typeof AI_PROVIDERS)[number];
 
 /** Chat providers whose requests go to our own server or network by default. */
@@ -23,6 +23,7 @@ const PROVIDER_KEY_VARS: Partial<Record<AiProviderKind, string>> = {
   anthropic: "ANTHROPIC_API_KEY",
   openai: "OPENAI_API_KEY",
   google: "GEMINI_API_KEY",
+  "opencode-go": "OPENCODE_API_KEY",
 };
 
 export type AiChatConfig = {
@@ -172,7 +173,7 @@ function similarity(env: Env, problems: string[]) {
 /**
  * The chat provider's OpenAI-compatible API root, where embeddings go by default: the configured
  * server for local and compatible providers, OpenAI's (or its override) and Google's compatible
- * endpoint. Anthropic has no embeddings API.
+ * endpoint. Anthropic and OpenCode Go have no embeddings API.
  */
 function inheritedEmbeddingsUrl(chat: AiChatConfig): string | null {
   switch (chat.provider) {
@@ -181,6 +182,7 @@ function inheritedEmbeddingsUrl(chat: AiChatConfig): string | null {
     case "google":
       return HOSTED_EMBEDDING_URLS.google!;
     case "anthropic":
+    case "opencode-go":
       return null;
     default:
       return chat.baseUrl;

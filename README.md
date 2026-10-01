@@ -769,6 +769,7 @@ unset.
 | Anthropic | `anthropic` | `AI_API_KEY` (or `ANTHROPIC_API_KEY`) |
 | OpenAI | `openai` | `AI_API_KEY` (or `OPENAI_API_KEY`) |
 | Google Gemini | `google` | `AI_API_KEY` (or `GEMINI_API_KEY`) |
+| OpenCode Go | `opencode-go` | `AI_API_KEY` (or `OPENCODE_API_KEY`) from the OpenCode Console |
 | Any OpenAI-compatible server (vLLM, LiteLLM, OpenRouter, llama.cpp…) | `openai-compatible` | `AI_BASE_URL` (the `/v1` root), a key if it wants one |
 | Ollama (local) | `ollama` | the model pulled; `AI_BASE_URL` defaults to `http://localhost:11434/v1` |
 | LM Studio (local) | `lmstudio` | the model loaded; `AI_BASE_URL` defaults to `http://localhost:1234/v1` |
@@ -782,6 +783,14 @@ AI_API_KEY=sk-ant-...
 AI_PROVIDER=ollama
 AI_MODEL=llama3.2
 ```
+
+**OpenCode Go** serves its models over three APIs; Leafdesk picks the right one for each model in
+its catalog (`kimi-k3`, `glm-5.3`, `deepseek-v4-pro`, `qwen3.8-flash`, `minimax-m3`, `grok-4.7`…;
+the ids as in OpenCode's model list, without `opencode-go/`), with its real context window. A model
+id the catalog doesn't know yet is sent to the chat completions API with `AI_CONTEXT_WINDOW`. As Go
+asks of its clients, requests name Leafdesk in their user agent and carry an `x-opencode-session`
+header: the conversation's id in the chat, a new id for every other request. Go's plans have
+monthly, weekly and five-hour spending limits, which AI properties updating many rows can use up.
 
 In Docker, a model running on the host is at `AI_BASE_URL=http://host.docker.internal:11434/v1`
 (Ollama) or `http://host.docker.internal:1234/v1` (LM Studio). The server log says which provider
@@ -860,9 +869,9 @@ AI_EMBEDDINGS_MODEL=text-embedding-3-small   # or nomic-embed-text with Ollama, 
 ```
 
 Embeddings use an OpenAI-compatible `/embeddings` endpoint: the chat provider's by default
-(OpenAI, Google, local servers; Anthropic has none, so set `AI_EMBEDDINGS_BASE_URL`). A good
-`AI_EMBEDDINGS_MIN_SIMILARITY` depends on the model; raise it if unrelated pages show up, lower it
-if too few do.
+(OpenAI, Google, local servers; Anthropic and OpenCode Go have none, so set
+`AI_EMBEDDINGS_BASE_URL`). A good `AI_EMBEDDINGS_MIN_SIMILARITY` depends on the model; raise it if
+unrelated pages show up, lower it if too few do.
 
 **Indexing.** Each page's title and text (a database row's values too) is cut into chunks of
 about 900 characters along its blocks, and each chunk's embedding is stored in `page_chunk` with
