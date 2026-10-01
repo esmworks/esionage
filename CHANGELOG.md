@@ -48,6 +48,12 @@
 
 ### Changed
 
+- **AI chat answers are shown as markdown** (GitHub's dialect, through `react-markdown` and
+  `remark-gfm`): tables, italics, strikethrough, links (opened in a new tab), code blocks, quotes,
+  task lists and nested lists, where only bullets, headings, bold and inline code were recognised
+  before. Citations stay buttons to their sources, also inside tables; code is left as written.
+  Images are not loaded and raw HTML shows as text, so an answer repeating a page can't make the
+  browser fetch an address or run markup. The renderer loads with the panel's first answer.
 - **The AI chat says it is thinking while the model works,** before each of its turns, instead of
   showing the question as a search ("Searching for “Hello”…" until the first word arrived). The
   model's own searches and the pages it reads are still shown as they happen. Chat answers carry a

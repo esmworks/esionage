@@ -64,19 +64,28 @@ export function stripCitations(text: string): string {
   return text.replace(/\s?\[(\d{1,3}(?:\s*,\s*\d{1,3})*)\]/g, "");
 }
 
-export type AnswerPart = { type: "text"; text: string } | { type: "cite"; n: number };
+/** Where the links citations become point (`[1](#cite-1)`), for the answer's renderer. */
+export const CITE_HREF = "#cite-";
 
-/** Splits an answer into text and citations, for showing citations as links. */
-export function splitCitations(text: string): AnswerPart[] {
-  const parts: AnswerPart[] = [];
-  let last = 0;
-  for (const match of text.matchAll(/\[(\d{1,3}(?:\s*,\s*\d{1,3})*)\]/g)) {
-    if (match.index > last) parts.push({ type: "text", text: text.slice(last, match.index) });
-    for (const n of match[1].split(",")) parts.push({ type: "cite", n: Number(n.trim()) });
-    last = match.index + match[0].length;
-  }
-  if (last < text.length) parts.push({ type: "text", text: text.slice(last) });
-  return parts;
+/**
+ * An answer's markdown with each citation as a link to `#cite-<n>` (`[2, 3]` becomes two), which
+ * the chat panel shows as a button to the source. Code, fenced (also still open while the answer
+ * streams) or inline, stays as written, as do a real link's text and reference definitions.
+ */
+export function citationLinks(text: string): string {
+  return text
+    .split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g)
+    .map((part, i) =>
+      i % 2
+        ? part
+        : part.replace(/\[(\d{1,3}(?:\s*,\s*\d{1,3})*)\](?![(:])/g, (_, list: string) =>
+            list
+              .split(",")
+              .map((n) => `[${n.trim()}](${CITE_HREF}${n.trim()})`)
+              .join(""),
+          ),
+    )
+    .join("");
 }
 
 /** The link to a cited passage: the page, scrolled to the block it starts at. */

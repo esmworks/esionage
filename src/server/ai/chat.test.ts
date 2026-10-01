@@ -3,7 +3,7 @@
  * calls streamed from an OpenAI-compatible server and answered with tool results.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { citedNumbers, conversationTitle, sourceHref, splitCitations, stripCitations } from "@/lib/ai-chat";
+import { citationLinks, citedNumbers, conversationTitle, sourceHref, stripCitations } from "@/lib/ai-chat";
 import { startFakeOpenAi, textOf, type FakeOpenAi } from "./fake-openai";
 import { embed, stream, type AiMessage } from "./index";
 import { chatHistory, chatQuestionPrompt, chatSystemPrompt, formatSources } from "./prompts";
@@ -15,14 +15,15 @@ describe("citations", () => {
     expect(citedNumbers("No sources here [a] [].")).toEqual([]);
   });
 
-  it("splits an answer into text and citations", () => {
-    expect(splitCitations("A [1] b [2,3]")).toEqual([
-      { type: "text", text: "A " },
-      { type: "cite", n: 1 },
-      { type: "text", text: " b " },
-      { type: "cite", n: 2 },
-      { type: "cite", n: 3 },
-    ]);
+  it("turns citations into links for the answer's markdown, leaving code and real links alone", () => {
+    expect(citationLinks("A [1] b [2, 3].")).toBe("A [1](#cite-1) b [2](#cite-2)[3](#cite-3).");
+    expect(citationLinks("| x | 5 TL [4] |")).toBe("| x | 5 TL [4](#cite-4) |");
+    expect(citationLinks("See `arr[1]` and [2](https://example.com).\n\n[3]: https://example.com")).toBe(
+      "See `arr[1]` and [2](https://example.com).\n\n[3]: https://example.com",
+    );
+    expect(citationLinks("```\nx = a[1]\n```\nDone [1]")).toBe("```\nx = a[1]\n```\nDone [1](#cite-1)");
+    // A code block still streaming in has no closing fence yet.
+    expect(citationLinks("Text [1]\n```\na[2]")).toBe("Text [1](#cite-1)\n```\na[2]");
     expect(stripCitations("A [1] b [2][3].")).toBe("A b.");
   });
 

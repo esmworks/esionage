@@ -11,7 +11,7 @@
 import { CircleStop, History, Loader2, SendHorizontal, SquarePen, Trash2, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { deleteConversationAction, getConversationAction, listConversationsAction } from "@/app/actions/ai";
 import { useIsOffline } from "@/components/offline/offline-context";
 import { FOCUS_BLOCK_EVENT } from "@/components/page/block-focus";
@@ -20,7 +20,6 @@ import { isAiErrorCode } from "@/lib/ai";
 import {
   MAX_CHAT_MESSAGE,
   sourceHref,
-  splitCitations,
   type ChatEvent,
   type ChatMessageView,
   type ChatSourceView,
@@ -456,6 +455,9 @@ function Answer({
 }
 
 /** A small Markdown subset: paragraphs, lists, headings as bold lines, **bold**, `code`, citations. */
+// The markdown renderer comes with the first answer, not with every page.
+const AnswerMarkdown = lazy(() => import("./answer-markdown"));
+
 function AnswerText({
   text,
   sources,
@@ -465,96 +467,9 @@ function AnswerText({
   sources: Map<number, ChatSourceView>;
   onSource: (source: ChatSourceView) => void;
 }) {
-  const blocks: ReactNode[] = [];
-  let list: { ordered: boolean; items: string[] } | null = null;
-  let paragraph: string[] = [];
-  const flushParagraph = () => {
-    if (paragraph.length) blocks.push(<p key={blocks.length} className="mb-2">{inline(paragraph.join("\n"), sources, onSource)}</p>);
-    paragraph = [];
-  };
-  const flushList = () => {
-    if (!list) return;
-    const items = list.items.map((item, i) => <li key={i}>{inline(item, sources, onSource)}</li>);
-    blocks.push(
-      list.ordered ? (
-        <ol key={blocks.length} className="mb-2 list-decimal space-y-0.5 pl-5">
-          {items}
-        </ol>
-      ) : (
-        <ul key={blocks.length} className="mb-2 list-disc space-y-0.5 pl-5">
-          {items}
-        </ul>
-      ),
-    );
-    list = null;
-  };
-  for (const line of text.split("\n")) {
-    const bullet = /^\s*[-*•]\s+(.*)$/.exec(line);
-    const numbered = /^\s*\d+[.)]\s+(.*)$/.exec(line);
-    const heading = /^\s*#{1,6}\s+(.*)$/.exec(line);
-    if (bullet || numbered) {
-      flushParagraph();
-      const ordered = Boolean(numbered);
-      if (list && list.ordered !== ordered) flushList();
-      list ??= { ordered, items: [] };
-      list.items.push((bullet ?? numbered)![1]);
-    } else if (!line.trim()) {
-      flushParagraph();
-      flushList();
-    } else if (heading) {
-      flushParagraph();
-      flushList();
-      blocks.push(
-        <p key={blocks.length} className="mb-1 font-semibold">
-          {inline(heading[1], sources, onSource)}
-        </p>,
-      );
-    } else {
-      flushList();
-      paragraph.push(line);
-    }
-  }
-  flushParagraph();
-  flushList();
-  return <div className="break-words [&>*:last-child]:mb-0">{blocks}</div>;
-}
-
-function inline(text: string, sources: Map<number, ChatSourceView>, onSource: (source: ChatSourceView) => void): ReactNode[] {
-  const out: ReactNode[] = [];
-  splitCitations(text).forEach((part, i) => {
-    if (part.type === "cite") {
-      const source = sources.get(part.n);
-      out.push(
-        source?.pageId ? (
-          <button
-            key={i}
-            type="button"
-            onClick={() => onSource(source)}
-            title={pageLabel(source.title ?? "")}
-            className="mx-0.5 inline-flex h-4 min-w-4 -translate-y-0.5 items-center justify-center rounded bg-bg-active px-1 align-middle text-[10px] font-medium text-fg-muted hover:bg-accent hover:text-accent-fg"
-          >
-            {part.n}
-          </button>
-        ) : (
-          <span key={i} className="mx-0.5 align-middle text-[10px] text-fg-faint">
-            {part.n}
-          </span>
-        ),
-      );
-      return;
-    }
-    // **bold** and `code`; everything else as written.
-    part.text.split(/(\*\*[^*\n]+\*\*|`[^`\n]+`)/g).forEach((piece, j) => {
-      if (!piece) return;
-      if (piece.startsWith("**") && piece.endsWith("**") && piece.length > 4) out.push(<strong key={`${i}-${j}`}>{piece.slice(2, -2)}</strong>);
-      else if (piece.startsWith("`") && piece.endsWith("`") && piece.length > 2) {
-        out.push(
-          <code key={`${i}-${j}`} className="rounded bg-bg-active px-1 text-[0.9em]">
-            {piece.slice(1, -1)}
-          </code>,
-        );
-      } else out.push(<span key={`${i}-${j}`} className="whitespace-pre-wrap">{piece}</span>);
-    });
-  });
-  return out;
+  return (
+    <Suspense fallback={<p className="break-words whitespace-pre-wrap">{text}</p>}>
+      <AnswerMarkdown text={text} sources={sources} onSource={onSource} />
+    </Suspense>
+  );
 }
