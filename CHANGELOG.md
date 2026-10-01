@@ -69,6 +69,9 @@
   answer is kept (`replaceLast` in the API); one that fails leaves them as they were. An answer
   that changed things can't be answered again or edited (it would make the changes twice).
   Messages now carry their time (`at`). New checks in `scripts/ai-chat-e2e.ts` (126 in all).
+- **Escape closes one thing at a time.** In the AI chat panel, Escape in a menu (the mode, the
+  history) or while editing a question closed the panel too; now it only closes the menu or the
+  edit. Menus (`useDismiss`) mark the Escape they handle, for whatever else listens.
 - **AI chat answers no longer list their sources below.** The numbered citations in the text stay:
   they open the page (at the passage) and name it on hover.
 - **The AI chat decides what to look at.** The question was searched for before the model saw

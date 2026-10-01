@@ -117,7 +117,8 @@ function ChatPanel({
   }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !running) onClose();
+      // Not an Escape that closed something in it (a menu, editing a question).
+      if (e.key === "Escape" && !e.defaultPrevented && !running) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

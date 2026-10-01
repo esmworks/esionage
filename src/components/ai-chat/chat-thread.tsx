@@ -273,7 +273,10 @@ function Question({ message, page, onEdit }: { message: ChatMessage; page: boole
           onChange={(e) => setDraft(e.target.value)}
           onFocus={(e) => e.currentTarget.setSelectionRange(e.currentTarget.value.length, e.currentTarget.value.length)}
           onKeyDown={(e) => {
-            if (e.key === "Escape") setDraft(null);
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setDraft(null);
+            }
             else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               submit();
