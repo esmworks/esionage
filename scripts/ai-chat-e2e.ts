@@ -399,7 +399,12 @@ try {
   );
   const parts = await createPage(actor, { workspaceId, teamspaceId: general.id, kind: "database", title: "Spare parts" });
   const stock = await addProperty(owner, parts.id, { name: "Stock", type: "select", options: ["Ordered", "In stock"] });
-  await createPage(actor, { workspaceId, parentId: parts.id, title: "Winter tyres", properties: { [stock.id]: stock.options.options![0].id } });
+  const winter = await createPage(actor, { workspaceId, parentId: parts.id, title: "Winter tyres", properties: { [stock.id]: stock.options.options![0].id } });
+  fake.setChat(researcher({}));
+  fake.chats.length = 0;
+  const rowHit = await ask(alice, { workspaceId, message: "Are the winter tyres here yet?" });
+  const rowSource = sourcesIn(fake.chats[0]).find((s) => s.pageId === winter.id);
+  check(rowHit.done && rowSource?.text.startsWith("Stock: Ordered") === true, "a database row found by search comes with its values", rowSource);
   fake.setChat(researcher({ readId: parts.id }));
   fake.chats.length = 0;
   const ordered = await ask(alice, { workspaceId, message: "Which spare parts are ordered?" });

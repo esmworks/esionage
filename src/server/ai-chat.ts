@@ -278,14 +278,54 @@ async function searchSources(
   maxChars: number,
 ) {
   const { results } = await ops.search(ctx, { query, workspace_id: workspaceId, limit: PASSAGES }, { withinPageId: scopeId, passages: true, anyWord: true });
-  return results.map((r) =>
-    register(registry, {
+  const values = await rowValues(ctx, results);
+  return results.map((r) => {
+    const passage = r.passage || r.snippet || "";
+    const row = values.get(r.id);
+    return register(registry, {
       pageId: r.id,
       blockId: r.passage ? (r.block_id ?? null) : null,
       title: r.title,
-      text: truncateText(r.passage || r.snippet || "", maxChars),
-    }),
+      // A row's values first, so they survive the cut: what it says is mostly in them.
+      text: truncateText(row ? `${row}${passage ? `\n${passage}` : ""}` : passage, maxChars),
+    });
+  });
+}
+
+/**
+ * The values of the results that are database rows, by id, as the person may see them now (one
+ * line each, see valuesLine). Results whose database they can't see get none.
+ */
+async function rowValues(ctx: ops.OperationContext, results: { id: string; parent_id: string | null }[]) {
+  const out = new Map<string, string>();
+  const parentIds = [...new Set(results.flatMap((r) => (r.parent_id ? [r.parent_id] : [])))];
+  if (!parentIds.length) return out;
+  const databases = await db
+    .select({ id: page.id })
+    .from(page)
+    .where(and(inArray(page.id, parentIds), eq(page.kind, "database")));
+  const isDatabase = new Set(databases.map((d) => d.id));
+  await Promise.all(
+    results
+      .filter((r) => r.parent_id && isDatabase.has(r.parent_id))
+      .map(async (r) => {
+        const fields = await ops.rowFields(ctx, r.id).catch((error) => {
+          if (error instanceof AccessError) return null;
+          throw error;
+        });
+        const line = fields ? valuesLine(fields.properties as Record<string, unknown>) : "";
+        if (line) out.set(r.id, line);
+      }),
   );
+  return out;
+}
+
+/** A row's values on one line ("Status: Done; Due: 2026-10-12"), empty ones left out. */
+function valuesLine(properties: Record<string, unknown>) {
+  return Object.entries(properties)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && !v.length))
+    .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
+    .join("; ");
 }
 
 type ToolOutcome = { content: string; isError?: boolean; event?: ChatEvent };
@@ -358,10 +398,8 @@ async function databaseRows(ctx: ops.OperationContext, databaseId: string) {
   const { rows, total } = await ops.queryDatabase(ctx, { database_id: databaseId, limit: DATABASE_ROWS });
   if (!rows.length) return "It has no rows.";
   const lines = rows.map((r) => {
-    const values = Object.entries(r.properties as Record<string, unknown>)
-      .filter(([, v]) => v !== null && v !== "" && !(Array.isArray(v) && !v.length))
-      .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`);
-    return `- ${r.title} (page_id ${r.id})${values.length ? ` — ${values.join("; ")}` : ""}`;
+    const values = valuesLine(r.properties as Record<string, unknown>);
+    return `- ${r.title} (page_id ${r.id})${values ? ` — ${values}` : ""}`;
   });
   const shown = rows.length < total ? `The first ${rows.length} of its ${total} rows (search for others by name):` : `Its ${total} rows:`;
   return `${shown}\n${lines.join("\n")}`;

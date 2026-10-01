@@ -281,7 +281,8 @@ export async function loadPage(ctx: OperationContext, pageId: string) {
  * A row's values as `ctx.userId` may see them (databases.getRow leaves out what property access
  * keeps from them), by property name, with the properties it leaves out or shows read-only.
  */
-async function rowFields(ctx: OperationContext, rowId: string) {
+/** A database row's values as the person may see them, and which ones they may not edit. */
+export async function rowFields(ctx: OperationContext, rowId: string) {
   const { properties, row, relations, people } = await databases.getRow(ctx.userId, rowId);
   return {
     properties: displayProperties(properties, row.properties, { relations, people }, env.appUrl),

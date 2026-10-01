@@ -54,7 +54,9 @@
   cut to five letters, a rough stem for suffixes), without question words and fillers, titles
   ranked first; the search box, MCP and the REST API still want all the words. `read_page` on a
   database lists its first 200 rows with the values the person may see, where it gave only the
-  property names. New checks in `scripts/ai-chat-e2e.ts` and `src/lib/search-words.test.ts`.
+  property names, and a row a search finds comes with its values (those the person may see), as
+  its page's text has none of them. New checks in `scripts/ai-chat-e2e.ts` and
+  `src/lib/search-words.test.ts`.
 - **AI chat answers are shown as markdown** (GitHub's dialect, through `react-markdown` and
   `remark-gfm`): tables, italics, strikethrough, links (opened in a new tab), code blocks, quotes,
   task lists and nested lists, where only bullets, headings, bold and inline code were recognised

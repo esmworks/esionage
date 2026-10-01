@@ -821,7 +821,8 @@ why. Turning AI autofill off leaves the values as plain text.
 you can read: each question is searched for (full-text and, with embeddings, by meaning) and goes
 to the model with the best passages; the model can also search again (`search_pages`) and read a
 whole page (`read_page`; a database reads as its first 200 rows with their values), up to five
-turns per question. The chat's full-text search finds pages with any of the question's words (as
+turns per question. A database row found by a search comes with its values (those the person may
+see). The chat's full-text search finds pages with any of the question's words (as
 prefixes, so "ekstreleri" finds "ekstresi"; question words such as "what" or "nedir" left out),
 titles first, where the search box wants all of them. Answers cite their sources as numbered
 links to the page, and to the block the passage starts at when it is known. *Answer from* → *This
