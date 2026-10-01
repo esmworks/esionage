@@ -25,29 +25,47 @@ export type ChatSourceView = {
   blockId: string | null;
 };
 
+/** A page the chat read, as the reader may see it now (null: they can no longer open it). */
+export type ChatPageView = { pageId: string; workspaceId: string; title: string; icon: string | null } | null;
+
+/**
+ * A step the chat took on the way to an answer (shown above it): a search (`query` null for the
+ * search with the question itself) and how many pages it found, a page it read, or what the model
+ * said before searching or reading.
+ */
+export type ChatStepView =
+  | { kind: "search"; query: string | null; results: number }
+  | { kind: "read"; page: ChatPageView }
+  | { kind: "thought"; text: string };
+
 export type ChatMessageView = {
   role: "user" | "assistant";
   content: string;
   sources?: ChatSourceView[];
   note?: "stopped" | "cutOff";
+  /** Answers: the steps taken and how long the answer took (not kept before steps were). */
+  steps?: ChatStepView[];
+  ms?: number;
 };
 
 export type ConversationSummary = { id: string; title: string; updatedAt: string };
 
 /**
  * Lines of `POST /api/ai/chat`'s newline-delimited JSON answer, in order: `conversation` (its id,
- * first), `thinking` while the model works on a turn, `tool` whenever the model searches or reads,
- * `text` as the answer streams (`reset` drops what was streamed before a tool call), `sources` once
- * the answer is complete, then `done` or `error`.
+ * first), `step` for each step taken (the search with the question, then the model's searches and
+ * reads, and what it said before them), `thinking` while the model works on a turn, `text` as the
+ * answer streams (`reset` drops what was streamed before a tool call: it comes again as a
+ * `thought` step), `sources` once the answer is complete, then `done` (with how long it took) or
+ * `error`.
  */
 export type ChatEvent =
   | { type: "conversation"; id: string; title: string }
   | { type: "thinking" }
-  | { type: "tool"; name: "search_pages" | "read_page"; detail: string }
+  | { type: "step"; step: ChatStepView }
   | { type: "text"; text: string }
   | { type: "reset" }
   | { type: "sources"; sources: ChatSourceView[] }
-  | { type: "done"; stopReason: "stop" | "length" }
+  | { type: "done"; stopReason: "stop" | "length"; ms: number }
   | { type: "error"; code: AiErrorCode };
 
 /** Source numbers an answer cites (`[1]`, `[2][3]`, `[1, 4]`), each once, in order. */
@@ -88,6 +106,16 @@ export function citationLinks(text: string): string {
     .join("");
 }
 
+/** The full-page chat, showing a conversation when given. */
+export function chatPath(workspaceId: string, conversationId?: string | null): string {
+  return `/w/${workspaceId}/ai${conversationId ? `?c=${encodeURIComponent(conversationId)}` : ""}`;
+}
+
+/** Whether a pathname is the workspace's full-page chat. */
+export function isChatPath(pathname: string, workspaceId: string): boolean {
+  return pathname === `/w/${workspaceId}/ai`;
+}
+
 /** The link to a cited passage: the page, scrolled to the block it starts at. */
 export function sourceHref(source: Pick<ChatSourceView, "workspaceId" | "pageId" | "blockId">): string | null {
   if (!source.pageId || !source.workspaceId) return null;
@@ -98,4 +126,34 @@ export function sourceHref(source: Pick<ChatSourceView, "workspaceId" | "pageId"
 export function conversationTitle(message: string): string {
   const flat = message.replace(/\s+/g, " ").trim();
   return flat.length > 80 ? `${flat.slice(0, 79).trimEnd()}…` : flat;
+}
+
+export type ConversationGroup = "today" | "yesterday" | "week" | "month" | "older";
+
+/**
+ * Conversations by when they were last added to, in the person's local days, newest first as they
+ * come: today, yesterday, the 7 and 30 days before today, and older. Empty groups are left out.
+ */
+export function groupConversations<T extends Pick<ConversationSummary, "updatedAt">>(
+  conversations: T[],
+  now: Date,
+): { group: ConversationGroup; conversations: T[] }[] {
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const daysBefore = (days: number) => new Date(midnight.getFullYear(), midnight.getMonth(), midnight.getDate() - days).getTime();
+  const bounds: [ConversationGroup, number][] = [
+    ["today", midnight.getTime()],
+    ["yesterday", daysBefore(1)],
+    ["week", daysBefore(7)],
+    ["month", daysBefore(30)],
+  ];
+  const groups = new Map<ConversationGroup, T[]>();
+  for (const conversation of conversations) {
+    const at = new Date(conversation.updatedAt).getTime();
+    const group = bounds.find(([, from]) => at >= from)?.[0] ?? "older";
+    groups.set(group, [...(groups.get(group) ?? []), conversation]);
+  }
+  return (["today", "yesterday", "week", "month", "older"] as const).flatMap((group) => {
+    const list = groups.get(group);
+    return list ? [{ group, conversations: list }] : [];
+  });
 }

@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   Printer,
   Search,
+  Sparkles,
   Star,
   Trash2,
 } from "lucide-react";
@@ -30,6 +31,7 @@ import {
 } from "@/app/actions/page-menu";
 import { getSidebarAction, movePageAction } from "@/app/actions/pages";
 import { deleteTemplateAction, saveAsTemplateAction } from "@/app/actions/templates";
+import { useAiChat } from "@/components/ai-chat/chat-panel";
 import { cn, Dialog, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, Popover, Switch } from "@/components/ui";
 import { useZipExport } from "@/components/use-zip-export";
 import type { PageKind } from "@/db/schema/app";
@@ -93,6 +95,8 @@ export function PageHeaderActions({
   const tOffline = useTranslations("offline");
   const [info, setInfo] = useState(initialInfo);
   const offlineTitle = (label: string) => (offline ? tOffline("needsConnection", { action: label }) : label);
+  const aiChat = useAiChat();
+  const tAi = useTranslations("ai.chat");
   useEffect(() => setInfo(initialInfo), [initialInfo]);
   // The Share panel also opens from elsewhere: an event for this page, or `?share=1` in the URL.
   const searchParams = useSearchParams();
@@ -179,6 +183,19 @@ export function PageHeaderActions({
         >
           <SharePanel pageId={page.id} currentUser={currentUser} publishable={!info.template} onChange={refresh} />
         </Popover>
+      )}
+      {/* The AI chat beside the page; there's no AI to ask without a provider on the server. */}
+      {aiChat && (
+        <IconButton
+          label={tAi("open")}
+          title={offlineTitle(tAi("open"))}
+          aria-pressed={aiChat.open && !offline}
+          disabled={offline}
+          className={cn("h-7 w-7 disabled:opacity-40 disabled:hover:bg-transparent", aiChat.open && !offline && "bg-bg-hover")}
+          onClick={() => (aiChat.open ? aiChat.setOpen(false) : aiChat.openPanel())}
+        >
+          <Sparkles className="h-4 w-4" />
+        </IconButton>
       )}
       {onComments && (
         <IconButton

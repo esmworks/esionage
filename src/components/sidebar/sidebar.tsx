@@ -59,6 +59,8 @@ import { sidebarOrder, withSection, type SidebarLayout, type SidebarSection } fr
 import { CustomizeSections } from "./customize-sections";
 import { TeamspaceDialog } from "@/components/teamspaces/teamspace-dialog";
 import { useAiChat } from "@/components/ai-chat/chat-panel";
+import { ConversationList } from "@/components/ai-chat/conversation-list";
+import { chatPath, isChatPath } from "@/lib/ai-chat";
 import { InboxDialog } from "./inbox-dialog";
 import { NewWorkspaceDialog } from "./new-workspace-dialog";
 import { SearchDialog } from "./search-dialog";
@@ -175,6 +177,7 @@ export function Sidebar({
 
   const offline = useIsOffline();
   const aiChat = useAiChat();
+  const onChatPage = Boolean(aiChat) && isChatPath(pathname, workspaceId);
   const tAi = useTranslations("ai.chat");
   const tOffline = useTranslations("offline");
   /** Tooltip for a control that needs the server while it can't be reached. */
@@ -947,9 +950,10 @@ export function Sidebar({
             {aiChat && (
               <SidebarButton
                 icon={<Sparkles className="h-4 w-4" />}
-                onClick={() => aiChat.setOpen(!aiChat.open)}
-                active={aiChat.open}
-                title={offline ? needsServer(tAi("open")) : !aiChat.available ? tAi("disabled") : undefined}
+                href={offline ? undefined : chatPath(workspaceId)}
+                active={onChatPage}
+                disabled={offline}
+                title={needsServer(tAi("open"))}
               >
                 {tAi("open")}
               </SidebarButton>
@@ -968,8 +972,11 @@ export function Sidebar({
             {actionError}
           </p>
         )}
-        <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label={t("pages.heading")}>
-          {customizing ? (
+        <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label={onChatPage ? tAi("history") : t("pages.heading")}>
+          {/* The full-page chat lists the conversations in place of the pages. */}
+          {onChatPage ? (
+            <ConversationList />
+          ) : customizing ? (
             <CustomizeSections
               sections={sidebarOrder(layout)
                 .filter((key) => !(guest && key === TEAMSPACES_GROUP))
@@ -983,7 +990,7 @@ export function Sidebar({
               .filter((key) => !hiddenSections.has(key))
               .map((key) => <Fragment key={key}>{sectionContent[key]}</Fragment>)
           )}
-          {guest && tree.length === 0 && !topLevel && <p className="px-2 py-1.5 text-fg-muted">{t("pages.nothingShared")}</p>}
+          {!onChatPage && guest && tree.length === 0 && !topLevel && <p className="px-2 py-1.5 text-fg-muted">{t("pages.nothingShared")}</p>}
         </nav>
 
         <div className="flex items-center gap-0.5 border-t border-border px-2 py-1.5">

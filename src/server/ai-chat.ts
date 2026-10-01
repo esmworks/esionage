@@ -16,7 +16,7 @@
  */
 import { and, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { aiConversation, page, type ChatMessageRecord, type ChatSourceRef } from "@/db/schema";
+import { aiConversation, page, type ChatMessageRecord, type ChatSourceRef, type ChatStepRecord } from "@/db/schema";
 import type { AiErrorCode } from "@/lib/ai";
 import {
   citedNumbers,
@@ -28,7 +28,9 @@ import {
   type ChatMessageView,
   type ChatScope,
   type ChatSourceView,
+  type ChatStepView,
   type ConversationSummary,
+  stripCitations,
 } from "@/lib/ai-chat";
 import { pageLabel } from "@/lib/labels";
 import { AccessError, pageAccessOf, requireMembership, requirePageAccess, WorkspacePolicyError } from "@/server/access";
@@ -47,6 +49,8 @@ const PASSAGE_CHARS = 1_200;
 const PAGE_CHARS = 12_000;
 /** Rows a database read lists (then cut to PAGE_CHARS like any page). */
 const DATABASE_ROWS = 200;
+/** The most of what the model says before a search or read that is kept as a step. */
+const THOUGHT_CHARS = 300;
 /** Share of the prompt that earlier questions and answers may take. */
 const HISTORY_SHARE = 0.25;
 
@@ -180,6 +184,12 @@ async function* runChat(
   yield { type: "conversation", id: conversation.id, title: conversation.title };
 
   const registry: Registry = { sources: [], byKey: new Map() };
+  const started = Date.now();
+  const steps: ChatStepRecord[] = [];
+  const step = async (record: ChatStepRecord): Promise<ChatEvent> => {
+    steps.push(record);
+    return { type: "step", step: await viewStep(userId, record) };
+  };
   let answer = "";
   let stopReason: "stop" | "length" = "stop";
   let failure: AiErrorCode | null = null;
@@ -190,6 +200,7 @@ async function* runChat(
     const passageRoom = Math.max(0, room() - sizeOf(history) - message.length - 500);
     const perPassage = Math.min(PASSAGE_CHARS, Math.floor(passageRoom / PASSAGES));
     const found = perPassage >= 200 ? await searchSources(ctx, workspaceId, scope?.id, message, registry, perPassage) : [];
+    if (perPassage >= 200) yield await step({ kind: "search", query: null, results: found.length });
     const messages: AiMessage[] = [...history, { role: "user", content: chatQuestionPrompt(message, found) }];
 
     // ------------------------------------------------------------------------------ model turns
@@ -225,15 +236,17 @@ async function* runChat(
         stopReason = result.stopReason === "length" ? "length" : "stop";
         break;
       }
-      // Text before a tool call is the model thinking aloud, not the answer.
+      // Text before a tool call is the model thinking aloud, not the answer: it's kept as a step.
       if (streamed) yield { type: "reset" };
+      const thought = stripCitations(streamed).replace(/\s+/g, " ").trim();
+      if (thought) yield await step({ kind: "thought", text: thought.length > THOUGHT_CHARS ? `${thought.slice(0, THOUGHT_CHARS - 1).trimEnd()}…` : thought });
       answer = "";
       messages.push(result.message);
       const answerNext = round === MAX_ROUNDS - 2;
       for (const call of result.toolCalls) {
         const left = room() - sizeOf(messages) - 300;
         const out = await runTool(ctx, workspaceId, scope?.id, call, registry, left);
-        if (out.event) yield out.event;
+        if (out.step) yield await step(out.step);
         const content = answerNext ? `${out.content}\n\n(No more searching or reading: answer now with the sources you have.)` : out.content;
         messages.push({ role: "tool", toolCallId: call.id, name: call.name, content, isError: out.isError });
       }
@@ -251,13 +264,14 @@ async function* runChat(
     const refs: ChatSourceRef[] = registry.sources.filter((s) => cited.has(s.n)).map((s) => ({ n: s.n, pageId: s.pageId, blockId: s.blockId }));
     const now = new Date().toISOString();
     const note = stopped ? "stopped" : stopReason === "length" ? "cutOff" : undefined;
+    const ms = Date.now() - started;
     await saveTurn(conversation.id, [
       { role: "user", content: message, at: now },
-      { role: "assistant", content: answer, sources: refs, ...(note ? { note } : {}), at: now },
+      { role: "assistant", content: answer, sources: refs, ...(note ? { note } : {}), steps, ms, at: now },
     ]);
     await pruneConversations(userId, workspaceId);
     yield { type: "sources", sources: await viewSources(userId, refs) };
-    if (!failure) yield { type: "done", stopReason };
+    if (!failure) yield { type: "done", stopReason, ms };
     else yield { type: "error", code: failure };
     return;
   }
@@ -328,7 +342,7 @@ function valuesLine(properties: Record<string, unknown>) {
     .join("; ");
 }
 
-type ToolOutcome = { content: string; isError?: boolean; event?: ChatEvent };
+type ToolOutcome = { content: string; isError?: boolean; step?: ChatStepRecord };
 
 async function runTool(
   ctx: ops.OperationContext,
@@ -345,7 +359,7 @@ async function runTool(
     const found = await searchSources(ctx, workspaceId, scopeId, query, registry, Math.min(PASSAGE_CHARS, Math.floor(room / PASSAGES)));
     return {
       content: found.length ? formatSources(found) : "Nothing matched. Try other words, or answer that the workspace has nothing on it.",
-      event: { type: "tool", name: "search_pages", detail: query },
+      step: { kind: "search", query, results: found.length },
     };
   }
   if (call.name === "read_page") {
@@ -359,7 +373,7 @@ async function runTool(
     });
     if (!read) return missing;
     const entry = register(registry, { pageId, blockId: null, title: read.title, text: read.text, note: read.note });
-    return { content: formatSources([entry]), event: { type: "tool", name: "read_page", detail: pageLabel(read.title) } };
+    return { content: formatSources([entry]), step: { kind: "read", pageId } };
   }
   return { content: `Unknown tool ${call.name}.`, isError: true };
 }
@@ -435,16 +449,28 @@ async function pruneConversations(userId: string, workspaceId: string) {
   );
 }
 
-/** Cited pages as the person may see them now: pages they can't open lose id and title. */
-export async function viewSources(userId: string, refs: ChatSourceRef[]): Promise<ChatSourceView[]> {
-  const ids = [...new Set(refs.map((r) => r.pageId))];
+/** The pages of `ids` the person can open now, with what the chat shows of them. */
+async function visiblePages(userId: string, ids: string[]) {
   const visible = new Map<string, { title: string; icon: string | null; workspaceId: string }>();
-  for (const id of ids) {
+  for (const id of new Set(ids)) {
     const { page: found, level } = await pageAccessOf(userId, id);
     if (found && level !== "none" && !found.archivedAt && !found.inTemplate) {
       visible.set(id, { title: found.title, icon: found.icon, workspaceId: found.workspaceId });
     }
   }
+  return visible;
+}
+
+/** A step as the person may see it now: a page read that they can't open has no title. */
+async function viewStep(userId: string, record: ChatStepRecord, pages?: Awaited<ReturnType<typeof visiblePages>>): Promise<ChatStepView> {
+  if (record.kind !== "read") return record;
+  const seen = (pages ?? (await visiblePages(userId, [record.pageId]))).get(record.pageId);
+  return { kind: "read", page: seen ? { pageId: record.pageId, ...seen } : null };
+}
+
+/** Cited pages as the person may see them now: pages they can't open lose id and title. */
+export async function viewSources(userId: string, refs: ChatSourceRef[]): Promise<ChatSourceView[]> {
+  const visible = await visiblePages(userId, refs.map((r) => r.pageId));
   return refs.map((r) => {
     const seen = visible.get(r.pageId);
     return seen
@@ -472,11 +498,25 @@ export async function getConversation(userId: string, workspaceId: string, conve
   });
   const refs = found.messages.flatMap((m) => m.sources ?? []);
   const views = await viewSources(userId, refs);
+  const read = await visiblePages(
+    userId,
+    found.messages.flatMap((m) => (m.steps ?? []).flatMap((s) => (s.kind === "read" ? [s.pageId] : []))),
+  );
   let i = 0;
-  const messages: ChatMessageView[] = found.messages.map((m) => {
-    const sources = m.sources?.map(() => views[i++]);
-    return { role: m.role, content: m.content, ...(sources ? { sources } : {}), ...(m.note ? { note: m.note } : {}) };
-  });
+  const messages: ChatMessageView[] = await Promise.all(
+    found.messages.map(async (m) => {
+      const sources = m.sources?.map(() => views[i++]);
+      const steps = m.steps ? await Promise.all(m.steps.map((s) => viewStep(userId, s, read))) : undefined;
+      return {
+        role: m.role,
+        content: m.content,
+        ...(sources ? { sources } : {}),
+        ...(m.note ? { note: m.note } : {}),
+        ...(steps ? { steps } : {}),
+        ...(m.ms !== undefined ? { ms: m.ms } : {}),
+      };
+    }),
+  );
   return { id: found.id, title: found.title, messages };
 }
 

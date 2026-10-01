@@ -87,6 +87,16 @@ export const pageIndexState = pgTable(
 /** A source an answer of the AI chat cites: a page (and the block the passage starts at). */
 export type ChatSourceRef = { n: number; pageId: string; blockId: string | null };
 
+/**
+ * A step the AI chat took on the way to an answer: a search (`query` null for the one with the
+ * question itself) and how many pages it found, a page it read, or what the model said before
+ * searching or reading.
+ */
+export type ChatStepRecord =
+  | { kind: "search"; query: string | null; results: number }
+  | { kind: "read"; pageId: string }
+  | { kind: "thought"; text: string };
+
 /** One message of an AI chat conversation, as stored. */
 export type ChatMessageRecord = {
   role: "user" | "assistant";
@@ -95,6 +105,9 @@ export type ChatMessageRecord = {
   sources?: ChatSourceRef[];
   /** Answers that didn't finish: stopped by the person, or cut off at the length limit. */
   note?: "stopped" | "cutOff";
+  /** Assistant answers: the steps taken, and how long it took from question to answer. */
+  steps?: ChatStepRecord[];
+  ms?: number;
   at: string;
 };
 

@@ -42,6 +42,7 @@ const index = await import("@/server/semantic-index");
 const { deleteConversations, getConversation, listConversations, MAX_ROUNDS, startChat } = await import("@/server/ai-chat");
 const { MAX_CHAT_MESSAGE, MAX_CHAT_TURNS } = await import("@/lib/ai-chat");
 type ChatEvent = import("@/lib/ai-chat").ChatEvent;
+type ChatStepView = import("@/lib/ai-chat").ChatStepView;
 type ChatInput = import("@/server/ai-chat").ChatInput;
 
 const RUN = `aichat-e2e-${Date.now().toString(36)}`;
@@ -113,6 +114,10 @@ const everything = (request: FakeChatRequest) => request.messages.map((m) => tex
 /** Tool results the model got in this request, newest last. */
 const toolResults = (request: FakeChatRequest) => request.messages.filter((m) => m.role === "tool").map((m) => textOf(m.content));
 
+/** A step as one line: `search:<query or ?>:<results>`, `read:<title or gone>`, `thought:<text>`. */
+const stepLabel = (step: ChatStepView) =>
+  step.kind === "search" ? `search:${step.query ?? "?"}:${step.results}` : step.kind === "read" ? `read:${step.page?.title ?? "gone"}` : `thought:${step.text}`;
+
 /** Runs a question to the end; returns its events and what they add up to. */
 async function ask(userId: string, input: ChatInput, options: { signal?: AbortSignal; onEvent?: (e: ChatEvent) => void } = {}) {
   const events: ChatEvent[] = [];
@@ -133,7 +138,8 @@ async function ask(userId: string, input: ChatInput, options: { signal?: AbortSi
     sources: sources?.type === "sources" ? sources.sources : [],
     error: end?.type === "error" ? end.code : null,
     done: end?.type === "done",
-    tools: events.filter((e) => e.type === "tool").map((e) => (e.type === "tool" ? `${e.name}:${e.detail}` : "")),
+    steps: events.flatMap((e) => (e.type === "step" ? [stepLabel(e.step)] : [])),
+    ms: end?.type === "done" ? end.ms : null,
   };
 }
 
@@ -209,12 +215,13 @@ try {
   const first = await ask(alice, { workspaceId, message: "Which automobile needs tyres, and who sells them?" });
   check(first.done && first.events[0].type === "conversation", "a question is answered, the conversation's id coming first", first.events);
   check(
-    first.tools.join("|") === "search_pages:tyre suppliers|read_page:Tyre vendors",
-    "the model's searches and reads are shown as they happen; the search for the question itself is not",
-    first.tools,
+    /^search:\?:[1-9]\d*\|thought:Let me look\.\|search:tyre suppliers:[1-9]\d*\|read:Tyre vendors$/.test(first.steps.join("|")),
+    "the steps are shown as they happen: the question's search (without the question), what the model said before searching, its search and what it read, with result counts",
+    first.steps,
   );
+  check(typeof first.ms === "number" && first.ms >= 0, "the answer says how long it took", first.ms);
   check(
-    first.events[1]?.type === "thinking" && first.events.filter((e) => e.type === "thinking").length === 3,
+    first.events[1]?.type === "step" && first.events[2]?.type === "thinking" && first.events.filter((e) => e.type === "thinking").length === 3,
     "the panel is told the model is thinking before each of its turns",
     first.events.map((e) => e.type),
   );
@@ -238,6 +245,11 @@ try {
     shown.messages.length === 2 && shown.messages[1].content === first.text && shown.messages[1].sources?.[0]?.pageId === vendors.id,
     "…with the answer and its sources",
     shown,
+  );
+  check(
+    shown.messages[1].steps?.map(stepLabel).join("|") === first.steps.join("|") && shown.messages[1].ms === first.ms,
+    "…and the steps it took and how long, as they were shown",
+    shown.messages[1],
   );
   check((await listConversations(bob, workspaceId)).length === 0, "other people don't see it in their list");
   check((await getConversation(bob, workspaceId, conversationId).catch((e) => e)) instanceof AccessError, "…nor can they open it by id");
@@ -272,9 +284,9 @@ try {
     const run = await ask(who, { workspaceId, message: "Tell me about automobile plans and vacation" });
     const results = fake.chats.flatMap(toolResults);
     check(
-      run.done && results.some((r) => r.startsWith("No page with that id can be read")) && !run.tools.some((t) => t.startsWith("read_page")),
+      run.done && results.some((r) => r.startsWith("No page with that id can be read")) && !run.steps.some((t) => t.startsWith("read:")),
       `read_page refuses ${label}`,
-      { results, tools: run.tools },
+      { results, steps: run.steps },
     );
     check(
       !run.sources.some((s) => s.pageId === target) && fake.chats.every((r) => !secrets.concat(who === carol ? ["SECRET-TRAVEL"] : []).some((s) => everything(r).includes(s))),
@@ -299,6 +311,11 @@ try {
   const lentShown = await getConversation(alice, workspaceId, lentRun.conversationId!);
   const lentSource = lentShown.messages[1].sources?.[0];
   check(lentSource?.pageId === null && lentSource.title === null, "once access is taken back, the old citation no longer names the page", lentSource);
+  check(
+    lentRun.steps.includes("read:Lent budget") && lentShown.messages[1].steps?.some((st) => st.kind === "read" && st.page === null),
+    "…nor does the step that read it",
+    lentShown.messages[1].steps,
+  );
   fake.chats.length = 0;
   const lentAgain = await ask(alice, { workspaceId, conversationId: lentRun.conversationId, message: "Read it again, please." });
   check(

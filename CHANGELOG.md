@@ -48,6 +48,21 @@
 
 ### Changed
 
+- **The AI chat shows the steps it takes.** Above each answer, while it's written: *Working · 4s*
+  with the steps listed as they happen (the search with the question and how many pages it found,
+  what the model says before searching or reading, its searches with their result counts, and the
+  pages it reads as links), then folded into *Worked for 16s*, which opens them again. Steps and
+  time are kept with the conversation (answers from before have none); a page read that the person
+  can no longer open is shown without its title. Chat answers carry `step` events in place of
+  `tool`, and `done` says how long the answer took. New checks in `scripts/ai-chat-e2e.ts`.
+- **The AI chat has a page of its own, and the panel opens from the page.** *Ask AI* in the
+  sidebar now opens the chat across the page (`/w/[id]/ai`, `?c=` naming the conversation), where
+  the sidebar lists the conversations in place of the pages: by when they were last added to
+  (today, yesterday, the last 7 and 30 days, older), each one a link, with *New chat*, deleting one
+  or all, and *Back to pages* to the page you came from. The panel beside a page opens from a ✨
+  button in the page's header and can be expanded to the full page with its conversation. A source
+  clicked in the full page opens its page with the conversation carried on in the panel (on a
+  phone, just the page). New checks in `src/lib/ai-chat.test.ts`.
 - **The AI chat finds pages from whole questions, and reads databases' rows.** Its full-text search
   required every word of the question on a page, so "Kart ekstreleri ne durumda?" found nothing
   without an embeddings model. It now finds pages with any of the words, as prefixes (long words

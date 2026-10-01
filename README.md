@@ -201,8 +201,8 @@ versions, upgrades and running behind a domain.
 - **AI writing assistant, AI properties and AI chat** (optional, off until a provider is set up):
   improve, shorten, fix, translate or rewrite selected text as you ask, continue writing, and
   summarize a page, as a suggestion you accept or discard; database text properties that AI fills
-  in (a summary, a translation or your own prompt over the row's values); a chat panel that
-  answers questions from the pages you can read, citing them; and semantic search with an
+  in (a summary, a translation or your own prompt over the row's values); a chat, on its own page
+  or in a panel beside a page, that answers questions from the pages you can read, citing them; and semantic search with an
   embeddings model. Anthropic, OpenAI, Google, any OpenAI-compatible server, or a local model
   with Ollama or LM Studio (see [AI features](#ai-features)).
 - **Five interface languages**: English, Turkish, German, Spanish and French, chosen in My account
@@ -817,18 +817,25 @@ tick *Update when the row changes*, a few seconds after a row's values or page c
 what the value depends on changed). Cells show when a value is being worked out or failed, and
 why. Turning AI autofill off leaves the values as plain text.
 
-**AI chat.** *Ask AI* in the sidebar opens a chat panel. Questions are answered from the pages
+**AI chat.** *Ask AI* in the sidebar opens the chat across the page, where the sidebar lists
+your conversations (today, yesterday, the last 7 and 30 days, older) in place of the pages until
+*Back to pages*. The ✨ button in a page's header opens the chat in a panel beside the page, which
+stays open as you move between pages and can be expanded to the full page. A source clicked in the
+full page opens its page with the conversation carried on in the panel. Questions are answered from the pages
 you can read: each question is searched for (full-text and, with embeddings, by meaning) and goes
 to the model with the best passages; the model can also search again (`search_pages`) and read a
 whole page (`read_page`; a database reads as its first 200 rows with their values), up to five
 turns per question. A database row found by a search comes with its values (those the person may
 see). The chat's full-text search finds pages with any of the question's words (as
 prefixes, so "ekstreleri" finds "ekstresi"; question words such as "what" or "nedir" left out),
-titles first, where the search box wants all of them. Answers cite their sources as numbered
+titles first, where the search box wants all of them. While an answer is written, the steps it
+takes are listed above it (searches with how many pages they found, pages read, what the model says
+before them) with a running clock, then folded into how long it took; they are kept with the
+conversation. Answers cite their sources as numbered
 links to the page, and to the block the passage starts at when it is known. *Answer from* → *This
 page and its subpages* keeps questions to the page you are on. *Stop* ends an answer; what was written so far
-is kept. Conversations are private to you and listed under *Conversations*, where you can
-delete one or all; up to 50 per workspace are kept (the oldest go first), 40 questions each, 4000
+is kept. Conversations are private to you and listed in the full-page chat's sidebar and under
+the panel's *Conversations*, where you can delete one or all; up to 50 per workspace are kept (the oldest go first), 40 questions each, 4000
 characters a question. They are deleted when you leave the workspace or delete your account. The
 chat is off while offline and when AI is off for the workspace. Every question counts against
 `AI_RATE_LIMIT`; the model's extra turns count against `AI_WORKSPACE_RATE_LIMIT`.

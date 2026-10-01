@@ -1,83 +1,120 @@
 "use client";
 
 /**
- * The AI chat panel (#41): questions about the workspace, answered from the pages the person can
- * open, with citations that link to them (and scroll to the passage). Opened from the sidebar's
- * "Ask AI"; it stays open while the person moves between pages. The answer streams in from
- * `/api/ai/chat` (see server/ai-chat.ts); Stop cancels it. Conversations are kept on the server for
- * this person only, listed under the clock button. Needs the server and AI on in the workspace,
- * and says so otherwise.
+ * The AI chat (#41): questions about the workspace, answered from the pages the person can open,
+ * with citations that link to them (and scroll to the passage). Two ways to ask: the panel beside a
+ * page (opened from the page's header; it stays open while the person moves between pages) and the
+ * full-page chat at /w/[id]/ai (the sidebar's "Ask AI"), where the sidebar lists the conversations.
+ * Conversations are kept on the server for this person only. Needs the server and AI on in the
+ * workspace, and says so otherwise.
  */
-import { CircleStop, History, Loader2, SendHorizontal, SquarePen, Trash2, X } from "lucide-react";
+import { History, Loader2, Maximize2, SquarePen, Trash2, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { deleteConversationAction, getConversationAction, listConversationsAction } from "@/app/actions/ai";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { listConversationsAction } from "@/app/actions/ai";
 import { useIsOffline } from "@/components/offline/offline-context";
 import { FOCUS_BLOCK_EVENT } from "@/components/page/block-focus";
-import { cn, IconButton, MenuItem, MenuSeparator, PageIcon, pageLabel, Popover } from "@/components/ui";
-import { isAiErrorCode } from "@/lib/ai";
-import {
-  MAX_CHAT_MESSAGE,
-  sourceHref,
-  type ChatEvent,
-  type ChatMessageView,
-  type ChatSourceView,
-  type ConversationSummary,
-} from "@/lib/ai-chat";
+import { cn, IconButton, MenuItem, MenuSeparator, Popover } from "@/components/ui";
+import { chatPath, isChatPath, sourceHref, type ChatSourceView, type ConversationSummary } from "@/lib/ai-chat";
+import { ChatThread } from "./chat-thread";
+import { useChat } from "./use-chat";
 
-type ChatContext = { available: boolean; open: boolean; setOpen: (open: boolean) => void };
+type ChatContext = {
+  workspaceId: string;
+  /** AI is on in the workspace (otherwise the chat explains why it can't answer). */
+  available: boolean;
+  /** The panel beside the page. */
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  /** Opens the panel, showing this conversation (or a new chat). */
+  openPanel: (conversationId?: string | null) => void;
+  /** The person's conversations in the workspace, newest first; null until first asked for. */
+  conversations: ConversationSummary[] | null;
+  refreshConversations: () => Promise<void>;
+  /** The last page visited outside the full-page chat, where "back to pages" goes. */
+  backPath: () => string;
+};
 const Context = createContext<ChatContext | null>(null);
 
-/** The chat's open state for the sidebar's button; null when the server has no AI provider. */
+/** The chat for the sidebar, page headers and the full-page chat; null when the server has no AI provider. */
 export function useAiChat() {
   return useContext(Context);
 }
 
 /**
- * Holds the panel for a workspace's pages. `available`: AI is on in the workspace (the panel
- * explains when it isn't). Only rendered when the server has an AI provider.
+ * Holds the chat for a workspace's pages. `available`: AI is on in the workspace (the chat explains
+ * when it isn't). Only rendered when the server has an AI provider.
  */
 export function AiChatProvider({ workspaceId, available, children }: { workspaceId: string; available: boolean; children: ReactNode }) {
+  const pathname = usePathname();
+  const onChatPage = isChatPath(pathname, workspaceId);
   const [open, setOpen] = useState(false);
-  const value = useMemo(() => ({ available, open, setOpen }), [available, open]);
+  // The panel starts over (with this conversation) each time it's opened for one.
+  const [panel, setPanel] = useState<{ key: number; conversationId: string | null }>({ key: 0, conversationId: null });
+  const [conversations, setConversations] = useState<ConversationSummary[] | null>(null);
+  const lastPage = useRef(`/w/${workspaceId}`);
+  useEffect(() => {
+    if (!onChatPage) lastPage.current = pathname;
+    // The chat moved to the full page: the panel doesn't come back with the pages.
+    else setOpen(false);
+  }, [onChatPage, pathname]);
+
+  const refreshConversations = useCallback(async () => {
+    const result = await listConversationsAction(workspaceId);
+    setConversations(result.ok ? result.data : []);
+  }, [workspaceId]);
+  const openPanel = useCallback((conversationId?: string | null) => {
+    setPanel((p) => ({ key: p.key + 1, conversationId: conversationId ?? null }));
+    setOpen(true);
+  }, []);
+  const backPath = useCallback(() => lastPage.current, []);
+
+  const value = useMemo(
+    () => ({ workspaceId, available, open, setOpen, openPanel, conversations, refreshConversations, backPath }),
+    [workspaceId, available, open, openPanel, conversations, refreshConversations, backPath],
+  );
   return (
     <Context.Provider value={value}>
       {children}
-      {open && <ChatPanel workspaceId={workspaceId} available={available} onClose={() => setOpen(false)} />}
+      {/* The full-page chat replaces the panel while it's shown. */}
+      {open && !onChatPage && (
+        <ChatPanel key={panel.key} workspaceId={workspaceId} available={available} initialConversation={panel.conversationId} onClose={() => setOpen(false)} />
+      )}
     </Context.Provider>
   );
 }
 
-type Status = { kind: "thinking" } | { kind: "search_pages" | "read_page"; detail: string };
-
-type Message = ChatMessageView & { key: string };
-
-let keys = 0;
-const nextKey = () => `m${++keys}`;
-
-function ChatPanel({ workspaceId, available, onClose }: { workspaceId: string; available: boolean; onClose: () => void }) {
+function ChatPanel({
+  workspaceId,
+  available,
+  initialConversation,
+  onClose,
+}: {
+  workspaceId: string;
+  available: boolean;
+  initialConversation: string | null;
+  onClose: () => void;
+}) {
   const t = useTranslations("ai.chat");
-  const ta = useTranslations("ai");
   const router = useRouter();
   const pathname = usePathname();
+  const context = useAiChat()!;
+  const { conversations, refreshConversations } = context;
   const currentPageId = /\/p\/([\w-]+)/.exec(pathname)?.[1] ?? null;
   const offline = useIsOffline();
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
   const [scope, setScope] = useState<"workspace" | "page">("workspace");
-  const [status, setStatus] = useState<Status | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<ConversationSummary[] | null>(null);
-  const abort = useRef<AbortController | null>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const running = status !== null;
+  const chat = useChat(workspaceId, { onAnswered: () => void refreshConversations() });
+  const { conversationId, messages, running } = chat;
   const blocked = offline ? t("offline") : !available ? t("disabled") : null;
   const pageScope = scope === "page" && currentPageId ? currentPageId : null;
 
-  useEffect(() => () => abort.current?.abort(), []);
+  const openConversation = chat.openConversation;
+  useEffect(() => {
+    if (initialConversation) void openConversation(initialConversation);
+    // Only when the panel opens for a conversation (it's keyed by each opening).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !running) onClose();
@@ -85,134 +122,9 @@ function ChatPanel({ workspaceId, available, onClose }: { workspaceId: string; a
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, running]);
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-  // Follow the answer as it streams, unless the person scrolled up to read.
-  useEffect(() => {
-    const el = listRef.current;
-    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 120) el.scrollTop = el.scrollHeight;
-  }, [messages, status]);
-
-  const errorText = useCallback(
-    (code: unknown) => {
-      const c = isAiErrorCode(code) ? code : "provider";
-      // The chat says some things its own way; the rest as the other AI features do.
-      if (c === "noAccess" || c === "tooLarge" || c === "disabled" || c === "invalid") return t(`errors.${c}`);
-      return ta(`errors.${c}`);
-    },
-    [t, ta],
-  );
-
-  const updateLast = (fn: (m: Message) => Message) =>
-    setMessages((list) => (list.length && list[list.length - 1].role === "assistant" ? [...list.slice(0, -1), fn(list[list.length - 1])] : list));
-
-  async function send() {
-    const question = input.trim();
-    if (!question || running || blocked) return;
-    setError(null);
-    setInput("");
-    const controller = new AbortController();
-    abort.current = controller;
-    setMessages((list) => [...list, { key: nextKey(), role: "user", content: question }, { key: nextKey(), role: "assistant", content: "" }]);
-    setStatus({ kind: "thinking" });
-    let failed: string | null = null;
-    let finished = false;
-    try {
-      const response = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspaceId, conversationId, message: question, scope: pageScope ? { pageId: pageScope } : null }),
-        signal: controller.signal,
-      });
-      if (!response.ok || !response.body) {
-        const body = (await response.json().catch(() => null)) as { error?: { code?: string } } | null;
-        failed = errorText(body?.error?.code);
-        return;
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffered = "";
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffered += decoder.decode(value, { stream: true });
-        const lines = buffered.split("\n");
-        buffered = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const event = JSON.parse(line) as ChatEvent;
-          if (event.type === "conversation") setConversationId(event.id);
-          else if (event.type === "thinking") setStatus({ kind: "thinking" });
-          else if (event.type === "tool") setStatus({ kind: event.name, detail: event.detail });
-          else if (event.type === "text") {
-            setStatus((s) => (s?.kind === "thinking" ? s : { kind: "thinking" }));
-            updateLast((m) => ({ ...m, content: m.content + event.text }));
-          } else if (event.type === "reset") updateLast((m) => ({ ...m, content: "" }));
-          else if (event.type === "sources") updateLast((m) => ({ ...m, sources: event.sources }));
-          else if (event.type === "done") {
-            finished = true;
-            if (event.stopReason === "length") updateLast((m) => ({ ...m, note: "cutOff" }));
-          } else if (event.type === "error") {
-            if (event.code === "aborted") updateLast((m) => ({ ...m, note: "stopped" }));
-            else failed = errorText(event.code);
-          }
-        }
-      }
-      if (!finished && !failed && !controller.signal.aborted) failed = errorText("provider");
-    } catch {
-      if (controller.signal.aborted) updateLast((m) => ({ ...m, note: "stopped" }));
-      else failed = errorText("provider");
-    } finally {
-      if (abort.current === controller) abort.current = null;
-      setStatus(null);
-      if (failed) {
-        setError(failed);
-        // Nothing was answered: the question goes back into the box.
-        setMessages((list) => {
-          const last = list[list.length - 1];
-          return last?.role === "assistant" && !last.content.trim() ? list.slice(0, -2) : list;
-        });
-        setInput((current) => current || question);
-      }
-    }
-  }
-
-  function stop() {
-    abort.current?.abort();
-  }
-
-  function newChat() {
-    stop();
-    setConversationId(null);
-    setMessages([]);
-    setError(null);
-    inputRef.current?.focus();
-  }
-
-  async function loadHistory() {
-    const result = await listConversationsAction(workspaceId);
-    setHistory(result.ok ? result.data : []);
-  }
-
-  async function openConversation(id: string) {
-    stop();
-    const result = await getConversationAction(workspaceId, id);
-    if (!result.ok) {
-      setError(t("loadFailed"));
-      return;
-    }
-    setError(null);
-    setConversationId(result.data.id);
-    setMessages(result.data.messages.map((m) => ({ ...m, key: nextKey() })));
-  }
 
   async function remove(id: string | "all") {
-    if (id === "all" && !confirm(t("confirmDeleteAll"))) return;
-    const result = await deleteConversationAction(workspaceId, id);
-    if (!result.ok) return;
-    if (id === "all" || id === conversationId) newChat();
-    await loadHistory();
+    if (await chat.remove(id)) await refreshConversations();
   }
 
   function openSource(source: ChatSourceView) {
@@ -242,7 +154,7 @@ function ChatPanel({ workspaceId, available, onClose }: { workspaceId: string; a
               label={t("history")}
               className="h-7 w-7"
               onClick={() => {
-                void loadHistory();
+                void refreshConversations();
                 toggle();
               }}
               disabled={offline}
@@ -253,22 +165,22 @@ function ChatPanel({ workspaceId, available, onClose }: { workspaceId: string; a
         >
           {(close) => (
             <div className="max-h-80 overflow-y-auto">
-              {history === null ? (
+              {conversations === null ? (
                 <p className="px-2 py-1.5 text-sm text-fg-muted">
                   <Loader2 className="inline h-3.5 w-3.5 animate-spin" />
                 </p>
-              ) : history.length === 0 ? (
+              ) : conversations.length === 0 ? (
                 <p className="px-2 py-1.5 text-sm text-fg-muted">{t("noHistory")}</p>
               ) : (
                 <>
-                  {history.map((c) => (
+                  {conversations.map((c) => (
                     <div key={c.id} className={cn("group flex items-center gap-1 rounded", c.id === conversationId && "bg-bg-hover")}>
                       <button
                         type="button"
                         className="min-w-0 flex-1 truncate rounded px-2 py-1.5 text-left text-sm hover:bg-bg-hover"
                         onClick={() => {
                           close();
-                          void openConversation(c.id);
+                          void chat.openConversation(c.id);
                         }}
                       >
                         {c.title || t("untitled")}
@@ -294,182 +206,50 @@ function ChatPanel({ workspaceId, available, onClose }: { workspaceId: string; a
             </div>
           )}
         </Popover>
-        <IconButton label={t("newChat")} className="h-7 w-7" onClick={newChat} disabled={!messages.length && !conversationId}>
+        <IconButton label={t("newChat")} className="h-7 w-7" onClick={chat.newChat} disabled={!messages.length && !conversationId}>
           <SquarePen className="h-4 w-4" />
+        </IconButton>
+        {/* Leaving mid-answer would stop it. */}
+        <IconButton
+          label={t("expand")}
+          className="h-7 w-7 max-md:hidden"
+          disabled={running}
+          onClick={() => {
+            onClose();
+            router.push(chatPath(workspaceId, conversationId));
+          }}
+        >
+          <Maximize2 className="h-4 w-4" />
         </IconButton>
         <IconButton label={t("close")} className="h-7 w-7" onClick={onClose}>
           <X className="h-4 w-4" />
         </IconButton>
       </div>
 
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3" aria-live="polite">
-        {messages.length === 0 ? (
-          <p className="py-6 text-sm text-fg-muted">{t("intro")}</p>
-        ) : (
-          <ol className="space-y-4">
-            {messages.map((m, i) => (
-              <li key={m.key}>
-                {m.role === "user" ? (
-                  <div className="ml-8 rounded-lg bg-bg-subtle px-3 py-2 text-sm whitespace-pre-wrap break-words">{m.content}</div>
-                ) : (
-                  <Answer
-                    message={m}
-                    status={i === messages.length - 1 ? status : null}
-                    onSource={openSource}
-                    labels={{
-                      sources: t("sources"),
-                      gone: t("sourceGone"),
-                      stopped: t("stopped"),
-                      cutOff: t("cutOff"),
-                      status: (s) =>
-                        s.kind === "thinking"
-                          ? t("thinking")
-                          : s.kind === "search_pages"
-                            ? t("searching", { query: s.detail })
-                            : t("reading", { title: s.detail }),
-                    }}
-                  />
-                )}
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
-
-      <div className="shrink-0 border-t border-border p-3">
-        {blocked && (
-          <p role="status" className="mb-2 text-sm text-fg-muted">
-            {blocked}
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="mb-2 text-sm text-danger">
-            {error}
-          </p>
-        )}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void send();
-          }}
-          className="flex items-end gap-2 rounded-lg border border-border bg-bg px-2 py-1.5 focus-within:border-accent"
-        >
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                void send();
-              }
-            }}
-            rows={Math.min(6, Math.max(1, input.split("\n").length))}
-            maxLength={MAX_CHAT_MESSAGE}
-            disabled={Boolean(blocked)}
-            placeholder={t("placeholder")}
-            aria-label={t("placeholder")}
-            className="max-h-40 min-h-7 flex-1 resize-none bg-transparent py-1 text-sm outline-none placeholder:text-fg-faint disabled:opacity-60"
-          />
-          {running ? (
-            <IconButton label={t("stop")} className="h-7 w-7" onClick={stop}>
-              <CircleStop className="h-4 w-4" />
-            </IconButton>
-          ) : (
-            <IconButton label={t("send")} type="submit" className="h-7 w-7" disabled={Boolean(blocked) || !input.trim()}>
-              <SendHorizontal className="h-4 w-4" />
-            </IconButton>
-          )}
-        </form>
-        <div className="mt-2 flex items-center gap-2 text-xs text-fg-muted">
-          <label htmlFor="ai-chat-scope">{t("scope")}</label>
-          <select
-            id="ai-chat-scope"
-            value={pageScope ? "page" : "workspace"}
-            onChange={(e) => setScope(e.target.value === "page" ? "page" : "workspace")}
-            disabled={running}
-            className="h-6 min-w-0 flex-1 rounded border border-border bg-bg px-1 text-xs text-fg"
-          >
-            <option value="workspace">{t("scopeWorkspace")}</option>
-            <option value="page" disabled={!currentPageId}>
-              {t("scopePage")}
-            </option>
-          </select>
-        </div>
-        <p className="mt-1.5 text-xs text-fg-faint">{t("note")}</p>
-      </div>
+      <ChatThread
+        chat={chat}
+        blocked={blocked}
+        onSend={() => void chat.send(pageScope)}
+        onSource={openSource}
+        variant="panel"
+        footer={
+          <div className="mt-2 flex items-center gap-2 text-xs text-fg-muted">
+            <label htmlFor="ai-chat-scope">{t("scope")}</label>
+            <select
+              id="ai-chat-scope"
+              value={pageScope ? "page" : "workspace"}
+              onChange={(e) => setScope(e.target.value === "page" ? "page" : "workspace")}
+              disabled={running}
+              className="h-6 min-w-0 flex-1 rounded border border-border bg-bg px-1 text-xs text-fg"
+            >
+              <option value="workspace">{t("scopeWorkspace")}</option>
+              <option value="page" disabled={!currentPageId}>
+                {t("scopePage")}
+              </option>
+            </select>
+          </div>
+        }
+      />
     </aside>
-  );
-}
-
-type Labels = { sources: string; gone: string; stopped: string; cutOff: string; status: (s: Status) => string };
-
-function Answer({
-  message,
-  status,
-  onSource,
-  labels,
-}: {
-  message: Message;
-  status: Status | null;
-  onSource: (source: ChatSourceView) => void;
-  labels: Labels;
-}) {
-  const byNumber = new Map((message.sources ?? []).map((s) => [s.n, s]));
-  return (
-    <div className="text-sm leading-relaxed">
-      {message.content && <AnswerText text={message.content} sources={byNumber} onSource={onSource} />}
-      {status && !(status.kind === "thinking" && message.content) && (
-        <p className="flex items-center gap-1.5 text-fg-muted">
-          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-          <span className="truncate">{labels.status(status)}</span>
-        </p>
-      )}
-      {message.note && <p className="mt-1 text-xs text-fg-muted">{message.note === "stopped" ? labels.stopped : labels.cutOff}</p>}
-      {message.sources && message.sources.length > 0 && (
-        <div className="mt-2">
-          <p className="text-xs font-medium text-fg-muted">{labels.sources}</p>
-          <ul className="mt-1 space-y-0.5">
-            {message.sources.map((s) => (
-              <li key={s.n} className="flex items-center gap-1.5 text-xs">
-                <span className="w-5 shrink-0 text-right text-fg-faint tabular-nums">{s.n}</span>
-                {s.pageId ? (
-                  <button
-                    type="button"
-                    onClick={() => onSource(s)}
-                    className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-bg-hover"
-                  >
-                    <PageIcon icon={s.icon} className="text-xs" />
-                    <span className="truncate">{pageLabel(s.title ?? "")}</span>
-                  </button>
-                ) : (
-                  <span className="px-1 text-fg-faint">{labels.gone}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** A small Markdown subset: paragraphs, lists, headings as bold lines, **bold**, `code`, citations. */
-// The markdown renderer comes with the first answer, not with every page.
-const AnswerMarkdown = lazy(() => import("./answer-markdown"));
-
-function AnswerText({
-  text,
-  sources,
-  onSource,
-}: {
-  text: string;
-  sources: Map<number, ChatSourceView>;
-  onSource: (source: ChatSourceView) => void;
-}) {
-  return (
-    <Suspense fallback={<p className="break-words whitespace-pre-wrap">{text}</p>}>
-      <AnswerMarkdown text={text} sources={sources} onSource={onSource} />
-    </Suspense>
   );
 }
