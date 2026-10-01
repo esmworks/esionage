@@ -45,6 +45,8 @@ const PASSAGES = 6;
 const PASSAGE_CHARS = 1_200;
 /** The most of a page one read_page call returns. */
 const PAGE_CHARS = 12_000;
+/** Rows a database read lists (then cut to PAGE_CHARS like any page). */
+const DATABASE_ROWS = 200;
 /** Share of the prompt that earlier questions and answers may take. */
 const HISTORY_SHARE = 0.25;
 
@@ -62,7 +64,8 @@ export const CHAT_TOOLS: AiTool[] = [
   },
   {
     name: "read_page",
-    description: "Reads a whole page (its text, or a database row's values) by the page_id of a source. Returns it as a numbered source.",
+    description:
+      "Reads a whole page by the page_id of a source: its text, a database row's values, or a database's rows with their values. Returns it as a numbered source.",
     parameters: {
       type: "object",
       properties: { page_id: { type: "string", description: "The page_id attribute of a source." } },
@@ -274,7 +277,7 @@ async function searchSources(
   registry: Registry,
   maxChars: number,
 ) {
-  const { results } = await ops.search(ctx, { query, workspace_id: workspaceId, limit: PASSAGES }, { withinPageId: scopeId, passages: true });
+  const { results } = await ops.search(ctx, { query, workspace_id: workspaceId, limit: PASSAGES }, { withinPageId: scopeId, passages: true, anyWord: true });
   return results.map((r) =>
     register(registry, {
       pageId: r.id,
@@ -337,6 +340,7 @@ async function readPage(ctx: ops.OperationContext, workspaceId: string, scopeId:
   }
   if (Array.isArray(out.database_properties)) {
     parts.push(`A database with the properties: ${(out.database_properties as { name?: string }[]).map((p) => p.name).filter(Boolean).join(", ")}`);
+    parts.push(await databaseRows(ctx, pageId));
   }
   if (typeof out.markdown === "string" && out.markdown.trim()) parts.push(out.markdown);
   return {
@@ -344,6 +348,23 @@ async function readPage(ctx: ops.OperationContext, workspaceId: string, scopeId:
     text: truncateText(parts.join("\n\n"), maxChars),
     note: out.markdown_truncated ? "Only the start of the page fits." : undefined,
   };
+}
+
+/**
+ * A database's rows, one line each with the values the person may see, in the database's order.
+ * The page is cut to fit later; the line count says when rows are left out.
+ */
+async function databaseRows(ctx: ops.OperationContext, databaseId: string) {
+  const { rows, total } = await ops.queryDatabase(ctx, { database_id: databaseId, limit: DATABASE_ROWS });
+  if (!rows.length) return "It has no rows.";
+  const lines = rows.map((r) => {
+    const values = Object.entries(r.properties as Record<string, unknown>)
+      .filter(([, v]) => v !== null && v !== "" && !(Array.isArray(v) && !v.length))
+      .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`);
+    return `- ${r.title} (page_id ${r.id})${values.length ? ` — ${values.join("; ")}` : ""}`;
+  });
+  const shown = rows.length < total ? `The first ${rows.length} of its ${total} rows (search for others by name):` : `Its ${total} rows:`;
+  return `${shown}\n${lines.join("\n")}`;
 }
 
 // ---------------------------------------------------------------------------- conversations

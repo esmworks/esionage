@@ -378,14 +378,15 @@ export async function listGroups(ctx: OperationContext, { workspace_id }: Args<"
  * Full-text search, merged with semantic search where the server has an embeddings model (see
  * pages.searchPages). `match` says how a result was found: "semantic" when only by meaning.
  * `withinPageId` keeps to a page and its subpages; `passages` adds the best matching passage of
- * each page (as far as semantic search found one) and the block it starts at (AI chat).
+ * each page (as far as semantic search found one) and the block it starts at (AI chat). `anyWord`:
+ * pages with any of the query's words, not all (AI chat, which searches with whole questions).
  */
 export async function search(
   ctx: OperationContext,
   { query, workspace_id, limit }: Args<"search">,
-  { withinPageId, passages = false }: { withinPageId?: string; passages?: boolean } = {},
+  { withinPageId, passages = false, anyWord = false }: { withinPageId?: string; passages?: boolean; anyWord?: boolean } = {},
 ) {
-  const hits = await pages.searchPages(ctx.userId, query, { workspaceId: workspace_id, limit, withinPageId });
+  const hits = await pages.searchPages(ctx.userId, query, { workspaceId: workspace_id, limit, withinPageId, anyWord });
   return {
     results: hits.map((h) => ({
       id: h.id,

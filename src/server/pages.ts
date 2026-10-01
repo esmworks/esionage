@@ -3,6 +3,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { makeStatusOptions } from "@/lib/properties";
 import { trashDeletionDate } from "@/lib/retention";
+import { anyWordTerms, anyWordTsQuery } from "@/lib/search-words";
 import {
   databaseProperty,
   databaseView,
@@ -593,6 +594,11 @@ export type SearchOptions = {
   limit?: number;
   /** Only this page and the pages under it. */
   withinPageId?: string;
+  /**
+   * Full-text matches pages with any of the query's words (as prefixes, titles first) instead of
+   * all of them: for the AI chat, which searches with whole questions.
+   */
+  anyWord?: boolean;
 };
 
 /**
@@ -643,11 +649,31 @@ export async function searchPages(userId: string, query: string, options: Search
 }
 
 /** Title + body full-text search across the user's workspaces (or one workspace), newest first on ties. */
-export async function fullTextSearch(userId: string, query: string, { workspaceId, limit = 20, withinPageId }: SearchOptions = {}): Promise<SearchHit[]> {
+export async function fullTextSearch(
+  userId: string,
+  query: string,
+  { workspaceId, limit = 20, withinPageId, anyWord = false }: SearchOptions = {},
+): Promise<SearchHit[]> {
   const q = query.trim();
   if (!q) return [];
+  const terms = anyWord ? anyWordTerms(q) : [];
+  if (anyWord && !terms.length) return [];
   if (workspaceId) await enforceWorkspacePolicy(userId, workspaceId);
   const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const words = sql`setweight(to_tsvector('simple', coalesce(p.title, '')), 'A') || setweight(to_tsvector('simple', coalesce(p.content_text, '')), 'B')`;
+  const anyOf = sql`to_tsquery('simple', ${anyWordTsQuery(terms)})`;
+  const rank = anyWord
+    ? sql`ts_rank(${words}, ${anyOf})`
+    : sql`(case when p.title ilike ${like} then 2 else 0 end)
+      + ts_rank(to_tsvector('simple', coalesce(p.title, '') || ' ' || coalesce(p.content_text, '')),
+                plainto_tsquery('simple', ${q}))`;
+  const matches = anyWord
+    ? sql`${words} @@ ${anyOf}`
+    : sql`(
+        p.title ilike ${like} or p.content_text ilike ${like}
+        or to_tsvector('simple', coalesce(p.title, '') || ' ' || coalesce(p.content_text, ''))
+           @@ plainto_tsquery('simple', ${q})
+      )`;
   const rows = await db.execute<{
     id: string;
     workspace_id: string;
@@ -664,9 +690,7 @@ export async function fullTextSearch(userId: string, query: string, { workspaceI
       -- A parent they can't see isn't named, not even by id.
       case when p.parent_id is not null and ${pageVisibleTo(userId, "parent")} then p.parent_id end as parent_id,
       p.kind, p.title, p.icon, p.content_text, p.updated_at,
-      (case when p.title ilike ${like} then 2 else 0 end)
-      + ts_rank(to_tsvector('simple', coalesce(p.title, '') || ' ' || coalesce(p.content_text, '')),
-                plainto_tsquery('simple', ${q})) as rank
+      ${rank} as rank
     from ${page} p
     left join ${page} parent on parent.id = p.parent_id
     where p.archived_at is null
@@ -674,11 +698,7 @@ export async function fullTextSearch(userId: string, query: string, { workspaceI
       and ${pageVisibleTo(userId, "p")}
       ${workspaceId ? sql`and p.workspace_id = ${workspaceId}` : sql``}
       ${withinPageId ? sql`and ${inSubtree(withinPageId)}` : sql``}
-      and (
-        p.title ilike ${like} or p.content_text ilike ${like}
-        or to_tsvector('simple', coalesce(p.title, '') || ' ' || coalesce(p.content_text, ''))
-           @@ plainto_tsquery('simple', ${q})
-      )
+      and ${matches}
     order by rank desc, p.updated_at desc
     limit ${limit}
   `);
@@ -691,16 +711,23 @@ export async function fullTextSearch(userId: string, query: string, { workspaceI
     kind: r.kind,
     title: r.title,
     icon: r.icon,
-    snippet: makeSnippet(r.content_text, q),
+    snippet: makeSnippet(r.content_text, anyWord ? terms : [q]),
     updatedAt: new Date(r.updated_at),
   }));
 }
 
-function makeSnippet(text: string, q: string) {
-  const i = text.toLowerCase().indexOf(q.toLowerCase());
+/** The text around the first of `needles` it contains, or its start. */
+function makeSnippet(text: string, needles: string[]) {
+  const lower = text.toLowerCase();
+  let i = -1;
+  let length = 0;
+  for (const needle of needles) {
+    const at = lower.indexOf(needle.toLowerCase());
+    if (at !== -1 && (i === -1 || at < i)) [i, length] = [at, needle.length];
+  }
   if (i === -1) return text.slice(0, 140);
   const start = Math.max(0, i - 50);
-  return (start ? "…" : "") + text.slice(start, i + q.length + 90).replace(/\s+/g, " ");
+  return (start ? "…" : "") + text.slice(start, i + length + 90).replace(/\s+/g, " ");
 }
 
 /**

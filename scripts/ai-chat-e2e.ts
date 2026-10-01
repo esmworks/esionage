@@ -27,6 +27,7 @@ const { aiConversation, teamspace, user, workspace, workspaceMember } = await im
 const { registerCollab } = await import("@/server/collab/bridge");
 const { createCollab } = await import("@/server/collab/service");
 const { createPage } = await import("@/server/pages");
+const { addProperty } = await import("@/server/databases");
 const { removePagePermission, setPageGroupPermission, setPagePermission } = await import("@/server/permissions");
 const { createGroup } = await import("@/server/groups");
 const { createTeamspace } = await import("@/server/teamspaces");
@@ -390,6 +391,24 @@ try {
   fake.chats.length = 0;
   const textOnly = await ask(alice, { workspaceId, message: "tyres" });
   check(textOnly.done && sourcesIn(fake.chats[0]).some((s) => s.pageId === fleet.id), "without embeddings the chat answers from full-text search");
+  fake.chats.length = 0;
+  const whole = await ask(alice, { workspaceId, message: "Which tyres does our car need before winter?" });
+  check(
+    whole.done && sourcesIn(fake.chats[0]).some((s) => s.pageId === fleet.id),
+    "…also for a whole question, whose words needn't all be on the page (\"need\" finds \"needs\")",
+  );
+  const parts = await createPage(actor, { workspaceId, teamspaceId: general.id, kind: "database", title: "Spare parts" });
+  const stock = await addProperty(owner, parts.id, { name: "Stock", type: "select", options: ["Ordered", "In stock"] });
+  await createPage(actor, { workspaceId, parentId: parts.id, title: "Winter tyres", properties: { [stock.id]: stock.options.options![0].id } });
+  fake.setChat(researcher({ readId: parts.id }));
+  fake.chats.length = 0;
+  const ordered = await ask(alice, { workspaceId, message: "Which spare parts are ordered?" });
+  const readOut = toolResults(fake.chats.at(-1)!).join("\n");
+  check(
+    ordered.done && readOut.includes("Its 1 rows:") && readOut.includes("Winter tyres") && readOut.includes("Stock: Ordered"),
+    "reading a database lists its rows with their values",
+    readOut.slice(0, 500),
+  );
   setAiEnv(AI);
 
   // ── Deleting ────────────────────────────────────────────────────────────────────────────────
