@@ -153,7 +153,25 @@
       "readGone": "Lu une page que vous ne pouvez plus ouvrir",
       "query": "Interrogé",
       "rows": "{count, plural, =0 {aucune ligne} one {# ligne} other {# lignes}}",
-      "queryGone": "Interrogé une base que vous ne pouvez plus ouvrir"
+      "queryGone": "Interrogé une base que vous ne pouvez plus ouvrir",
+      "write": {
+        "done": {
+          "createRow": "Ligne ajoutée :",
+          "updateRow": "Ligne modifiée :",
+          "createPage": "Page ajoutée :"
+        },
+        "declined": {
+          "createRow": "Ajout de la ligne refusé :",
+          "updateRow": "Modification refusée :",
+          "createPage": "Ajout de la page refusé :"
+        },
+        "failed": {
+          "createRow": "Impossible d'ajouter la ligne :",
+          "updateRow": "Impossible de modifier :",
+          "createPage": "Impossible d'ajouter la page :"
+        },
+        "in": "dans"
+      }
     },
     "sources": "Sources",
     "sourceGone": "Une page que vous ne pouvez plus ouvrir",
@@ -168,6 +186,30 @@
       "tooLarge": "La question est trop longue ou cette conversation est pleine. Raccourcissez-la ou commencez une nouvelle conversation.",
       "disabled": "L’IA est désactivée dans cet espace de travail.",
       "invalid": "Écrivez d’abord une question."
+    },
+    "approval": {
+      "question": {
+        "createRow": "Ajouter cette ligne ?",
+        "updateRow": "Modifier cette ligne ?",
+        "createPage": "Ajouter cette page ?"
+      },
+      "in": "Dans",
+      "row": "Ligne",
+      "topLevel": "En haut de l'espace de travail, privée",
+      "cleared": "(effacé)",
+      "approve": "Oui",
+      "always": "Oui, et ne plus demander (Auto)",
+      "decline": "Non",
+      "waiting": "En attente de votre accord"
+    },
+    "mode": {
+      "label": "Modifications",
+      "ask": "Demander",
+      "askHint": "Vous demande avant chaque modification",
+      "auto": "Auto",
+      "autoHint": "Ajoute et modifie sans demander",
+      "read": "Lecture seule",
+      "readHint": "Ne modifie rien"
     }
   }
 }

@@ -6,6 +6,7 @@ import { isDatabaseErrorCode, PropertyValueError } from "@/lib/properties";
 import { AccessError } from "@/server/access";
 import { isAiError } from "@/server/ai";
 import { deleteConversations, getConversation, listConversations } from "@/server/ai-chat";
+import { decideChange, type ChatDecision } from "@/server/ai-chat-approvals";
 import { AutofillError, requestAutofill, setAutofill } from "@/server/ai-properties";
 import { snapshotBeforeAiEdit } from "@/server/ai-writing";
 import * as databases from "@/server/databases";
@@ -81,4 +82,15 @@ export async function getConversationAction(workspaceId: string, conversationId:
 /** Deletes one of the person's conversations, or all of them in the workspace. */
 export async function deleteConversationAction(workspaceId: string, conversationId: string | "all") {
   return run((userId) => deleteConversations(userId, String(workspaceId), conversationId === "all" ? "all" : [String(conversationId)]));
+}
+
+/**
+ * The person's decision on a change the AI chat asked about (its `approval` event): false when it
+ * no longer waits (stopped, timed out or decided) or isn't theirs.
+ */
+export async function decideChangeAction(approvalId: string, decision: ChatDecision) {
+  return run(async (userId) => {
+    if (decision !== "approve" && decision !== "always" && decision !== "decline") return false;
+    return decideChange(userId, String(approvalId), decision);
+  });
 }

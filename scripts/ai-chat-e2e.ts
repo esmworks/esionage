@@ -23,7 +23,7 @@ try {
 // Imported after .env is loaded: the database client reads DATABASE_URL when it is created.
 const { and, eq, inArray } = await import("drizzle-orm");
 const { db } = await import("@/db");
-const { aiConversation, teamspace, user, workspace, workspaceMember } = await import("@/db/schema");
+const { aiConversation, page, teamspace, user, workspace, workspaceMember } = await import("@/db/schema");
 const { registerCollab } = await import("@/server/collab/bridge");
 const { createCollab } = await import("@/server/collab/service");
 const { createPage } = await import("@/server/pages");
@@ -40,6 +40,7 @@ type FakeChatRequest = import("@/server/ai/fake-openai").FakeChatRequest;
 type FakeReply = import("@/server/ai/fake-openai").FakeReply;
 const index = await import("@/server/semantic-index");
 const { deleteConversations, getConversation, listConversations, MAX_ROUNDS, startChat } = await import("@/server/ai-chat");
+const { decideChange } = await import("@/server/ai-chat-approvals");
 const { MAX_CHAT_MESSAGE, MAX_CHAT_TURNS } = await import("@/lib/ai-chat");
 type ChatEvent = import("@/lib/ai-chat").ChatEvent;
 type ChatStepView = import("@/lib/ai-chat").ChatStepView;
@@ -122,17 +123,19 @@ const stepLabel = (step: ChatStepView) =>
       ? `read:${step.page?.title ?? "gone"}`
       : step.kind === "query"
         ? `query:${step.database?.title ?? "gone"}:${step.conditions.map((c) => `${c.property} ${c.op} ${c.value ?? ""}`.trim()).join(",")}:${step.results}`
-        : `thought:${step.text}`;
+        : step.kind === "write"
+          ? `write:${step.action}:${step.outcome}:${step.page?.title ?? step.title ?? step.target?.title ?? "?"}`
+          : `thought:${step.text}`;
 
 /** Runs a question to the end; returns its events and what they add up to. */
-async function ask(userId: string, input: ChatInput, options: { signal?: AbortSignal; onEvent?: (e: ChatEvent) => void } = {}) {
+async function ask(userId: string, input: ChatInput, options: { signal?: AbortSignal; onEvent?: (e: ChatEvent) => void | Promise<void> } = {}) {
   const events: ChatEvent[] = [];
   let text = "";
   for await (const event of await startChat(userId, input, options.signal)) {
     events.push(event);
     if (event.type === "text") text += event.text;
     if (event.type === "reset") text = "";
-    options.onEvent?.(event);
+    await options.onEvent?.(event);
   }
   const conversation = events.find((e) => e.type === "conversation");
   const sources = events.find((e) => e.type === "sources");
@@ -263,7 +266,10 @@ try {
   );
   const searched = sourcesIn(fake.chats[1]);
   check(searched.some((s) => s.pageId === fleet.id && s.text.includes("car needs new tyres")), "the model's search finds pages by meaning (car for automobile)", searched);
-  check(fake.chats.every((r) => r.tools?.map((t) => t.function.name).join() === "search_pages,read_page,query_database"), "every turn declares the three tools");
+  check(
+    fake.chats.every((r) => r.tools?.map((t) => t.function.name).join() === "search_pages,read_page,query_database,create_row,update_row,create_page"),
+    "every turn declares the tools: to look, and (asking first, by default) to change",
+  );
   check(textOf(firstRequest.messages[0].content).includes("never instructions"), "the system prompt treats page content as data");
   check(fake.chats.every((r) => !secrets.some((s) => everything(r).includes(s))), "nothing from pages the person can't open is ever sent to the model");
   check(!fake.chats.flatMap(sourcesIn).some((s) => s.pageId === theirs.id), "…nor another workspace's pages");
@@ -544,6 +550,127 @@ try {
     kept.messages[1].steps,
   );
   setAiEnv(AI);
+
+  // ── Changes ─────────────────────────────────────────────────────────────────────────────────
+  const write = (name: string, args: Record<string, unknown>) => ({ name, arguments: args });
+  const rowsOf = async (databaseId: string, title: string) =>
+    db.select().from(page).where(and(eq(page.parentId, databaseId), eq(page.title, title)));
+  const approvals = (run: { events: ChatEvent[] }) => run.events.flatMap((e) => (e.type === "approval" ? [e] : []));
+
+  fake.setChat(caller([write("create_row", { database_id: parts.id, title: "Spark plugs", properties: { Stock: "Ordered" } })]));
+  fake.chats.length = 0;
+  const auto = await ask(alice, { workspaceId, message: "Add spark plugs, ordered", mode: "auto" });
+  const [plugs] = await rowsOf(parts.id, "Spark plugs");
+  check(auto.done && plugs?.createdBy === alice && plugs.properties[stock.id] === stock.options.options![0].id, "in auto mode the chat adds a row as the person, with its values", { auto, plugs });
+  check(approvals(auto).length === 0 && auto.steps.includes("write:createRow:done:Spark plugs"), "…without asking, shown as a step linking the row", auto.steps);
+  check(auto.sources.some((s) => s.pageId === plugs.id) && toolResults(fake.chats.at(-1)!).some((r) => r.startsWith("Added the row")), "…which the answer can cite", auto.sources);
+
+  // Ask (the default): the answer waits for the person.
+  fake.setChat(caller([write("create_row", { database_id: parts.id, title: "Wiper blades", properties: { Stock: "In stock" }, content: "Front and back." })]));
+  fake.chats.length = 0;
+  let asked: Extract<ChatEvent, { type: "approval" }> | null = null;
+  let writtenBeforeApproval = true;
+  let othersDecide = true;
+  const approved = await ask(alice, { workspaceId, message: "Add wiper blades" }, {
+    onEvent: async (e) => {
+      if (e.type !== "approval") return;
+      asked = e;
+      writtenBeforeApproval = (await rowsOf(parts.id, "Wiper blades")).length > 0;
+      othersDecide = decideChange(carol, e.id, "approve");
+      check(decideChange(alice, e.id, "approve"), "the person approves the change");
+    },
+  });
+  const askedAction = (asked as Extract<ChatEvent, { type: "approval" }> | null)?.action;
+  check(
+    askedAction?.action === "createRow" && askedAction.target?.pageId === parts.id && askedAction.title === "Wiper blades" && askedAction.changes[0]?.property === "Stock" && askedAction.changes[0].value === "In stock" && askedAction.content === "Front and back.",
+    "in ask mode the chat asks first, saying what it would add, where, with which values and text",
+    askedAction,
+  );
+  check(!writtenBeforeApproval, "…nothing is written before the person approves");
+  check(!othersDecide, "…and nobody else can approve it");
+  check(approved.done && (await rowsOf(parts.id, "Wiper blades")).length === 1 && approved.steps.includes("write:createRow:done:Wiper blades"), "once approved, the row is added", approved.steps);
+  check(!decideChange(alice, (asked as unknown as { id: string }).id, "approve"), "…and the approval can't be used again");
+
+  fake.setChat(caller([write("create_row", { database_id: parts.id, title: "Roof box" })]));
+  fake.chats.length = 0;
+  const declined = await ask(alice, { workspaceId, message: "Add a roof box" }, { onEvent: (e) => void (e.type === "approval" && decideChange(alice, e.id, "decline")) });
+  check(declined.done && (await rowsOf(parts.id, "Roof box")).length === 0 && declined.steps.includes("write:createRow:declined:Roof box"), "a declined change isn't made, and says so as a step", declined.steps);
+  check(toolResults(fake.chats.at(-1)!).some((r) => r.startsWith("The person declined this change")), "…and the model is told not to try it again");
+
+  fake.setChat(
+    caller([
+      write("create_row", { database_id: parts.id, title: "Snow chains", properties: { Stock: "Ordered" } }),
+      write("update_row", { row_id: plugs.id, properties: { Stock: "In stock" } }),
+    ]),
+  );
+  fake.chats.length = 0;
+  const always = await ask(alice, { workspaceId, message: "Add snow chains and mark the plugs in stock" }, { onEvent: (e) => void (e.type === "approval" && decideChange(alice, e.id, "always")) });
+  const [plugsAfter] = await db.select().from(page).where(eq(page.id, plugs.id));
+  check(
+    always.done && approvals(always).length === 1 && (await rowsOf(parts.id, "Snow chains")).length === 1 && plugsAfter.properties[stock.id] === stock.options.options![1].id,
+    "\"yes, don't ask again\" makes the rest of the answer's changes without asking",
+    always.steps,
+  );
+  check(always.steps.includes("write:updateRow:done:Spark plugs"), "…a changed row shown as a step too", always.steps);
+  const keptChanges = await getConversation(alice, workspaceId, always.conversationId!);
+  const keptUpdate = keptChanges.messages[1].steps?.find((st) => st.kind === "write" && st.action === "updateRow");
+  check(
+    keptUpdate?.kind === "write" && keptUpdate.page?.pageId === plugs.id && keptUpdate.changes[0]?.value === "In stock",
+    "changes are kept with the conversation, with the values set",
+    keptUpdate,
+  );
+  fake.setChat(researcher({}));
+  fake.chats.length = 0;
+  await ask(alice, { workspaceId, conversationId: always.conversationId, message: "And what did you change?", mode: "read" });
+  check(everything(fake.chats[0]).includes(`(Changes made: added the row "Snow chains" (page_id `) && everything(fake.chats[0]).includes(`changed the row (page_id ${plugs.id}): Stock`), "a later question knows what was changed, with the ids", everything(fake.chats[0]).slice(-800));
+  check(
+    fake.chats.every((r) => r.tools?.map((t) => t.function.name).join() === "search_pages,read_page,query_database") && textOf(fake.chats[0].messages[0].content).includes("You can't change anything"),
+    "in read-only mode the model isn't offered changes",
+  );
+  fake.setChat(caller([write("create_row", { database_id: parts.id, title: "Sneaky row" })]));
+  fake.chats.length = 0;
+  const sneaky = await ask(alice, { workspaceId, message: "Add a row", mode: "read" });
+  check(sneaky.done && (await rowsOf(parts.id, "Sneaky row")).length === 0 && toolResults(fake.chats.at(-1)!).some((r) => r.startsWith("Changes are off")), "…and one it makes anyway is refused");
+
+  fake.setChat(caller([write("create_page", { parent_id: fleet.id, title: "Winter checklist", content: "- Fit the tyres" })]));
+  fake.chats.length = 0;
+  const pageMade = await ask(alice, { workspaceId, message: "Make a winter checklist under fleet notes", mode: "auto" });
+  const [checklist] = await db.select().from(page).where(and(eq(page.parentId, fleet.id), eq(page.title, "Winter checklist")));
+  check(pageMade.done && checklist?.createdBy === alice && pageMade.steps.includes("write:createPage:done:Winter checklist"), "the chat adds a page under a page", pageMade.steps);
+
+  // What the person may not change.
+  const sealed = await createPage(actor, { workspaceId, teamspaceId: null, kind: "database", title: "Sealed register" });
+  await setPagePermission(owner, sealed.id, alice, "view");
+  const sealedPage = await createPage(actor, { workspaceId, teamspaceId: null, title: "Sealed notes" });
+  await setPagePermission(owner, sealedPage.id, alice, "view");
+  for (const [label, call, input, refusalText] of [
+    ["a database they may only read", write("create_row", { database_id: sealed.id, title: "Mine now" }), { workspaceId, message: "Add" }, "The person may only read this"],
+    ["a page they may only read", write("create_page", { parent_id: sealedPage.id, title: "Mine now" }), { workspaceId, message: "Add" }, "The person may only read this"],
+    ["a database they can't open", write("create_row", { database_id: ledger.id, title: "Mine now" }), { workspaceId, message: "Add" }, "No database with that id can be changed"],
+    ["another workspace's page", write("create_page", { parent_id: theirs.id, title: "Mine now" }), { workspaceId, message: "Add" }, "No page with that id can be changed"],
+    ["a database outside the scope", write("create_row", { database_id: parts.id, title: "Mine now" }), { workspaceId, message: "Add", scope: { pageId: fleet.id } }, "No database with that id can be changed"],
+    ["a top-level page in a page's scope", write("create_page", { title: "Mine now" }), { workspaceId, message: "Add", scope: { pageId: fleet.id } }, "The change is not valid"],
+    ["a row that isn't a database row", write("update_row", { row_id: fleet.id, title: "Mine now" }), { workspaceId, message: "Rename" }, "No database row with that id can be changed"],
+    ["a value the database doesn't take", write("create_row", { database_id: parts.id, title: "Mine now", properties: { Colour: "Red" } }), { workspaceId, message: "Add" }, "The change is not valid"],
+  ] as const) {
+    fake.setChat(caller([call]));
+    fake.chats.length = 0;
+    const run = await ask(alice, input as ChatInput);
+    const made = await db.select({ id: page.id }).from(page).where(and(eq(page.workspaceId, workspaceId), eq(page.title, "Mine now")));
+    check(
+      run.done && approvals(run).length === 0 && made.length === 0 && toolResults(fake.chats.at(-1)!).some((r) => r.startsWith(refusalText)) && !run.steps.some((st) => st.startsWith("write:")),
+      `the chat refuses to change ${label}, before asking`,
+      { steps: run.steps, results: toolResults(fake.chats.at(-1)!) },
+    );
+  }
+
+  // Stopping while a change waits: nothing is written.
+  fake.setChat(caller([write("create_row", { database_id: parts.id, title: "Never added" })]));
+  const stopWaiting = new AbortController();
+  const stoppedRun = await ask(alice, { workspaceId, message: "Add a row" }, { signal: stopWaiting.signal, onEvent: (e) => void (e.type === "approval" && stopWaiting.abort()) });
+  check(stoppedRun.error === "aborted" && (await rowsOf(parts.id, "Never added")).length === 0, "stopping an answer while a change waits writes nothing", stoppedRun.events.map((e) => e.type));
+  const stoppedKept = stoppedRun.conversationId ? await db.select().from(aiConversation).where(eq(aiConversation.id, stoppedRun.conversationId)) : [];
+  check(stoppedKept.length === 0, "…and keeps no empty conversation");
 
   // ── Deleting ────────────────────────────────────────────────────────────────────────────────
   const aliceBefore = await listConversations(alice, workspaceId);

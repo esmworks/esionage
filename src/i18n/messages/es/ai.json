@@ -153,7 +153,25 @@
       "readGone": "Leyó una página que ya no puedes abrir",
       "query": "Consultó",
       "rows": "{count, plural, =0 {ninguna fila coincide} one {# fila} other {# filas}}",
-      "queryGone": "Consultó una base de datos que ya no puedes abrir"
+      "queryGone": "Consultó una base de datos que ya no puedes abrir",
+      "write": {
+        "done": {
+          "createRow": "Fila añadida:",
+          "updateRow": "Fila cambiada:",
+          "createPage": "Página añadida:"
+        },
+        "declined": {
+          "createRow": "Rechazado añadir la fila:",
+          "updateRow": "Cambio rechazado:",
+          "createPage": "Rechazado añadir la página:"
+        },
+        "failed": {
+          "createRow": "No se pudo añadir la fila:",
+          "updateRow": "No se pudo cambiar:",
+          "createPage": "No se pudo añadir la página:"
+        },
+        "in": "en"
+      }
     },
     "sources": "Fuentes",
     "sourceGone": "Una página que ya no puedes abrir",
@@ -168,6 +186,30 @@
       "tooLarge": "La pregunta es demasiado larga o esta conversación está llena. Acórtala o empieza un chat nuevo.",
       "disabled": "La IA está desactivada en este espacio de trabajo.",
       "invalid": "Escribe primero una pregunta."
+    },
+    "approval": {
+      "question": {
+        "createRow": "¿Añadir esta fila?",
+        "updateRow": "¿Cambiar esta fila?",
+        "createPage": "¿Añadir esta página?"
+      },
+      "in": "En",
+      "row": "Fila",
+      "topLevel": "Arriba del espacio de trabajo, privada",
+      "cleared": "(vacío)",
+      "approve": "Sí",
+      "always": "Sí, y no volver a preguntar (Automático)",
+      "decline": "No",
+      "waiting": "Esperando tu aprobación"
+    },
+    "mode": {
+      "label": "Cambios",
+      "ask": "Preguntar",
+      "askHint": "Te pregunta antes de cada cambio",
+      "auto": "Automático",
+      "autoHint": "Añade y cambia sin preguntar",
+      "read": "Solo lectura",
+      "readHint": "No cambia nada"
     }
   }
 }

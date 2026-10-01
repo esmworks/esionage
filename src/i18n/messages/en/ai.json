@@ -153,7 +153,25 @@
       "readGone": "Read a page you can no longer open",
       "query": "Queried",
       "rows": "{count, plural, =0 {no rows match} one {# row} other {# rows}}",
-      "queryGone": "Queried a database you can no longer open"
+      "queryGone": "Queried a database you can no longer open",
+      "write": {
+        "done": {
+          "createRow": "Row added:",
+          "updateRow": "Row changed:",
+          "createPage": "Page added:"
+        },
+        "declined": {
+          "createRow": "Declined adding the row:",
+          "updateRow": "Declined changing:",
+          "createPage": "Declined adding the page:"
+        },
+        "failed": {
+          "createRow": "Couldn't add the row:",
+          "updateRow": "Couldn't change:",
+          "createPage": "Couldn't add the page:"
+        },
+        "in": "in"
+      }
     },
     "sources": "Sources",
     "sourceGone": "A page you can't open anymore",
@@ -168,6 +186,30 @@
       "tooLarge": "That question is too long, or this conversation is full. Shorten it or start a new chat.",
       "disabled": "AI is turned off in this workspace.",
       "invalid": "Type a question first."
+    },
+    "approval": {
+      "question": {
+        "createRow": "Add this row?",
+        "updateRow": "Change this row?",
+        "createPage": "Add this page?"
+      },
+      "in": "In",
+      "row": "Row",
+      "topLevel": "At the top of the workspace, private to you",
+      "cleared": "(cleared)",
+      "approve": "Yes",
+      "always": "Yes, and don't ask again (Auto)",
+      "decline": "No",
+      "waiting": "Waiting for your approval"
+    },
+    "mode": {
+      "label": "Changes",
+      "ask": "Ask",
+      "askHint": "Asks you before each change",
+      "auto": "Auto",
+      "autoHint": "Adds and changes without asking",
+      "read": "Read only",
+      "readHint": "Doesn't change anything"
     }
   }
 }

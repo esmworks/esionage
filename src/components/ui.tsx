@@ -92,6 +92,7 @@ export function Popover({
   trigger,
   children,
   align = "start",
+  side = "bottom",
   className,
   wrapperClassName,
   open: controlledOpen,
@@ -100,6 +101,8 @@ export function Popover({
   trigger: (props: { open: boolean; toggle: () => void }) => ReactNode;
   children: ReactNode | ((close: () => void) => ReactNode);
   align?: "start" | "end";
+  /** Opens below the trigger, or above it (near the bottom of the screen). */
+  side?: "bottom" | "top";
   className?: string;
   /** Classes for the element around the trigger (it is `relative inline-flex` by default). */
   wrapperClassName?: string;
@@ -117,7 +120,8 @@ export function Popover({
       {open && (
         <div
           className={cn(
-            "absolute top-full z-50 mt-1 min-w-48 rounded-lg border border-border bg-bg p-1 shadow-lg",
+            "absolute z-50 min-w-48 rounded-lg border border-border bg-bg p-1 shadow-lg",
+            side === "top" ? "bottom-full mb-1" : "top-full mt-1",
             align === "end" ? "right-0" : "left-0",
             className,
           )}

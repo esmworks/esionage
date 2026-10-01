@@ -10,14 +10,27 @@
  *    and `query_database`, which run as the person through operations.ts with their access
  *    checked on every call: a page they lost access to since can't be read, whatever the
  *    conversation said before;
- * 4. streams the answer; citations ([n]) link to the pages (and the block a passage starts at).
+ * 4. unless the chat's mode is `read`, may make it change things as the person (`create_row`,
+ *    `update_row`, `create_page`, with their edit access checked): in mode `ask` the answer waits
+ *    for the person to approve each change (ai-chat-approvals.ts), in `auto` it doesn't;
+ * 5. streams the answer; citations ([n]) link to the pages (and the block a passage starts at).
  *
  * Conversations are kept per person (ai_conversation) and only ever shown to them; cited pages are
  * looked up again with their current access whenever a conversation is shown.
  */
 import { and, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { aiConversation, page, type ChatMessageRecord, type PageKind, type ChatQueryCondition, type ChatSourceRef, type ChatStepRecord } from "@/db/schema";
+import {
+  aiConversation,
+  page,
+  type ChatChange,
+  type ChatMessageRecord,
+  type ChatQueryCondition,
+  type ChatSourceRef,
+  type ChatStepRecord,
+  type ChatWriteRecord,
+  type PageKind,
+} from "@/db/schema";
 import type { AiErrorCode } from "@/lib/ai";
 import {
   citedNumbers,
@@ -25,8 +38,11 @@ import {
   MAX_CHAT_MESSAGE,
   MAX_CHAT_TURNS,
   MAX_CONVERSATIONS,
+  type ChatActionView,
   type ChatEvent,
   type ChatMessageView,
+  type ChatMode,
+  type ChatPageView,
   type ChatScope,
   type ChatSourceView,
   type ChatStepView,
@@ -41,6 +57,8 @@ import { aiConfig, AiError, isAiError, stream, takeRateLimit, takeWorkspaceCapac
 import { chatHistory, chatQuestionPrompt, chatSystemPrompt, formatSources, truncateText, type ChatSourceText } from "@/server/ai/prompts";
 import { getTree } from "@/server/pages";
 import { aiAvailable } from "@/server/ai-writing";
+import { awaitDecision, type ChatDecision } from "@/server/ai-chat-approvals";
+import { normalizeRowProperties } from "@/server/databases";
 import * as ops from "@/server/operations";
 import { ToolInputError } from "@/server/mcp/format";
 import { inSubtree } from "@/server/semantic-search";
@@ -66,6 +84,10 @@ const STEP_CONDITIONS = 6;
 const THOUGHT_CHARS = 300;
 /** Share of the prompt that earlier questions and answers may take. */
 const HISTORY_SHARE = 0.25;
+/** How often a stream waiting on the person's decision sends a ping. */
+const PING_MS = 20_000;
+/** The start of a new page's text the person is shown when asked. */
+const CONTENT_PREVIEW = 400;
 
 export const CHAT_TOOLS: AiTool[] = [
   {
@@ -138,12 +160,66 @@ export const CHAT_TOOLS: AiTool[] = [
   },
 ];
 
+const PROPERTIES_HELP =
+  'Values by property name, as the map or read_page shows them: option names for select and status (an array for multi_select), YYYY-MM-DD for dates, true/false for checkboxes, people by name or "me", relations by the related rows\' titles, null to clear. Example: {"Status": "In progress", "Due": "2026-10-12", "Assignee": ["me"]}';
+
+/** Tools that change the workspace, offered unless the chat only reads. */
+export const WRITE_TOOLS: AiTool[] = [
+  {
+    name: "create_row",
+    description: "Adds a row (a task, a record…) to a database, as the person. Returns it as a numbered source.",
+    parameters: {
+      type: "object",
+      properties: {
+        database_id: { type: "string", description: "The database's id (from the map or a source)." },
+        title: { type: "string", description: "The row's title." },
+        properties: { type: "object", description: PROPERTIES_HELP, additionalProperties: true },
+        content: { type: "string", description: "Optional Markdown text for the row's page." },
+      },
+      required: ["database_id", "title"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_row",
+    description: "Changes a database row's values or title, as the person. Only the values given change. Returns it as a numbered source.",
+    parameters: {
+      type: "object",
+      properties: {
+        row_id: { type: "string", description: "The row's page_id (from a source)." },
+        title: { type: "string", description: "A new title." },
+        properties: { type: "object", description: PROPERTIES_HELP, additionalProperties: true },
+      },
+      required: ["row_id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_page",
+    description:
+      "Adds a page, as the person: under a page (parent_id), or without one at the top of the workspace, private to the person. Not for database rows (create_row). Returns it as a numbered source.",
+    parameters: {
+      type: "object",
+      properties: {
+        parent_id: { type: "string", description: "The page_id of the page to put it under." },
+        title: { type: "string", description: "The page's title." },
+        content: { type: "string", description: "The page's text, in Markdown." },
+      },
+      required: ["title"],
+      additionalProperties: false,
+    },
+  },
+];
+const WRITE_TOOL_NAMES = new Set(WRITE_TOOLS.map((t) => t.name));
+
 export type ChatInput = {
   workspaceId: string;
   /** Continues this conversation; a new one starts without. */
   conversationId?: string | null;
   message: string;
   scope?: ChatScope;
+  /** What the chat may change (ask before each change when left out). */
+  mode?: ChatMode;
 };
 
 /** Refusals before anything is sent: access problems look like missing things. */
@@ -195,7 +271,7 @@ export async function startChat(userId: string, input: ChatInput, signal?: Abort
     refuse("tooLarge", "This conversation is full; start a new one");
   }
   takeRateLimit({ userId, workspaceId: input.workspaceId });
-  return runChat(userId, input.workspaceId, message, scope ? { id: scope.id, title: scope.title } : null, existing, signal);
+  return runChat(userId, input.workspaceId, message, scope ? { id: scope.id, title: scope.title } : null, existing, input.mode ?? "ask", signal);
 }
 
 type Registry = {
@@ -224,12 +300,16 @@ async function* runChat(
   message: string,
   scope: { id: string; title: string } | null,
   existing: typeof aiConversation.$inferSelect | null,
+  initialMode: ChatMode,
   signal?: AbortSignal,
 ): AsyncGenerator<ChatEvent> {
   const ctx: ops.OperationContext = { userId, actor: { userId } };
   const limits = aiConfig().limits;
-  const system = chatSystemPrompt(scope ? pageLabel(scope.title) : null);
-  const toolsSize = CHAT_TOOLS.reduce((n, t) => n + t.description.length + JSON.stringify(t.parameters).length, 0);
+  // "Don't ask again" makes the rest of this answer `auto`.
+  let mode = initialMode;
+  const tools = mode === "read" ? CHAT_TOOLS : [...CHAT_TOOLS, ...WRITE_TOOLS];
+  const system = chatSystemPrompt(scope ? pageLabel(scope.title) : null, mode !== "read");
+  const toolsSize = tools.reduce((n, t) => n + t.description.length + JSON.stringify(t.parameters).length, 0);
   const room = () => limits.maxInputChars - system.length - toolsSize - 200;
 
   const conversation =
@@ -277,7 +357,7 @@ async function* runChat(
         messages,
         // Tools stay declared (providers want them while the conversation has tool calls); the
         // last turn is told to answer instead, and what it writes is the answer.
-        tools: CHAT_TOOLS,
+        tools,
         signal,
         sessionId: conversation.id,
       });
@@ -302,7 +382,29 @@ async function* runChat(
       const answerNext = round === MAX_ROUNDS - 2;
       for (const call of result.toolCalls) {
         const left = room() - sizeOf(messages) - 300;
-        const out = await runTool(ctx, workspaceId, scope?.id, call, registry, left);
+        let out: ToolOutcome;
+        if (!WRITE_TOOL_NAMES.has(call.name)) out = await runTool(ctx, workspaceId, scope?.id, call, registry, left);
+        else if (mode === "read") out = { content: "Changes are off in this chat: say what you would change instead.", isError: true };
+        else {
+          const prepared = await prepareWrite(ctx, workspaceId, scope?.id ?? null, call);
+          let decision: ChatDecision | "timeout" = "approve";
+          if ("action" in prepared && mode === "ask") {
+            const waiting = awaitDecision(userId, signal);
+            yield { type: "approval", id: waiting.id, action: prepared.action };
+            for (;;) {
+              let timer: ReturnType<typeof setTimeout> | undefined;
+              const next = await Promise.race([waiting.decision, new Promise<"ping">((r) => (timer = setTimeout(() => r("ping"), PING_MS)))]);
+              clearTimeout(timer);
+              if (next !== "ping") {
+                decision = next;
+                break;
+              }
+              yield { type: "ping" };
+            }
+            if (decision === "always") mode = "auto";
+          }
+          out = "action" in prepared ? await applyWrite(prepared, decision, registry) : prepared;
+        }
         if (out.step) yield await step(out.step);
         const content = answerNext ? `${out.content}\n\n(No more searching or reading: answer now with the sources you have.)` : out.content;
         messages.push({ role: "tool", toolCallId: call.id, name: call.name, content, isError: out.isError });
@@ -315,12 +417,14 @@ async function* runChat(
   }
 
   // ------------------------------------------------------------------------------ the answer
-  const stopped = failure === "aborted" && answer.trim().length > 0;
-  if (!failure || stopped) {
+  // Changes made are kept in the conversation, also when the answer didn't come.
+  const changed = steps.some((s) => s.kind === "write" && s.outcome === "done");
+  const stopped = failure === "aborted" && (answer.trim().length > 0 || changed);
+  if (!failure || stopped || changed) {
     const cited = new Set(citedNumbers(answer));
     const refs: ChatSourceRef[] = registry.sources.filter((s) => cited.has(s.n)).map((s) => ({ n: s.n, pageId: s.pageId, blockId: s.blockId }));
     const now = new Date().toISOString();
-    const note = stopped ? "stopped" : stopReason === "length" ? "cutOff" : undefined;
+    const note = stopped ? "stopped" : failure ? undefined : stopReason === "length" ? "cutOff" : undefined;
     const ms = Date.now() - started;
     await saveTurn(conversation.id, [
       { role: "user", content: message, at: now },
@@ -564,6 +668,178 @@ function conditionsOf(filters: unknown[]): ChatQueryCondition[] {
   return out;
 }
 
+// ----------------------------------------------------------------------------------- changes
+
+/** A change the model asked for, checked and ready: what the person is asked, and the change. */
+type PreparedWrite = {
+  action: ChatActionView;
+  record: Omit<ChatWriteRecord, "outcome" | "pageId">;
+  /** Makes the change, as the person: the row or page made or changed, with its values. */
+  execute: () => Promise<{ id: string; title: string; text: string }>;
+};
+
+const invalidChange = (message: string): ToolOutcome => ({ content: `The change is not valid: ${message}`, isError: true });
+const issuesOf = (error: { issues: { path: PropertyKey[]; message: string }[] }) =>
+  error.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`).join("; ");
+const text = (value: unknown) => (typeof value === "string" ? value.trim() : undefined);
+
+/**
+ * Checks a change the model asked for, as far as can be done without making it: the input, the
+ * page it goes to (in the workspace and scope, not in the trash), the person's edit access and the
+ * values it sets. Returns the change, or the error for the model.
+ */
+async function prepareWrite(
+  ctx: ops.OperationContext,
+  workspaceId: string,
+  scopeId: string | null,
+  call: { name: string; arguments: Record<string, unknown> },
+): Promise<PreparedWrite | ToolOutcome> {
+  const { userId } = ctx;
+  const args = call.arguments;
+  const properties =
+    args.properties && typeof args.properties === "object" && !Array.isArray(args.properties) ? (args.properties as Record<string, unknown>) : undefined;
+  try {
+    if (call.name === "create_row") {
+      const parsed = ops.inputs.createDatabaseRow.safeParse({ database_id: text(args.database_id) ?? "", title: text(args.title), properties, markdown: text(args.content) || undefined });
+      if (!parsed.success) return invalidChange(issuesOf(parsed.error));
+      const input = parsed.data;
+      const target = await writeTarget(userId, workspaceId, scopeId, input.database_id);
+      if (!target || target.page.kind !== "database") return { content: "No database with that id can be changed. Use a database_id from the map or a source.", isError: true };
+      if (!canEdit(target.level)) return readOnly;
+      if (input.properties) await normalizeRowProperties(userId, target.page.id, input.properties);
+      const changes = changesOf(input.properties);
+      return {
+        action: { action: "createRow", target: await pageView(userId, target.page.id), title: input.title, changes, content: preview(input.markdown) },
+        record: { kind: "write", action: "createRow", targetId: target.page.id, title: input.title, changes },
+        execute: async () => {
+          const row = await ops.createDatabaseRow(ctx, input);
+          return { id: row.id, title: row.title, text: valuesLine(row.properties as Record<string, unknown>) };
+        },
+      };
+    }
+    if (call.name === "update_row") {
+      const parsed = ops.inputs.updateDatabaseRow.safeParse({ row_id: text(args.row_id) ?? "", title: text(args.title) || undefined, properties });
+      if (!parsed.success) return invalidChange(issuesOf(parsed.error));
+      const input = parsed.data;
+      if (input.title === undefined && !Object.keys(input.properties ?? {}).length) return invalidChange("give a new title or values.");
+      const target = await writeTarget(userId, workspaceId, scopeId, input.row_id);
+      const parent = target?.page.parentId ? await writeTarget(userId, workspaceId, null, target.page.parentId) : null;
+      if (!target || parent?.page.kind !== "database") return { content: "No database row with that id can be changed. Use the page_id of a row's source.", isError: true };
+      if (!canEdit(target.level)) return readOnly;
+      if (input.properties && Object.keys(input.properties).length) {
+        await normalizeRowProperties(userId, parent.page.id, input.properties, target.page.properties, { createdBy: target.page.createdBy });
+      }
+      const changes = changesOf(input.properties);
+      return {
+        action: { action: "updateRow", target: await pageView(userId, target.page.id), title: input.title ?? null, changes, content: null },
+        record: { kind: "write", action: "updateRow", targetId: target.page.id, title: input.title ?? null, changes },
+        execute: async () => {
+          const row = await ops.updateDatabaseRow(ctx, input);
+          return { id: row.id, title: row.title, text: valuesLine(row.properties as Record<string, unknown>) };
+        },
+      };
+    }
+    if (call.name === "create_page") {
+      const parentId = text(args.parent_id) || undefined;
+      // In a page's scope, new pages stay in it too.
+      if (scopeId && !parentId) return invalidChange("in this chat new pages go under the page in scope or a page under it: give parent_id.");
+      const parsed = ops.inputs.createPage.safeParse({ workspace_id: workspaceId, parent_id: parentId, title: text(args.title), markdown: text(args.content) || undefined });
+      if (!parsed.success) return invalidChange(issuesOf(parsed.error));
+      const input = parsed.data;
+      if (!input.title) return invalidChange("give the page a title.");
+      let target: ChatPageView | null = null;
+      if (input.parent_id) {
+        const parent = await writeTarget(userId, workspaceId, scopeId, input.parent_id);
+        if (!parent) return { content: "No page with that id can be changed. Use a page_id from the map or a source.", isError: true };
+        if (parent.page.kind === "database") return invalidChange("parent_id is a database: add rows to it with create_row.");
+        if (!canEdit(parent.level)) return readOnly;
+        target = await pageView(userId, parent.page.id);
+      }
+      return {
+        action: { action: "createPage", target, title: input.title, changes: [], content: preview(input.markdown) },
+        record: { kind: "write", action: "createPage", targetId: input.parent_id ?? null, title: input.title, changes: [] },
+        execute: async () => {
+          const made = await ops.createPage(ctx, input);
+          return { id: made.id, title: made.title, text: truncateText(input.markdown ?? "", PASSAGE_CHARS) };
+        },
+      };
+    }
+  } catch (error) {
+    if (error instanceof PropertyValueError || error instanceof ToolInputError) return invalidChange(error.message);
+    if (error instanceof AccessError) return readOnly;
+    throw error;
+  }
+  return { content: `Unknown tool ${call.name}.`, isError: true };
+}
+
+const readOnly: ToolOutcome = { content: "The person may only read this, not change it. Tell them so.", isError: true };
+const canEdit = (level: string) => level === "edit" || level === "full";
+
+/** A page of the workspace a change may go to, with the person's access: in scope, not in the trash or a template. */
+async function writeTarget(userId: string, workspaceId: string, scopeId: string | null, pageId: string) {
+  if (!pageId || pageId.length > 100) return null;
+  const { page: found, level } = await pageAccessOf(userId, pageId);
+  if (!found || level === "none" || found.workspaceId !== workspaceId || found.archivedAt || found.inTemplate) return null;
+  if (scopeId) {
+    const [inside] = await db.execute<{ one: number }>(sql`select 1 as one from ${page} p where p.id = ${pageId} and ${inSubtree(scopeId)}`);
+    if (!inside) return null;
+  }
+  return { page: found, level };
+}
+
+async function pageView(userId: string, pageId: string): Promise<ChatPageView> {
+  const seen = (await visiblePages(userId, [pageId])).get(pageId);
+  return seen ? { pageId, ...seen } : null;
+}
+
+/** The values a change sets, as the person is shown them. */
+function changesOf(properties: Record<string, unknown> | undefined): ChatChange[] {
+  const shown = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    if (Array.isArray(value)) return value.map(shown).filter(Boolean).join(", ");
+    if (typeof value === "object") {
+      const o = value as { text?: unknown; name?: unknown };
+      return String(o.text ?? o.name ?? JSON.stringify(value));
+    }
+    return String(value);
+  };
+  return Object.entries(properties ?? {})
+    .slice(0, 30)
+    .map(([property, value]) => ({ property: property.slice(0, 100), value: shown(value).slice(0, 300) }));
+}
+
+function preview(markdown: string | undefined) {
+  const flat = markdown?.trim();
+  if (!flat) return null;
+  return flat.length > CONTENT_PREVIEW ? `${flat.slice(0, CONTENT_PREVIEW - 1).trimEnd()}…` : flat;
+}
+
+/** Makes an approved change (or records it declined): the step, and what the model is told. */
+async function applyWrite(prepared: PreparedWrite, decision: ChatDecision | "timeout", registry: Registry): Promise<ToolOutcome> {
+  const { record } = prepared;
+  if (decision === "decline" || decision === "timeout") {
+    return {
+      content:
+        decision === "timeout"
+          ? "The person didn't answer in time, so the change wasn't made. Say what you would have done."
+          : "The person declined this change: it wasn't made. Don't try it again; say what you would have done, or ask what they want instead.",
+      step: { ...record, outcome: "declined", pageId: null },
+    };
+  }
+  try {
+    const made = await prepared.execute();
+    const entry = register(registry, { pageId: made.id, blockId: null, title: made.title, text: made.text || "(no values)" });
+    const what = record.action === "createRow" ? "Added the row" : record.action === "updateRow" ? "Changed the row" : "Added the page";
+    return { content: `${what}; it is this source now:\n${formatSources([entry])}`, step: { ...record, outcome: "done", pageId: made.id } };
+  } catch (error) {
+    if (error instanceof PropertyValueError || error instanceof ToolInputError || error instanceof AccessError) {
+      const message = error instanceof AccessError ? "the person may not make it" : error.message;
+      return { content: `The change failed: ${message}`, isError: true, step: { ...record, outcome: "failed", pageId: null } };
+    }
+    throw error;
+  }
+}
+
 /** A page's text as the person may read it now, or null when it's out of reach or scope. */
 async function readPage(ctx: ops.OperationContext, workspaceId: string, scopeId: string | undefined, pageId: string, maxChars: number) {
   if (scopeId) {
@@ -676,6 +952,19 @@ async function visiblePages(userId: string, ids: string[]) {
 
 /** A step as the person may see it now: a page read that they can't open has no title. */
 async function viewStep(userId: string, record: ChatStepRecord, pages?: Awaited<ReturnType<typeof visiblePages>>): Promise<ChatStepView> {
+  if (record.kind === "write") {
+    const ids = [record.targetId, record.pageId].filter((id): id is string => Boolean(id));
+    const seen = pages ?? (await visiblePages(userId, ids));
+    const viewOf = (id: string | null): ChatPageView => {
+      const found = id ? seen.get(id) : undefined;
+      return id && found ? { pageId: id, ...found } : null;
+    };
+    const target = viewOf(record.targetId);
+    const made = viewOf(record.pageId);
+    // What was set in a page they can't open any more isn't shown either.
+    const hidden = (record.targetId && !target) || (record.pageId && !made);
+    return { kind: "write", action: record.action, outcome: record.outcome, target, page: made, title: hidden ? null : record.title, changes: hidden ? [] : record.changes };
+  }
   if (record.kind !== "read" && record.kind !== "query") return record;
   const id = record.kind === "read" ? record.pageId : record.databaseId;
   const seen = (pages ?? (await visiblePages(userId, [id]))).get(id);
@@ -719,7 +1008,11 @@ export async function getConversation(userId: string, workspaceId: string, conve
   const views = await viewSources(userId, refs);
   const read = await visiblePages(
     userId,
-    found.messages.flatMap((m) => (m.steps ?? []).flatMap((s) => (s.kind === "read" ? [s.pageId] : s.kind === "query" ? [s.databaseId] : []))),
+    found.messages.flatMap((m) =>
+      (m.steps ?? []).flatMap((s) =>
+        s.kind === "read" ? [s.pageId] : s.kind === "query" ? [s.databaseId] : s.kind === "write" ? [s.targetId, s.pageId].filter((id): id is string => Boolean(id)) : [],
+      ),
+    ),
   );
   let i = 0;
   const messages: ChatMessageView[] = await Promise.all(

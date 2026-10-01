@@ -844,6 +844,19 @@ characters a question. They are deleted when you leave the workspace or delete y
 chat is off while offline and when AI is off for the workspace. Every question counts against
 `AI_RATE_LIMIT`; the model's extra turns count against `AI_WORKSPACE_RATE_LIMIT`.
 
+**Changes from the chat.** The chat can add a database row (`create_row`, with its values and
+text), change a row's values or title (`update_row`) and add a page under a page, or a private one
+at the top of the workspace (`create_page`), as you and only where you may edit (and, with
+*Answer from* a page, only under it). What it may do is picked under the question box and
+remembered in the browser: *Ask* (the default) shows each change in the box's place before it is
+made (what, where, the values and the start of the text) with *Yes*, *Yes, and don't ask again*
+(the mode becomes *Auto*) and *No*, also as 1, 2, 3 on the keyboard (Escape says no); *Auto* makes
+changes without asking; *Read only* doesn't offer the model changes at all. A change is checked
+(the target, your edit access, the values) before you are asked; nothing is written while it
+waits, and stopping the answer, leaving the page or 15 minutes without an answer leave it unmade.
+Changes made, declined or failed show among the answer's steps with links, are kept with the
+conversation (also when the answer itself didn't come), and later questions know them.
+
 **Privacy.** Requests run as the person who asked, with their access at the time: the assistant
 works only on pages they may edit, an AI property sends only the row values they can see, and the
 chat and semantic search only find and read pages they can open, checked again on every search and

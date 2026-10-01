@@ -153,7 +153,25 @@
       "readGone": "Eine Seite gelesen, die du nicht mehr öffnen kannst",
       "query": "Abgefragt",
       "rows": "{count, plural, =0 {keine passenden Zeilen} one {# Zeile} other {# Zeilen}}",
-      "queryGone": "Eine Datenbank abgefragt, die du nicht mehr öffnen kannst"
+      "queryGone": "Eine Datenbank abgefragt, die du nicht mehr öffnen kannst",
+      "write": {
+        "done": {
+          "createRow": "Zeile hinzugefügt:",
+          "updateRow": "Zeile geändert:",
+          "createPage": "Seite hinzugefügt:"
+        },
+        "declined": {
+          "createRow": "Hinzufügen der Zeile abgelehnt:",
+          "updateRow": "Änderung abgelehnt:",
+          "createPage": "Hinzufügen der Seite abgelehnt:"
+        },
+        "failed": {
+          "createRow": "Zeile konnte nicht hinzugefügt werden:",
+          "updateRow": "Konnte nicht geändert werden:",
+          "createPage": "Seite konnte nicht hinzugefügt werden:"
+        },
+        "in": "in"
+      }
     },
     "sources": "Quellen",
     "sourceGone": "Eine Seite, die du nicht mehr öffnen kannst",
@@ -168,6 +186,30 @@
       "tooLarge": "Die Frage ist zu lang oder diese Unterhaltung ist voll. Kürze sie oder starte einen neuen Chat.",
       "disabled": "KI ist in diesem Workspace ausgeschaltet.",
       "invalid": "Schreib zuerst eine Frage."
+    },
+    "approval": {
+      "question": {
+        "createRow": "Diese Zeile hinzufügen?",
+        "updateRow": "Diese Zeile ändern?",
+        "createPage": "Diese Seite hinzufügen?"
+      },
+      "in": "In",
+      "row": "Zeile",
+      "topLevel": "Ganz oben im Workspace, nur für dich",
+      "cleared": "(geleert)",
+      "approve": "Ja",
+      "always": "Ja, nicht mehr fragen (Automatisch)",
+      "decline": "Nein",
+      "waiting": "Wartet auf deine Zustimmung"
+    },
+    "mode": {
+      "label": "Änderungen",
+      "ask": "Fragen",
+      "askHint": "Fragt dich vor jeder Änderung",
+      "auto": "Automatisch",
+      "autoHint": "Fügt hinzu und ändert, ohne zu fragen",
+      "read": "Nur lesen",
+      "readHint": "Ändert nichts"
     }
   }
 }

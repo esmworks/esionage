@@ -4,6 +4,20 @@
 
 ### Added
 
+- **The AI chat can add and change things**, as the person and only where they may edit:
+  `create_row` adds a database row (values and text), `update_row` changes a row's values or
+  title, `create_page` adds a page under a page (or a private one at the top of the workspace; in
+  a page's scope, only under it). A mode under the question box, remembered in the browser, says
+  what it may do: *Ask* (the default) puts each change in the box's place before it's made (what,
+  where, the values, the start of the text) with *Yes*, *Yes, and don't ask again* (switches to
+  *Auto*) and *No* (1, 2, 3; Escape says no); *Auto* doesn't ask; *Read only* doesn't offer the
+  model changes. Changes are checked (target, edit access, values) before the person is asked; the
+  answer's stream waits for the decision (`decideChangeAction`, only the asker's), pinging every
+  20 seconds, and stopping, leaving or 15 minutes without a decision write nothing. Changes made,
+  declined or failed are steps with links, kept with the conversation even when no answer text
+  came, and noted with their ids for later questions. The API takes `mode` (`ask`, `auto`,
+  `read`). `Popover` takes `side="top"`. The chat route no longer writes to a stream the browser
+  has closed. New checks in `scripts/ai-chat-e2e.ts` (120 in all) and `src/server/ai/chat.test.ts`.
 - **Audit log** (#61), in Settings → Audit log for owners (members, guests and everyone else get a
   404): who changed what in the workspace, newest first, 50 to a page, filtered by person (or the
   identity provider, or the server), kind of change and a range of days in the viewer's time zone,

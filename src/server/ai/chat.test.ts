@@ -64,6 +64,17 @@ describe("chat prompts", () => {
     expect(system).toMatch(/also what you say before using a tool/);
   });
 
+  it("offers changes only when the chat may make them, and leaves asking to the app", () => {
+    const changing = chatSystemPrompt(null, true);
+    expect(changing).toMatch(/create_row, update_row or create_page/);
+    expect(changing).toMatch(/only when they ask/);
+    expect(changing).toMatch(/Don't ask for permission in text/);
+    expect(changing).toMatch(/When a change is declined, don't try it again/);
+    const reading = chatSystemPrompt();
+    expect(reading).not.toMatch(/create_row/);
+    expect(reading).toMatch(/You can't change anything in this chat/);
+  });
+
   it("brings back earlier turns, newest first within the budget, without their citations", () => {
     const records = [
       { role: "user" as const, content: "one?" },
@@ -84,6 +95,28 @@ describe("chat prompts", () => {
       { role: "assistant", content: "Second." },
     ]);
     expect(chatHistory(records, 3)).toEqual([]);
+  });
+
+  it("notes the changes an answer made, with their ids, also when it has no text", () => {
+    const records = [
+      { role: "user" as const, content: "add a task" },
+      {
+        role: "assistant" as const,
+        content: "",
+        steps: [
+          { kind: "write" as const, action: "createRow" as const, outcome: "done" as const, targetId: "db1", pageId: "r1", title: "Call Ali", changes: [] },
+          { kind: "write" as const, action: "createPage" as const, outcome: "declined" as const, targetId: null, pageId: null, title: "Notes", changes: [] },
+          { kind: "write" as const, action: "updateRow" as const, outcome: "done" as const, targetId: "r2", pageId: "r2", title: null, changes: [{ property: "Status", value: "Done" }] },
+        ],
+      },
+    ];
+    expect(chatHistory(records, 1000)).toEqual([
+      { role: "user", content: "add a task" },
+      {
+        role: "assistant",
+        content: '(Changes made: added the row "Call Ali" (page_id r1) to the database db1; changed the row (page_id r2): Status.)',
+      },
+    ]);
   });
 });
 

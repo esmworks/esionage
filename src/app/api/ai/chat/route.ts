@@ -1,6 +1,6 @@
 import * as z from "zod";
 import { auth } from "@/lib/auth";
-import { MAX_CHAT_MESSAGE } from "@/lib/ai-chat";
+import { CHAT_MODES, MAX_CHAT_MESSAGE } from "@/lib/ai-chat";
 import { env } from "@/lib/env";
 import { AccessError } from "@/server/access";
 import { aiErrorStatus, isAiError } from "@/server/ai";
@@ -12,11 +12,13 @@ const chatInput = z.object({
   // Checked for length by startChat, which says so with its own error code.
   message: z.string().max(MAX_CHAT_MESSAGE * 2),
   scope: z.object({ pageId: z.string().min(1).max(100) }).nullish(),
+  mode: z.enum(CHAT_MODES).optional(),
 });
 
 /**
- * The AI chat (#41): `POST /api/ai/chat` with `{workspaceId, conversationId?, message, scope?}`.
- * Answers with newline-delimited JSON as the assistant works (see ChatEvent in lib/ai-chat.ts).
+ * The AI chat (#41): `POST /api/ai/chat` with `{workspaceId, conversationId?, message, scope?, mode?}`.
+ * Answers with newline-delimited JSON as the assistant works (see ChatEvent in lib/ai-chat.ts); in
+ * mode `ask` the answer waits on each change for decideChangeAction.
  * Checks that fail before anything is sent answer with a status and `{"error":{"code","message"}}`.
  * Closing the request cancels the model's work.
  *
@@ -49,10 +51,12 @@ export async function POST(request: Request) {
   }
 
   const encoder = new TextEncoder();
+  // Once the browser has gone, the answer still runs to its end (to keep what it did) unsent.
+  let gone = false;
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const event of events) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+        for await (const event of events) if (!gone) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       } catch (error) {
         console.error("[ai] chat stream failed", error);
         try {
@@ -65,6 +69,7 @@ export async function POST(request: Request) {
       }
     },
     cancel() {
+      gone = true;
       cancel.abort();
     },
   });

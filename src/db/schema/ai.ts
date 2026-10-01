@@ -90,13 +90,37 @@ export type ChatSourceRef = { n: number; pageId: string; blockId: string | null 
 /**
  * A step the AI chat took on the way to an answer: a search (`query` null for the one with the
  * question itself) and how many pages it found, a page it read, a database it queried (with the
- * filters and how many rows matched), or what the model said before searching or reading.
+ * filters and how many rows matched), a change it made or was refused (see ChatWriteRecord), or
+ * what the model said before searching or reading.
  */
 export type ChatStepRecord =
   | { kind: "search"; query: string | null; results: number }
   | { kind: "read"; pageId: string }
   | { kind: "query"; databaseId: string; conditions: ChatQueryCondition[]; any?: boolean; results: number }
+  | ChatWriteRecord
   | { kind: "thought"; text: string };
+
+/** A change the AI chat may make: add a database row, change one, or add a page. */
+export type ChatWriteAction = "createRow" | "updateRow" | "createPage";
+
+/** A value a change sets, as shown to the person ("" clears it). */
+export type ChatChange = { property: string; value: string };
+
+/**
+ * A change the AI chat made (`done`), the person declined (`declined`) or that failed once
+ * approved (`failed`). `targetId`: the database a row goes to, the row changed, or the page a new
+ * page goes under (null: the top of the workspace); `pageId`: the row or page made or changed.
+ */
+export type ChatWriteRecord = {
+  kind: "write";
+  action: ChatWriteAction;
+  outcome: "done" | "declined" | "failed";
+  targetId: string | null;
+  pageId: string | null;
+  /** The new title (a row or page added, a row renamed). */
+  title: string | null;
+  changes: ChatChange[];
+};
 
 /** One filter rule of a database query the chat ran, as shown with the step. */
 export type ChatQueryCondition = { property: string; op: string; value: string | null };

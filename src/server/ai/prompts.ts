@@ -4,6 +4,7 @@
  * data, which keeps text on a page from passing itself off as instructions.
  */
 import { AUTOFILL_BODY, AUTOFILL_TITLE, languageName, type AiAutofillConfig, type EditorAction } from "@/lib/ai";
+import type { ChatStepRecord, ChatWriteRecord } from "@/db/schema/ai";
 import { stripCitations } from "@/lib/ai-chat";
 
 export type Prompt = { system: string; prompt: string };
@@ -214,12 +215,15 @@ export function cleanValue(text: string, max: number): string {
 export type ChatSourceText = { n: number; pageId: string; title: string; text: string; note?: string };
 
 /** Instructions for the AI chat (#41). `scopeTitle`: the page the chat keeps to, if any. */
-export function chatSystemPrompt(scopeTitle?: string | null): string {
+export function chatSystemPrompt(scopeTitle?: string | null, canChange = false): string {
   return [
     "You are the assistant of a notes app. You answer questions about the pages and databases of the person's workspace that they can open.",
     "First think about what the question needs, then use the tools for it. With the question comes a map of the workspace: its databases (with their properties and options) and pages.",
     "- Tasks, records and lists kept in a database (what is pending, assigned to me, due this week, above an amount): query that database with query_database and filters on its properties.",
     "- Where something is written: search_pages with a few distinctive words or names, not the whole question; try other words when nothing is found. read_page reads a whole page.",
+    canChange
+      ? "- When the person asks to add or change something (a task, a row, a page): create_row, update_row or create_page, after finding the database, row or page it goes to. Change only what they asked for, and only when they ask. Don't ask for permission in text: the app asks the person itself when it has to. When a change is declined, don't try it again."
+      : "- You can't change anything in this chat. When asked to, say that changes are off; the person can allow them under the question box.",
     "- Greetings, or questions that aren't about the workspace: answer directly, without tools.",
     "Answer only from what the tools return. When it doesn't answer the question, say so briefly. Never make up facts, pages or sources.",
     "Cite each statement taken from a source with the source's number in square brackets right after it, like [1] or [2][3]. Use only numbers of sources you were given.",
@@ -248,10 +252,11 @@ export function chatQuestionPrompt(question: string, map: string): string {
 /**
  * Earlier questions and answers of a conversation for the model, newest kept first, whole turns
  * only, within `budget` characters. Answers go without their citations: their numbers belonged to
- * the sources of their own turn.
+ * the sources of their own turn. Changes an answer made are noted with it (with the ids, to change
+ * them again), also when the answer itself didn't come.
  */
 export function chatHistory(
-  records: { role: "user" | "assistant"; content: string }[],
+  records: { role: "user" | "assistant"; content: string; steps?: ChatStepRecord[] }[],
   budget: number,
 ): ({ role: "user"; content: string } | { role: "assistant"; content: string })[] {
   const out: ({ role: "user"; content: string } | { role: "assistant"; content: string })[] = [];
@@ -260,7 +265,8 @@ export function chatHistory(
     const answer = records[i];
     const question = records[i - 1];
     if (answer.role !== "assistant" || question.role !== "user") continue;
-    const content = stripCitations(answer.content).trim();
+    const changes = (answer.steps ?? []).flatMap((s) => (s.kind === "write" && s.outcome === "done" && s.pageId ? [changeNote(s)] : []));
+    const content = [stripCitations(answer.content).trim(), changes.length ? `(Changes made: ${changes.join("; ")}.)` : ""].filter(Boolean).join("\n\n");
     const size = question.content.length + content.length;
     if (used + size > budget) break;
     used += size;
@@ -268,4 +274,11 @@ export function chatHistory(
     i--;
   }
   return out;
+}
+
+function changeNote(step: ChatWriteRecord) {
+  const title = step.title ? ` "${attr(step.title)}"` : "";
+  if (step.action === "createRow") return `added the row${title} (page_id ${step.pageId}) to the database ${step.targetId}`;
+  if (step.action === "updateRow") return `changed the row${title} (page_id ${step.pageId})${step.changes.length ? `: ${step.changes.map((c) => c.property).join(", ")}` : ""}`;
+  return `added the page${title} (page_id ${step.pageId})`;
 }

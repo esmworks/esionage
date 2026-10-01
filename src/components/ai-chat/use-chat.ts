@@ -4,13 +4,14 @@
  * One AI chat conversation as the panel and the full-page chat show it: its messages, the question
  * being typed, the streamed answer from `/api/ai/chat` (see server/ai-chat.ts) and what the model
  * is doing meanwhile. Stop cancels the answer; switching conversations or starting a new one does
- * too.
+ * too. The mode (what the chat may change) is remembered in the browser; in mode `ask` a change the
+ * model wants to make waits, as `pending`, for the person's decision.
  */
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { deleteConversationAction, getConversationAction } from "@/app/actions/ai";
+import { decideChangeAction, deleteConversationAction, getConversationAction } from "@/app/actions/ai";
 import { isAiErrorCode } from "@/lib/ai";
-import type { ChatEvent, ChatMessageView } from "@/lib/ai-chat";
+import { CHAT_MODES, type ChatActionView, type ChatEvent, type ChatMessageView, type ChatMode } from "@/lib/ai-chat";
 
 /** What the model is doing while an answer is on its way: working on a turn, or writing. */
 export type ChatStatus = "thinking" | "writing";
@@ -18,8 +19,25 @@ export type ChatStatus = "thinking" | "writing";
 /** `startedAt`: when an answer being written was asked for (for its running time). */
 export type ChatMessage = ChatMessageView & { key: string; startedAt?: number };
 
+/** A change the model asks to make, waiting for the person's decision. */
+export type PendingChange = { id: string; action: ChatActionView };
+
+/** Yes; yes and don't ask again (the mode becomes `auto`); no. */
+export type ChangeDecision = "approve" | "always" | "decline";
+
 let keys = 0;
 const nextKey = () => `m${++keys}`;
+
+const MODE_KEY = "leafdesk.aiChat.mode";
+
+function savedMode(): ChatMode {
+  try {
+    const saved = localStorage.getItem(MODE_KEY);
+    return CHAT_MODES.find((m) => m === saved) ?? "ask";
+  } catch {
+    return "ask";
+  }
+}
 
 export function useChat(
   workspaceId: string,
@@ -40,6 +58,8 @@ export function useChat(
   const [input, setInput] = useState("");
   const [status, setStatus] = useState<ChatStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setModeState] = useState<ChatMode>("ask");
+  const [pending, setPending] = useState<PendingChange | null>(null);
   const abort = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // The latest callbacks, without restarting anything when the caller passes new ones.
@@ -48,6 +68,15 @@ export function useChat(
   const running = status !== null;
 
   useEffect(() => () => abort.current?.abort(), []);
+  // After hydration: the server doesn't know the browser's choice.
+  useEffect(() => setModeState(savedMode()), []);
+
+  const setMode = useCallback((next: ChatMode) => {
+    setModeState(next);
+    try {
+      localStorage.setItem(MODE_KEY, next);
+    } catch {}
+  }, []);
 
   const errorText = useCallback(
     (code: unknown) => {
@@ -79,11 +108,13 @@ export function useChat(
     setStatus("thinking");
     let failed: string | null = null;
     let finished = false;
+    // The answer made changes: it stays, whatever happens next.
+    let changed = false;
     try {
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspaceId, conversationId, message: question, scope: scopePageId ? { pageId: scopePageId } : null }),
+        body: JSON.stringify({ workspaceId, conversationId, message: question, scope: scopePageId ? { pageId: scopePageId } : null, mode }),
         signal: controller.signal,
       });
       if (!response.ok || !response.body) {
@@ -103,11 +134,17 @@ export function useChat(
         for (const line of lines) {
           if (!line.trim()) continue;
           const event = JSON.parse(line) as ChatEvent;
+          if (event.type === "ping") continue;
+          // Whatever comes after a change was asked about means it was decided (or timed out).
+          setPending(event.type === "approval" ? { id: event.id, action: event.action } : null);
           if (event.type === "conversation") {
             setConversationId(event.id);
             callbacks.current.onConversation?.(event.id);
           } else if (event.type === "thinking") setStatus("thinking");
-          else if (event.type === "step") updateLast((m) => ({ ...m, steps: [...(m.steps ?? []), event.step] }));
+          else if (event.type === "step") {
+            if (event.step.kind === "write" && event.step.outcome === "done") changed = true;
+            updateLast((m) => ({ ...m, steps: [...(m.steps ?? []), event.step] }));
+          }
           else if (event.type === "text") {
             setStatus("writing");
             updateLast((m) => ({ ...m, content: m.content + event.text }));
@@ -129,16 +166,17 @@ export function useChat(
     } finally {
       if (abort.current === controller) abort.current = null;
       setStatus(null);
+      setPending(null);
       // Stopped or failed: the time it ran for, as the page saw it.
       updateLast((m) => (m.ms === undefined && m.startedAt ? { ...m, ms: Date.now() - m.startedAt } : m));
       if (failed) {
         setError(failed);
-        // Nothing was answered: the question goes back into the box.
+        // Nothing was answered: the question goes back into the box, unless it changed things.
         setMessages((list) => {
           const last = list[list.length - 1];
-          return last?.role === "assistant" && !last.content.trim() ? list.slice(0, -2) : list;
+          return last?.role === "assistant" && !last.content.trim() && !changed ? list.slice(0, -2) : list;
         });
-        setInput((current) => current || question);
+        if (!changed) setInput((current) => current || question);
       }
       callbacks.current.onAnswered?.();
     }
@@ -146,6 +184,20 @@ export function useChat(
 
   function stop() {
     abort.current?.abort();
+  }
+
+  /** Answers the change the model asks to make; "always" also makes the mode `auto`. */
+  async function decide(decision: ChangeDecision) {
+    if (!pending) return;
+    const asked = pending;
+    setPending(null);
+    if (decision === "always") setMode("auto");
+    const result = await decideChangeAction(asked.id, decision);
+    // Not sent (offline, say): asked again. When it no longer waited, the stream says how it went.
+    if (!result.ok) {
+      setPending((current) => current ?? asked);
+      setError(result.error);
+    }
   }
 
   function newChat() {
@@ -191,6 +243,10 @@ export function useChat(
     error,
     running,
     inputRef,
+    mode,
+    setMode,
+    pending,
+    decide,
     send,
     stop,
     newChat,

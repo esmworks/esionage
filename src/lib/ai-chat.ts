@@ -1,6 +1,7 @@
 // Client-safe: shared by the AI chat's server side (src/server/ai-chat.ts, /api/ai/chat) and its
 // panel (src/components/ai-chat).
 
+import type { ChatChange, ChatWriteAction } from "@/db/schema/ai";
 import type { PageKind } from "@/db/schema/app";
 import type { AiErrorCode } from "./ai";
 
@@ -13,6 +14,18 @@ export const MAX_CONVERSATIONS = 50;
 
 /** What the chat answers from: the whole workspace, or a page and the pages under it. */
 export type ChatScope = { pageId: string } | null;
+
+export type { ChatChange, ChatWriteAction };
+
+/**
+ * What the chat may change: `ask` asks the person before each change (the answer waits), `auto`
+ * makes changes without asking, `read` only reads (the model isn't offered changes at all).
+ */
+export const CHAT_MODES = ["ask", "auto", "read"] as const;
+export type ChatMode = (typeof CHAT_MODES)[number];
+
+/** How long a change waits for the person's decision before it counts as declined. */
+export const APPROVAL_TIMEOUT_MS = 15 * 60_000;
 
 /** A source an answer cites, as the reader may see it now. */
 export type ChatSourceView = {
@@ -34,14 +47,44 @@ export type ChatPageView = { pageId: string; workspaceId: string; title: string;
 /**
  * A step the chat took on the way to an answer (shown above it): a search (`query` null for the
  * search with the question itself) and how many pages it found, a page it read, a database it
- * queried (its filters and how many rows matched), or what the model said before searching or
- * reading.
+ * queried (its filters and how many rows matched), a change (see ChatWriteView), or what the model
+ * said before searching or reading.
  */
 export type ChatStepView =
   | { kind: "search"; query: string | null; results: number }
   | { kind: "read"; page: ChatPageView }
   | { kind: "query"; database: ChatPageView; conditions: ChatQueryCondition[]; any?: boolean; results: number }
+  | ChatWriteView
   | { kind: "thought"; text: string };
+
+/**
+ * A change the chat made, the person declined or that failed: `target` is the database a row went
+ * to, the row changed or the page a new page went under (null at the top of the workspace, or when
+ * the reader can't open it any more: then title and changes are left out too); `page` the row or
+ * page made or changed.
+ */
+export type ChatWriteView = {
+  kind: "write";
+  action: ChatWriteAction;
+  outcome: "done" | "declined" | "failed";
+  target: ChatPageView;
+  page: ChatPageView;
+  title: string | null;
+  changes: ChatChange[];
+};
+
+/**
+ * A change the chat asks to make (mode `ask`): what (`action`), where (`target` as in
+ * ChatWriteView), the title of the row or page, the values it sets and the start of the text it
+ * writes, if any.
+ */
+export type ChatActionView = {
+  action: ChatWriteAction;
+  target: ChatPageView;
+  title: string | null;
+  changes: ChatChange[];
+  content: string | null;
+};
 
 /**
  * A filter rule of a database query (`op` as the tool takes it: equals, contains, is_within…); a
@@ -63,16 +106,19 @@ export type ConversationSummary = { id: string; title: string; updatedAt: string
 
 /**
  * Lines of `POST /api/ai/chat`'s newline-delimited JSON answer, in order: `conversation` (its id,
- * first), `step` for each step taken (the search with the question, then the model's searches and
- * reads, and what it said before them), `thinking` while the model works on a turn, `text` as the
- * answer streams (`reset` drops what was streamed before a tool call: it comes again as a
- * `thought` step), `sources` once the answer is complete, then `done` (with how long it took) or
- * `error`.
+ * first), `step` for each step taken (the model's searches, reads, queries and changes, and what it
+ * said before them), `thinking` while the model works on a turn, `text` as the answer streams
+ * (`reset` drops what was streamed before a tool call: it comes again as a `thought` step),
+ * `sources` once the answer is complete, then `done` (with how long it took) or `error`.
+ * `approval` asks the person about a change (mode `ask`): the answer waits for decideChange with
+ * its id, sending `ping` now and then meanwhile.
  */
 export type ChatEvent =
   | { type: "conversation"; id: string; title: string }
   | { type: "thinking" }
   | { type: "step"; step: ChatStepView }
+  | { type: "approval"; id: string; action: ChatActionView }
+  | { type: "ping" }
   | { type: "text"; text: string }
   | { type: "reset" }
   | { type: "sources"; sources: ChatSourceView[] }
