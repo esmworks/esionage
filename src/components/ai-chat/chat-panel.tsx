@@ -144,6 +144,7 @@ function ChatPanel({ workspaceId, available, onClose }: { workspaceId: string; a
           if (!line.trim()) continue;
           const event = JSON.parse(line) as ChatEvent;
           if (event.type === "conversation") setConversationId(event.id);
+          else if (event.type === "thinking") setStatus({ kind: "thinking" });
           else if (event.type === "tool") setStatus({ kind: event.name, detail: event.detail });
           else if (event.type === "text") {
             setStatus((s) => (s?.kind === "thinking" ? s : { kind: "thinking" }));

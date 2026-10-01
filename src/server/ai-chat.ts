@@ -182,7 +182,7 @@ async function* runChat(
   let failure: AiErrorCode | null = null;
   try {
     // ---------------------------------------------------------------- retrieval for the question
-    yield { type: "tool", name: "search_pages", detail: message };
+    // Part of thinking for the reader: searching for "Hello" would read oddly.
     const history: AiMessage[] = chatHistory(existing?.messages ?? [], Math.floor(room() * HISTORY_SHARE));
     const passageRoom = Math.max(0, room() - sizeOf(history) - message.length - 500);
     const perPassage = Math.min(PASSAGE_CHARS, Math.floor(passageRoom / PASSAGES));
@@ -196,6 +196,7 @@ async function* runChat(
         if (wait > 0) throw new AiError("rateLimited", "The workspace's AI allowance is used up for now", wait);
       }
       const last = round === MAX_ROUNDS - 1;
+      yield { type: "thinking" };
       const turn = stream({
         feature: "chat",
         userId,

@@ -36,12 +36,13 @@ export type ConversationSummary = { id: string; title: string; updatedAt: string
 
 /**
  * Lines of `POST /api/ai/chat`'s newline-delimited JSON answer, in order: `conversation` (its id,
- * first), `tool` whenever the assistant searches or reads, `text` as the answer streams (`reset`
- * drops what was streamed before a tool call), `sources` once the answer is complete, then
- * `done` or `error`.
+ * first), `thinking` while the model works on a turn, `tool` whenever the model searches or reads,
+ * `text` as the answer streams (`reset` drops what was streamed before a tool call), `sources` once
+ * the answer is complete, then `done` or `error`.
  */
 export type ChatEvent =
   | { type: "conversation"; id: string; title: string }
+  | { type: "thinking" }
   | { type: "tool"; name: "search_pages" | "read_page"; detail: string }
   | { type: "text"; text: string }
   | { type: "reset" }

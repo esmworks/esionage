@@ -208,9 +208,14 @@ try {
   const first = await ask(alice, { workspaceId, message: "Which automobile needs tyres, and who sells them?" });
   check(first.done && first.events[0].type === "conversation", "a question is answered, the conversation's id coming first", first.events);
   check(
-    first.tools.join("|") === "search_pages:Which automobile needs tyres, and who sells them?|search_pages:tyre suppliers|read_page:Tyre vendors",
-    "the question is searched for, then the model searches and reads a page, each shown as it happens",
+    first.tools.join("|") === "search_pages:tyre suppliers|read_page:Tyre vendors",
+    "the model's searches and reads are shown as they happen; the search for the question itself is not",
     first.tools,
+  );
+  check(
+    first.events[1]?.type === "thinking" && first.events.filter((e) => e.type === "thinking").length === 3,
+    "the panel is told the model is thinking before each of its turns",
+    first.events.map((e) => e.type),
   );
   check(first.events.some((e) => e.type === "reset"), "text the model wrote before calling a tool is taken back");
   const vendorsSource = first.sources.find((s) => s.pageId === vendors.id);

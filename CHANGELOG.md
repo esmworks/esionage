@@ -48,6 +48,10 @@
 
 ### Changed
 
+- **The AI chat says it is thinking while the model works,** before each of its turns, instead of
+  showing the question as a search ("Searching for “Hello”…" until the first word arrived). The
+  model's own searches and the pages it reads are still shown as they happen. Chat answers carry a
+  new `thinking` event.
 - **Emails in the recipient's language.** Every email to someone with an account (shares,
   comments, mentions, reminders, assignments, access and join requests and their answers, password
   resets, verification and account notices) is written in the language they last used: the one
