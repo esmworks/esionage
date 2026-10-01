@@ -173,8 +173,6 @@
         "in": "dans"
       }
     },
-    "sources": "Sources",
-    "sourceGone": "Une page que vous ne pouvez plus ouvrir",
     "stopped": "Arrêté.",
     "cutOff": "La réponse a atteint la limite de longueur et est peut-être coupée.",
     "note": "L’IA peut se tromper. Vérifiez les sources.",

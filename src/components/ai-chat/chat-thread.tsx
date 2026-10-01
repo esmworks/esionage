@@ -2,7 +2,8 @@
 
 /**
  * A conversation's messages and the question box, as the panel and the full-page chat show them.
- * Answers render as markdown with their citations and sources, under the steps taken to them
+ * Answers render as markdown with their citations (numbered links to the pages, no list of sources
+ * below), under the steps taken to them
  * (searches, pages read, changes made): listed as they happen, then folded into how long it took.
  * Under the box, what the chat may change (ask, auto, read only); a change it asks about takes the
  * box's place until the person decides.
@@ -107,7 +108,7 @@ export function ChatThread({
                       status={i === messages.length - 1 ? status : null}
                       waiting={i === messages.length - 1 && chat.pending !== null}
                       onSource={onSource}
-                      labels={{ sources: t("sources"), gone: t("sourceGone"), stopped: t("stopped"), cutOff: t("cutOff"), thinking: t("thinking") }}
+                      labels={{ stopped: t("stopped"), cutOff: t("cutOff"), thinking: t("thinking") }}
                     />
                   )}
                 </li>
@@ -178,7 +179,7 @@ export function ChatThread({
   );
 }
 
-type Labels = { sources: string; gone: string; stopped: string; cutOff: string; thinking: string };
+type Labels = { stopped: string; cutOff: string; thinking: string };
 
 function Answer({
   message,
@@ -211,30 +212,6 @@ function Answer({
       )}
       {message.content && <AnswerText text={message.content} sources={byNumber} onSource={onSource} />}
       {message.note && <p className="mt-1 text-xs text-fg-muted">{message.note === "stopped" ? labels.stopped : labels.cutOff}</p>}
-      {message.sources && message.sources.length > 0 && (
-        <div className="mt-2">
-          <p className="text-xs font-medium text-fg-muted">{labels.sources}</p>
-          <ul className="mt-1 space-y-0.5">
-            {message.sources.map((s) => (
-              <li key={s.n} className="flex items-center gap-1.5 text-xs">
-                <span className="w-5 shrink-0 text-right text-fg-faint tabular-nums">{s.n}</span>
-                {s.pageId ? (
-                  <button
-                    type="button"
-                    onClick={() => onSource(s)}
-                    className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-bg-hover"
-                  >
-                    <PageIcon icon={s.icon} kind={s.kind ?? undefined} className="text-xs" />
-                    <span className="truncate">{pageLabel(s.title ?? "")}</span>
-                  </button>
-                ) : (
-                  <span className="px-1 text-fg-faint">{labels.gone}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }

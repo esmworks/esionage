@@ -62,6 +62,8 @@
 
 ### Changed
 
+- **AI chat answers no longer list their sources below.** The numbered citations in the text stay:
+  they open the page (at the passage) and name it on hover.
 - **The AI chat decides what to look at.** The question was searched for before the model saw
   it, as a whole ("Bekleyen ne iş var" found nothing, and the model then guessed words to search
   for). Now nothing is searched for it: the question goes with a map of what the person can open in

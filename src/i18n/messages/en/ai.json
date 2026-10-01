@@ -173,8 +173,6 @@
         "in": "in"
       }
     },
-    "sources": "Sources",
-    "sourceGone": "A page you can't open anymore",
     "stopped": "Stopped.",
     "cutOff": "The answer reached the length limit and may be cut off.",
     "note": "AI can make mistakes. Check the sources.",
