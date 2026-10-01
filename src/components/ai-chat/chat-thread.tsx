@@ -5,11 +5,11 @@
  * Answers render as markdown with their citations and sources, under the steps taken to them
  * (searches, pages read): listed as they happen, then folded into how long it took.
  */
-import { BookOpen, ChevronRight, CircleStop, Lightbulb, Loader2, Search, SendHorizontal } from "lucide-react";
-import { useTranslations } from "next-intl";
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { BookOpen, ChevronRight, CircleStop, Filter, Lightbulb, Loader2, Search, SendHorizontal } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import { Fragment, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { cn, IconButton, PageIcon, pageLabel } from "@/components/ui";
-import { MAX_CHAT_MESSAGE, type ChatSourceView, type ChatStepView } from "@/lib/ai-chat";
+import { MAX_CHAT_MESSAGE, type ChatPageView, type ChatQueryCondition, type ChatSourceView, type ChatStepView } from "@/lib/ai-chat";
 import type { Chat, ChatMessage, ChatStatus } from "./use-chat";
 
 export function ChatThread({
@@ -264,24 +264,33 @@ function StepLine({ step, onSource }: { step: ChatStepView; onSource: (source: C
     );
   }
   if (step.kind === "read") {
-    const read = step.page;
     return (
       <>
         <BookOpen className={icon} />
-        {read ? (
+        {step.page ? (
           <span className="flex min-w-0 items-center gap-1">
             {t("steps.read")}
-            <button
-              type="button"
-              onClick={() => onSource({ n: 0, pageId: read.pageId, workspaceId: read.workspaceId, title: read.title, icon: read.icon, blockId: null })}
-              className="flex min-w-0 items-center gap-1 rounded px-0.5 text-fg underline decoration-border underline-offset-2 hover:bg-bg-hover"
-            >
-              <PageIcon icon={read.icon} className="text-xs" />
-              <span className="truncate">{pageLabel(read.title)}</span>
-            </button>
+            <PageLink page={step.page} onSource={onSource} />
           </span>
         ) : (
           <span>{t("steps.readGone")}</span>
+        )}
+      </>
+    );
+  }
+  if (step.kind === "query") {
+    return (
+      <>
+        <Filter className={icon} />
+        {step.database ? (
+          <span className="flex min-w-0 flex-wrap items-center gap-x-1">
+            {t("steps.query")}
+            <PageLink page={step.database} onSource={onSource} />
+            {step.conditions.length > 0 && <Conditions conditions={step.conditions} any={step.any === true} />}
+            <span>· {t("steps.rows", { count: step.results })}</span>
+          </span>
+        ) : (
+          <span>{t("steps.queryGone")}</span>
         )}
       </>
     );
@@ -291,6 +300,70 @@ function StepLine({ step, onSource }: { step: ChatStepView; onSource: (source: C
       <Lightbulb className={icon} />
       <span className="line-clamp-2 min-w-0 break-words">{step.text}</span>
     </>
+  );
+}
+
+function PageLink({ page, onSource }: { page: NonNullable<ChatPageView>; onSource: (source: ChatSourceView) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSource({ n: 0, pageId: page.pageId, workspaceId: page.workspaceId, title: page.title, icon: page.icon, blockId: null })}
+      className="flex min-w-0 items-center gap-1 rounded px-0.5 text-fg underline decoration-border underline-offset-2 hover:bg-bg-hover"
+    >
+      <PageIcon icon={page.icon} className="text-xs" />
+      <span className="truncate">{pageLabel(page.title)}</span>
+    </button>
+  );
+}
+
+const OP_LABELS = {
+  contains: "contains",
+  equals: "equals",
+  not_equals: "notEquals",
+  gt: "greaterThan",
+  lt: "lessThan",
+  is_empty: "isEmpty",
+  is_not_empty: "isNotEmpty",
+  is_within: "isWithin",
+} as const;
+const RANGE_LABELS = { today: "today", this_week: "thisWeek", this_month: "thisMonth" } as const;
+
+/** A query step's filter rules, "or" between them when any may match. */
+function Conditions({ conditions, any }: { conditions: ChatQueryCondition[]; any: boolean }) {
+  const t = useTranslations("database.filter");
+  const locale = useLocale();
+  const or = t("or").toLocaleLowerCase(locale);
+  return (
+    <span className="break-words">
+      ·{" "}
+      {conditions.map((c, i) => (
+        <Fragment key={i}>
+          {i > 0 && any && <span className="mr-1">{or}</span>}
+          <Condition condition={c} />
+        </Fragment>
+      ))}
+    </span>
+  );
+}
+
+/** A filter rule of a query step, in the words of the database's filter menu ("Status = Done"). */
+function Condition({ condition }: { condition: ChatQueryCondition }) {
+  const t = useTranslations("database.filter");
+  const locale = useLocale();
+  const opKey = OP_LABELS[condition.op as keyof typeof OP_LABELS] as (typeof OP_LABELS)[keyof typeof OP_LABELS] | undefined;
+  const op = opKey ? t(`ops.${opKey}`) : condition.op;
+  let value = condition.value ?? "";
+  const [range, days] = value.split(" ");
+  const rangeKey = RANGE_LABELS[range as keyof typeof RANGE_LABELS] as (typeof RANGE_LABELS)[keyof typeof RANGE_LABELS] | undefined;
+  if (condition.op === "is_within" && rangeKey) value = t(`relative.${rangeKey}`);
+  else if (condition.op === "is_within" && (range === "past_n_days" || range === "next_n_days") && Number(days) > 0) {
+    value = t(range === "past_n_days" ? "relative.pastDays" : "relative.nextDays", { count: Number(days) });
+  } else if (value.toLowerCase() === "me") value = t("me");
+  return (
+    <span className="mr-1 inline-block rounded bg-bg-subtle px-1 text-fg last:mr-0">
+      {condition.property} {/\p{L}/u.test(op) ? op.toLocaleLowerCase(locale) : op}
+      {value && ` ${value}`}
+    </span>
   );
 }
 

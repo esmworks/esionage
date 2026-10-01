@@ -89,13 +89,17 @@ export type ChatSourceRef = { n: number; pageId: string; blockId: string | null 
 
 /**
  * A step the AI chat took on the way to an answer: a search (`query` null for the one with the
- * question itself) and how many pages it found, a page it read, or what the model said before
- * searching or reading.
+ * question itself) and how many pages it found, a page it read, a database it queried (with the
+ * filters and how many rows matched), or what the model said before searching or reading.
  */
 export type ChatStepRecord =
   | { kind: "search"; query: string | null; results: number }
   | { kind: "read"; pageId: string }
+  | { kind: "query"; databaseId: string; conditions: ChatQueryCondition[]; any?: boolean; results: number }
   | { kind: "thought"; text: string };
+
+/** One filter rule of a database query the chat ran, as shown with the step. */
+export type ChatQueryCondition = { property: string; op: string; value: string | null };
 
 /** One message of an AI chat conversation, as stored. */
 export type ChatMessageRecord = {

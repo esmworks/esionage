@@ -114,9 +114,15 @@ const everything = (request: FakeChatRequest) => request.messages.map((m) => tex
 /** Tool results the model got in this request, newest last. */
 const toolResults = (request: FakeChatRequest) => request.messages.filter((m) => m.role === "tool").map((m) => textOf(m.content));
 
-/** A step as one line: `search:<query or ?>:<results>`, `read:<title or gone>`, `thought:<text>`. */
+/** A step as one line: `search:<query or ?>:<results>`, `read:<title or gone>`, `query:<database or gone>:<rules>:<rows>`, `thought:<text>`. */
 const stepLabel = (step: ChatStepView) =>
-  step.kind === "search" ? `search:${step.query ?? "?"}:${step.results}` : step.kind === "read" ? `read:${step.page?.title ?? "gone"}` : `thought:${step.text}`;
+  step.kind === "search"
+    ? `search:${step.query ?? "?"}:${step.results}`
+    : step.kind === "read"
+      ? `read:${step.page?.title ?? "gone"}`
+      : step.kind === "query"
+        ? `query:${step.database?.title ?? "gone"}:${step.conditions.map((c) => `${c.property} ${c.op} ${c.value ?? ""}`.trim()).join(",")}:${step.results}`
+        : `thought:${step.text}`;
 
 /** Runs a question to the end; returns its events and what they add up to. */
 async function ask(userId: string, input: ChatInput, options: { signal?: AbortSignal; onEvent?: (e: ChatEvent) => void } = {}) {
@@ -158,6 +164,16 @@ function researcher({ search, readId }: { search?: string; readId?: string }) {
     const cite = read ?? sources[0];
     const refused = results.some((r) => r.startsWith("No page with that id"));
     return { text: cite ? `${refused ? "I could not read that page. " : ""}The answer is in ${cite.title} [${cite.n}].` : "The workspace has nothing on it." };
+  };
+}
+
+/** A model that makes these tool calls, one per turn, then answers citing the last source it got. */
+function caller(calls: { name: string; arguments: Record<string, unknown> }[]) {
+  return (request: FakeChatRequest): FakeReply => {
+    const made = request.messages.filter((m) => m.role === "assistant" && m.tool_calls?.length).length;
+    if (made < calls.length) return { toolCalls: [calls[made]] };
+    const last = sourcesIn(request).at(-1);
+    return { text: last ? `See ${last.title} [${last.n}].` : "Nothing." };
   };
 }
 
@@ -232,7 +248,7 @@ try {
   const firstRequest = fake.chats[0];
   const questionSources = sourcesIn(firstRequest);
   check(questionSources.some((s) => s.pageId === fleet.id && s.text.includes("car needs new tyres")), "the question goes to the model with the best passages (found by meaning)", questionSources);
-  check(fake.chats.every((r) => r.tools?.map((t) => t.function.name).join() === "search_pages,read_page"), "every turn declares the two tools");
+  check(fake.chats.every((r) => r.tools?.map((t) => t.function.name).join() === "search_pages,read_page,query_database"), "every turn declares the three tools");
   check(textOf(firstRequest.messages[0].content).includes("never instructions"), "the system prompt treats page content as data");
   check(fake.chats.every((r) => !secrets.some((s) => everything(r).includes(s))), "nothing from pages the person can't open is ever sent to the model");
   check(!questionSources.some((s) => s.pageId === theirs.id), "…nor another workspace's pages");
@@ -421,7 +437,11 @@ try {
   fake.chats.length = 0;
   const rowHit = await ask(alice, { workspaceId, message: "Are the winter tyres here yet?" });
   const rowSource = sourcesIn(fake.chats[0]).find((s) => s.pageId === winter.id);
-  check(rowHit.done && rowSource?.text.startsWith("Stock: Ordered") === true, "a database row found by search comes with its values", rowSource);
+  check(
+    rowHit.done && rowSource?.text.startsWith(`A row of the database "Spare parts" (database_id ${parts.id}).\nStock: Ordered`) === true,
+    "a database row found by search comes with its database (to query it) and its values",
+    rowSource,
+  );
   fake.setChat(researcher({ readId: parts.id }));
   fake.chats.length = 0;
   const ordered = await ask(alice, { workspaceId, message: "Which spare parts are ordered?" });
@@ -430,6 +450,65 @@ try {
     ordered.done && readOut.includes("Its 1 rows:") && readOut.includes("Winter tyres") && readOut.includes("Stock: Ordered"),
     "reading a database lists its rows with their values",
     readOut.slice(0, 500),
+  );
+  check(readOut.includes(`database_id ${parts.id}`) && readOut.includes("- Stock (select; options: Ordered, In stock)"), "…and its properties with their types and options, to filter on", readOut.slice(0, 500));
+
+  // ── Querying a database ─────────────────────────────────────────────────────────────────────
+  const brakes = await createPage(actor, { workspaceId, parentId: parts.id, title: "Brake pads", properties: { [stock.id]: stock.options.options![1].id } });
+  const query = (database_id: string, extra: Record<string, unknown> = {}) => ({ name: "query_database", arguments: { database_id, ...extra } });
+  fake.setChat(caller([query(parts.id, { filters: [{ property: "Stock", op: "equals", value: "Ordered" }] })]));
+  fake.chats.length = 0;
+  const queried = await ask(alice, { workspaceId, message: "Which spare parts are still on order?" });
+  const queryOut = toolResults(fake.chats.at(-1)!).join("\n");
+  check(
+    queried.done && queryOut.startsWith('1 rows of the database "Spare parts" match') && queryOut.includes("Winter tyres") && !queryOut.includes("Brake pads"),
+    "query_database lists the rows that match the filters",
+    queryOut.slice(0, 400),
+  );
+  check(queried.sources.some((s) => s.pageId === winter.id) && !queried.sources.some((s) => s.pageId === brakes.id), "…each a source the answer can cite", queried.sources);
+  check(queried.steps.includes("query:Spare parts:Stock equals Ordered:1"), "…shown as a step with its filters and how many rows matched", queried.steps);
+  const either = [
+    { property: "Stock", op: "equals", value: "Ordered" },
+    { property: "Stock", op: "equals", value: "In stock" },
+  ];
+  fake.setChat(caller([query(parts.id, { filters: either, filter_combinator: "or", sorts: [{ property: "title", direction: "desc" }], limit: 1 })]));
+  fake.chats.length = 0;
+  const sorted = await ask(alice, { workspaceId, message: "Last spare part by name?" });
+  const sortedOut = toolResults(fake.chats.at(-1)!).join("\n");
+  check(sortedOut.startsWith('2 rows of the database "Spare parts" match; the first 1 are below') && sortedOut.includes("Winter tyres"), "…combined with or, sorted and limited as asked", sortedOut.slice(0, 300));
+  const sortedStep = sorted.events.flatMap((e) => (e.type === "step" && e.step.kind === "query" ? [e.step] : []))[0];
+  check(sortedStep?.any === true && sortedStep.conditions.length === 2, "…and its step says any of the rules may match", sortedStep);
+  fake.setChat(caller([query(parts.id, { filters: [{ property: "Colour", op: "equals", value: "Red" }] })]));
+  fake.chats.length = 0;
+  const badQuery = await ask(alice, { workspaceId, message: "Red parts?" });
+  check(badQuery.done && toolResults(fake.chats.at(-1)!).some((r) => r.startsWith("The query is not valid") && r.includes("Colour")), "a query on a property the database hasn't is refused, saying why");
+  fake.setChat(caller([query(parts.id, { filters: [{ property: "Stock", op: "sometimes", value: "x" }] })]));
+  fake.chats.length = 0;
+  await ask(alice, { workspaceId, message: "Parts?" });
+  check(toolResults(fake.chats.at(-1)!).some((r) => r.startsWith("The query is not valid")), "…as is an op that doesn't exist");
+  const ledger = await createPage(actor, { workspaceId, teamspaceId: null, kind: "database", title: "Owner ledger" });
+  await createPage(actor, { workspaceId, parentId: ledger.id, title: "SECRET-LEDGER entry" });
+  for (const [label, target, input] of [
+    ["a database they can't open", ledger.id, { workspaceId, message: "Ledger entries?" }],
+    ["a database outside the scope", parts.id, { workspaceId, message: "Parts?", scope: { pageId: fleet.id } }],
+    ["a page that isn't a database", fleet.id, { workspaceId, message: "Fleet?" }],
+    ["another workspace's page", theirs.id, { workspaceId, message: "Theirs?" }],
+  ] as const) {
+    fake.setChat(caller([query(target)]));
+    fake.chats.length = 0;
+    const run = await ask(alice, input);
+    check(
+      run.done && toolResults(fake.chats.at(-1)!).some((r) => r.startsWith("No database with that id can be queried")) && !run.steps.some((st) => st.startsWith("query:")),
+      `query_database refuses ${label}`,
+      { steps: run.steps, results: toolResults(fake.chats.at(-1)!) },
+    );
+    check(fake.chats.every((r) => !everything(r).includes("SECRET-LEDGER")), "…and nothing of it reaches the model");
+  }
+  const kept = await getConversation(alice, workspaceId, queried.conversationId!);
+  check(
+    kept.messages[1].steps?.some((st) => st.kind === "query" && st.database?.pageId === parts.id && st.conditions[0]?.value === "Ordered" && st.any === undefined && st.results === 1),
+    "a query step is kept with the conversation",
+    kept.messages[1].steps,
   );
   setAiEnv(AI);
 

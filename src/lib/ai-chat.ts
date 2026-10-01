@@ -30,13 +30,21 @@ export type ChatPageView = { pageId: string; workspaceId: string; title: string;
 
 /**
  * A step the chat took on the way to an answer (shown above it): a search (`query` null for the
- * search with the question itself) and how many pages it found, a page it read, or what the model
- * said before searching or reading.
+ * search with the question itself) and how many pages it found, a page it read, a database it
+ * queried (its filters and how many rows matched), or what the model said before searching or
+ * reading.
  */
 export type ChatStepView =
   | { kind: "search"; query: string | null; results: number }
   | { kind: "read"; page: ChatPageView }
+  | { kind: "query"; database: ChatPageView; conditions: ChatQueryCondition[]; any?: boolean; results: number }
   | { kind: "thought"; text: string };
+
+/**
+ * A filter rule of a database query (`op` as the tool takes it: equals, contains, is_within…); a
+ * query step's rules are flattened from its groups, `any` when its top-level rules combine with or.
+ */
+export type ChatQueryCondition = { property: string; op: string; value: string | null };
 
 export type ChatMessageView = {
   role: "user" | "assistant";

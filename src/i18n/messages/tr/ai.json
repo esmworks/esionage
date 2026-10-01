@@ -150,7 +150,10 @@
       "question": "Soruyla ilgili sayfalar arandı · {count, plural, =0 {sonuç yok} other {# sonuç}}",
       "searched": "“{query}” arandı · {count, plural, =0 {sonuç yok} other {# sonuç}}",
       "read": "Okundu",
-      "readGone": "Artık açamadığın bir sayfa okundu"
+      "readGone": "Artık açamadığın bir sayfa okundu",
+      "query": "Sorgulandı",
+      "rows": "{count, plural, =0 {eşleşen satır yok} other {# satır}}",
+      "queryGone": "Artık açamadığın bir veritabanı sorgulandı"
     },
     "sources": "Kaynaklar",
     "sourceGone": "Artık açamadığın bir sayfa",

@@ -16,7 +16,7 @@
  */
 import { and, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { aiConversation, page, type ChatMessageRecord, type ChatSourceRef, type ChatStepRecord } from "@/db/schema";
+import { aiConversation, page, type ChatMessageRecord, type ChatQueryCondition, type ChatSourceRef, type ChatStepRecord } from "@/db/schema";
 import type { AiErrorCode } from "@/lib/ai";
 import {
   citedNumbers,
@@ -32,12 +32,15 @@ import {
   type ConversationSummary,
   stripCitations,
 } from "@/lib/ai-chat";
+import { FILTER_OPS, MAX_FILTER_DEPTH } from "@/lib/filters";
 import { pageLabel } from "@/lib/labels";
+import { PropertyValueError } from "@/lib/properties";
 import { AccessError, pageAccessOf, requireMembership, requirePageAccess, WorkspacePolicyError } from "@/server/access";
 import { aiConfig, AiError, isAiError, stream, takeRateLimit, takeWorkspaceCapacity, type AiMessage, type AiTool } from "@/server/ai";
 import { chatHistory, chatQuestionPrompt, chatSystemPrompt, formatSources, truncateText, type ChatSourceText } from "@/server/ai/prompts";
 import { aiAvailable } from "@/server/ai-writing";
 import * as ops from "@/server/operations";
+import { ToolInputError } from "@/server/mcp/format";
 import { inSubtree } from "@/server/semantic-search";
 
 /** Model turns per question: searches and reads, then the answer. */
@@ -49,6 +52,11 @@ const PASSAGE_CHARS = 1_200;
 const PAGE_CHARS = 12_000;
 /** Rows a database read lists (then cut to PAGE_CHARS like any page). */
 const DATABASE_ROWS = 200;
+/** Rows one query_database call returns by default, and at most. */
+const QUERY_ROWS = 30;
+const MAX_QUERY_ROWS = 100;
+/** Filter rules a query step shows. */
+const STEP_CONDITIONS = 6;
 /** The most of what the model says before a search or read that is kept as a step. */
 const THOUGHT_CHARS = 300;
 /** Share of the prompt that earlier questions and answers may take. */
@@ -69,11 +77,57 @@ export const CHAT_TOOLS: AiTool[] = [
   {
     name: "read_page",
     description:
-      "Reads a whole page by the page_id of a source: its text, a database row's values, or a database's rows with their values. Returns it as a numbered source.",
+      "Reads a whole page by the page_id of a source: its text, a database row's values, or a database's properties (with their types and options) and rows with their values. Returns it as a numbered source.",
     parameters: {
       type: "object",
       properties: { page_id: { type: "string", description: "The page_id attribute of a source." } },
       required: ["page_id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "query_database",
+    description: [
+      "Lists the rows of a database that match filters on its properties, sorted as asked. Each row comes back as a numbered source with its values.",
+      "Properties are named as read_page shows them (or title, created_at, updated_at); select and status values by option name.",
+      `Ops: ${FILTER_OPS.join(", ")}. is_empty and is_not_empty take no value.`,
+      'People (person, created_by, last_edited_by): contains or not_equals with "me" for the person asking, or a name.',
+      "Relations: contains or not_equals with a related row's title. Numbers and dates: equals, gt, lt; dates as YYYY-MM-DD.",
+      'is_within on dates: today, this_week, this_month, or past_n_days / next_n_days with "days".',
+      `Rules all match unless filter_combinator is "or"; a group {"type": "group", "combinator": "and" | "or", "rules": [...]} mixes them (${MAX_FILTER_DEPTH} levels at most).`,
+    ].join(" "),
+    parameters: {
+      type: "object",
+      properties: {
+        database_id: { type: "string", description: "The database's page_id (from a source, or the database_id a row's source names)." },
+        filters: {
+          type: "array",
+          description: "Rules ({property, op, value, days}) and groups ({type: \"group\", combinator, rules}).",
+          items: {
+            type: "object",
+            properties: {
+              property: { type: "string" },
+              op: { type: "string", enum: [...FILTER_OPS] },
+              value: { type: "string", description: "What to compare with, as text (numbers, dates, true/false, option names, \"me\")." },
+              days: { type: "integer", description: "past_n_days / next_n_days only." },
+              type: { type: "string", enum: ["group"] },
+              combinator: { type: "string", enum: ["and", "or"] },
+              rules: { type: "array", items: { type: "object" } },
+            },
+          },
+        },
+        filter_combinator: { type: "string", enum: ["and", "or"] },
+        sorts: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { property: { type: "string" }, direction: { type: "string", enum: ["asc", "desc"] } },
+            required: ["property"],
+          },
+        },
+        limit: { type: "integer", description: `Rows to return, 1-${MAX_QUERY_ROWS} (default ${QUERY_ROWS}).` },
+      },
+      required: ["database_id"],
       additionalProperties: false,
     },
   },
@@ -296,29 +350,32 @@ async function searchSources(
   return results.map((r) => {
     const passage = r.passage || r.snippet || "";
     const row = values.get(r.id);
+    // A row's database first (to query it), then its values, so they survive the cut: what it
+    // says is mostly in them.
+    const head = row ? [`A row of the database "${row.database}" (database_id ${row.databaseId}).`, row.values].filter(Boolean).join("\n") : "";
     return register(registry, {
       pageId: r.id,
       blockId: r.passage ? (r.block_id ?? null) : null,
       title: r.title,
-      // A row's values first, so they survive the cut: what it says is mostly in them.
-      text: truncateText(row ? `${row}${passage ? `\n${passage}` : ""}` : passage, maxChars),
+      text: truncateText([head, passage].filter(Boolean).join("\n"), maxChars),
     });
   });
 }
 
 /**
- * The values of the results that are database rows, by id, as the person may see them now (one
- * line each, see valuesLine). Results whose database they can't see get none.
+ * The results that are database rows, by id: their database, and their values as the person may
+ * see them now (one line, see valuesLine). Rows of databases they can't see aren't included.
  */
 async function rowValues(ctx: ops.OperationContext, results: { id: string; parent_id: string | null }[]) {
-  const out = new Map<string, string>();
+  const out = new Map<string, { databaseId: string; database: string; values: string }>();
   const parentIds = [...new Set(results.flatMap((r) => (r.parent_id ? [r.parent_id] : [])))];
   if (!parentIds.length) return out;
   const databases = await db
-    .select({ id: page.id })
+    .select({ id: page.id, title: page.title })
     .from(page)
     .where(and(inArray(page.id, parentIds), eq(page.kind, "database")));
-  const isDatabase = new Set(databases.map((d) => d.id));
+  const titles = new Map(databases.map((d) => [d.id, pageLabel(d.title)]));
+  const isDatabase = new Set(titles.keys());
   await Promise.all(
     results
       .filter((r) => r.parent_id && isDatabase.has(r.parent_id))
@@ -327,8 +384,7 @@ async function rowValues(ctx: ops.OperationContext, results: { id: string; paren
           if (error instanceof AccessError) return null;
           throw error;
         });
-        const line = fields ? valuesLine(fields.properties as Record<string, unknown>) : "";
-        if (line) out.set(r.id, line);
+        if (fields) out.set(r.id, { databaseId: r.parent_id!, database: titles.get(r.parent_id!) ?? "", values: valuesLine(fields.properties as Record<string, unknown>) });
       }),
   );
   return out;
@@ -375,7 +431,85 @@ async function runTool(
     const entry = register(registry, { pageId, blockId: null, title: read.title, text: read.text, note: read.note });
     return { content: formatSources([entry]), step: { kind: "read", pageId } };
   }
+  if (call.name === "query_database") return queryRows(ctx, workspaceId, scopeId, call.arguments, registry, room);
   return { content: `Unknown tool ${call.name}.`, isError: true };
+}
+
+/**
+ * query_database: the rows of a database that match the model's filters, run as the person (the
+ * same operation as the MCP tool, so hidden values can't be filtered on and aren't returned), each
+ * registered as a source.
+ */
+async function queryRows(
+  ctx: ops.OperationContext,
+  workspaceId: string,
+  scopeId: string | undefined,
+  args: Record<string, unknown>,
+  registry: Registry,
+  room: number,
+): Promise<ToolOutcome> {
+  const parsed = ops.inputs.queryDatabase.safeParse({ ...args, limit: Math.min(MAX_QUERY_ROWS, Number(args.limit) || QUERY_ROWS), view_id: undefined });
+  if (!parsed.success) {
+    return { content: `The query is not valid: ${parsed.error.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`).join("; ")}`, isError: true };
+  }
+  const input = parsed.data;
+  const missing: ToolOutcome = { content: "No database with that id can be queried. Use the database_id of a source.", isError: true };
+  if (input.database_id.length > 100) return missing;
+  const [found] = await db
+    .select({ workspaceId: page.workspaceId, kind: page.kind, archivedAt: page.archivedAt, inTemplate: page.inTemplate })
+    .from(page)
+    .where(eq(page.id, input.database_id))
+    .limit(1);
+  if (!found || found.workspaceId !== workspaceId || found.kind !== "database" || found.archivedAt || found.inTemplate) return missing;
+  if (scopeId) {
+    const [inside] = await db.execute<{ one: number }>(sql`select 1 as one from ${page} p where p.id = ${input.database_id} and ${inSubtree(scopeId)}`);
+    if (!inside) return missing;
+  }
+  let result: Awaited<ReturnType<typeof ops.queryDatabase>>;
+  try {
+    result = await ops.queryDatabase(ctx, input);
+  } catch (error) {
+    if (error instanceof AccessError) return missing;
+    if (error instanceof PropertyValueError || error instanceof ToolInputError) return { content: `The query is not valid: ${error.message}`, isError: true };
+    throw error;
+  }
+  const step: ChatStepRecord = {
+    kind: "query",
+    databaseId: input.database_id,
+    conditions: conditionsOf(input.filters ?? []),
+    ...(input.filter_combinator === "or" ? { any: true } : {}),
+    results: result.total,
+  };
+  if (!result.rows.length) return { content: `No rows of "${result.title}" match. Try other filters, or answer that none do.`, step };
+  // Rows as sources, as many as fit.
+  const entries = [];
+  let used = 0;
+  for (const row of result.rows) {
+    const text = valuesLine(row.properties as Record<string, unknown>) || "(no values)";
+    if (used + text.length + row.title.length + 120 > room - 500) break;
+    used += text.length + row.title.length + 120;
+    entries.push(register(registry, { pageId: row.id, blockId: null, title: row.title, text }));
+  }
+  const shown = entries.length < result.total ? `the first ${entries.length} are below (narrow the filters for others)` : "all are below";
+  return { content: `${result.total} rows of the database "${result.title}" match; ${shown}.\n${formatSources(entries)}`, step };
+}
+
+/** A query's filter rules, groups flattened, as its step shows them. */
+function conditionsOf(filters: unknown[]): ChatQueryCondition[] {
+  const out: ChatQueryCondition[] = [];
+  const walk = (entries: unknown[]) => {
+    for (const entry of entries) {
+      if (out.length >= STEP_CONDITIONS || !entry || typeof entry !== "object") continue;
+      const e = entry as { type?: string; rules?: unknown[]; property?: string; op?: string; value?: unknown; days?: number };
+      if (e.type === "group") walk(e.rules ?? []);
+      else if (e.property && e.op) {
+        const value = e.value === undefined ? null : `${String(e.value)}${e.days ? ` ${e.days}` : ""}`.slice(0, 80);
+        out.push({ property: e.property.slice(0, 80), op: e.op, value });
+      }
+    }
+  };
+  walk(filters);
+  return out;
 }
 
 /** A page's text as the person may read it now, or null when it's out of reach or scope. */
@@ -393,7 +527,7 @@ async function readPage(ctx: ops.OperationContext, workspaceId: string, scopeId:
     if (lines.length) parts.push(lines.join("\n"));
   }
   if (Array.isArray(out.database_properties)) {
-    parts.push(`A database with the properties: ${(out.database_properties as { name?: string }[]).map((p) => p.name).filter(Boolean).join(", ")}`);
+    parts.push(`A database (database_id ${pageId}; query_database lists the rows that match filters). Its properties:\n${(out.database_properties as DescribedProperty[]).map(propertyLine).join("\n")}`);
     parts.push(await databaseRows(ctx, pageId));
   }
   if (typeof out.markdown === "string" && out.markdown.trim()) parts.push(out.markdown);
@@ -402,6 +536,19 @@ async function readPage(ctx: ops.OperationContext, workspaceId: string, scopeId:
     text: truncateText(parts.join("\n\n"), maxChars),
     note: out.markdown_truncated ? "Only the start of the page fits." : undefined,
   };
+}
+
+type DescribedProperty = { name: string; type: string; options?: string[]; related_database?: string; result_type?: string };
+
+/** A database property for the model to filter on: its name, type and options. */
+function propertyLine(p: DescribedProperty) {
+  const details = [
+    p.options?.length ? `options: ${p.options.join(", ")}` : "",
+    p.related_database ? `rows of "${p.related_database}"` : "",
+    ["person", "created_by", "last_edited_by"].includes(p.type) ? '"me" is the person asking' : "",
+    p.result_type ? `gives ${p.result_type}` : "",
+  ].filter(Boolean);
+  return `- ${p.name} (${[p.type, ...details].join("; ")})`;
 }
 
 /**
@@ -463,9 +610,15 @@ async function visiblePages(userId: string, ids: string[]) {
 
 /** A step as the person may see it now: a page read that they can't open has no title. */
 async function viewStep(userId: string, record: ChatStepRecord, pages?: Awaited<ReturnType<typeof visiblePages>>): Promise<ChatStepView> {
-  if (record.kind !== "read") return record;
-  const seen = (pages ?? (await visiblePages(userId, [record.pageId]))).get(record.pageId);
-  return { kind: "read", page: seen ? { pageId: record.pageId, ...seen } : null };
+  if (record.kind !== "read" && record.kind !== "query") return record;
+  const id = record.kind === "read" ? record.pageId : record.databaseId;
+  const seen = (pages ?? (await visiblePages(userId, [id]))).get(id);
+  const view = seen ? { pageId: id, ...seen } : null;
+  // A database they can't open any more keeps neither its name nor what was asked of it.
+  if (record.kind === "query") {
+    return { kind: "query", database: view, conditions: view ? record.conditions : [], ...(view && record.any ? { any: true } : {}), results: record.results };
+  }
+  return { kind: "read", page: view };
 }
 
 /** Cited pages as the person may see them now: pages they can't open lose id and title. */
@@ -500,7 +653,7 @@ export async function getConversation(userId: string, workspaceId: string, conve
   const views = await viewSources(userId, refs);
   const read = await visiblePages(
     userId,
-    found.messages.flatMap((m) => (m.steps ?? []).flatMap((s) => (s.kind === "read" ? [s.pageId] : []))),
+    found.messages.flatMap((m) => (m.steps ?? []).flatMap((s) => (s.kind === "read" ? [s.pageId] : s.kind === "query" ? [s.databaseId] : []))),
   );
   let i = 0;
   const messages: ChatMessageView[] = await Promise.all(

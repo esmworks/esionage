@@ -150,7 +150,10 @@
       "question": "Seiten zur Frage gesucht · {count, plural, =0 {nichts gefunden} other {# Treffer}}",
       "searched": "Nach „{query}“ gesucht · {count, plural, =0 {nichts gefunden} other {# Treffer}}",
       "read": "Gelesen",
-      "readGone": "Eine Seite gelesen, die du nicht mehr öffnen kannst"
+      "readGone": "Eine Seite gelesen, die du nicht mehr öffnen kannst",
+      "query": "Abgefragt",
+      "rows": "{count, plural, =0 {keine passenden Zeilen} one {# Zeile} other {# Zeilen}}",
+      "queryGone": "Eine Datenbank abgefragt, die du nicht mehr öffnen kannst"
     },
     "sources": "Quellen",
     "sourceGone": "Eine Seite, die du nicht mehr öffnen kannst",

@@ -150,7 +150,10 @@
       "question": "Buscó páginas para la pregunta · {count, plural, =0 {sin resultados} one {# resultado} other {# resultados}}",
       "searched": "Buscó «{query}» · {count, plural, =0 {sin resultados} one {# resultado} other {# resultados}}",
       "read": "Leyó",
-      "readGone": "Leyó una página que ya no puedes abrir"
+      "readGone": "Leyó una página que ya no puedes abrir",
+      "query": "Consultó",
+      "rows": "{count, plural, =0 {ninguna fila coincide} one {# fila} other {# filas}}",
+      "queryGone": "Consultó una base de datos que ya no puedes abrir"
     },
     "sources": "Fuentes",
     "sourceGone": "Una página que ya no puedes abrir",

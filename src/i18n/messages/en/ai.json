@@ -150,7 +150,10 @@
       "question": "Searched pages for the question · {count, plural, =0 {nothing found} one {# result} other {# results}}",
       "searched": "Searched “{query}” · {count, plural, =0 {nothing found} one {# result} other {# results}}",
       "read": "Read",
-      "readGone": "Read a page you can no longer open"
+      "readGone": "Read a page you can no longer open",
+      "query": "Queried",
+      "rows": "{count, plural, =0 {no rows match} one {# row} other {# rows}}",
+      "queryGone": "Queried a database you can no longer open"
     },
     "sources": "Sources",
     "sourceGone": "A page you can't open anymore",

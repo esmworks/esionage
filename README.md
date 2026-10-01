@@ -824,8 +824,10 @@ stays open as you move between pages and can be expanded to the full page. A sou
 full page opens its page with the conversation carried on in the panel. Questions are answered from the pages
 you can read: each question is searched for (full-text and, with embeddings, by meaning) and goes
 to the model with the best passages; the model can also search again (`search_pages`) and read a
-whole page (`read_page`; a database reads as its first 200 rows with their values), up to five
-turns per question. A database row found by a search comes with its values (those the person may
+whole page (`read_page`; a database reads as its properties, with their types and options, and its
+first 200 rows with their values) and list the rows of a database that match filters on its
+properties (`query_database`, the same filters and sorts as the MCP tool, each row a source to
+cite), up to five turns per question. A database row found by a search comes with its values (those the person may
 see). The chat's full-text search finds pages with any of the question's words (as
 prefixes, so "ekstreleri" finds "ekstresi"; question words such as "what" or "nedir" left out),
 titles first, where the search box wants all of them. While an answer is written, the steps it
