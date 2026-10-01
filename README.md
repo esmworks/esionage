@@ -822,17 +822,19 @@ your conversations (today, yesterday, the last 7 and 30 days, older) in place of
 *Back to pages*. The ✨ button in a page's header opens the chat in a panel beside the page, which
 stays open as you move between pages and can be expanded to the full page. A source clicked in the
 full page opens its page with the conversation carried on in the panel. Questions are answered from the pages
-you can read: each question is searched for (full-text and, with embeddings, by meaning) and goes
-to the model with the best passages; the model can also search again (`search_pages`) and read a
-whole page (`read_page`; a database reads as its properties, with their types and options, and its
-first 200 rows with their values) and list the rows of a database that match filters on its
-properties (`query_database`, the same filters and sorts as the MCP tool, each row a source to
-cite), up to five turns per question. A database row found by a search comes with its values (those the person may
-see). The chat's full-text search finds pages with any of the question's words (as
+you can read. Nothing is searched for the model: each question goes to it with a map of what you
+can open (the databases with their properties, types and options, statuses by group, and the
+pages, up to 8,000 characters), and the model decides what to look at. It can search
+(`search_pages`, full-text and, with embeddings, by meaning), read a whole page (`read_page`; a
+database reads as its properties and its first 200 rows with their values) and list the rows of a
+database that match filters on its properties (`query_database`, the same filters and sorts as
+the MCP tool, each row a source to cite), up to six turns per question; greetings are answered
+without tools. A database row found by a search comes with its database and its values (those the
+person may see). The chat's full-text search finds pages with any of the search's words (as
 prefixes, so "ekstreleri" finds "ekstresi"; question words such as "what" or "nedir" left out),
 titles first, where the search box wants all of them. While an answer is written, the steps it
-takes are listed above it (searches with how many pages they found, pages read, what the model says
-before them) with a running clock, then folded into how long it took; they are kept with the
+takes are listed above it (searches with how many pages they found, pages read, databases
+queried, what the model says before them) with a running clock, then folded into how long it took; they are kept with the
 conversation. Answers cite their sources as numbered
 links to the page, and to the block the passage starts at when it is known. *Answer from* → *This
 page and its subpages* keeps questions to the page you are on. *Stop* ends an answer; what was written so far

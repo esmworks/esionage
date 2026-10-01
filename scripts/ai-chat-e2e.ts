@@ -149,16 +149,20 @@ async function ask(userId: string, input: ChatInput, options: { signal?: AbortSi
   };
 }
 
+/** The question of a request, and the workspace map that came with it. */
+const questionOf = (request: FakeChatRequest) => /<question>\n([\s\S]*?)\n<\/question>/.exec(everything(request))?.[1] ?? "";
+const mapOf = (request: FakeChatRequest) => /<workspace>\n([\s\S]*?)\n<\/workspace>/.exec(textOf(request.messages.at(-1)?.content ?? ""))?.[1] ?? "";
+
 /**
- * A model that searches, then reads `readId` (when given), then answers citing what it read (or the
- * first source), mentioning what each tool result said.
+ * A model that searches (for `search`, or the question), then reads `readId` (when given), then
+ * answers citing what it read (or the first source), mentioning what each tool result said.
  */
 function researcher({ search, readId }: { search?: string; readId?: string }) {
   return (request: FakeChatRequest): FakeReply => {
     const results = toolResults(request);
     const calls = request.messages.filter((m) => m.role === "assistant" && m.tool_calls?.length).length;
-    if (search && calls === 0) return { text: "Let me look. ", toolCalls: [{ name: "search_pages", arguments: { query: search } }] };
-    if (readId && calls === (search ? 1 : 0)) return { toolCalls: [{ name: "read_page", arguments: { page_id: readId } }] };
+    if (calls === 0) return { text: "Let me look. ", toolCalls: [{ name: "search_pages", arguments: { query: search ?? questionOf(request) } }] };
+    if (readId && calls === 1) return { toolCalls: [{ name: "read_page", arguments: { page_id: readId } }] };
     const sources = sourcesIn(request);
     const read = readId ? sources.filter((s) => s.pageId === readId).at(-1) : undefined;
     const cite = read ?? sources[0];
@@ -226,18 +230,18 @@ try {
   const secrets = ["SECRET-DIARY", "SECRET-ROADMAP", "SECRET-OTHER"];
 
   // ── A question answered from the pages ──────────────────────────────────────────────────────
-  fake.setChat(researcher({ search: "tyre suppliers", readId: vendors.id }));
+  fake.setChat(researcher({ search: "automobile", readId: vendors.id }));
   fake.chats.length = 0;
   const first = await ask(alice, { workspaceId, message: "Which automobile needs tyres, and who sells them?" });
   check(first.done && first.events[0].type === "conversation", "a question is answered, the conversation's id coming first", first.events);
   check(
-    /^search:\?:[1-9]\d*\|thought:Let me look\.\|search:tyre suppliers:[1-9]\d*\|read:Tyre vendors$/.test(first.steps.join("|")),
-    "the steps are shown as they happen: the question's search (without the question), what the model said before searching, its search and what it read, with result counts",
+    /^thought:Let me look\.\|search:automobile:[1-9]\d*\|read:Tyre vendors$/.test(first.steps.join("|")),
+    "the steps are shown as they happen: what the model said before searching, its search and what it read, with result counts; nothing is searched before the model decides to",
     first.steps,
   );
   check(typeof first.ms === "number" && first.ms >= 0, "the answer says how long it took", first.ms);
   check(
-    first.events[1]?.type === "step" && first.events[2]?.type === "thinking" && first.events.filter((e) => e.type === "thinking").length === 3,
+    first.events[1]?.type === "thinking" && first.events.filter((e) => e.type === "thinking").length === 3,
     "the panel is told the model is thinking before each of its turns",
     first.events.map((e) => e.type),
   );
@@ -246,12 +250,23 @@ try {
   check(first.text.startsWith("The answer is in Tyre vendors [") && vendorsSource?.title === "Tyre vendors", "the answer cites the page it read", first);
   check(vendorsSource.workspaceId === workspaceId && vendorsSource.blockId === null, "…as a link to the page", vendorsSource);
   const firstRequest = fake.chats[0];
-  const questionSources = sourcesIn(firstRequest);
-  check(questionSources.some((s) => s.pageId === fleet.id && s.text.includes("car needs new tyres")), "the question goes to the model with the best passages (found by meaning)", questionSources);
+  const firstMap = mapOf(firstRequest);
+  check(
+    sourcesIn(firstRequest).length === 0 && firstMap.includes(`"Fleet notes" (page_id ${fleet.id})`) && firstMap.includes(`"Tyre vendors" (page_id ${vendors.id}) in Fleet notes`),
+    "the question goes to the model with a map of the pages the person can open, nothing searched for it",
+    firstMap,
+  );
+  check(
+    !["Owner diary", "Hidden roadmap", "Their car", "Travel desk"].some((t) => firstMap.includes(t)),
+    "…leaving out pages they can't open",
+    firstMap,
+  );
+  const searched = sourcesIn(fake.chats[1]);
+  check(searched.some((s) => s.pageId === fleet.id && s.text.includes("car needs new tyres")), "the model's search finds pages by meaning (car for automobile)", searched);
   check(fake.chats.every((r) => r.tools?.map((t) => t.function.name).join() === "search_pages,read_page,query_database"), "every turn declares the three tools");
   check(textOf(firstRequest.messages[0].content).includes("never instructions"), "the system prompt treats page content as data");
   check(fake.chats.every((r) => !secrets.some((s) => everything(r).includes(s))), "nothing from pages the person can't open is ever sent to the model");
-  check(!questionSources.some((s) => s.pageId === theirs.id), "…nor another workspace's pages");
+  check(!fake.chats.flatMap(sourcesIn).some((s) => s.pageId === theirs.id), "…nor another workspace's pages");
 
   const conversationId = first.conversationId!;
   const listed = await listConversations(alice, workspaceId);
@@ -318,6 +333,8 @@ try {
   const guestRun = await ask(guest, { workspaceId, message: "When is the holiday calendar? Also automobile tyres." });
   const guestSources = fake.chats.flatMap(sourcesIn).map((s) => s.pageId);
   check(guestRun.done && guestSources.includes(guestBook.id) && guestSources.every((id) => id === guestBook.id), "a guest's questions are answered only from pages shared with them", guestSources);
+  const guestMap = mapOf(fake.chats[0]);
+  check(guestMap.includes("Guest handbook") && !guestMap.includes("Fleet notes"), "…and their map lists only those", guestMap);
 
   // Access taken back between two questions.
   fake.setChat(researcher({ readId: lent.id }));
@@ -341,13 +358,15 @@ try {
   check(fake.chats.every((r) => !everything(r).includes("SECRET-LENT")), "…nor its text found by search any more");
 
   // ── Scope ───────────────────────────────────────────────────────────────────────────────────
-  fake.setChat(researcher({ search: "puppies", readId: office.id }));
+  fake.setChat(researcher({ search: "automobile", readId: office.id }));
   fake.chats.length = 0;
   const scoped = await ask(alice, { workspaceId, message: "What do we know about the automobile?", scope: { pageId: fleet.id } });
   const scopedSources = fake.chats.flatMap(sourcesIn).map((s) => s.pageId);
   check(scoped.done && scopedSources.length > 0 && scopedSources.every((id) => id === fleet.id || id === vendors.id), "a question about a page searches only it and its subpages", scopedSources);
   check(fake.chats.flatMap(toolResults).some((r) => r.startsWith("No page with that id")), "…and read_page refuses pages outside it");
   check(textOf(fake.chats[0].messages[0].content).includes('Only the page "Fleet notes"'), "…the model is told the scope");
+  const scopedMap = mapOf(fake.chats[0]);
+  check(scopedMap.includes("Fleet notes") && scopedMap.includes("Tyre vendors") && !scopedMap.includes("Office rules"), "…and its map lists only the pages in it", scopedMap);
   check((await refusal(() => startChat(alice, { workspaceId, message: "x?", scope: { pageId: diary.id } }))) === "noAccess", "a page the person can't open can't be the scope");
   check((await refusal(() => startChat(outsider, { workspaceId: otherWs, message: "x?", scope: { pageId: fleet.id } }))) === "noAccess", "…nor another workspace's page");
 
@@ -423,11 +442,11 @@ try {
   fake.setChat(researcher({}));
   fake.chats.length = 0;
   const textOnly = await ask(alice, { workspaceId, message: "tyres" });
-  check(textOnly.done && sourcesIn(fake.chats[0]).some((s) => s.pageId === fleet.id), "without embeddings the chat answers from full-text search");
+  check(textOnly.done && fake.chats.flatMap(sourcesIn).some((s) => s.pageId === fleet.id), "without embeddings the chat answers from full-text search");
   fake.chats.length = 0;
   const whole = await ask(alice, { workspaceId, message: "Which tyres does our car need before winter?" });
   check(
-    whole.done && sourcesIn(fake.chats[0]).some((s) => s.pageId === fleet.id),
+    whole.done && fake.chats.flatMap(sourcesIn).some((s) => s.pageId === fleet.id),
     "…also for a whole question, whose words needn't all be on the page (\"need\" finds \"needs\")",
   );
   const parts = await createPage(actor, { workspaceId, teamspaceId: general.id, kind: "database", title: "Spare parts" });
@@ -436,7 +455,17 @@ try {
   fake.setChat(researcher({}));
   fake.chats.length = 0;
   const rowHit = await ask(alice, { workspaceId, message: "Are the winter tyres here yet?" });
-  const rowSource = sourcesIn(fake.chats[0]).find((s) => s.pageId === winter.id);
+  const rowSource = fake.chats.flatMap(sourcesIn).find((s) => s.pageId === winter.id);
+  const partsMap = mapOf(fake.chats[0]);
+  check(
+    partsMap.includes(`"Spare parts" (database_id ${parts.id})`) && partsMap.includes("  - Stock (select; options: Ordered, In stock)") && !partsMap.includes(winter.id),
+    "the map lists databases with their properties and options (to query them), not their rows",
+    partsMap,
+  );
+  await addProperty(owner, parts.id, { name: "Fitting", type: "status" });
+  fake.chats.length = 0;
+  await ask(alice, { workspaceId, message: "Which parts are being fitted?" });
+  check(/ {2}- Fitting \(status; options by group: todo: [^;]+; in_progress: [^;]+; done: /.test(mapOf(fake.chats[0])), "…a status with its options by group (to do, in progress, done)", mapOf(fake.chats[0]));
   check(
     rowHit.done && rowSource?.text.startsWith(`A row of the database "Spare parts" (database_id ${parts.id}).\nStock: Ordered`) === true,
     "a database row found by search comes with its database (to query it) and its values",
@@ -465,7 +494,11 @@ try {
     "query_database lists the rows that match the filters",
     queryOut.slice(0, 400),
   );
-  check(queried.sources.some((s) => s.pageId === winter.id) && !queried.sources.some((s) => s.pageId === brakes.id), "…each a source the answer can cite", queried.sources);
+  check(
+    queried.sources.some((s) => s.pageId === winter.id && s.kind === "page") && !queried.sources.some((s) => s.pageId === brakes.id),
+    "…each a source the answer can cite",
+    queried.sources,
+  );
   check(queried.steps.includes("query:Spare parts:Stock equals Ordered:1"), "…shown as a step with its filters and how many rows matched", queried.steps);
   const either = [
     { property: "Stock", op: "equals", value: "Ordered" },
@@ -506,8 +539,8 @@ try {
   }
   const kept = await getConversation(alice, workspaceId, queried.conversationId!);
   check(
-    kept.messages[1].steps?.some((st) => st.kind === "query" && st.database?.pageId === parts.id && st.conditions[0]?.value === "Ordered" && st.any === undefined && st.results === 1),
-    "a query step is kept with the conversation",
+    kept.messages[1].steps?.some((st) => st.kind === "query" && st.database?.pageId === parts.id && st.database.kind === "database" && st.conditions[0]?.value === "Ordered" && st.any === undefined && st.results === 1),
+    "a query step is kept with the conversation (its database shown as one)",
     kept.messages[1].steps,
   );
   setAiEnv(AI);

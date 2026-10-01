@@ -185,7 +185,7 @@ function Answer({
                     onClick={() => onSource(s)}
                     className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-bg-hover"
                   >
-                    <PageIcon icon={s.icon} className="text-xs" />
+                    <PageIcon icon={s.icon} kind={s.kind ?? undefined} className="text-xs" />
                     <span className="truncate">{pageLabel(s.title ?? "")}</span>
                   </button>
                 ) : (
@@ -307,10 +307,10 @@ function PageLink({ page, onSource }: { page: NonNullable<ChatPageView>; onSourc
   return (
     <button
       type="button"
-      onClick={() => onSource({ n: 0, pageId: page.pageId, workspaceId: page.workspaceId, title: page.title, icon: page.icon, blockId: null })}
+      onClick={() => onSource({ n: 0, pageId: page.pageId, workspaceId: page.workspaceId, title: page.title, icon: page.icon, kind: page.kind, blockId: null })}
       className="flex min-w-0 items-center gap-1 rounded px-0.5 text-fg underline decoration-border underline-offset-2 hover:bg-bg-hover"
     >
-      <PageIcon icon={page.icon} className="text-xs" />
+      <PageIcon icon={page.icon} kind={page.kind} className="text-xs" />
       <span className="truncate">{pageLabel(page.title)}</span>
     </button>
   );

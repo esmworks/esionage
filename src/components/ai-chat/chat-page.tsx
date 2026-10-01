@@ -29,6 +29,8 @@ export function ChatPage({ workspaceId, available }: { workspaceId: string; avai
       shown.current = id;
       // Without a navigation: the answer is still streaming in.
       window.history.replaceState(null, "", chatPath(workspaceId, id));
+      // A new conversation shows in the sidebar's list right away, not when it's answered.
+      if (id) void context?.refreshConversations();
     },
     onAnswered: () => void context?.refreshConversations(),
   });

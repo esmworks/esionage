@@ -1,6 +1,7 @@
 // Client-safe: shared by the AI chat's server side (src/server/ai-chat.ts, /api/ai/chat) and its
 // panel (src/components/ai-chat).
 
+import type { PageKind } from "@/db/schema/app";
 import type { AiErrorCode } from "./ai";
 
 /** Longest question one message may ask. */
@@ -21,12 +22,14 @@ export type ChatSourceView = {
   workspaceId: string | null;
   title: string | null;
   icon: string | null;
+  /** Page or database (for its icon). */
+  kind: PageKind | null;
   /** The block the cited passage starts at, when known. */
   blockId: string | null;
 };
 
 /** A page the chat read, as the reader may see it now (null: they can no longer open it). */
-export type ChatPageView = { pageId: string; workspaceId: string; title: string; icon: string | null } | null;
+export type ChatPageView = { pageId: string; workspaceId: string; title: string; icon: string | null; kind: PageKind } | null;
 
 /**
  * A step the chat took on the way to an answer (shown above it): a search (`query` null for the

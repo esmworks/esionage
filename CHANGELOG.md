@@ -48,6 +48,17 @@
 
 ### Changed
 
+- **The AI chat decides what to look at.** The question was searched for before the model saw
+  it, as a whole ("Bekleyen ne iş var" found nothing, and the model then guessed words to search
+  for). Now nothing is searched for it: the question goes with a map of what the person can open in
+  the workspace (or under the scope page): the databases with their properties, types and options
+  (a status's options by group: to do, in progress, done), and the pages, each with its id and
+  where it is, up to 8,000 characters. The model is told to think first: to query a database for
+  tasks and records, to search with a few distinctive words rather than the question, and to
+  answer greetings without tools; and to write everything, also what it says before using a tool,
+  in the language of the question. Six turns per question, where there were five. The full-page
+  chat lists a new conversation in the sidebar as soon as it starts, not once it's answered. New
+  checks in `scripts/ai-chat-e2e.ts` and `src/server/ai/chat.test.ts`.
 - **The AI chat can query databases.** A new `query_database` tool lists the rows of a database that
   match filters on its properties (the same filters, operators, groups and sorts as the MCP tool:
   "assigned to me", "status is open", "due in the next 30 days"…), run as the person through the
@@ -57,7 +68,9 @@
   `read_page` on a database now lists its properties with their types and options, and a row found
   by search names its database, so the model knows what to filter on. The query shows as a step
   ("Queried Tasks · Status = Open or Due within next 30 days · 12 rows", in the words of the
-  database's filter menu), kept with the conversation. New checks in `scripts/ai-chat-e2e.ts`.
+  database's filter menu), kept with the conversation. Databases in the chat's steps and sources
+  show the database icon when they have no icon of their own, as in the sidebar. New checks in
+  `scripts/ai-chat-e2e.ts`.
 - **The AI chat shows the steps it takes.** Above each answer, while it's written: *Working · 4s*
   with the steps listed as they happen (the search with the question and how many pages it found,
   what the model says before searching or reading, its searches with their result counts, and the

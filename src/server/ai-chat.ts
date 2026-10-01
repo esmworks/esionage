@@ -4,11 +4,12 @@
  *
  * 1. is checked (membership and the workspace's two-step policy, AI on in the workspace, the scope
  *    page readable, size and rate limits) before anything is sent;
- * 2. is searched for (hybrid full-text and semantic search, pages.searchPages) and goes to the model
- *    with the best passages, numbered;
- * 3. may make the model call `search_pages` and `read_page`, which run as the person through
- *    operations.ts with their access checked on every call: a page they lost access to since
- *    can't be read, whatever the conversation said before;
+ * 2. goes to the model with a map of the workspace as the person can see it (its databases with
+ *    their properties, and its pages), so the model decides what to look at;
+ * 3. may make the model call `search_pages` (hybrid full-text and semantic search), `read_page`
+ *    and `query_database`, which run as the person through operations.ts with their access
+ *    checked on every call: a page they lost access to since can't be read, whatever the
+ *    conversation said before;
  * 4. streams the answer; citations ([n]) link to the pages (and the block a passage starts at).
  *
  * Conversations are kept per person (ai_conversation) and only ever shown to them; cited pages are
@@ -16,7 +17,7 @@
  */
 import { and, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { aiConversation, page, type ChatMessageRecord, type ChatQueryCondition, type ChatSourceRef, type ChatStepRecord } from "@/db/schema";
+import { aiConversation, page, type ChatMessageRecord, type PageKind, type ChatQueryCondition, type ChatSourceRef, type ChatStepRecord } from "@/db/schema";
 import type { AiErrorCode } from "@/lib/ai";
 import {
   citedNumbers,
@@ -38,13 +39,17 @@ import { PropertyValueError } from "@/lib/properties";
 import { AccessError, pageAccessOf, requireMembership, requirePageAccess, WorkspacePolicyError } from "@/server/access";
 import { aiConfig, AiError, isAiError, stream, takeRateLimit, takeWorkspaceCapacity, type AiMessage, type AiTool } from "@/server/ai";
 import { chatHistory, chatQuestionPrompt, chatSystemPrompt, formatSources, truncateText, type ChatSourceText } from "@/server/ai/prompts";
+import { getTree } from "@/server/pages";
 import { aiAvailable } from "@/server/ai-writing";
 import * as ops from "@/server/operations";
 import { ToolInputError } from "@/server/mcp/format";
 import { inSubtree } from "@/server/semantic-search";
 
-/** Model turns per question: searches and reads, then the answer. */
-export const MAX_ROUNDS = 5;
+/** Model turns per question: searches, reads and queries, then the answer. */
+export const MAX_ROUNDS = 6;
+/** The most of the prompt the workspace map takes, and the databases it lists properties of. */
+const MAP_CHARS = 8_000;
+const MAP_SCHEMAS = 20;
 /** Passages sent with a question, and results of one search. */
 const PASSAGES = 6;
 const PASSAGE_CHARS = 1_200;
@@ -248,14 +253,12 @@ async function* runChat(
   let stopReason: "stop" | "length" = "stop";
   let failure: AiErrorCode | null = null;
   try {
-    // ---------------------------------------------------------------- retrieval for the question
-    // Part of thinking for the reader: searching for "Hello" would read oddly.
+    // ---------------------------------------------------------------------------- the question
+    // Nothing is searched for the model: it gets the map of what there is and decides itself.
     const history: AiMessage[] = chatHistory(existing?.messages ?? [], Math.floor(room() * HISTORY_SHARE));
-    const passageRoom = Math.max(0, room() - sizeOf(history) - message.length - 500);
-    const perPassage = Math.min(PASSAGE_CHARS, Math.floor(passageRoom / PASSAGES));
-    const found = perPassage >= 200 ? await searchSources(ctx, workspaceId, scope?.id, message, registry, perPassage) : [];
-    if (perPassage >= 200) yield await step({ kind: "search", query: null, results: found.length });
-    const messages: AiMessage[] = [...history, { role: "user", content: chatQuestionPrompt(message, found) }];
+    const mapRoom = Math.min(MAP_CHARS, room() - sizeOf(history) - message.length - 2_000);
+    const map = mapRoom >= 500 ? await workspaceMap(ctx, workspaceId, scope?.id ?? null, mapRoom) : "";
+    const messages: AiMessage[] = [...history, { role: "user", content: chatQuestionPrompt(message, map) }];
 
     // ------------------------------------------------------------------------------ model turns
     for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -332,6 +335,55 @@ async function* runChat(
   // Nothing to keep: a conversation this question started goes again.
   if (!existing) await db.delete(aiConversation).where(and(eq(aiConversation.id, conversation.id), sql`jsonb_array_length(${aiConversation.messages}) = 0`));
   yield { type: "error", code: failure };
+}
+
+// ---------------------------------------------------------------------------- workspace map
+
+/**
+ * What the person can open in the workspace (or under the scope page), for the model to choose
+ * from: the databases first, with their properties, types and options (to query them without
+ * reading them first), then the pages, each with its id and where it is. Rows of databases aren't
+ * listed. Cut to `maxChars`, saying so.
+ */
+async function workspaceMap(ctx: ops.OperationContext, workspaceId: string, scopeId: string | null, maxChars: number) {
+  const nodes = await getTree(ctx.userId, workspaceId);
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const chain = (id: string) => {
+    const out: typeof nodes = [];
+    for (let at = byId.get(id); at && out.length < 20; at = at.parentId ? byId.get(at.parentId) : undefined) out.unshift(at);
+    return out;
+  };
+  const inScope = scopeId ? nodes.filter((n) => chain(n.id).some((c) => c.id === scopeId)) : nodes;
+  const where = (id: string) => {
+    const above = chain(id).slice(0, -1).map((c) => pageLabel(c.title));
+    return above.length ? ` in ${above.join(" / ")}` : "";
+  };
+  const databases = inScope.filter((n) => n.kind === "database");
+  const lines: string[] = [];
+  if (databases.length) {
+    lines.push("Databases (query_database lists their rows):");
+    for (const [i, d] of databases.entries()) {
+      lines.push(`- "${pageLabel(d.title)}" (database_id ${d.id})${where(d.id)}`);
+      if (i >= MAP_SCHEMAS) continue;
+      const out = (await ops.getPage(ctx, { page_id: d.id, offset: 0 }).catch(() => null)) as Record<string, unknown> | null;
+      if (Array.isArray(out?.database_properties)) lines.push(...(out.database_properties as DescribedProperty[]).map((p) => `  ${propertyLine(p)}`));
+    }
+  }
+  const pagesList = inScope.filter((n) => n.kind !== "database");
+  if (pagesList.length) {
+    lines.push("Pages (read_page reads one; search_pages finds words in them):");
+    for (const p of pagesList) lines.push(`- "${pageLabel(p.title)}" (page_id ${p.id})${where(p.id)}`);
+  }
+  if (!lines.length) return "The person can't open any pages here yet.";
+  let text = "";
+  for (const line of lines) {
+    if (text.length + line.length + 1 > maxChars - 100) {
+      text += "(The rest doesn't fit: search for it.)\n";
+      break;
+    }
+    text += `${line}\n`;
+  }
+  return text.trimEnd();
 }
 
 // ------------------------------------------------------------------------------------ tools
@@ -538,12 +590,26 @@ async function readPage(ctx: ops.OperationContext, workspaceId: string, scopeId:
   };
 }
 
-type DescribedProperty = { name: string; type: string; options?: string[]; related_database?: string; result_type?: string };
+type DescribedProperty = {
+  name: string;
+  type: string;
+  options?: string[];
+  status_groups?: Record<string, string[]>;
+  related_database?: string;
+  result_type?: string;
+};
 
 /** A database property for the model to filter on: its name, type and options. */
 function propertyLine(p: DescribedProperty) {
+  // A status says which of its options are to do, in progress and done ("pending" is the first two).
+  const groups = p.status_groups
+    ? Object.entries(p.status_groups)
+        .filter(([, names]) => names.length)
+        .map(([group, names]) => `${group}: ${names.join(", ")}`)
+        .join("; ")
+    : "";
   const details = [
-    p.options?.length ? `options: ${p.options.join(", ")}` : "",
+    groups ? `options by group: ${groups}` : p.options?.length ? `options: ${p.options.join(", ")}` : "",
     p.related_database ? `rows of "${p.related_database}"` : "",
     ["person", "created_by", "last_edited_by"].includes(p.type) ? '"me" is the person asking' : "",
     p.result_type ? `gives ${p.result_type}` : "",
@@ -598,11 +664,11 @@ async function pruneConversations(userId: string, workspaceId: string) {
 
 /** The pages of `ids` the person can open now, with what the chat shows of them. */
 async function visiblePages(userId: string, ids: string[]) {
-  const visible = new Map<string, { title: string; icon: string | null; workspaceId: string }>();
+  const visible = new Map<string, { title: string; icon: string | null; kind: PageKind; workspaceId: string }>();
   for (const id of new Set(ids)) {
     const { page: found, level } = await pageAccessOf(userId, id);
     if (found && level !== "none" && !found.archivedAt && !found.inTemplate) {
-      visible.set(id, { title: found.title, icon: found.icon, workspaceId: found.workspaceId });
+      visible.set(id, { title: found.title, icon: found.icon, kind: found.kind, workspaceId: found.workspaceId });
     }
   }
   return visible;
@@ -627,8 +693,8 @@ export async function viewSources(userId: string, refs: ChatSourceRef[]): Promis
   return refs.map((r) => {
     const seen = visible.get(r.pageId);
     return seen
-      ? { n: r.n, pageId: r.pageId, workspaceId: seen.workspaceId, title: seen.title, icon: seen.icon, blockId: r.blockId }
-      : { n: r.n, pageId: null, workspaceId: null, title: null, icon: null, blockId: null };
+      ? { n: r.n, pageId: r.pageId, workspaceId: seen.workspaceId, title: seen.title, icon: seen.icon, kind: seen.kind, blockId: r.blockId }
+      : { n: r.n, pageId: null, workspaceId: null, title: null, icon: null, kind: null, blockId: null };
   });
 }
 
