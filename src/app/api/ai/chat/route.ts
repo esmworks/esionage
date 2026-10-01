@@ -13,10 +13,12 @@ const chatInput = z.object({
   message: z.string().max(MAX_CHAT_MESSAGE * 2),
   scope: z.object({ pageId: z.string().min(1).max(100) }).nullish(),
   mode: z.enum(CHAT_MODES).optional(),
+  replaceLast: z.boolean().optional(),
 });
 
 /**
- * The AI chat (#41): `POST /api/ai/chat` with `{workspaceId, conversationId?, message, scope?, mode?}`.
+ * The AI chat (#41): `POST /api/ai/chat` with `{workspaceId, conversationId?, message, scope?, mode?,
+ * replaceLast?}` (`replaceLast`: ask again in place of the last question and answer).
  * Answers with newline-delimited JSON as the assistant works (see ChatEvent in lib/ai-chat.ts); in
  * mode `ask` the answer waits on each change for decideChangeAction.
  * Checks that fail before anything is sent answer with a status and `{"error":{"code","message"}}`.

@@ -672,6 +672,36 @@ try {
   const stoppedKept = stoppedRun.conversationId ? await db.select().from(aiConversation).where(eq(aiConversation.id, stoppedRun.conversationId)) : [];
   check(stoppedKept.length === 0, "…and keeps no empty conversation");
 
+  // ── Asking again ────────────────────────────────────────────────────────────────────────────
+  fake.setChat(() => ({ text: "First answer." }));
+  const firstTurn = await ask(alice, { workspaceId, message: "Which tyres fit?" });
+  fake.setChat(() => ({ text: "Second answer." }));
+  const secondTurn = await ask(alice, { workspaceId, conversationId: firstTurn.conversationId, message: "And the price?" });
+  const againId = secondTurn.conversationId!;
+  fake.setChat(() => ({ text: "Second answer, again." }));
+  fake.chats.length = 0;
+  const retried = await ask(alice, { workspaceId, conversationId: againId, message: "And the price, in euros?", replaceLast: true });
+  const afterRetry = await getConversation(alice, workspaceId, againId);
+  check(
+    retried.done && afterRetry.messages.map((m) => m.content).join("|") === "Which tyres fit?|First answer.|And the price, in euros?|Second answer, again.",
+    "asking again (or an edited question) replaces the last question and answer",
+    afterRetry.messages.map((m) => m.content),
+  );
+  check(everything(fake.chats[0]).includes("First answer.") && !everything(fake.chats[0]).includes("Second answer."), "…the model sees the turns before it, not the one replaced");
+  check(afterRetry.messages.every((m) => typeof m.at === "string" && !Number.isNaN(Date.parse(m.at))), "messages say when they were written", afterRetry.messages.map((m) => m.at));
+  fake.setChat(() => {
+    throw new Error("model down");
+  });
+  const failedAgain = await ask(alice, { workspaceId, conversationId: againId, message: "Price?", replaceLast: true });
+  const afterFailure = await getConversation(alice, workspaceId, againId);
+  check(failedAgain.error !== null && afterFailure.messages.at(-1)?.content === "Second answer, again." && afterFailure.messages.length === 4, "asking again that fails leaves the last answer as it was", afterFailure.messages.map((m) => m.content));
+  setAiEnv(AI);
+  check(
+    (await refusal(() => startChat(alice, { workspaceId, conversationId: auto.conversationId, message: "Again", replaceLast: true }))) === "invalid",
+    "an answer that changed things can't be asked again (it would change them twice)",
+  );
+  check((await refusal(() => startChat(alice, { workspaceId, message: "Again", replaceLast: true }))) === "invalid", "…nor can a conversation that hasn't started");
+
   // ── Deleting ────────────────────────────────────────────────────────────────────────────────
   const aliceBefore = await listConversations(alice, workspaceId);
   await deleteConversations(alice, workspaceId, [aliceBefore[0].id]);

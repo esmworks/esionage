@@ -838,7 +838,9 @@ queried, what the model says before them) with a running clock, then folded into
 conversation. Answers cite their sources as numbered
 links to the page, and to the block the passage starts at when it is known. *Answer from* → *This
 page and its subpages* keeps questions to the page you are on. *Stop* ends an answer; what was written so far
-is kept. Conversations are private to you and listed in the full-page chat's sidebar and under
+is kept. Under an answer are *Copy*, *Answer again* (the latest) and its time; hovering a question
+shows its time, *Edit* (the latest: answered again in its place) and *Copy*. An answer that
+changed things can't be answered again or edited. Conversations are private to you and listed in the full-page chat's sidebar and under
 the panel's *Conversations*, where you can delete one or all; up to 50 per workspace are kept (the oldest go first), 40 questions each, 4000
 characters a question. They are deleted when you leave the workspace or delete your account. The
 chat is off while offline and when AI is off for the workspace. Every question counts against

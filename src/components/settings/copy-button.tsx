@@ -9,7 +9,7 @@ import { Button, Input } from "@/components/ui";
  * `navigator.clipboard` only exists on secure origins (https, localhost), so on a plain-http LAN
  * address it is undefined; fall back to the older execCommand copy from a hidden textarea.
  */
-async function copyText(value: string, returnFocus: HTMLElement) {
+export async function copyText(value: string, returnFocus: HTMLElement) {
   try {
     if (navigator.clipboard) {
       await navigator.clipboard.writeText(value);

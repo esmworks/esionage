@@ -62,6 +62,13 @@
 
 ### Changed
 
+- **Actions under AI chat messages.** An answer has *Copy* (its Markdown, without the citation
+  numbers), *Answer again* (the latest one) and when it was written; a question shows, on hover,
+  when it was asked, *Edit* (the latest one: the edited question is answered in place of it) and
+  *Copy*. Answering again or an edited question replaces the last question and answer once the new
+  answer is kept (`replaceLast` in the API); one that fails leaves them as they were. An answer
+  that changed things can't be answered again or edited (it would make the changes twice).
+  Messages now carry their time (`at`). New checks in `scripts/ai-chat-e2e.ts` (126 in all).
 - **AI chat answers no longer list their sources below.** The numbered citations in the text stay:
   they open the page (at the passage) and name it on hover.
 - **The AI chat decides what to look at.** The question was searched for before the model saw

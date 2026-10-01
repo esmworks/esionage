@@ -208,6 +208,11 @@
       "autoHint": "Añade y cambia sin preguntar",
       "read": "Solo lectura",
       "readHint": "No cambia nada"
+    },
+    "actions": {
+      "edit": "Editar",
+      "cancel": "Cancelar",
+      "retry": "Responder de nuevo"
     }
   }
 }

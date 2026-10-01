@@ -16,6 +16,7 @@ import {
   ChevronRight,
   CircleAlert,
   CircleStop,
+  Copy,
   Eye,
   FilePlus,
   Filter,
@@ -23,14 +24,17 @@ import {
   Lightbulb,
   ListPlus,
   Loader2,
+  Pencil,
   PencilLine,
+  RotateCcw,
   Search,
   SendHorizontal,
   Zap,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Fragment, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
-import { cn, IconButton, MenuItem, PageIcon, pageLabel, Popover } from "@/components/ui";
+import { copyText } from "@/components/settings/copy-button";
+import { Button, cn, IconButton, MenuItem, PageIcon, pageLabel, Popover } from "@/components/ui";
 import {
   CHAT_MODES,
   MAX_CHAT_MESSAGE,
@@ -41,6 +45,7 @@ import {
   type ChatSourceView,
   type ChatStepView,
   type ChatWriteView,
+  stripCitations,
 } from "@/lib/ai-chat";
 import type { ChangeDecision, Chat, ChatMessage, ChatStatus, PendingChange } from "./use-chat";
 
@@ -55,7 +60,8 @@ export function ChatThread({
   chat: Chat;
   /** Why questions can't be asked now (offline, AI off), shown above the box. */
   blocked: string | null;
-  onSend: () => void;
+  /** Asks the typed question; with `again`, its question in place of the last question and answer. */
+  onSend: (again?: { question: string }) => void;
   onSource: (source: ChatSourceView) => void;
   /** Under the box, before the note (the panel's scope picker). */
   footer?: ReactNode;
@@ -82,6 +88,16 @@ export function ChatThread({
   const send = () => {
     if (!blocked) onSend();
   };
+  // The last question can be answered again, or edited, unless its answer changed things (that
+  // would make them twice).
+  const last = messages[messages.length - 1];
+  const askAgain =
+    !running &&
+    !blocked &&
+    chat.conversationId !== null &&
+    messages.length >= 2 &&
+    last.role === "assistant" &&
+    !last.steps?.some((st) => st.kind === "write" && st.outcome === "done");
 
   return (
     <>
@@ -94,19 +110,18 @@ export function ChatThread({
               {messages.map((m, i) => (
                 <li key={m.key}>
                   {m.role === "user" ? (
-                    <div
-                      className={cn(
-                        "rounded-lg bg-bg-subtle px-3 py-2 text-sm whitespace-pre-wrap break-words",
-                        page ? "ml-auto w-fit max-w-[80%]" : "ml-8",
-                      )}
-                    >
-                      {m.content}
-                    </div>
+                    <Question
+                      message={m}
+                      page={page}
+                      onEdit={askAgain && i === messages.length - 2 ? (question) => onSend({ question }) : undefined}
+                    />
                   ) : (
                     <Answer
                       message={m}
                       status={i === messages.length - 1 ? status : null}
                       waiting={i === messages.length - 1 && chat.pending !== null}
+                      last={i === messages.length - 1}
+                      onRetry={askAgain && i === messages.length - 1 ? () => onSend({ question: messages[i - 1].content }) : undefined}
                       onSource={onSource}
                       labels={{ stopped: t("stopped"), cutOff: t("cutOff"), thinking: t("thinking") }}
                     />
@@ -185,6 +200,8 @@ function Answer({
   message,
   status,
   waiting,
+  last,
+  onRetry,
   onSource,
   labels,
 }: {
@@ -192,12 +209,18 @@ function Answer({
   status: ChatStatus | null;
   /** A change it wants to make waits for the person. */
   waiting: boolean;
+  /** The conversation's latest answer: its actions show without hovering. */
+  last: boolean;
+  /** Answers its question again, when it may be. */
+  onRetry?: () => void;
   onSource: (source: ChatSourceView) => void;
   labels: Labels;
 }) {
+  const t = useTranslations("ai.chat.actions");
   const byNumber = new Map((message.sources ?? []).map((s) => [s.n, s]));
+  const done = status === null && !waiting && (message.content.trim() !== "" || message.ms !== undefined);
   return (
-    <div className="text-sm leading-relaxed">
+    <div className="group/answer text-sm leading-relaxed">
       {message.steps ? (
         <Steps message={message} status={status} waiting={waiting} onSource={onSource} />
       ) : (
@@ -212,7 +235,112 @@ function Answer({
       )}
       {message.content && <AnswerText text={message.content} sources={byNumber} onSource={onSource} />}
       {message.note && <p className="mt-1 text-xs text-fg-muted">{message.note === "stopped" ? labels.stopped : labels.cutOff}</p>}
+      {done && (
+        <div className={cn("mt-1.5 -ml-1 flex items-center gap-0.5", !last && revealed)}>
+          {message.content.trim() && <CopyAction text={stripCitations(message.content).trim()} />}
+          {onRetry && (
+            <IconButton label={t("retry")} className="h-7 w-7" onClick={onRetry}>
+              <RotateCcw className="h-3.5 w-3.5" />
+            </IconButton>
+          )}
+          {message.at && <MessageTime at={message.at} />}
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Actions shown on hovering their message (always on touch screens, and while focused). */
+const revealed = "opacity-0 transition-opacity group-hover/answer:opacity-100 group-hover/question:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100";
+
+/** A question: its text, and on hover when it was asked, editing (the last one) and copying. */
+function Question({ message, page, onEdit }: { message: ChatMessage; page: boolean; onEdit?: (question: string) => void }) {
+  const t = useTranslations("ai.chat");
+  const [draft, setDraft] = useState<string | null>(null);
+  const place = page ? "ml-auto w-fit max-w-[80%]" : "ml-8";
+
+  if (draft !== null && onEdit) {
+    const submit = () => {
+      if (!draft.trim()) return;
+      setDraft(null);
+      onEdit(draft.trim());
+    };
+    return (
+      <div className={cn("rounded-lg border border-accent bg-bg px-3 py-2", page ? "ml-auto w-full max-w-[80%]" : "ml-8")}>
+        <textarea
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={(e) => e.currentTarget.setSelectionRange(e.currentTarget.value.length, e.currentTarget.value.length)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setDraft(null);
+            else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          rows={Math.min(6, Math.max(1, draft.split("\n").length))}
+          maxLength={MAX_CHAT_MESSAGE}
+          aria-label={t("actions.edit")}
+          className="block w-full resize-none bg-transparent text-sm outline-none"
+        />
+        <div className="mt-1.5 flex justify-end gap-1">
+          <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
+            {t("actions.cancel")}
+          </Button>
+          <Button size="sm" variant="primary" disabled={!draft.trim()} onClick={submit}>
+            {t("send")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="group/question">
+      <div className={cn("rounded-lg bg-bg-subtle px-3 py-2 text-sm whitespace-pre-wrap break-words", place)}>{message.content}</div>
+      <div className={cn("mt-1 flex items-center justify-end gap-0.5", revealed)}>
+        {message.at && <MessageTime at={message.at} />}
+        {onEdit && (
+          <IconButton label={t("actions.edit")} className="h-7 w-7" onClick={() => setDraft(message.content)}>
+            <Pencil className="h-3.5 w-3.5" />
+          </IconButton>
+        )}
+        <CopyAction text={message.content} />
+      </div>
+    </div>
+  );
+}
+
+/** Copies a message's text, showing a tick for a moment when it did. */
+function CopyAction({ text }: { text: string }) {
+  const t = useTranslations("common");
+  const [copied, setCopied] = useState(false);
+  return (
+    <IconButton
+      label={copied ? t("copied") : t("copy")}
+      className="h-7 w-7"
+      onClick={async (e) => {
+        if (!(await copyText(text, e.currentTarget))) return;
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+    >
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+    </IconButton>
+  );
+}
+
+/** When a message was written: the time today, the day and time before (the full date on hover). */
+function MessageTime({ at }: { at: string }) {
+  const locale = useLocale();
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = date.toDateString() === new Date().toDateString();
+  const shown = date.toLocaleString(locale, today ? { hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return (
+    <time dateTime={at} title={date.toLocaleString(locale, { dateStyle: "full", timeStyle: "short" })} className="px-1 text-xs text-fg-faint tabular-nums">
+      {shown}
+    </time>
   );
 }
 

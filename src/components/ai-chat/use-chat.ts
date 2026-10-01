@@ -91,20 +91,24 @@ export function useChat(
   const updateLast = (fn: (m: ChatMessage) => ChatMessage) =>
     setMessages((list) => (list.length && list[list.length - 1].role === "assistant" ? [...list.slice(0, -1), fn(list[list.length - 1])] : list));
 
-  /** Asks the typed question, of the whole workspace or of `scopePageId` and its subpages. */
-  async function send(scopePageId: string | null) {
-    const question = input.trim();
+  /**
+   * Asks the typed question, of the whole workspace or of `scopePageId` and its subpages; with
+   * `again`, asks its question (the last one, maybe edited) in place of the last question and answer.
+   */
+  async function send(scopePageId: string | null, again?: { question: string }) {
+    const question = (again?.question ?? input).trim();
     if (!question || running) return;
     setError(null);
-    setInput("");
+    if (!again) setInput("");
     const controller = new AbortController();
     abort.current = controller;
     const startedAt = Date.now();
-    setMessages((list) => [
-      ...list,
-      { key: nextKey(), role: "user", content: question },
+    const before = messages;
+    const asked: ChatMessage[] = [
+      { key: nextKey(), role: "user", content: question, at: new Date(startedAt).toISOString() },
       { key: nextKey(), role: "assistant", content: "", steps: [], startedAt },
-    ]);
+    ];
+    setMessages((list) => [...(again ? list.slice(0, -2) : list), ...asked]);
     setStatus("thinking");
     let failed: string | null = null;
     let finished = false;
@@ -114,7 +118,14 @@ export function useChat(
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspaceId, conversationId, message: question, scope: scopePageId ? { pageId: scopePageId } : null, mode }),
+        body: JSON.stringify({
+          workspaceId,
+          conversationId,
+          message: question,
+          scope: scopePageId ? { pageId: scopePageId } : null,
+          mode,
+          ...(again ? { replaceLast: true } : {}),
+        }),
         signal: controller.signal,
       });
       if (!response.ok || !response.body) {
@@ -152,7 +163,7 @@ export function useChat(
           else if (event.type === "sources") updateLast((m) => ({ ...m, sources: event.sources }));
           else if (event.type === "done") {
             finished = true;
-            updateLast((m) => ({ ...m, ms: event.ms, ...(event.stopReason === "length" ? { note: "cutOff" as const } : {}) }));
+            updateLast((m) => ({ ...m, ms: event.ms, at: new Date().toISOString(), ...(event.stopReason === "length" ? { note: "cutOff" as const } : {}) }));
           } else if (event.type === "error") {
             if (event.code === "aborted") updateLast((m) => ({ ...m, note: "stopped" }));
             else failed = errorText(event.code);
@@ -171,12 +182,14 @@ export function useChat(
       updateLast((m) => (m.ms === undefined && m.startedAt ? { ...m, ms: Date.now() - m.startedAt } : m));
       if (failed) {
         setError(failed);
-        // Nothing was answered: the question goes back into the box, unless it changed things.
+        // Nothing was answered: the question goes back into the box, unless it changed things; asked
+        // again, the conversation stays as it was.
         setMessages((list) => {
           const last = list[list.length - 1];
-          return last?.role === "assistant" && !last.content.trim() && !changed ? list.slice(0, -2) : list;
+          const answered = !(last?.role === "assistant" && !last.content.trim() && !changed);
+          return answered ? list : again ? before : list.slice(0, -2);
         });
-        if (!changed) setInput((current) => current || question);
+        if (!changed && !again) setInput((current) => current || question);
       }
       callbacks.current.onAnswered?.();
     }

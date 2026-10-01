@@ -208,6 +208,11 @@
       "autoHint": "Sormadan ekler ve değiştirir",
       "read": "Sadece oku",
       "readHint": "Hiçbir şeyi değiştirmez"
+    },
+    "actions": {
+      "edit": "Düzenle",
+      "cancel": "Vazgeç",
+      "retry": "Yeniden yanıtla"
     }
   }
 }

@@ -229,7 +229,7 @@ function ChatPanel({
       <ChatThread
         chat={chat}
         blocked={blocked}
-        onSend={() => void chat.send(pageScope)}
+        onSend={(again) => void chat.send(pageScope, again)}
         onSource={openSource}
         variant="panel"
         footer={

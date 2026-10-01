@@ -100,6 +100,8 @@ export type ChatMessageView = {
   /** Answers: the steps taken and how long the answer took (not kept before steps were). */
   steps?: ChatStepView[];
   ms?: number;
+  /** When it was asked or answered (ISO); missing while it's being written. */
+  at?: string;
 };
 
 export type ConversationSummary = { id: string; title: string; updatedAt: string };

@@ -208,6 +208,11 @@
       "autoHint": "Adds and changes without asking",
       "read": "Read only",
       "readHint": "Doesn't change anything"
+    },
+    "actions": {
+      "edit": "Edit",
+      "cancel": "Cancel",
+      "retry": "Answer again"
     }
   }
 }

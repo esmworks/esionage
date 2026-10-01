@@ -220,6 +220,11 @@ export type ChatInput = {
   scope?: ChatScope;
   /** What the chat may change (ask before each change when left out). */
   mode?: ChatMode;
+  /**
+   * Asks again in place of the conversation's last question and answer (answer again, or an edited
+   * question): they are replaced once the new answer is kept, and left as they were otherwise.
+   */
+  replaceLast?: boolean;
 };
 
 /** Refusals before anything is sent: access problems look like missing things. */
@@ -267,11 +272,23 @@ export async function startChat(userId: string, input: ChatInput, signal?: Abort
   if (!(await aiAvailable(input.workspaceId))) refuse("disabled", "AI is off for this workspace");
   const scope = await scopePage(userId, input.workspaceId, input.scope);
   const existing = input.conversationId ? await ownConversation(userId, input.workspaceId, input.conversationId) : null;
-  if (existing && existing.messages.filter((m) => m.role === "user").length >= MAX_CHAT_TURNS) {
+  const replaced = input.replaceLast ? lastTurn(existing) : 0;
+  if (existing && existing.messages.filter((m) => m.role === "user").length - (replaced ? 1 : 0) >= MAX_CHAT_TURNS) {
     refuse("tooLarge", "This conversation is full; start a new one");
   }
   takeRateLimit({ userId, workspaceId: input.workspaceId });
-  return runChat(userId, input.workspaceId, message, scope ? { id: scope.id, title: scope.title } : null, existing, input.mode ?? "ask", signal);
+  return runChat(userId, input.workspaceId, message, scope ? { id: scope.id, title: scope.title } : null, existing, input.mode ?? "ask", replaced, signal);
+}
+
+/**
+ * The records the last question and its answer take (2), to be asked again; refused when there is
+ * none, or when that answer changed things (asking again would make them twice).
+ */
+function lastTurn(existing: typeof aiConversation.$inferSelect | null): number {
+  const [question, answer] = existing?.messages.slice(-2) ?? [];
+  if (question?.role !== "user" || answer?.role !== "assistant") refuse("invalid", "There is no answer to ask again");
+  if (answer.steps?.some((s) => s.kind === "write" && s.outcome === "done")) refuse("invalid", "An answer that changed things can't be asked again");
+  return 2;
 }
 
 type Registry = {
@@ -301,6 +318,8 @@ async function* runChat(
   scope: { id: string; title: string } | null,
   existing: typeof aiConversation.$inferSelect | null,
   initialMode: ChatMode,
+  /** Records at the end of the conversation the new turn replaces. */
+  replaced: number,
   signal?: AbortSignal,
 ): AsyncGenerator<ChatEvent> {
   const ctx: ops.OperationContext = { userId, actor: { userId } };
@@ -335,7 +354,8 @@ async function* runChat(
   try {
     // ---------------------------------------------------------------------------- the question
     // Nothing is searched for the model: it gets the map of what there is and decides itself.
-    const history: AiMessage[] = chatHistory(existing?.messages ?? [], Math.floor(room() * HISTORY_SHARE));
+    const earlier = existing?.messages.slice(0, existing.messages.length - replaced) ?? [];
+    const history: AiMessage[] = chatHistory(earlier, Math.floor(room() * HISTORY_SHARE));
     const mapRoom = Math.min(MAP_CHARS, room() - sizeOf(history) - message.length - 2_000);
     const map = mapRoom >= 500 ? await workspaceMap(ctx, workspaceId, scope?.id ?? null, mapRoom) : "";
     const messages: AiMessage[] = [...history, { role: "user", content: chatQuestionPrompt(message, map) }];
@@ -426,10 +446,14 @@ async function* runChat(
     const now = new Date().toISOString();
     const note = stopped ? "stopped" : failure ? undefined : stopReason === "length" ? "cutOff" : undefined;
     const ms = Date.now() - started;
-    await saveTurn(conversation.id, [
-      { role: "user", content: message, at: now },
-      { role: "assistant", content: answer, sources: refs, ...(note ? { note } : {}), steps, ms, at: now },
-    ]);
+    await saveTurn(
+      conversation.id,
+      [
+        { role: "user", content: message, at: now },
+        { role: "assistant", content: answer, sources: refs, ...(note ? { note } : {}), steps, ms, at: now },
+      ],
+      replaced,
+    );
     await pruneConversations(userId, workspaceId);
     yield { type: "sources", sources: await viewSources(userId, refs) };
     if (!failure) yield { type: "done", stopReason, ms };
@@ -910,10 +934,15 @@ async function databaseRows(ctx: ops.OperationContext, databaseId: string) {
 
 // ---------------------------------------------------------------------------- conversations
 
-async function saveTurn(conversationId: string, records: ChatMessageRecord[]) {
+/** Adds a question and its answer to a conversation, in place of its last `replace` records. */
+async function saveTurn(conversationId: string, records: ChatMessageRecord[], replace = 0) {
+  // Keeps the records before the replaced ones (a jsonb array's elements, in order).
+  const kept = replace
+    ? sql`coalesce((select jsonb_agg(e order by i) from jsonb_array_elements(${aiConversation.messages}) with ordinality as t(e, i) where i <= jsonb_array_length(${aiConversation.messages}) - ${replace}), '[]'::jsonb)`
+    : sql`${aiConversation.messages}`;
   await db
     .update(aiConversation)
-    .set({ messages: sql`${aiConversation.messages} || ${JSON.stringify(records)}::jsonb`, updatedAt: new Date() })
+    .set({ messages: sql`${kept} || ${JSON.stringify(records)}::jsonb`, updatedAt: new Date() })
     .where(eq(aiConversation.id, conversationId));
 }
 
@@ -1026,6 +1055,7 @@ export async function getConversation(userId: string, workspaceId: string, conve
         ...(m.note ? { note: m.note } : {}),
         ...(steps ? { steps } : {}),
         ...(m.ms !== undefined ? { ms: m.ms } : {}),
+        at: m.at,
       };
     }),
   );
