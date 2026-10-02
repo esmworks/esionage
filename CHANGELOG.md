@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.4.0 — 2026-10-02
+
+### Upgrading from 0.3.0
+
+- **Migrations** (0031–0035) run automatically when the container starts.
+- **OpenCode Go:** to use it with Docker Compose, download the new `docker-compose.yml`, which
+  passes `OPENCODE_API_KEY` to the app (or set the key as `AI_API_KEY`).
+
 ### Added
 
 - **The AI chat can add and change things**, as the person and only where they may edit:
@@ -53,6 +61,24 @@
   person in each workspace, on every device, so a personal workspace and a company one can look
   different; folding a heading no longer changes it in every workspace. Migration
   `0035_member_sidebar` (`workspace_member.sidebar`).
+- **Property access.** Someone with full access to a database opens *Property access* from a
+  column's menu and sets what everyone with access to the database may do with that property: edit
+  it, edit its values, view them, see only the column, or nothing, with exceptions for people,
+  groups and whoever a person or created-by property of the row names. The widest rule wins, nobody
+  gets more than their database access, and full access is never restricted; the dialog says who
+  still has full access and links to the database's Share panel. Relations and system properties
+  can't be restricted. Values a person may not see are left out before formulas run (formulas and
+  rollups over them are dropped), and views, filters, sorts, search, the semantic index, autofill,
+  exports, print, published pages, MCP (new `set_property_access` tool) and the REST API never
+  reveal them; writes, board drags, bulk edits, schema changes, CSV imports, forms, templates and
+  copies follow the same rules. Assignment notices and emails skip people who can't see the person
+  property. Changes land in the audit log. Migration `0033_property_access`
+  (`property_permission`).
+- **What a teamspace's members get on its pages.** A teamspace's owners can lower the access its
+  members get where a page doesn't decide (full, edit, comment or view). Full stays the default, so
+  nothing changes for existing workspaces. The teamspace's owners and the workspace's owners keep
+  full access, and whoever adds or moves a page to the top of a lowered teamspace gets full access
+  to it. Migration `0034_teamspace_member_level`.
 - **OpenCode Go as an AI provider:** `AI_PROVIDER=opencode-go` with a Go key (`AI_API_KEY` or
   `OPENCODE_API_KEY`) and any model of its catalog, e.g. `AI_MODEL=kimi-k3`. Each model goes to the
   API it is served over (chat completions, Responses or Anthropic's Messages) with its own context
@@ -62,6 +88,8 @@
 
 ### Changed
 
+- **Ask AI sits beside Home in the sidebar,** as a ✨ icon next to People, where it took a row of
+  its own.
 - **Actions under AI chat messages.** An answer has *Copy* (its Markdown, without the citation
   numbers), *Answer again* (the latest one) and when it was written; a question shows, on hover,
   when it was asked, *Edit* (the latest one: the edited question is answered in place of it) and
