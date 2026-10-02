@@ -946,18 +946,33 @@ export function Sidebar({
                   <Users className="h-4 w-4" />
                 </Link>
               )}
+              {/* The full-page AI chat sits beside Home as an icon, keeping the list above the pages short. */}
+              {aiChat &&
+                (offline ? (
+                  <button
+                    type="button"
+                    disabled
+                    aria-label={tAi("open")}
+                    title={needsServer(tAi("open"))}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted opacity-50"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <Link
+                    href={chatPath(workspaceId)}
+                    aria-label={tAi("open")}
+                    title={tAi("open")}
+                    aria-current={onChatPage ? "page" : undefined}
+                    className={cn(
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-hover hover:text-fg",
+                      onChatPage && "bg-bg-active text-fg",
+                    )}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                  </Link>
+                ))}
             </div>
-            {aiChat && (
-              <SidebarButton
-                icon={<Sparkles className="h-4 w-4" />}
-                href={offline ? undefined : chatPath(workspaceId)}
-                active={onChatPage}
-                disabled={offline}
-                title={needsServer(tAi("open"))}
-              >
-                {tAi("open")}
-              </SidebarButton>
-            )}
           </div>
         </div>
 
